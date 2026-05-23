@@ -12,6 +12,7 @@ import {
 import { cn } from '../lib/utils';
 import type { WorkOrderStatus, WorkOrderPriority } from '../types';
 import WorkOrderSidebar from '../components/WorkOrderSidebar';
+import CreateWorkOrderModal from '../components/CreateWorkOrderModal';
 
 const statusFilters: { value: WorkOrderStatus | 'all'; label: string }[] = [
   { value: 'all', label: '全部状态' },
@@ -37,12 +38,14 @@ export default function WorkOrders() {
   const [priorityFilter, setPriorityFilter] = useState<WorkOrderPriority | 'all'>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const workOrders = useStore((state) => state.workOrders);
   const selectedWorkOrderId = useStore((state) => state.selectedWorkOrderId);
   const selectWorkOrder = useStore((state) => state.selectWorkOrder);
   const sidebarOpen = useStore((state) => state.sidebarOpen);
   const getUserName = useStore((state) => state.getUserName);
+  const currentUser = useStore((state) => state.currentUser);
 
   const filteredWorkOrders = workOrders.filter((wo) => {
     const matchesSearch =
@@ -76,7 +79,11 @@ export default function WorkOrders() {
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              disabled={currentUser?.role === 'engineer'}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <Plus className="w-5 h-5" />
               创建工单
             </button>
@@ -272,6 +279,14 @@ export default function WorkOrders() {
       </div>
 
       <WorkOrderSidebar />
+
+      <CreateWorkOrderModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={(workOrderId) => {
+          selectWorkOrder(workOrderId);
+        }}
+      />
     </div>
   );
 }

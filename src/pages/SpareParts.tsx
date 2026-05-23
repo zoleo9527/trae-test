@@ -8,7 +8,8 @@ import {
   sparePartStatusColors,
 } from '../utils/status';
 import { cn } from '../lib/utils';
-import type { SparePartStatus } from '../types';
+import type { SparePartStatus, SparePartRequest } from '../types';
+import SparePartApprovalModal from '../components/SparePartApprovalModal';
 
 const statusFilters: { value: SparePartStatus | 'all'; label: string }[] = [
   { value: 'all', label: '全部状态' },
@@ -23,9 +24,10 @@ export default function SpareParts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<SparePartStatus | 'all'>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [selectedSparePart, setSelectedSparePart] = useState<SparePartRequest | null>(null);
 
   const spareParts = useStore((state) => state.spareParts);
-  const approveSparePart = useStore((state) => state.approveSparePart);
   const getUserName = useStore((state) => state.getUserName);
   const currentUser = useStore((state) => state.currentUser);
 
@@ -202,17 +204,14 @@ export default function SpareParts() {
                     {sp.status === 'pending' && canApprove && (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => approveSparePart(sp.id)}
+                          onClick={() => {
+                            setSelectedSparePart(sp);
+                            setShowApprovalModal(true);
+                          }}
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="批准"
+                          title="批准/拒绝"
                         >
                           <CheckCircle className="w-5 h-5" />
-                        </button>
-                        <button
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="拒绝"
-                        >
-                          <XCircle className="w-5 h-5" />
                         </button>
                       </div>
                     )}
@@ -236,6 +235,15 @@ export default function SpareParts() {
           </div>
         )}
       </div>
+
+      <SparePartApprovalModal
+        isOpen={showApprovalModal}
+        onClose={() => {
+          setShowApprovalModal(false);
+          setSelectedSparePart(null);
+        }}
+        sparePart={selectedSparePart}
+      />
     </div>
   );
 }

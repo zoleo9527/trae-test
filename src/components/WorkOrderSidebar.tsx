@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Clock, User, Calendar, AlertTriangle, Package, Send, FileText, Camera, ChevronRight } from 'lucide-react';
+import { X, Clock, User, Calendar, AlertTriangle, Package, Send, FileText, Camera, ChevronRight, Users, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
@@ -13,32 +13,40 @@ import {
   actionLabels,
 } from '../utils/status';
 import { cn } from '../lib/utils';
-import type { WorkOrderStatus } from '../types';
+import type { WorkOrderStatus, SparePartRequest } from '../types';
+import SparePartApprovalModal from './SparePartApprovalModal';
 
 export default function WorkOrderSidebar() {
   const [remark, setRemark] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'logs' | 'spareparts'>('info');
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [selectedSparePart, setSelectedSparePart] = useState<SparePartRequest | null>(null);
 
   const sidebarOpen = useStore((state) => state.sidebarOpen);
   const selectedWorkOrderId = useStore((state) => state.selectedWorkOrderId);
   const workOrders = useStore((state) => state.workOrders);
   const selectWorkOrder = useStore((state) => state.selectWorkOrder);
   const updateWorkOrderStatus = useStore((state) => state.updateWorkOrderStatus);
+  const assignWorkOrder = useStore((state) => state.assignWorkOrder);
   const requestSparePart = useStore((state) => state.requestSparePart);
   const getWorkOrderLogs = useStore((state) => state.getWorkOrderLogs);
   const getWorkOrderAlarms = useStore((state) => state.getWorkOrderAlarms);
   const getWorkOrderSpareParts = useStore((state) => state.getWorkOrderSpareParts);
   const getUserName = useStore((state) => state.getUserName);
+  const getEngineers = useStore((state) => state.getEngineers);
   const currentUser = useStore((state) => state.currentUser);
 
   const workOrder = workOrders.find((wo) => wo.id === selectedWorkOrderId);
   const logs = workOrder ? getWorkOrderLogs(workOrder.id) : [];
   const alarms = workOrder ? getWorkOrderAlarms(workOrder.id) : [];
   const spareParts = workOrder ? getWorkOrderSpareParts(workOrder.id) : [];
+  const engineers = getEngineers();
 
   const closeSidebar = () => {
     selectWorkOrder(null);
     setRemark('');
+    setShowAssignDropdown(false);
   };
 
   const handleStatusChange = (newStatus: WorkOrderStatus) => {
@@ -47,14 +55,24 @@ export default function WorkOrderSidebar() {
     setRemark('');
   };
 
-  const handleRequestSparePart = () => {
+  const handleAssign = (engineerId: string) => {
     if (!workOrder) return;
-    requestSparePart(workOrder.id, '熔断器', 'RT18-32/10A', 2, '个');
+    assignWorkOrder(workOrder.id, engineerId, remark || `重新分派给 ${getUserName(engineerId)}`);
+    setRemark('');
+    setShowAssignDropdown(false);
   };
 
-  const getAvailableActions = (): { status: WorkOrderStatus; label: string; color: string }[] => {
+  const handleRequestSparePart = () => {
+    if (!workOrder || !remark.trim()) return;
+    requestSparePart(workOrder.id, '熔断器', 'RT18-32/10A', 2, '个');
+    setRemark('');
+  };
+
+  const canApproveSparePart = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+
+  const getAvailableActions = (): { status: WorkOrderStatus; label: string; color: string; icon: React.ReactNode }[] => {
     if (!workOrder) return [];
-    
+
     const role = currentUser?.role;
     const status = workOrder.status;
 
@@ -62,14 +80,13 @@ export default function WorkOrderSidebar() {
       switch (status) {
         case 'pending':
         case 'returned':
-          return [{ status: 'processing', label: '开始处理', color: 'bg-blue-600 hover:bg-blue-700' }];
+          return [{ status: 'processing', label: '开始处理', color: 'bg-blue-600 hover:bg-blue-700', icon: <Send className="w-4 h-4" /> }];
         case 'processing':
           return [
-            { status: 'waiting_spare', label: '申请备件', color: 'bg-orange-600 hover:bg-orange-700' },
-            { status: 'reviewing', label: '提交完成', color: 'bg-green-600 hover:bg-green-700' },
+            { status: 'reviewing', label: '提交完成', color: 'bg-green-600 hover:bg-green-700', icon: <CheckCircle className="w-4 h-4" /> },
           ];
         case 'waiting_spare':
-          return [{ status: 'processing', label: '备件到位继续', color: 'bg-blue-600 hover:bg-blue-700' }];
+          return [{ status: 'processing', label: '备件到位继续', color: 'bg-blue-600 hover:bg-blue-700', icon: <Send className="w-4 h-4" /> }];
         default:
           return [];
       }
@@ -79,8 +96,8 @@ export default function WorkOrderSidebar() {
       switch (status) {
         case 'reviewing':
           return [
-            { status: 'closed', label: '审核通过', color: 'bg-green-600 hover:bg-green-700' },
-            { status: 'returned', label: '退回重处理', color: 'bg-red-600 hover:bg-red-700' },
+            { status: 'closed', label: '审核通过', color: 'bg-green-600 hover:bg-green-700', icon: <CheckCircle className="w-4 h-4" /> },
+            { status: 'returned', label: '退回重处理', color: 'bg-red-600 hover:bg-red-700', icon: <XCircle className="w-4 h-4" /> },
           ];
         default:
           return [];
@@ -94,6 +111,8 @@ export default function WorkOrderSidebar() {
     return [];
   };
 
+  const canAssign = (currentUser?.role === 'staff' || currentUser?.role === 'admin') && workOrder?.status !== 'closed';
+
   const formatDate = (dateStr: string) => {
     return format(new Date(dateStr), 'yyyy-MM-dd HH:mm', { locale: zhCN });
   };
@@ -103,6 +122,7 @@ export default function WorkOrderSidebar() {
   }
 
   const actions = getAvailableActions();
+  const pendingSpareParts = spareParts.filter((sp) => sp.status === 'pending');
 
   return (
     <div
@@ -135,7 +155,7 @@ export default function WorkOrderSidebar() {
         {[
           { id: 'info', label: '详情', icon: FileText },
           { id: 'logs', label: '处理记录', icon: Clock },
-          { id: 'spareparts', label: '备件', icon: Package },
+          { id: 'spareparts', label: '备件', badge: pendingSpareParts.length },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -143,14 +163,19 @@ export default function WorkOrderSidebar() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2 -mb-px',
+                'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2 -mb-px relative',
                 activeTab === tab.id
                   ? 'text-blue-600 border-blue-600'
                   : 'text-slate-500 border-transparent hover:text-slate-700'
               )}
             >
-              <Icon className="w-4 h-4" />
+              {Icon && <Icon className="w-4 h-4" />}
               {tab.label}
+              {tab.badge && tab.badge > 0 && (
+                <span className="absolute top-2 right-6 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -193,6 +218,42 @@ export default function WorkOrderSidebar() {
                 <span className="text-slate-700">{formatDate(workOrder.deadline)}</span>
               </div>
             </div>
+
+            {canAssign && (
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h5 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  重新分派工单
+                </h5>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                    className="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg text-sm text-left flex items-center justify-between hover:bg-blue-50 transition-colors"
+                  >
+                    <span className="text-slate-600">选择工程师</span>
+                    <ChevronRight className={cn('w-4 h-4 text-slate-400 transition-transform', showAssignDropdown && 'rotate-90')} />
+                  </button>
+                  {showAssignDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                      {engineers.map((engineer) => (
+                        <button
+                          key={engineer.id}
+                          onClick={() => handleAssign(engineer.id)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                        >
+                          <img
+                            src={engineer.avatar}
+                            alt={engineer.name}
+                            className="w-6 h-6 rounded-full"
+                          />
+                          <span className="text-slate-700">{engineer.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {alarms.length > 0 && (
               <div>
@@ -295,14 +356,28 @@ export default function WorkOrderSidebar() {
                   <div key={sp.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-slate-800">{sp.partName}</span>
-                      <span
-                        className={cn(
-                          'text-xs px-2 py-0.5 rounded-full font-medium',
-                          sparePartStatusColors[sp.status]
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            sparePartStatusColors[sp.status]
+                          )}
+                        >
+                          {sparePartStatusLabels[sp.status]}
+                        </span>
+                        {sp.status === 'pending' && canApproveSparePart && (
+                          <button
+                            onClick={() => {
+                              setSelectedSparePart(sp);
+                              setShowApprovalModal(true);
+                            }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="审批"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
                         )}
-                      >
-                        {sparePartStatusLabels[sp.status]}
-                      </span>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
                       <span>型号: {sp.partCode}</span>
@@ -325,45 +400,63 @@ export default function WorkOrderSidebar() {
             onChange={(e) => setRemark(e.target.value)}
             placeholder="输入处理备注..."
             className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            rows={3}
+            rows={2}
           />
         </div>
 
-        {actions.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {actions.map((action) => (
-              <button
-                key={action.status}
-                onClick={() => handleStatusChange(action.status)}
-                disabled={!remark.trim()}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  action.color
-                )}
-              >
-                <Send className="w-4 h-4" />
-                {action.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="space-y-2">
+          {actions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {actions.map((action) => (
+                <button
+                  key={action.status}
+                  onClick={() => handleStatusChange(action.status)}
+                  disabled={!remark.trim()}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                    action.color
+                  )}
+                >
+                  {action.icon}
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-        {currentUser?.role === 'engineer' && workOrder.status === 'processing' && (
-          <button
-            onClick={handleRequestSparePart}
-            className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 border border-orange-300 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors"
-          >
-            <Package className="w-4 h-4" />
-            申请备件
-          </button>
-        )}
+          {currentUser?.role === 'engineer' && workOrder.status === 'processing' && (
+            <button
+              onClick={handleRequestSparePart}
+              disabled={!remark.trim()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-orange-300 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Package className="w-4 h-4" />
+              申请备件 (需填写备注)
+            </button>
+          )}
 
-        {actions.length === 0 && (
-          <p className="text-center text-sm text-slate-500">
-            当前状态无可用操作，请等待其他角色处理
-          </p>
-        )}
+          {actions.length === 0 && workOrder.status !== 'waiting_spare' && (
+            <p className="text-center text-sm text-slate-500">
+              当前状态无可用操作，请等待其他角色处理
+            </p>
+          )}
+
+          {workOrder.status === 'waiting_spare' && currentUser?.role !== 'engineer' && (
+            <p className="text-center text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
+              工单等待备件审批中，请前往备件管理处理
+            </p>
+          )}
+        </div>
       </div>
+
+      <SparePartApprovalModal
+        isOpen={showApprovalModal}
+        onClose={() => {
+          setShowApprovalModal(false);
+          setSelectedSparePart(null);
+        }}
+        sparePart={selectedSparePart}
+      />
     </div>
   );
 }

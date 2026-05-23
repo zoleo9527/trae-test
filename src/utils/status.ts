@@ -71,9 +71,12 @@ export const actionLabels: Record<string, string> = {
   assign: '分派工单',
   start: '开始处理',
   request_spare: '申请备件',
+  approve_spare: '批准备件',
+  reject_spare: '拒绝备件',
   complete: '提交完成',
   reject: '退回重处理',
   close: '关闭工单',
   update: '更新信息',
   reopen: '重新打开',
+  link_alarm: '关联预警',
 };

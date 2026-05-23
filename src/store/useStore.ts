@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { addHours } from 'date-fns';
 import type {
   User,
   WorkOrder,
@@ -9,6 +10,7 @@ import type {
   WorkOrderStatus,
   SparePartStatus,
   DashboardStats,
+  WorkOrderPriority,
 } from '../types';
 import {
   mockUsers,
@@ -17,6 +19,15 @@ import {
   mockAlarms,
   mockSparePartRequests,
 } from '../data/mockData';
+
+interface CreateWorkOrderData {
+  title: string;
+  description: string;
+  priority: WorkOrderPriority;
+  assigneeId: string;
+  alarmId?: string;
+  deadlineHours?: number;
+}
 
 interface AppState {
   currentUser: User | null;
@@ -30,16 +41,22 @@ interface AppState {
   login: (username: string, password: string) => boolean;
   logout: () => void;
   selectWorkOrder: (id: string | null) => void;
+  createWorkOrder: (data: CreateWorkOrderData) => string;
+  assignWorkOrder: (id: string, assigneeId: string, remark: string) => void;
   updateWorkOrderStatus: (id: string, status: WorkOrderStatus, remark: string) => void;
   addWorkOrderLog: (workorderId: string, action: string, remark: string) => void;
   requestSparePart: (workorderId: string, partName: string, partCode: string, quantity: number, unit: string) => void;
-  approveSparePart: (sparePartId: string) => void;
+  approveSparePart: (sparePartId: string, remark: string) => void;
+  rejectSparePart: (sparePartId: string, remark: string) => void;
+  updateAlarmStatus: (alarmId: string, status: 'active' | 'acknowledged' | 'resolved', workorderId?: string) => void;
   toggleSidebar: () => void;
   getWorkOrderLogs: (workorderId: string) => WorkOrderLog[];
   getWorkOrderAlarms: (workorderId: string) => Alarm[];
   getWorkOrderSpareParts: (workorderId: string) => SparePartRequest[];
   getDashboardStats: () => DashboardStats;
   getUserName: (userId: string) => string;
+  getUsers: () => User[];
+  getEngineers: () => User[];
 }
 
 export const useStore = create<AppState>()(
@@ -72,8 +89,63 @@ export const useStore = create<AppState>()(
         set({ selectedWorkOrderId: id, sidebarOpen: id !== null });
       },
 
+      createWorkOrder: (data: CreateWorkOrderData) => {
+        const { currentUser, addWorkOrderLog, updateAlarmStatus } = get();
+        if (!currentUser) return '';
+
+        const now = new Date();
+        const deadline = data.deadlineHours ? addHours(now, data.deadlineHours) : addHours(now, 24);
+
+        const newWorkOrder: WorkOrder = {
+          id: `wo-${Date.now()}`,
+          title: data.title,
+          description: data.description,
+          status: 'pending',
+          priority: data.priority,
+          station: '阳光光伏电站A站',
+          assigneeId: data.assigneeId,
+          alarmId: data.alarmId,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+          deadline: deadline.toISOString(),
+          downtimeHours: 0,
+          photos: [],
+        };
+
+        set((state) => ({
+          workOrders: [...state.workOrders, newWorkOrder],
+        }));
+
+        addWorkOrderLog(newWorkOrder.id, 'create', `创建工单: ${data.title}`);
+
+        if (data.assigneeId) {
+          addWorkOrderLog(newWorkOrder.id, 'assign', `分派给 ${get().getUserName(data.assigneeId)}`);
+        }
+
+        if (data.alarmId) {
+          updateAlarmStatus(data.alarmId, 'acknowledged', newWorkOrder.id);
+          addWorkOrderLog(newWorkOrder.id, 'link_alarm', `关联发电预警: ${data.alarmId}`);
+        }
+
+        return newWorkOrder.id;
+      },
+
+      assignWorkOrder: (id: string, assigneeId: string, remark: string) => {
+        const { addWorkOrderLog, getUserName } = get();
+
+        set((state) => ({
+          workOrders: state.workOrders.map((wo) =>
+            wo.id === id
+              ? { ...wo, assigneeId, updatedAt: new Date().toISOString() }
+              : wo
+          ),
+        }));
+
+        addWorkOrderLog(id, 'assign', remark || `分派给 ${getUserName(assigneeId)}`);
+      },
+
       updateWorkOrderStatus: (id: string, status: WorkOrderStatus, remark: string) => {
-        const { currentUser, addWorkOrderLog } = get();
+        const { currentUser, addWorkOrderLog, getWorkOrderAlarms, updateAlarmStatus } = get();
         if (!currentUser) return;
 
         set((state) => ({
@@ -94,6 +166,13 @@ export const useStore = create<AppState>()(
         };
 
         addWorkOrderLog(id, actionMap[status] || 'update', remark);
+
+        if (status === 'closed') {
+          const alarms = getWorkOrderAlarms(id);
+          alarms.forEach((alarm) => {
+            updateAlarmStatus(alarm.id, 'resolved');
+          });
+        }
       },
 
       addWorkOrderLog: (workorderId: string, action: string, remark: string) => {
@@ -101,7 +180,7 @@ export const useStore = create<AppState>()(
         if (!currentUser) return;
 
         const newLog: WorkOrderLog = {
-          id: `log-${Date.now()}`,
+          id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           workorderId,
           action,
           operatorId: currentUser.id,
@@ -115,7 +194,7 @@ export const useStore = create<AppState>()(
       },
 
       requestSparePart: (workorderId: string, partName: string, partCode: string, quantity: number, unit: string) => {
-        const { currentUser } = get();
+        const { currentUser, addWorkOrderLog, updateWorkOrderStatus } = get();
         if (!currentUser) return;
 
         const newSparePart: SparePartRequest = {
@@ -134,12 +213,15 @@ export const useStore = create<AppState>()(
           spareParts: [...state.spareParts, newSparePart],
         }));
 
-        get().addWorkOrderLog(workorderId, 'request_spare', `申请备件: ${partName} x${quantity}${unit}`);
+        updateWorkOrderStatus(workorderId, 'waiting_spare', `申请备件: ${partName} x${quantity}${unit}`);
       },
 
-      approveSparePart: (sparePartId: string) => {
-        const { currentUser } = get();
+      approveSparePart: (sparePartId: string, remark: string) => {
+        const { currentUser, spareParts, addWorkOrderLog, updateWorkOrderStatus } = get();
         if (!currentUser) return;
+
+        const sparePart = spareParts.find((sp) => sp.id === sparePartId);
+        if (!sparePart) return;
 
         set((state) => ({
           spareParts: state.spareParts.map((sp) =>
@@ -151,6 +233,43 @@ export const useStore = create<AppState>()(
                   approverId: currentUser.id,
                 }
               : sp
+          ),
+        }));
+
+        addWorkOrderLog(sparePart.workorderId, 'approve_spare', `备件申请已批准: ${sparePart.partName} - ${remark}`);
+        updateWorkOrderStatus(sparePart.workorderId, 'processing', `备件已批准，继续处理: ${remark}`);
+      },
+
+      rejectSparePart: (sparePartId: string, remark: string) => {
+        const { currentUser, spareParts, addWorkOrderLog, updateWorkOrderStatus } = get();
+        if (!currentUser) return;
+
+        const sparePart = spareParts.find((sp) => sp.id === sparePartId);
+        if (!sparePart) return;
+
+        set((state) => ({
+          spareParts: state.spareParts.map((sp) =>
+            sp.id === sparePartId
+              ? {
+                  ...sp,
+                  status: 'rejected' as SparePartStatus,
+                  approvedAt: new Date().toISOString(),
+                  approverId: currentUser.id,
+                }
+              : sp
+          ),
+        }));
+
+        addWorkOrderLog(sparePart.workorderId, 'reject_spare', `备件申请被拒绝: ${sparePart.partName} - ${remark}`);
+        updateWorkOrderStatus(sparePart.workorderId, 'processing', `备件申请被拒绝，需重新评估: ${remark}`);
+      },
+
+      updateAlarmStatus: (alarmId: string, status: 'active' | 'acknowledged' | 'resolved', workorderId?: string) => {
+        set((state) => ({
+          alarms: state.alarms.map((alarm) =>
+            alarm.id === alarmId
+              ? { ...alarm, status, workorderId: workorderId || alarm.workorderId }
+              : alarm
           ),
         }));
       },
@@ -174,29 +293,40 @@ export const useStore = create<AppState>()(
       },
 
       getDashboardStats: () => {
-        const { workOrders, alarms } = get();
+        const { workOrders, alarms, spareParts } = get();
         const now = new Date();
         const today = now.toISOString().split('T')[0];
 
         return {
           totalWorkOrders: workOrders.length,
-          pendingWorkOrders: workOrders.filter((wo) => wo.status === 'pending' || wo.status === 'processing').length,
+          pendingWorkOrders: workOrders.filter((wo) => wo.status === 'pending' || wo.status === 'processing' || wo.status === 'returned').length,
           activeAlarms: alarms.filter((a) => a.status === 'active' || a.status === 'acknowledged').length,
           criticalAlarms: alarms.filter((a) => a.level === 'critical' && a.status !== 'resolved').length,
           totalDowntime: workOrders.reduce((sum, wo) => sum + wo.downtimeHours, 0),
           completionRate: Math.round(
-            (workOrders.filter((wo) => wo.status === 'closed').length / workOrders.length) * 100
+            workOrders.length > 0
+              ? (workOrders.filter((wo) => wo.status === 'closed').length / workOrders.length) * 100
+              : 0
           ),
           todayNewWorkOrders: workOrders.filter((wo) => wo.createdAt.split('T')[0] === today).length,
           overdueWorkOrders: workOrders.filter(
             (wo) => new Date(wo.deadline) < now && wo.status !== 'closed'
           ).length,
-        };
+          pendingSpareParts: spareParts.filter((sp) => sp.status === 'pending').length,
+        } as DashboardStats & { pendingSpareParts: number };
       },
 
       getUserName: (userId: string) => {
         const user = mockUsers.find((u) => u.id === userId);
         return user?.name || '未知用户';
+      },
+
+      getUsers: () => {
+        return mockUsers;
+      },
+
+      getEngineers: () => {
+        return mockUsers.filter((u) => u.role === 'engineer');
       },
     }),
     {
@@ -206,6 +336,7 @@ export const useStore = create<AppState>()(
         workOrders: state.workOrders,
         workOrderLogs: state.workOrderLogs,
         spareParts: state.spareParts,
+        alarms: state.alarms,
       }),
     }
   )

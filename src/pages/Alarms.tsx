@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, AlertTriangle, Clock, Zap, Filter, ChevronDown, Plus, ArrowUpRight } from 'lucide-react';
+import { Search, AlertTriangle, Clock, Zap, Filter, ChevronDown, Plus, ArrowUpRight, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -11,6 +11,7 @@ import {
 } from '../utils/status';
 import { cn } from '../lib/utils';
 import type { AlarmLevel, AlarmStatus } from '../types';
+import CreateWorkOrderModal from '../components/CreateWorkOrderModal';
 
 const levelFilters: { value: AlarmLevel | 'all'; label: string }[] = [
   { value: 'all', label: '全部等级' },
@@ -43,8 +44,11 @@ export default function Alarms() {
   const [showLevelDropdown, setShowLevelDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const alarms = useStore((state) => state.alarms);
+  const selectWorkOrder = useStore((state) => state.selectWorkOrder);
+  const currentUser = useStore((state) => state.currentUser);
 
   const filteredAlarms = alarms.filter((alarm) => {
     const matchesSearch =
@@ -300,14 +304,29 @@ export default function Alarms() {
               </div>
 
               {selectedAlarm.workorderId ? (
-                <button className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium">
-                  已关联工单
+                <button
+                  onClick={() => {
+                    selectWorkOrder(selectedAlarm.workorderId!);
+                  }}
+                  className="w-full py-2.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  查看关联工单
                 </button>
               ) : (
-                <button className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  disabled={currentUser?.role === 'engineer'}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Plus className="w-4 h-4" />
                   创建巡检工单
                 </button>
+              )}
+              {!selectedAlarm.workorderId && currentUser?.role === 'engineer' && (
+                <p className="text-xs text-slate-500 text-center mt-2">
+                  请联系运维内勤或站长创建工单
+                </p>
               )}
             </div>
           ) : (
@@ -318,6 +337,16 @@ export default function Alarms() {
           )}
         </div>
       </div>
+
+      <CreateWorkOrderModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        alarm={selectedAlarm}
+        onSuccess={(workOrderId) => {
+          selectWorkOrder(workOrderId);
+          setSelectedAlarmId(null);
+        }}
+      />
     </div>
   );
 }
