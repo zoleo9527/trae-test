@@ -44,6 +44,27 @@ router.post('/:id/process', authenticateToken, requireRole([roles.STATION_MANAGE
   res.json(paymentNodes[index]);
 });
 
+router.put('/:id/progress', authenticateToken, requireRole([roles.STATION_MANAGER, roles.ADMIN_STAFF]), (req, res) => {
+  const index = paymentNodes.findIndex(n => n.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '回款节点不存在' });
+  }
+  
+  if (paymentNodes[index].status !== 'processing') {
+    return res.status(400).json({ error: '只能更新办理中节点的进度' });
+  }
+  
+  const { currentStep, nextStep } = req.body;
+  if (currentStep) {
+    paymentNodes[index].currentStep = currentStep;
+  }
+  if (nextStep !== undefined) {
+    paymentNodes[index].nextStep = nextStep;
+  }
+  
+  res.json(paymentNodes[index]);
+});
+
 router.post('/:id/complete', authenticateToken, requireRole([roles.STATION_MANAGER, roles.ADMIN_STAFF]), (req, res) => {
   const index = paymentNodes.findIndex(n => n.id === req.params.id);
   if (index === -1) {

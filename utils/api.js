@@ -63,6 +63,7 @@ export const api = {
     get: (id) => apiRequest(`/api/payment/${id}`),
     getSummary: () => apiRequest('/api/payment/summary'),
     process: (id, data) => apiRequest(`/api/payment/${id}/process`, { method: 'POST', body: JSON.stringify(data) }),
+    updateProgress: (id, data) => apiRequest(`/api/payment/${id}/progress`, { method: 'PUT', body: JSON.stringify(data) }),
     complete: (id, data) => apiRequest(`/api/payment/${id}/complete`, { method: 'POST', body: JSON.stringify(data) }),
     addRemark: (id, content) => apiRequest(`/api/payment/${id}/remarks`, { method: 'POST', body: JSON.stringify({ content }) }),
     addEvidence: (id, name) => apiRequest(`/api/payment/${id}/evidences`, { method: 'POST', body: JSON.stringify({ name }) }),

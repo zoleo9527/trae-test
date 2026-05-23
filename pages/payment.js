@@ -17,6 +17,10 @@ function Payment() {
   const [newRemark, setNewRemark] = useState('');
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completeForm, setCompleteForm] = useState({ invoiceNo: '', remark: '' });
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceName, setEvidenceName] = useState('');
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressForm, setProgressForm] = useState({ currentStep: '', nextStep: '' });
   const { hasRole, ROLES } = useAuth();
   const canEdit = hasRole([ROLES.STATION_MANAGER, ROLES.ADMIN_STAFF]);
 
@@ -70,6 +74,38 @@ function Payment() {
     } catch (error) {
       console.error('添加备注失败:', error);
     }
+  };
+
+  const handleAddEvidence = async () => {
+    if (!selectedNode || !evidenceName.trim()) return;
+    try {
+      await api.payment.addEvidence(selectedNode.id, evidenceName);
+      setShowEvidenceModal(false);
+      setEvidenceName('');
+      loadData();
+    } catch (error) {
+      console.error('添加凭证失败:', error);
+    }
+  };
+
+  const handleUpdateProgress = async () => {
+    if (!selectedNode) return;
+    try {
+      await api.payment.updateProgress(selectedNode.id, progressForm);
+      setShowProgressModal(false);
+      setProgressForm({ currentStep: '', nextStep: '' });
+      loadData();
+    } catch (error) {
+      console.error('更新进度失败:', error);
+    }
+  };
+
+  const openProgressModal = () => {
+    setProgressForm({
+      currentStep: selectedNode.currentStep || '',
+      nextStep: selectedNode.nextStep || '',
+    });
+    setShowProgressModal(true);
   };
 
   const formatMoney = (amount) => {
@@ -214,19 +250,39 @@ function Payment() {
                 )}
               </div>
 
-              {selectedNode.currentStep && (
+              {selectedNode.status === 'processing' && (
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-600 font-medium mb-1">当前进度</p>
-                  <p className="text-sm text-blue-700">{selectedNode.currentStep}</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-blue-600 font-medium">当前进度</p>
+                    {canEdit && (
+                      <button
+                        onClick={openProgressModal}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        编辑
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm text-blue-700 mb-2">{selectedNode.currentStep || '办理中...'}</p>
                   {selectedNode.nextStep && (
-                    <p className="text-xs text-blue-500 mt-1">→ 下一步：{selectedNode.nextStep}</p>
+                    <p className="text-xs text-blue-500">→ 下一步：{selectedNode.nextStep}</p>
                   )}
                 </div>
               )}
 
-              {selectedNode.evidences?.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">📎 凭证材料</p>
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">📎 凭证材料</p>
+                  {canEdit && selectedNode.status !== 'completed' && (
+                    <button
+                      onClick={() => setShowEvidenceModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      + 补充材料
+                    </button>
+                  )}
+                </div>
+                {selectedNode.evidences?.length > 0 ? (
                   <div className="space-y-2">
                     {selectedNode.evidences.map((ev, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm">
@@ -236,8 +292,10 @@ function Payment() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-2">暂无凭证材料</p>
+                )}
+              </div>
 
               <div className="mt-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">💬 沟通记录</p>
@@ -336,6 +394,86 @@ function Payment() {
                 className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
               >
                 确认完成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEvidenceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 p-6">
+            <h3 className="font-semibold text-gray-800 mb-4">补充凭证材料</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">材料名称</label>
+              <input
+                type="text"
+                value={evidenceName}
+                onChange={(e) => setEvidenceName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                placeholder="例如：发票扫描件、验收单、对账单等"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              📌 注：当前为演示模式，记录材料名称用于追溯。生产环境可集成文件上传功能。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowEvidenceModal(false); setEvidenceName(''); }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddEvidence}
+                disabled={!evidenceName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                确认添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProgressModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 p-6">
+            <h3 className="font-semibold text-gray-800 mb-4">更新办理进度</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">当前步骤</label>
+                <input
+                  type="text"
+                  value={progressForm.currentStep}
+                  onChange={(e) => setProgressForm({ ...progressForm, currentStep: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="例如：财务审核中、业主方签字等"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">下一步说明</label>
+                <textarea
+                  value={progressForm.nextStep}
+                  onChange={(e) => setProgressForm({ ...progressForm, nextStep: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-20 resize-none"
+                  placeholder="例如：等待发票开具、安排付款等（可选）"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => { setShowProgressModal(false); setProgressForm({ currentStep: '', nextStep: '' }); }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleUpdateProgress}
+                disabled={!progressForm.currentStep.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                确认更新
               </button>
             </div>
           </div>
