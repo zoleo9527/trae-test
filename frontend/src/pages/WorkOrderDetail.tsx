@@ -43,6 +43,7 @@ import {
   ReviewLevelLabels,
   PartRequestStatusEnum,
   ReviewLevelEnum,
+  RoleLabels,
 } from '../types/index';
 import type { Dayjs } from 'dayjs';
 
@@ -276,7 +277,7 @@ const WorkOrderDetail: React.FC = () => {
       <Select placeholder="请选择当前操作用户">
         {users.map((user) => (
           <Option key={user.id} value={user.id}>
-            {user.name} ({user.role === 'admin' ? '管理员' : user.role === 'station_master' ? '站长' : user.role === 'engineer' ? '巡检工程师' : user.role === 'office_staff' ? '运维内勤' : user.role})
+            {user.name} ({RoleLabels[user.role] || user.role})
           </Option>
         ))}
       </Select>

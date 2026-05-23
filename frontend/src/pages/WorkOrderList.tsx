@@ -85,7 +85,14 @@ const WorkOrderList: React.FC = () => {
       const queryFilters: any = { ...filters };
 
       if (activeTab === 'todo') {
-        queryFilters.statuses = roleTodoStatuses;
+        if (filters.status) {
+          queryFilters.statuses = roleTodoStatuses.includes(filters.status) 
+            ? [filters.status] 
+            : roleTodoStatuses;
+          delete queryFilters.status;
+        } else {
+          queryFilters.statuses = roleTodoStatuses;
+        }
       }
 
       const res = await workOrderApi.getList({
@@ -130,9 +137,18 @@ const WorkOrderList: React.FC = () => {
   const handleExport = async () => {
     try {
       const queryFilters: any = { ...filters };
+      
       if (activeTab === 'todo') {
-        queryFilters.statuses = roleTodoStatuses;
+        if (filters.status) {
+          queryFilters.statuses = roleTodoStatuses.includes(filters.status) 
+            ? [filters.status] 
+            : roleTodoStatuses;
+          delete queryFilters.status;
+        } else {
+          queryFilters.statuses = roleTodoStatuses;
+        }
       }
+      
       const res = await workOrderApi.export(queryFilters);
       message.success(`导出成功，文件路径: ${res.data.filePath}`);
     } catch (error) {
@@ -308,14 +324,25 @@ const WorkOrderList: React.FC = () => {
             <Col xs={24} sm={12} md={5}>
               <Form.Item label="状态">
                 <Select
-                  placeholder="选择状态"
+                  placeholder={activeTab === 'todo' ? '筛选待办状态' : '选择状态'}
                   allowClear
                   style={{ width: '100%' }}
                   value={filters.status || undefined}
                   onChange={(value) => setFilters({ ...filters, status: value })}
                 >
-                  {Object.entries(WorkOrderStatusLabels).map(([value, label]) => (
-                    <Option key={value} value={value}>{label}</Option>
+                  {(activeTab === 'todo'
+                    ? roleTodoStatuses.map((status) => ({
+                        value: status,
+                        label: WorkOrderStatusLabels[status],
+                      }))
+                    : Object.entries(WorkOrderStatusLabels).map(([value, label]) => ({
+                        value,
+                        label,
+                      }))
+                  ).map(({ value, label }) => (
+                    <Option key={value} value={value}>
+                      {label}
+                    </Option>
                   ))}
                 </Select>
               </Form.Item>
