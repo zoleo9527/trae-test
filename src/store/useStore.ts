@@ -48,6 +48,8 @@ interface AppState {
   requestSparePart: (workorderId: string, partName: string, partCode: string, quantity: number, unit: string) => void;
   approveSparePart: (sparePartId: string, remark: string) => void;
   rejectSparePart: (sparePartId: string, remark: string) => void;
+  issueSparePart: (sparePartId: string, remark: string) => void;
+  returnSparePart: (sparePartId: string, remark: string) => void;
   updateAlarmStatus: (alarmId: string, status: 'active' | 'acknowledged' | 'resolved', workorderId?: string) => void;
   toggleSidebar: () => void;
   getWorkOrderLogs: (workorderId: string) => WorkOrderLog[];
@@ -262,6 +264,54 @@ export const useStore = create<AppState>()(
 
         addWorkOrderLog(sparePart.workorderId, 'reject_spare', `备件申请被拒绝: ${sparePart.partName} - ${remark}`);
         updateWorkOrderStatus(sparePart.workorderId, 'processing', `备件申请被拒绝，需重新评估: ${remark}`);
+      },
+
+      issueSparePart: (sparePartId: string, remark: string) => {
+        const { currentUser, spareParts, addWorkOrderLog } = get();
+        if (!currentUser) return;
+
+        const sparePart = spareParts.find((sp) => sp.id === sparePartId);
+        if (!sparePart) return;
+
+        set((state) => ({
+          spareParts: state.spareParts.map((sp) =>
+            sp.id === sparePartId
+              ? {
+                  ...sp,
+                  status: 'issued' as SparePartStatus,
+                  issuedAt: new Date().toISOString(),
+                  issuerId: currentUser.id,
+                  issueRemark: remark,
+                }
+              : sp
+          ),
+        }));
+
+        addWorkOrderLog(sparePart.workorderId, 'issue_spare', `备件已发放: ${sparePart.partName} x${sparePart.quantity}${sparePart.unit} - ${remark}`);
+      },
+
+      returnSparePart: (sparePartId: string, remark: string) => {
+        const { currentUser, spareParts, addWorkOrderLog } = get();
+        if (!currentUser) return;
+
+        const sparePart = spareParts.find((sp) => sp.id === sparePartId);
+        if (!sparePart) return;
+
+        set((state) => ({
+          spareParts: state.spareParts.map((sp) =>
+            sp.id === sparePartId
+              ? {
+                  ...sp,
+                  status: 'returned' as SparePartStatus,
+                  returnedAt: new Date().toISOString(),
+                  returnerId: currentUser.id,
+                  returnRemark: remark,
+                }
+              : sp
+          ),
+        }));
+
+        addWorkOrderLog(sparePart.workorderId, 'return_spare', `备件已归还: ${sparePart.partName} x${sparePart.quantity}${sparePart.unit} - ${remark}`);
       },
 
       updateAlarmStatus: (alarmId: string, status: 'active' | 'acknowledged' | 'resolved', workorderId?: string) => {

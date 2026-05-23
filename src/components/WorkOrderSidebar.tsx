@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Clock, User, Calendar, AlertTriangle, Package, Send, FileText, Camera, ChevronRight, Users, CheckCircle, XCircle } from 'lucide-react';
+import { X, Clock, User, Calendar, AlertTriangle, Package, Send, FileText, Camera, ChevronRight, Users, CheckCircle, XCircle, ArrowLeftRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
@@ -15,12 +15,15 @@ import {
 import { cn } from '../lib/utils';
 import type { WorkOrderStatus, SparePartRequest } from '../types';
 import SparePartApprovalModal from './SparePartApprovalModal';
+import SparePartIssueReturnModal from './SparePartIssueReturnModal';
 
 export default function WorkOrderSidebar() {
   const [remark, setRemark] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'logs' | 'spareparts'>('info');
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showIssueReturnModal, setShowIssueReturnModal] = useState(false);
+  const [issueReturnMode, setIssueReturnMode] = useState<'issue' | 'return'>('issue');
   const [selectedSparePart, setSelectedSparePart] = useState<SparePartRequest | null>(null);
 
   const sidebarOpen = useStore((state) => state.sidebarOpen);
@@ -355,39 +358,145 @@ export default function WorkOrderSidebar() {
                 <p>暂无备件领用记录</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {spareParts.map((sp) => (
-                  <div key={sp.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-slate-800">{sp.partName}</span>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'text-xs px-2 py-0.5 rounded-full font-medium',
-                            sparePartStatusColors[sp.status]
-                          )}
-                        >
-                          {sparePartStatusLabels[sp.status]}
-                        </span>
-                        {sp.status === 'pending' && canApproveSparePart && (
-                          <button
-                            onClick={() => {
-                              setSelectedSparePart(sp);
-                              setShowApprovalModal(true);
-                            }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="审批"
+                  <div key={sp.id} className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="p-3 border-b border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium text-slate-800">{sp.partName}</span>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {sp.partCode} · {sp.quantity}{sp.unit}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'text-xs px-2 py-0.5 rounded-full font-medium',
+                              sparePartStatusColors[sp.status]
+                            )}
                           >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                        )}
+                            {sparePartStatusLabels[sp.status]}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {sp.status === 'pending' && canApproveSparePart && (
+                              <button
+                                onClick={() => {
+                                  setSelectedSparePart(sp);
+                                  setShowApprovalModal(true);
+                                }}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="审批"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                            {sp.status === 'approved' && canApproveSparePart && (
+                              <button
+                                onClick={() => {
+                                  setSelectedSparePart(sp);
+                                  setIssueReturnMode('issue');
+                                  setShowIssueReturnModal(true);
+                                }}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="发放"
+                              >
+                                <Send className="w-4 h-4" />
+                              </button>
+                            )}
+                            {sp.status === 'issued' && canApproveSparePart && (
+                              <button
+                                onClick={() => {
+                                  setSelectedSparePart(sp);
+                                  setIssueReturnMode('return');
+                                  setShowIssueReturnModal(true);
+                                }}
+                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                title="归还"
+                              >
+                                <ArrowLeftRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                      <span>型号: {sp.partCode}</span>
-                      <span>数量: {sp.quantity}{sp.unit}</span>
-                      <span>申请人: {getUserName(sp.requesterId)}</span>
-                      <span>申请时间: {formatDate(sp.createdAt)}</span>
+
+                    <div className="p-3">
+                      <h5 className="text-xs font-medium text-slate-600 mb-2 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        流向追踪
+                      </h5>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-slate-700">申请</span>
+                              <span className="text-xs text-slate-400">{formatDate(sp.createdAt)}</span>
+                            </div>
+                            <p className="text-xs text-slate-500">{getUserName(sp.requesterId)}</p>
+                          </div>
+                        </div>
+
+                        {sp.approvedAt && (
+                          <div className="flex items-start gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-700">批准</span>
+                                <span className="text-xs text-slate-400">{formatDate(sp.approvedAt)}</span>
+                              </div>
+                              <p className="text-xs text-slate-500">{sp.approverId ? getUserName(sp.approverId) : '-'}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {sp.issuedAt && (
+                          <div className="flex items-start gap-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-700">发放</span>
+                                <span className="text-xs text-slate-400">{formatDate(sp.issuedAt)}</span>
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                {sp.issuerId ? getUserName(sp.issuerId) : '-'}
+                                {sp.issueRemark && ` · ${sp.issueRemark}`}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {sp.returnedAt && (
+                          <div className="flex items-start gap-2">
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-1.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-700">归还</span>
+                                <span className="text-xs text-slate-400">{formatDate(sp.returnedAt)}</span>
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                {sp.returnerId ? getUserName(sp.returnerId) : '-'}
+                                {sp.returnRemark && ` · ${sp.returnRemark}`}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {sp.status === 'rejected' && (
+                          <div className="flex items-start gap-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-slate-700">已拒绝</span>
+                                <span className="text-xs text-slate-400">{sp.approvedAt ? formatDate(sp.approvedAt) : '-'}</span>
+                              </div>
+                              <p className="text-xs text-slate-500">{sp.approverId ? getUserName(sp.approverId) : '-'}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -462,6 +571,16 @@ export default function WorkOrderSidebar() {
           setSelectedSparePart(null);
         }}
         sparePart={selectedSparePart}
+      />
+
+      <SparePartIssueReturnModal
+        isOpen={showIssueReturnModal}
+        onClose={() => {
+          setShowIssueReturnModal(false);
+          setSelectedSparePart(null);
+        }}
+        sparePart={selectedSparePart}
+        mode={issueReturnMode}
       />
     </div>
   );

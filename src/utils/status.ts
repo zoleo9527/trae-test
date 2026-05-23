@@ -73,6 +73,8 @@ export const actionLabels: Record<string, string> = {
   request_spare: '申请备件',
   approve_spare: '批准备件',
   reject_spare: '拒绝备件',
+  issue_spare: '发放备件',
+  return_spare: '归还备件',
   complete: '提交完成',
   reject: '退回重处理',
   close: '关闭工单',

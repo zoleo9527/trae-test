@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Package, Clock, CheckCircle, XCircle, Filter, ChevronDown, Plus, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Search, Package, Clock, CheckCircle, XCircle, Filter, ChevronDown, Plus, ExternalLink, AlertTriangle, Send, ArrowLeftRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
@@ -13,6 +13,7 @@ import {
 import { cn } from '../lib/utils';
 import type { SparePartStatus, SparePartRequest } from '../types';
 import SparePartApprovalModal from '../components/SparePartApprovalModal';
+import SparePartIssueReturnModal from '../components/SparePartIssueReturnModal';
 
 const statusFilters: { value: SparePartStatus | 'all'; label: string }[] = [
   { value: 'all', label: '全部状态' },
@@ -29,6 +30,8 @@ export default function SpareParts() {
   const [statusFilter, setStatusFilter] = useState<SparePartStatus | 'all'>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showIssueReturnModal, setShowIssueReturnModal] = useState(false);
+  const [issueReturnMode, setIssueReturnMode] = useState<'issue' | 'return'>('issue');
   const [selectedSparePart, setSelectedSparePart] = useState<SparePartRequest | null>(null);
 
   const spareParts = useStore((state) => state.spareParts);
@@ -72,6 +75,8 @@ export default function SpareParts() {
   };
 
   const canApprove = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const canIssue = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const canReturn = currentUser?.role === 'admin' || currentUser?.role === 'staff' || currentUser?.role === 'engineer';
 
   return (
     <div className="space-y-6">
@@ -274,7 +279,7 @@ export default function SpareParts() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         {sp.status === 'pending' && canApprove && (
                           <button
                             onClick={() => {
@@ -287,9 +292,35 @@ export default function SpareParts() {
                             <CheckCircle className="w-5 h-5" />
                           </button>
                         )}
+                        {sp.status === 'approved' && canIssue && (
+                          <button
+                            onClick={() => {
+                              setSelectedSparePart(sp);
+                              setIssueReturnMode('issue');
+                              setShowIssueReturnModal(true);
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="发放"
+                          >
+                            <Send className="w-5 h-5" />
+                          </button>
+                        )}
+                        {sp.status === 'issued' && canReturn && (
+                          <button
+                            onClick={() => {
+                              setSelectedSparePart(sp);
+                              setIssueReturnMode('return');
+                              setShowIssueReturnModal(true);
+                            }}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="归还"
+                          >
+                            <ArrowLeftRight className="w-5 h-5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewWorkOrder(sp.workorderId)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
                           title="查看工单"
                         >
                           <ExternalLink className="w-5 h-5" />
@@ -320,6 +351,21 @@ export default function SpareParts() {
         sparePart={selectedSparePart}
         onSuccess={(workorderId) => {
           handleViewWorkOrder(workorderId);
+        }}
+      />
+
+      <SparePartIssueReturnModal
+        isOpen={showIssueReturnModal}
+        onClose={() => {
+          setShowIssueReturnModal(false);
+          setSelectedSparePart(null);
+        }}
+        sparePart={selectedSparePart}
+        mode={issueReturnMode}
+        onSuccess={() => {
+          if (selectedSparePart) {
+            handleViewWorkOrder(selectedSparePart.workorderId);
+          }
         }}
       />
     </div>

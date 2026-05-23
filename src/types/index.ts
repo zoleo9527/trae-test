@@ -76,6 +76,12 @@ export interface SparePartRequest {
   createdAt: string;
   approvedAt?: string;
   approverId?: string;
+  issuedAt?: string;
+  issuerId?: string;
+  issueRemark?: string;
+  returnedAt?: string;
+  returnerId?: string;
+  returnRemark?: string;
 }
 
 export interface DashboardStats {
