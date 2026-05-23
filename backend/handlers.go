@@ -9,6 +9,64 @@ import (
 	"gorm.io/gorm"
 )
 
+type TransitionRule struct {
+	FromStatus   DefectStatus
+	ToStatus     DefectStatus
+	AllowedRoles []UserRole
+	RequireAssignee bool
+}
+
+var transitionRules = []TransitionRule{
+	{FromStatus: StatusPending, ToStatus: StatusAssigned, AllowedRoles: []UserRole{RoleStationMaster}, RequireAssignee: true},
+	{FromStatus: StatusAssigned, ToStatus: StatusInProgress, AllowedRoles: []UserRole{RoleStationMaster, RoleInspector}, RequireAssignee: true},
+	{FromStatus: StatusRejected, ToStatus: StatusInProgress, AllowedRoles: []UserRole{RoleStationMaster, RoleInspector}, RequireAssignee: true},
+	{FromStatus: StatusInProgress, ToStatus: StatusPendingReview, AllowedRoles: []UserRole{RoleStationMaster, RoleInspector}, RequireAssignee: true},
+	{FromStatus: StatusPendingReview, ToStatus: StatusClosed, AllowedRoles: []UserRole{RoleStationMaster}, RequireAssignee: false},
+	{FromStatus: StatusPendingReview, ToStatus: StatusRejected, AllowedRoles: []UserRole{RoleStationMaster}, RequireAssignee: false},
+	{FromStatus: StatusPendingReview, ToStatus: StatusNeedReview, AllowedRoles: []UserRole{RoleStationMaster}, RequireAssignee: false},
+	{FromStatus: StatusClosed, ToStatus: StatusNeedReview, AllowedRoles: []UserRole{RoleStationMaster}, RequireAssignee: false},
+}
+
+func validateStatusTransition(defect Defect, newStatus DefectStatus, userRole UserRole, userID string, assigneeID string) error {
+	if defect.Status == newStatus {
+		return nil
+	}
+
+	for _, rule := range transitionRules {
+		if rule.FromStatus == defect.Status && rule.ToStatus == newStatus {
+			roleAllowed := false
+			for _, allowedRole := range rule.AllowedRoles {
+				if allowedRole == userRole {
+					roleAllowed = true
+					break
+				}
+			}
+			if !roleAllowed {
+				return fiber.NewError(403, "当前角色无此操作权限")
+			}
+
+			if rule.RequireAssignee {
+				if newStatus == StatusAssigned {
+					if assigneeID == "" {
+						return fiber.NewError(400, "派单必须指定处理人")
+					}
+				} else {
+					if defect.AssigneeID == "" {
+						return fiber.NewError(400, "缺陷未分配处理人")
+					}
+					if userRole == RoleInspector && defect.AssigneeID != userID {
+						return fiber.NewError(403, "只能处理分配给自己的缺陷")
+					}
+				}
+			}
+
+			return nil
+		}
+	}
+
+	return fiber.NewError(400, "不允许的状态流转: "+string(defect.Status)+" → "+string(newStatus))
+}
+
 func SetupRoutes(app *fiber.App) {
 	api := app.Group("/api")
 
@@ -143,10 +201,15 @@ func UpdateDefectStatus(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "Defect not found"})
 	}
 
-	oldStatus := defect.Status
 	userRole := UserRole(c.Get("X-User-Role", "inspector"))
 	var user User
 	DB.Where("role = ?", userRole).First(&user)
+
+	if err := validateStatusTransition(defect, req.Status, userRole, user.ID, req.AssigneeID); err != nil {
+		return c.Status(err.(*fiber.Error).Code).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	oldStatus := defect.Status
 
 	var action string
 	switch req.Status {
@@ -158,14 +221,16 @@ func UpdateDefectStatus(c *fiber.Ctx) error {
 		defect.AssigneeName = assignee.Name
 	case StatusInProgress:
 		action = "开始处理"
-		defect.DowntimeStart = &[]time.Time{time.Now()}[0]
+		if defect.DowntimeStart == nil {
+			defect.DowntimeStart = &[]time.Time{time.Now()}[0]
+		}
 	case StatusPendingReview:
 		action = "提交整改"
 	case StatusRejected:
 		action = "驳回"
 	case StatusClosed:
 		action = "关闭工单"
-		if defect.DowntimeStart != nil {
+		if defect.DowntimeStart != nil && defect.DowntimeEnd == nil {
 			defect.DowntimeEnd = &[]time.Time{time.Now()}[0]
 			defect.DowntimeMinutes = int(time.Since(*defect.DowntimeStart).Minutes())
 		}
@@ -205,6 +270,10 @@ func BatchUpdateStatus(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	if len(req.IDs) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "请选择要处理的缺陷"})
+	}
+
 	userRole := UserRole(c.Get("X-User-Role", "inspector"))
 	var user User
 	DB.Where("role = ?", userRole).First(&user)
@@ -214,6 +283,25 @@ func BatchUpdateStatus(c *fiber.Ctx) error {
 		DB.First(&assignee, "id = ?", req.AssigneeID)
 	}
 
+	var action string
+	if req.Status == StatusAssigned {
+		if userRole != RoleStationMaster {
+			return c.Status(403).JSON(fiber.Map{"error": "只有站长可以批量派单"})
+		}
+		if assignee.ID == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "批量派单必须指定处理人"})
+		}
+		action = "批量派单"
+	} else if req.Status == StatusPendingReview {
+		if userRole != RoleInspector && userRole != RoleStationMaster {
+			return c.Status(403).JSON(fiber.Map{"error": "无权批量提交整改"})
+		}
+		action = "批量提交整改"
+	} else {
+		return c.Status(400).JSON(fiber.Map{"error": "不支持的批量操作"})
+	}
+
+	successCount := 0
 	for _, id := range req.IDs {
 		defect := Defect{}
 		DB.First(&defect, "id = ?", id)
@@ -221,17 +309,17 @@ func BatchUpdateStatus(c *fiber.Ctx) error {
 			continue
 		}
 
+		if err := validateStatusTransition(defect, req.Status, userRole, user.ID, req.AssigneeID); err != nil {
+			continue
+		}
+
 		oldStatus := defect.Status
 		defect.Status = req.Status
 		defect.UpdatedAt = time.Now()
 
-		var action string
-		if req.Status == StatusAssigned && assignee.ID != "" {
-			action = "批量派单"
+		if req.Status == StatusAssigned {
 			defect.AssigneeID = assignee.ID
 			defect.AssigneeName = assignee.Name
-		} else {
-			action = "批量更新"
 		}
 
 		DB.Save(&defect)
@@ -248,9 +336,10 @@ func BatchUpdateStatus(c *fiber.Ctx) error {
 			CreatedAt:    time.Now(),
 		}
 		DB.Create(&history)
+		successCount++
 	}
 
-	return c.JSON(fiber.Map{"success": true})
+	return c.JSON(fiber.Map{"success": true, "count": successCount})
 }
 
 func DeleteDefect(c *fiber.Ctx) error {

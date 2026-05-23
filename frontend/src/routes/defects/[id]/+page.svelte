@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { ArrowLeft, Clock, User, MapPin, Package, Play, CheckCircle, XCircle, AlertTriangle, Eye, Plus } from 'lucide-svelte';
-	import { getHeaders, userRole } from '$lib/stores';
+	import { getHeaders, userRole, currentUser } from '$lib/stores';
 
 	let defect = null;
 	let users = [];
@@ -110,17 +110,26 @@
 		need_review: '需回查'
 	};
 
+	function isAssignee() {
+		return defect?.assignee_id === $currentUser?.id;
+	}
+
 	function canAssign() {
 		return role === 'station_master' && defect?.status === 'pending';
 	}
 
 	function canStart() {
-		return (role === 'inspector' || role === 'station_master') && 
-		       (defect?.status === 'assigned' || defect?.status === 'rejected');
+		if (!(role === 'inspector' || role === 'station_master')) return false;
+		if (!(defect?.status === 'assigned' || defect?.status === 'rejected')) return false;
+		if (role === 'inspector' && !isAssignee()) return false;
+		return true;
 	}
 
 	function canSubmit() {
-		return (role === 'inspector' || role === 'station_master') && defect?.status === 'in_progress';
+		if (!(role === 'inspector' || role === 'station_master')) return false;
+		if (defect?.status !== 'in_progress') return false;
+		if (role === 'inspector' && !isAssignee()) return false;
+		return true;
 	}
 
 	function canApprove() {
@@ -137,8 +146,10 @@
 	}
 
 	function canUseSpare() {
-		return (role === 'inspector' || role === 'station_master') && 
-		       (defect?.status === 'in_progress');
+		if (!(role === 'inspector' || role === 'station_master')) return false;
+		if (defect?.status !== 'in_progress') return false;
+		if (role === 'inspector' && !isAssignee()) return false;
+		return true;
 	}
 
 	function canReview() {

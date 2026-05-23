@@ -1,15 +1,15 @@
 <script>
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { Plus, Filter, CheckSquare, Trash2 } from 'lucide-svelte';
-	import { getHeaders } from '$lib/stores';
+	import { Plus, Filter, CheckSquare, User, CheckCircle } from 'lucide-svelte';
+	import { getHeaders, userRole } from '$lib/stores';
 
 	let defects = [];
 	let users = [];
 	let showCreateModal = false;
 	let selectedIds = new Set();
-	let showBatchModal = false;
-	let batchStatus = '';
+	let showBatchAssignModal = false;
+	let showBatchSubmitModal = false;
 	let batchRemark = '';
 	let batchAssignee = '';
 	let currentFilter = 'all';
@@ -78,9 +78,8 @@
 		}
 	}
 
-	async function batchUpdate() {
-		if (!batchStatus || selectedIds.size === 0) return;
-		if (batchStatus === 'assigned' && !batchAssignee) return;
+	async function batchAssign() {
+		if (selectedIds.size === 0 || !batchAssignee) return;
 		
 		try {
 			await fetch('http://localhost:8080/api/defects/batch-status', {
@@ -88,14 +87,13 @@
 				headers: getHeaders(),
 				body: JSON.stringify({
 					ids: Array.from(selectedIds),
-					status: batchStatus,
+					status: 'assigned',
 					remark: batchRemark,
 					assignee_id: batchAssignee
 				})
 			});
-			showBatchModal = false;
+			showBatchAssignModal = false;
 			selectedIds = new Set();
-			batchStatus = '';
 			batchRemark = '';
 			batchAssignee = '';
 			loadDefects();
@@ -103,6 +101,32 @@
 			console.error(e);
 		}
 	}
+
+	async function batchSubmit() {
+		if (selectedIds.size === 0) return;
+		
+		try {
+			await fetch('http://localhost:8080/api/defects/batch-status', {
+				method: 'POST',
+				headers: getHeaders(),
+				body: JSON.stringify({
+					ids: Array.from(selectedIds),
+					status: 'pending_review',
+					remark: batchRemark
+				})
+			});
+			showBatchSubmitModal = false;
+			selectedIds = new Set();
+			batchRemark = '';
+			loadDefects();
+		} catch (e) {
+			console.error(e);
+		}
+	}
+
+	$: pendingCount = defects.filter(d => d.status === 'pending').filter(d => selectedIds.has(d.id)).length;
+	$: inProgressCount = defects.filter(d => d.status === 'in_progress').filter(d => selectedIds.has(d.id)).length;
+	$: role = $userRole;
 
 	function setFilter(status) {
 		currentFilter = status;
@@ -143,10 +167,18 @@
 		</div>
 		<div class="header-actions">
 			{#if selectedIds.size > 0}
-				<button class="btn btn-secondary" on:click={() => showBatchModal = true}>
-					<CheckSquare size={18} />
-					批量处理 ({selectedIds.size})
-				</button>
+				{#if role === 'station_master' && pendingCount > 0}
+					<button class="btn btn-secondary" on:click={() => showBatchAssignModal = true}>
+						<User size={18} />
+						批量派单 ({pendingCount})
+					</button>
+				{/if}
+				{#if (role === 'inspector' || role === 'station_master') && inProgressCount > 0}
+					<button class="btn btn-primary" on:click={() => showBatchSubmitModal = true}>
+						<CheckCircle size={18} />
+						批量提交整改 ({inProgressCount})
+					</button>
+				{/if}
 			{/if}
 			<button class="btn btn-primary" on:click={() => showCreateModal = true}>
 				<Plus size={18} />
@@ -267,44 +299,54 @@
 		</div>
 	{/if}
 
-	{#if showBatchModal}
-		<div class="modal-overlay" on:click={() => showBatchModal = false}>
+	{#if showBatchAssignModal}
+		<div class="modal-overlay" on:click={() => showBatchAssignModal = false}>
 			<div class="modal" on:click|stopPropagation>
 				<div class="modal-header">
-					<h3>批量处理 ({selectedIds.size} 项)</h3>
-					<button class="close-btn" on:click={() => showBatchModal = false}>×</button>
+					<h3>批量派单 ({pendingCount} 项)</h3>
+					<button class="close-btn" on:click={() => showBatchAssignModal = false}>×</button>
 				</div>
 				<div class="modal-body">
+					<p class="batch-hint">将为 {pendingCount} 条待处理缺陷派单</p>
 					<div class="form-group">
-						<label>目标状态</label>
-						<select bind:value={batchStatus}>
-							<option value="">请选择</option>
-							<option value="assigned">已派单</option>
-							<option value="in_progress">处理中</option>
-							<option value="pending_review">待审核</option>
-							<option value="closed">已关闭</option>
-							<option value="need_review">需回查</option>
+						<label>选择处理人 *</label>
+						<select bind:value={batchAssignee}>
+							<option value="">请选择处理人</option>
+							{#each users.filter(u => u.role === 'inspector') as user}
+								<option value={user.id}>{user.name}</option>
+							{/each}
 						</select>
 					</div>
-					{#if batchStatus === 'assigned'}
-						<div class="form-group">
-							<label>选择处理人 *</label>
-							<select bind:value={batchAssignee}>
-								<option value="">请选择处理人</option>
-								{#each users.filter(u => u.role === 'inspector') as user}
-									<option value={user.id}>{user.name}</option>
-								{/each}
-							</select>
-						</div>
-					{/if}
 					<div class="form-group">
-						<label>批量备注</label>
-						<textarea bind:value={batchRemark} rows="2" placeholder="批量处理说明"></textarea>
+						<label>派单说明</label>
+						<textarea bind:value={batchRemark} rows="2" placeholder="派单说明"></textarea>
 					</div>
 				</div>
 				<div class="modal-footer">
-					<button class="btn btn-ghost" on:click={() => showBatchModal = false}>取消</button>
-					<button class="btn btn-primary" on:click={batchUpdate}>确认批量处理</button>
+					<button class="btn btn-ghost" on:click={() => showBatchAssignModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={batchAssign} disabled={!batchAssignee}>确认派单</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if showBatchSubmitModal}
+		<div class="modal-overlay" on:click={() => showBatchSubmitModal = false}>
+			<div class="modal" on:click|stopPropagation>
+				<div class="modal-header">
+					<h3>批量提交整改 ({inProgressCount} 项)</h3>
+					<button class="close-btn" on:click={() => showBatchSubmitModal = false}>×</button>
+				</div>
+				<div class="modal-body">
+					<p class="batch-hint">将为 {inProgressCount} 条处理中缺陷提交整改审核</p>
+					<div class="form-group">
+						<label>整改说明</label>
+						<textarea bind:value={batchRemark} rows="2" placeholder="批量整改说明"></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-ghost" on:click={() => showBatchSubmitModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={batchSubmit}>确认提交</button>
 				</div>
 			</div>
 		</div>
@@ -566,6 +608,15 @@
 
 	.modal-body {
 		padding: 24px;
+	}
+
+	.batch-hint {
+		margin: 0 0 16px 0;
+		padding: 12px;
+		background: #eff6ff;
+		color: #1d4ed8;
+		border-radius: 8px;
+		font-size: 13px;
 	}
 
 	.modal-footer {
