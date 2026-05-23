@@ -5,11 +5,13 @@
 	import { getHeaders } from '$lib/stores';
 
 	let defects = [];
+	let users = [];
 	let showCreateModal = false;
 	let selectedIds = new Set();
 	let showBatchModal = false;
 	let batchStatus = '';
 	let batchRemark = '';
+	let batchAssignee = '';
 	let currentFilter = 'all';
 
 	let newDefect = {
@@ -31,10 +33,12 @@
 		}
 		
 		try {
-			const res = await fetch(url, {
-				headers: getHeaders()
-			});
-			defects = await res.json();
+			const [defectsRes, usersRes] = await Promise.all([
+				fetch(url, { headers: getHeaders() }),
+				fetch('http://localhost:8080/api/users', { headers: getHeaders() })
+			]);
+			defects = await defectsRes.json();
+			users = await usersRes.json();
 		} catch (e) {
 			console.error(e);
 		}
@@ -76,6 +80,7 @@
 
 	async function batchUpdate() {
 		if (!batchStatus || selectedIds.size === 0) return;
+		if (batchStatus === 'assigned' && !batchAssignee) return;
 		
 		try {
 			await fetch('http://localhost:8080/api/defects/batch-status', {
@@ -84,13 +89,15 @@
 				body: JSON.stringify({
 					ids: Array.from(selectedIds),
 					status: batchStatus,
-					remark: batchRemark
+					remark: batchRemark,
+					assignee_id: batchAssignee
 				})
 			});
 			showBatchModal = false;
 			selectedIds = new Set();
 			batchStatus = '';
 			batchRemark = '';
+			batchAssignee = '';
 			loadDefects();
 		} catch (e) {
 			console.error(e);
@@ -269,6 +276,17 @@
 							<option value="need_review">需回查</option>
 						</select>
 					</div>
+					{#if batchStatus === 'assigned'}
+						<div class="form-group">
+							<label>选择处理人 *</label>
+							<select bind:value={batchAssignee}>
+								<option value="">请选择处理人</option>
+								{#each users.filter(u => u.role === 'inspector') as user}
+									<option value={user.id}>{user.name}</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
 					<div class="form-group">
 						<label>批量备注</label>
 						<textarea bind:value={batchRemark} rows="2" placeholder="批量处理说明"></textarea>

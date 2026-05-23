@@ -18,7 +18,7 @@ func main() {
 		log.Fatal("Failed to connect to database")
 	}
 
-	DB.AutoMigrate(&User{}, &Defect{}, &DefectHistory{}, &SparePart{})
+	DB.AutoMigrate(&User{}, &Defect{}, &DefectHistory{}, &SparePart{}, &SparePartUsage{})
 
 	app := fiber.New()
 

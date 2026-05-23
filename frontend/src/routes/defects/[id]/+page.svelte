@@ -1,26 +1,36 @@
 <script>
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { ArrowLeft, Clock, User, MapPin, Package, Play, CheckCircle, XCircle, AlertTriangle, Eye } from 'lucide-svelte';
+	import { ArrowLeft, Clock, User, MapPin, Package, Play, CheckCircle, XCircle, AlertTriangle, Eye, Plus } from 'lucide-svelte';
 	import { getHeaders, userRole } from '$lib/stores';
 
 	let defect = null;
 	let users = [];
+	let spareParts = [];
+	let spareUsages = [];
 	let loading = true;
 	let selectedAssignee = '';
 	let actionRemark = '';
 	let showActionModal = false;
+	let showSpareModal = false;
 	let currentAction = '';
+	let selectedSparePart = '';
+	let spareQuantity = 1;
+	let spareRemark = '';
 
 	async function loadData() {
 		const id = $page.params.id;
 		try {
-			const [defectRes, usersRes] = await Promise.all([
+			const [defectRes, usersRes, partsRes, usagesRes] = await Promise.all([
 				fetch(`http://localhost:8080/api/defects/${id}`, { headers: getHeaders() }),
-				fetch('http://localhost:8080/api/users', { headers: getHeaders() })
+				fetch('http://localhost:8080/api/users', { headers: getHeaders() }),
+				fetch('http://localhost:8080/api/spare-parts', { headers: getHeaders() }),
+				fetch(`http://localhost:8080/api/defects/${id}/spare-usages`, { headers: getHeaders() })
 			]);
 			defect = await defectRes.json();
 			users = await usersRes.json();
+			spareParts = await partsRes.json();
+			spareUsages = await usagesRes.json();
 		} catch (e) {
 			console.error(e);
 		} finally {
@@ -118,6 +128,34 @@
 		       (defect?.status === 'pending_review' || defect?.status === 'closed');
 	}
 
+	function canUseSpare() {
+		return (role === 'inspector' || role === 'station_master') && 
+		       (defect?.status === 'in_progress');
+	}
+
+	async function useSpare() {
+		if (!selectedSparePart || spareQuantity <= 0) return;
+		
+		try {
+			await fetch(`http://localhost:8080/api/defects/${defect.id}/spare-usages`, {
+				method: 'POST',
+				headers: getHeaders(),
+				body: JSON.stringify({
+					spare_part_id: selectedSparePart,
+					quantity: spareQuantity,
+					remark: spareRemark
+				})
+			});
+			showSpareModal = false;
+			selectedSparePart = '';
+			spareQuantity = 1;
+			spareRemark = '';
+			loadData();
+		} catch (e) {
+			console.error(e);
+		}
+	}
+
 	function formatDate(dateStr) {
 		const date = new Date(dateStr);
 		return date.toLocaleString('zh-CN');
@@ -187,10 +225,29 @@
 						<p class="description">{defect.description || '暂无描述'}</p>
 					</div>
 
-					{#if defect.spare_parts}
+					{#if spareUsages.length > 0}
 						<div class="section">
-							<h3>备件使用</h3>
-							<p>{defect.spare_parts}</p>
+							<div class="section-header">
+								<h3>备件领用明细</h3>
+							</div>
+							<div class="spare-list">
+								{#each spareUsages as usage}
+									<div class="spare-item">
+										<div class="spare-info">
+											<span class="spare-name">{usage.spare_part_name}</span>
+											<span class="spare-model">{usage.spare_part_model}</span>
+										</div>
+										<div class="spare-quantity">x{usage.quantity} {usage.unit}</div>
+										<div class="spare-meta">
+											<span>领用人: {usage.operator_name}</span>
+											<span>{formatDate(usage.created_at)}</span>
+										</div>
+										{#if usage.remark}
+											<div class="spare-remark">{usage.remark}</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
 						</div>
 					{/if}
 				</div>
@@ -241,6 +298,12 @@
 							<button class="action-btn primary" on:click={() => openActionModal('submit')}>
 								<CheckCircle size={18} />
 								<span>提交整改</span>
+							</button>
+						{/if}
+						{#if canUseSpare()}
+							<button class="action-btn" on:click={() => showSpareModal = true}>
+								<Package size={18} />
+								<span>领用备件</span>
 							</button>
 						{/if}
 						{#if canApprove()}
@@ -314,6 +377,40 @@
 				<div class="modal-footer">
 					<button class="btn btn-ghost" on:click={() => showActionModal = false}>取消</button>
 					<button class="btn btn-primary" on:click={executeAction}>确认</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if showSpareModal}
+		<div class="modal-overlay" on:click={() => showSpareModal = false}>
+			<div class="modal" on:click|stopPropagation>
+				<div class="modal-header">
+					<h3>领用备件</h3>
+					<button class="close-btn" on:click={() => showSpareModal = false}>×</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label>选择备件</label>
+						<select bind:value={selectedSparePart}>
+							<option value="">请选择备件</option>
+							{#each spareParts as part}
+								<option value={part.id}>{part.name} ({part.model}) - 库存: {part.stock}{part.unit}</option>
+							{/each}
+						</select>
+					</div>
+					<div class="form-group">
+						<label>领用数量</label>
+						<input type="number" bind:value={spareQuantity} min="1" placeholder="请输入数量" />
+					</div>
+					<div class="form-group">
+						<label>备注说明</label>
+						<textarea bind:value={spareRemark} rows="2" placeholder="领用说明"></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-ghost" on:click={() => showSpareModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={useSpare}>确认领用</button>
 				</div>
 			</div>
 		</div>
@@ -489,6 +586,68 @@
 		color: #1e293b;
 		line-height: 1.6;
 		margin: 0;
+	}
+
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12px;
+	}
+
+	.spare-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.spare-item {
+		background: #f8fafc;
+		border-radius: 8px;
+		padding: 12px 16px;
+		border-left: 3px solid #2563eb;
+	}
+
+	.spare-info {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 6px;
+	}
+
+	.spare-name {
+		font-weight: 600;
+		color: #1e293b;
+		font-size: 14px;
+	}
+
+	.spare-model {
+		font-size: 12px;
+		color: #64748b;
+	}
+
+	.spare-quantity {
+		font-size: 14px;
+		font-weight: 600;
+		color: #2563eb;
+		margin-bottom: 6px;
+	}
+
+	.spare-meta {
+		display: flex;
+		gap: 16px;
+		font-size: 12px;
+		color: #64748b;
+		margin-bottom: 4px;
+	}
+
+	.spare-remark {
+		font-size: 13px;
+		color: #475569;
+		background: white;
+		padding: 8px 12px;
+		border-radius: 6px;
+		margin-top: 8px;
 	}
 
 	.timeline-card {

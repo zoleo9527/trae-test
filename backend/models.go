@@ -76,6 +76,27 @@ type SparePart struct {
 	Unit   string `json:"unit"`
 }
 
+type SparePartUsage struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	DefectID    string    `json:"defect_id"`
+	SparePartID string    `json:"spare_part_id"`
+	SparePartName string  `json:"spare_part_name"`
+	SparePartModel string `json:"spare_part_model"`
+	Quantity    int       `json:"quantity"`
+	Unit        string    `json:"unit"`
+	OperatorID  string    `json:"operator_id"`
+	OperatorName string   `json:"operator_name"`
+	Remark      string    `json:"remark"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (spu *SparePartUsage) BeforeCreate(tx *gorm.DB) error {
+	if spu.ID == "" {
+		spu.ID = uuid.New().String()
+	}
+	return nil
+}
+
 func (d *Defect) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
