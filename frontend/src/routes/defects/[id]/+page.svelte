@@ -8,29 +8,37 @@
 	let users = [];
 	let spareParts = [];
 	let spareUsages = [];
+	let reviewRecords = [];
 	let loading = true;
 	let selectedAssignee = '';
 	let actionRemark = '';
 	let showActionModal = false;
 	let showSpareModal = false;
+	let showReviewModal = false;
 	let currentAction = '';
 	let selectedSparePart = '';
 	let spareQuantity = 1;
 	let spareRemark = '';
+	let reviewPowerRecovery = '';
+	let reviewConclusion = '';
+	let reviewResult = '';
+	let reviewRemark = '';
 
 	async function loadData() {
 		const id = $page.params.id;
 		try {
-			const [defectRes, usersRes, partsRes, usagesRes] = await Promise.all([
+			const [defectRes, usersRes, partsRes, usagesRes, reviewsRes] = await Promise.all([
 				fetch(`http://localhost:8080/api/defects/${id}`, { headers: getHeaders() }),
 				fetch('http://localhost:8080/api/users', { headers: getHeaders() }),
 				fetch('http://localhost:8080/api/spare-parts', { headers: getHeaders() }),
-				fetch(`http://localhost:8080/api/defects/${id}/spare-usages`, { headers: getHeaders() })
+				fetch(`http://localhost:8080/api/defects/${id}/spare-usages`, { headers: getHeaders() }),
+				fetch(`http://localhost:8080/api/defects/${id}/reviews`, { headers: getHeaders() })
 			]);
 			defect = await defectRes.json();
 			users = await usersRes.json();
 			spareParts = await partsRes.json();
 			spareUsages = await usagesRes.json();
+			reviewRecords = await reviewsRes.json();
 		} catch (e) {
 			console.error(e);
 		} finally {
@@ -131,6 +139,35 @@
 	function canUseSpare() {
 		return (role === 'inspector' || role === 'station_master') && 
 		       (defect?.status === 'in_progress');
+	}
+
+	function canReview() {
+		return role === 'station_master' && defect?.status === 'need_review';
+	}
+
+	async function submitReview() {
+		if (!reviewResult || !reviewPowerRecovery || !reviewConclusion) return;
+		
+		try {
+			await fetch(`http://localhost:8080/api/defects/${defect.id}/reviews`, {
+				method: 'POST',
+				headers: getHeaders(),
+				body: JSON.stringify({
+					power_recovery: reviewPowerRecovery,
+					conclusion: reviewConclusion,
+					result: reviewResult,
+					remark: reviewRemark
+				})
+			});
+			showReviewModal = false;
+			reviewPowerRecovery = '';
+			reviewConclusion = '';
+			reviewResult = '';
+			reviewRemark = '';
+			loadData();
+		} catch (e) {
+			console.error(e);
+		}
 	}
 
 	async function useSpare() {
@@ -250,6 +287,43 @@
 							</div>
 						</div>
 					{/if}
+
+					{#if reviewRecords.length > 0}
+						<div class="section">
+							<div class="section-header">
+								<h3>回查记录</h3>
+							</div>
+							<div class="review-list">
+								{#each reviewRecords as record}
+									<div class="review-item">
+										<div class="review-header">
+											<span class="review-result result-{record.result}">
+												{record.result === 'pass' ? '✓ 回查通过' : '✗ 回查不通过'}
+											</span>
+											<span class="review-time">{formatDate(record.review_time)}</span>
+										</div>
+										<div class="review-meta">回查人: {record.reviewer_name}</div>
+										<div class="review-content">
+											<div class="review-row">
+												<span class="review-label">发电恢复情况</span>
+												<span class="review-value">{record.power_recovery}</span>
+											</div>
+											<div class="review-row">
+												<span class="review-label">回查结论</span>
+												<span class="review-value">{record.conclusion}</span>
+											</div>
+											{#if record.remark}
+												<div class="review-row">
+													<span class="review-label">备注</span>
+													<span class="review-value">{record.remark}</span>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				<div class="card timeline-card">
@@ -324,7 +398,13 @@
 								<span>标记需回查</span>
 							</button>
 						{/if}
-						{#if !canAssign() && !canStart() && !canSubmit() && !canApprove() && !canReject() && !canNeedReview()}
+						{#if canReview()}
+							<button class="action-btn primary" on:click={() => showReviewModal = true}>
+								<CheckCircle size={18} />
+								<span>回查登记</span>
+							</button>
+						{/if}
+						{#if !canAssign() && !canStart() && !canSubmit() && !canApprove() && !canReject() && !canNeedReview() && !canReview()}
 							<div class="no-actions">当前状态无可用操作</div>
 						{/if}
 					</div>
@@ -411,6 +491,43 @@
 				<div class="modal-footer">
 					<button class="btn btn-ghost" on:click={() => showSpareModal = false}>取消</button>
 					<button class="btn btn-primary" on:click={useSpare}>确认领用</button>
+				</div>
+			</div>
+		{/if}
+	{/if}
+
+	{#if showReviewModal}
+		<div class="modal-overlay" on:click={() => showReviewModal = false}>
+			<div class="modal" on:click|stopPropagation>
+				<div class="modal-header">
+					<h3>回查登记</h3>
+					<button class="close-btn" on:click={() => showReviewModal = false}>×</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label>发电恢复情况 *</label>
+						<textarea bind:value={reviewPowerRecovery} rows="2" placeholder="描述发电恢复情况，如：发电量已恢复至故障前95%"></textarea>
+					</div>
+					<div class="form-group">
+						<label>回查结论 *</label>
+						<textarea bind:value={reviewConclusion} rows="2" placeholder="回查结论描述"></textarea>
+					</div>
+					<div class="form-group">
+						<label>回查结果 *</label>
+						<select bind:value={reviewResult}>
+							<option value="">请选择</option>
+							<option value="pass">回查通过 - 关闭工单</option>
+							<option value="fail">回查不通过 - 退回处理中</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label>备注说明</label>
+						<textarea bind:value={reviewRemark} rows="2" placeholder="其他补充说明"></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-ghost" on:click={() => showReviewModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={submitReview} disabled={!reviewResult || !reviewPowerRecovery || !reviewConclusion}>确认提交</button>
 				</div>
 			</div>
 		</div>
@@ -648,6 +765,92 @@
 		padding: 8px 12px;
 		border-radius: 6px;
 		margin-top: 8px;
+	}
+
+	.review-list {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.review-item {
+		background: #f8fafc;
+		border-radius: 8px;
+		padding: 16px;
+		border-left: 4px solid;
+	}
+
+	.review-item.result-pass {
+		border-left-color: #16a34a;
+	}
+
+	.review-item.result-fail {
+		border-left-color: #dc2626;
+	}
+
+	.review-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 8px;
+	}
+
+	.review-result {
+		font-weight: 600;
+		font-size: 14px;
+		padding: 4px 10px;
+		border-radius: 6px;
+	}
+
+	.review-result.result-pass {
+		background: #dcfce7;
+		color: #16a34a;
+	}
+
+	.review-result.result-fail {
+		background: #fee2e2;
+		color: #dc2626;
+	}
+
+	.review-time {
+		font-size: 12px;
+		color: #94a3b8;
+	}
+
+	.review-meta {
+		font-size: 13px;
+		color: #64748b;
+		margin-bottom: 12px;
+	}
+
+	.review-content {
+		background: white;
+		border-radius: 6px;
+		padding: 12px;
+	}
+
+	.review-row {
+		display: flex;
+		gap: 12px;
+		padding: 6px 0;
+		border-bottom: 1px solid #f1f5f9;
+	}
+
+	.review-row:last-child {
+		border-bottom: none;
+	}
+
+	.review-label {
+		font-size: 13px;
+		color: #64748b;
+		min-width: 100px;
+		flex-shrink: 0;
+	}
+
+	.review-value {
+		font-size: 13px;
+		color: #1e293b;
+		flex: 1;
 	}
 
 	.timeline-card {

@@ -190,7 +190,17 @@
 							<span class="priority priority-{defect.priority}">{defect.priority === 'high' ? '高' : defect.priority === 'medium' ? '中' : '低'}</span>
 						</td>
 						<td class="title-cell">
-							<span>{defect.title}</span>
+							<div class="title-content">
+								<span>{defect.title}</span>
+								{#if defect.last_review_result}
+									<span class="review-tag result-{defect.last_review_result}">
+										{defect.last_review_result === 'pass' ? '✓ 回查通过' : '✗ 回查不通过'}
+									</span>
+								{/if}
+								{#if defect.status === 'need_review'}
+									<span class="review-tag pending">待回查</span>
+								{/if}
+							</div>
 						</td>
 						<td>{defect.location}</td>
 						<td>
@@ -438,6 +448,35 @@
 
 	.title-cell {
 		font-weight: 500;
+	}
+
+	.title-content {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.review-tag {
+		font-size: 11px;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-weight: 500;
+	}
+
+	.review-tag.result-pass {
+		background: #dcfce7;
+		color: #16a34a;
+	}
+
+	.review-tag.result-fail {
+		background: #fee2e2;
+		color: #dc2626;
+	}
+
+	.review-tag.pending {
+		background: #fef3c7;
+		color: #d97706;
 	}
 
 	.priority {

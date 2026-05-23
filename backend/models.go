@@ -51,9 +51,12 @@ type Defect struct {
 	DowntimeEnd     *time.Time   `json:"downtime_end"`
 	DowntimeMinutes int          `json:"downtime_minutes"`
 	Remark          string       `json:"remark"`
+	LastReviewResult string      `json:"last_review_result"`
+	LastReviewTime  *time.Time   `json:"last_review_time"`
 	CreatedAt       time.Time    `json:"created_at"`
 	UpdatedAt       time.Time    `json:"updated_at"`
 	Histories       []DefectHistory `gorm:"foreignKey:DefectID" json:"histories,omitempty"`
+	ReviewRecords   []ReviewRecord  `gorm:"foreignKey:DefectID" json:"review_records,omitempty"`
 }
 
 type DefectHistory struct {
@@ -93,6 +96,26 @@ type SparePartUsage struct {
 func (spu *SparePartUsage) BeforeCreate(tx *gorm.DB) error {
 	if spu.ID == "" {
 		spu.ID = uuid.New().String()
+	}
+	return nil
+}
+
+type ReviewRecord struct {
+	ID                string    `gorm:"primaryKey" json:"id"`
+	DefectID          string    `json:"defect_id"`
+	ReviewTime        time.Time `json:"review_time"`
+	ReviewerID        string    `json:"reviewer_id"`
+	ReviewerName      string    `json:"reviewer_name"`
+	PowerRecovery     string    `json:"power_recovery"`
+	Conclusion        string    `json:"conclusion"`
+	Result            string    `json:"result"`
+	Remark            string    `json:"remark"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+func (rr *ReviewRecord) BeforeCreate(tx *gorm.DB) error {
+	if rr.ID == "" {
+		rr.ID = uuid.New().String()
 	}
 	return nil
 }

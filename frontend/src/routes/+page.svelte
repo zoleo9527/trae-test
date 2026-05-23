@@ -131,6 +131,11 @@
 									{defect.status === 'need_review' ? '需回查' : '待审核'}
 								</span>
 								<span class="defect-title">{defect.title}</span>
+								{#if defect.last_review_result}
+									<span class="review-tag result-{defect.last_review_result}">
+										{defect.last_review_result === 'pass' ? '✓ 通过' : '✗ 不通过'}
+									</span>
+								{/if}
 							</div>
 							<div class="defect-meta">
 								<span>处理人: {defect.assignee_name || '未分配'}</span>
@@ -154,6 +159,11 @@
 							<div class="defect-info">
 								<span class="status-badge status-rejected">已驳回</span>
 								<span class="defect-title">{defect.title}</span>
+								{#if defect.last_review_result}
+									<span class="review-tag result-{defect.last_review_result}">
+										{defect.last_review_result === 'pass' ? '✓ 通过' : '✗ 不通过'}
+									</span>
+								{/if}
 							</div>
 							<div class="defect-meta">
 								<span>驳回人: {defect.reporter_name}</span>
@@ -417,6 +427,23 @@
 		justify-content: space-between;
 		font-size: 12px;
 		color: #64748b;
+	}
+
+	.review-tag {
+		font-size: 11px;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-weight: 500;
+	}
+
+	.review-tag.result-pass {
+		background: #dcfce7;
+		color: #16a34a;
+	}
+
+	.review-tag.result-fail {
+		background: #fee2e2;
+		color: #dc2626;
 	}
 
 	.empty {

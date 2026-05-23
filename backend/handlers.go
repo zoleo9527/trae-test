@@ -26,6 +26,8 @@ func SetupRoutes(app *fiber.App) {
 	api.Get("/spare-parts", GetSpareParts)
 	api.Get("/defects/:id/spare-usages", GetSpareUsages)
 	api.Post("/defects/:id/spare-usages", CreateSpareUsage)
+	api.Get("/defects/:id/reviews", GetReviewRecords)
+	api.Post("/defects/:id/reviews", CreateReviewRecord)
 }
 
 func GetCurrentUser(c *fiber.Ctx) error {
@@ -58,6 +60,8 @@ func GetDefect(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var defect Defect
 	if err := DB.Preload("Histories", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at desc")
+	}).Preload("ReviewRecords", func(db *gorm.DB) *gorm.DB {
 		return db.Order("created_at desc")
 	}).First(&defect, "id = ?", id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Defect not found"})
@@ -343,4 +347,95 @@ func CreateSpareUsage(c *fiber.Ctx) error {
 	DB.Create(&history)
 
 	return c.JSON(usage)
+}
+
+func GetReviewRecords(c *fiber.Ctx) error {
+	defectID := c.Params("id")
+	var records []ReviewRecord
+	DB.Where("defect_id = ?", defectID).Order("created_at desc").Find(&records)
+	return c.JSON(records)
+}
+
+func CreateReviewRecord(c *fiber.Ctx) error {
+	defectID := c.Params("id")
+	var req struct {
+		PowerRecovery string `json:"power_recovery"`
+		Conclusion    string `json:"conclusion"`
+		Result        string `json:"result"`
+		Remark        string `json:"remark"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if req.Result != "pass" && req.Result != "fail" {
+		return c.Status(400).JSON(fiber.Map{"error": "回查结果无效"})
+	}
+
+	userRole := UserRole(c.Get("X-User-Role", "inspector"))
+	var user User
+	DB.Where("role = ?", userRole).First(&user)
+
+	var defect Defect
+	if err := DB.First(&defect, "id = ?", defectID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "缺陷不存在"})
+	}
+
+	now := time.Now()
+	review := ReviewRecord{
+		ID:            uuid.New().String(),
+		DefectID:      defectID,
+		ReviewTime:    now,
+		ReviewerID:    user.ID,
+		ReviewerName:  user.Name,
+		PowerRecovery: req.PowerRecovery,
+		Conclusion:    req.Conclusion,
+		Result:        req.Result,
+		Remark:        req.Remark,
+		CreatedAt:     now,
+	}
+	DB.Create(&review)
+
+	oldStatus := defect.Status
+	var newStatus DefectStatus
+	var action string
+
+	if req.Result == "pass" {
+		newStatus = StatusClosed
+		action = "回查通过"
+		if defect.DowntimeStart != nil && defect.DowntimeEnd == nil {
+			defect.DowntimeEnd = &now
+			defect.DowntimeMinutes = int(time.Since(*defect.DowntimeStart).Minutes())
+		}
+	} else {
+		newStatus = StatusInProgress
+		action = "回查不通过"
+	}
+
+	defect.Status = newStatus
+	defect.LastReviewResult = req.Result
+	defect.LastReviewTime = &now
+	defect.UpdatedAt = now
+	DB.Save(&defect)
+
+	historyRemark := "发电恢复: " + req.PowerRecovery + "; 结论: " + req.Conclusion
+	if req.Remark != "" {
+		historyRemark += "; 备注: " + req.Remark
+	}
+
+	history := DefectHistory{
+		ID:           uuid.New().String(),
+		DefectID:     defectID,
+		OldStatus:    oldStatus,
+		NewStatus:    newStatus,
+		Action:       action,
+		OperatorID:   user.ID,
+		OperatorName: user.Name,
+		Remark:       historyRemark,
+		CreatedAt:    now,
+	}
+	DB.Create(&history)
+
+	return c.JSON(fiber.Map{"success": true, "review": review, "defect": defect})
 }
