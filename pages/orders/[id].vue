@@ -407,6 +407,8 @@ const { formatDate, formatDateTime, formatPrice, formatWeight, formatCarat, getO
 const newNote = ref('')
 const highlightedAbnormalId = ref<string | null>(null)
 const highlightedHandoverId = ref<string | null>(null)
+const dataLoaded = ref(false)
+const highlightTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const order = computed(() => ordersStore.getOrderById(route.params.id as string))
 
@@ -415,42 +417,65 @@ const handoverRecords = computed(() => {
   return handoverStore.recordsByOrder(order.value.id)
 })
 
-const handleHighlightAndScroll = () => {
-  const abnormalId = route.query.abnormalId as string
-  const handoverId = route.query.handoverId as string
+const clearHighlightTimer = () => {
+  if (highlightTimer.value) {
+    clearTimeout(highlightTimer.value)
+    highlightTimer.value = null
+  }
+}
+
+const handleHighlightAndScroll = (abnormalId?: string, handoverId?: string) => {
+  const targetAbnormalId = abnormalId || (route.query.abnormalId as string)
+  const targetHandoverId = handoverId || (route.query.handoverId as string)
   
-  if (abnormalId) {
-    highlightedAbnormalId.value = abnormalId
+  clearHighlightTimer()
+  
+  if (targetAbnormalId) {
+    highlightedAbnormalId.value = targetAbnormalId
     nextTick(() => {
-      const element = document.getElementById(`abnormal-${abnormalId}`)
+      const element = document.getElementById(`abnormal-${targetAbnormalId}`)
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     })
-    setTimeout(() => {
+    highlightTimer.value = setTimeout(() => {
       highlightedAbnormalId.value = null
     }, 3000)
   }
   
-  if (handoverId) {
-    highlightedHandoverId.value = handoverId
+  if (targetHandoverId) {
+    highlightedHandoverId.value = targetHandoverId
     nextTick(() => {
-      const element = document.getElementById(`handover-${handoverId}`)
+      const element = document.getElementById(`handover-${targetHandoverId}`)
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
-      const record = handoverRecords.value.find(r => r.id === handoverId)
+      const record = handoverRecords.value.find(r => r.id === targetHandoverId)
       if (record) {
         setTimeout(() => {
-          openHandoverDetail(record)
-        }, 500)
+          closeHandoverDetail()
+          nextTick(() => {
+            openHandoverDetail(record)
+          })
+        }, 300)
       }
     })
-    setTimeout(() => {
+    highlightTimer.value = setTimeout(() => {
       highlightedHandoverId.value = null
     }, 3000)
   }
 }
+
+watch(
+  () => [route.query.abnormalId, route.query.handoverId],
+  ([newAbnormalId, newHandoverId], [oldAbnormalId, oldHandoverId]) => {
+    if (dataLoaded.value && (newAbnormalId !== oldAbnormalId || newHandoverId !== oldHandoverId)) {
+      if (newAbnormalId || newHandoverId) {
+        handleHighlightAndScroll(newAbnormalId as string || undefined, newHandoverId as string || undefined)
+      }
+    }
+  }
+)
 
 const getAbnormal = (id: string) => {
   return abnormalStore.records.find(r => r.id === id)
@@ -545,6 +570,10 @@ const handleConfirmAbnormal = async () => {
   ordersStore.markOrderAbnormal(order.value.id, newAbnormal.id)
 
   closeAbnormalModal()
+
+  nextTick(() => {
+    handleHighlightAndScroll(newAbnormal.id, undefined)
+  })
 }
 
 const addNote = () => {
@@ -558,8 +587,13 @@ onMounted(async () => {
   await ordersStore.fetchOrders()
   await abnormalStore.fetchRecords()
   await handoverStore.fetchRecords()
+  dataLoaded.value = true
   nextTick(() => {
     handleHighlightAndScroll()
   })
+})
+
+onUnmounted(() => {
+  clearHighlightTimer()
 })
 </script>

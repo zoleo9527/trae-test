@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { AbnormalRecord, AbnormalStatus, AbnormalLevel } from '~/types'
+import type { AbnormalRecord, AbnormalStatus, AbnormalLevel, AbnormalType } from '~/types'
 import { mockAbnormalRecords } from '~/data/mock'
 
 interface AbnormalState {
