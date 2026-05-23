@@ -410,6 +410,9 @@ const spareParts = [
     location: 'A仓库-2层-3号货架',
     lastPurchase: '2023-11-15',
     price: 180,
+    usageHistory: [
+      { workOrderId: 'WO003', workOrderTitle: '通讯柜更换风扇', quantity: 1, operator: '王芳', time: '2024-01-15 10:30:00' },
+    ],
   },
   {
     id: 'SP002',
@@ -422,6 +425,9 @@ const spareParts = [
     location: 'A仓库-1层-1号货架',
     lastPurchase: '2023-10-20',
     price: 280,
+    usageHistory: [
+      { workOrderId: 'WO001', workOrderTitle: '1号逆变器直流侧异常告警', quantity: 1, operator: '李明', time: '2024-01-18 09:35:00' },
+    ],
   },
   {
     id: 'SP003',
@@ -434,6 +440,9 @@ const spareParts = [
     location: 'B仓库-1层-5号货架',
     lastPurchase: '2023-12-01',
     price: 45,
+    usageHistory: [
+      { workOrderId: 'WO005', workOrderTitle: 'A区汇流箱熔断器更换', quantity: 2, operator: '李明', time: '2024-01-14 15:00:00' },
+    ],
   },
   {
     id: 'SP004',
@@ -446,6 +455,7 @@ const spareParts = [
     location: 'B仓库-2层-2号货架',
     lastPurchase: '2023-09-10',
     price: 12,
+    usageHistory: [],
   },
   {
     id: 'SP005',
@@ -458,6 +468,7 @@ const spareParts = [
     location: 'B仓库-1层-3号货架',
     lastPurchase: '2023-11-25',
     price: 25,
+    usageHistory: [],
   },
   {
     id: 'SP006',
@@ -470,6 +481,7 @@ const spareParts = [
     location: 'A仓库-1层-2号货架',
     lastPurchase: '2023-08-15',
     price: 120,
+    usageHistory: [],
   },
 ];
 

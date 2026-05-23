@@ -220,7 +220,7 @@ function SpareParts() {
                 </div>
               </div>
 
-              <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="p-3 bg-gray-50 rounded-lg mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">库存状态</span>
                   <span className={`px-2 py-1 rounded-full text-xs ${stockStatusColors[getStockStatus(selectedPart).status]}`}>
@@ -236,6 +236,28 @@ function SpareParts() {
                     style={{ width: `${Math.min((selectedPart.stock / selectedPart.minStock / 2) * 100, 100)}%` }}
                   />
                 </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">📋 最近领用记录</p>
+                {selectedPart.usageHistory?.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {selectedPart.usageHistory.slice(0, 10).map((record, idx) => (
+                      <div key={idx} className="p-2 bg-gray-50 rounded text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-gray-700">{record.workOrderTitle}</span>
+                          <span className="text-xs text-blue-600">×{record.quantity}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{record.operator}</span>
+                          <span>{record.time?.slice(5, 16)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">暂无领用记录</p>
+                )}
               </div>
             </div>
           </div>

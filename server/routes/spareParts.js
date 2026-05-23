@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const { spareParts } = require('../data/database');
+const { spareParts, workOrders } = require('../data/database');
 
 const router = express.Router();
 
@@ -29,21 +29,54 @@ router.get('/alerts/low-stock', authenticateToken, (req, res) => {
 });
 
 router.post('/:id/request', authenticateToken, (req, res) => {
-  const index = spareParts.findIndex(p => p.id === req.params.id);
-  if (index === -1) {
+  const partIndex = spareParts.findIndex(p => p.id === req.params.id);
+  if (partIndex === -1) {
     return res.status(404).json({ error: '备件不存在' });
   }
 
   const { quantity, workOrderId } = req.body;
-  if (spareParts[index].stock < quantity) {
+  if (spareParts[partIndex].stock < quantity) {
     return res.status(400).json({ error: '库存不足' });
   }
 
-  spareParts[index].stock -= quantity;
+  spareParts[partIndex].stock -= quantity;
+
+  const usageRecord = {
+    workOrderId,
+    workOrderTitle: '',
+    quantity,
+    operator: req.user.name,
+    time: new Date().toISOString(),
+  };
+
+  if (!spareParts[partIndex].usageHistory) {
+    spareParts[partIndex].usageHistory = [];
+  }
+
+  if (workOrderId) {
+    const woIndex = workOrders.findIndex(w => w.id === workOrderId);
+    if (woIndex !== -1) {
+      usageRecord.workOrderTitle = workOrders[woIndex].title;
+
+      if (!workOrders[woIndex].spareParts) {
+        workOrders[woIndex].spareParts = [];
+      }
+      workOrders[woIndex].spareParts.push({
+        id: spareParts[partIndex].id,
+        name: spareParts[partIndex].name,
+        quantity,
+        status: 'used',
+        requestTime: new Date().toISOString(),
+      });
+    }
+  }
+
+  spareParts[partIndex].usageHistory.unshift(usageRecord);
   
   res.json({
     success: true,
-    remainingStock: spareParts[index].stock,
+    remainingStock: spareParts[partIndex].stock,
+    part: spareParts[partIndex],
   });
 });
 

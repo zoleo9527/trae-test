@@ -28,6 +28,12 @@ function WorkOrders() {
   const [selectedEngineer, setSelectedEngineer] = useState('');
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closeNote, setCloseNote] = useState('');
+  const [showSparePartModal, setShowSparePartModal] = useState(false);
+  const [spareParts, setSpareParts] = useState([]);
+  const [selectedSparePart, setSelectedSparePart] = useState('');
+  const [sparePartQuantity, setSparePartQuantity] = useState(1);
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceName, setEvidenceName] = useState('');
   const { hasRole, ROLES, user } = useAuth();
   const isManager = hasRole(ROLES.STATION_MANAGER);
   const isEngineer = hasRole(ROLES.ENGINEER);
@@ -44,19 +50,46 @@ function WorkOrders() {
         params.assigneeId = user.id;
       }
       
-      const [ordersRes, statsRes, engineersRes] = await Promise.all([
+      const [ordersRes, statsRes, engineersRes, sparePartsRes] = await Promise.all([
         api.workOrders.list(params),
         api.workOrders.getStats(),
         isManager ? api.auth.getEngineers() : Promise.resolve([]),
+        api.spareParts.list(),
       ]);
       
       setOrders(ordersRes);
       setStats(statsRes);
       setEngineers(engineersRes);
+      setSpareParts(sparePartsRes);
     } catch (error) {
       console.error('加载失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestSparePart = async () => {
+    if (!selectedOrder || !selectedSparePart || sparePartQuantity < 1) return;
+    try {
+      await api.spareParts.request(selectedSparePart, sparePartQuantity, selectedOrder.id);
+      setShowSparePartModal(false);
+      setSelectedSparePart('');
+      setSparePartQuantity(1);
+      loadData();
+    } catch (error) {
+      console.error('领用失败:', error);
+    }
+  };
+
+  const handleAddEvidence = async () => {
+    if (!selectedOrder || !evidenceName.trim()) return;
+    try {
+      await api.workOrders.addEvidence(selectedOrder.id, evidenceName);
+      setShowEvidenceModal(false);
+      setEvidenceName('');
+      loadData();
+    } catch (error) {
+      console.error('添加证据失败:', error);
     }
   };
 
@@ -297,9 +330,26 @@ function WorkOrders() {
                 <p className="text-sm text-gray-700">{selectedOrder.description}</p>
               </div>
 
-              {selectedOrder.spareParts?.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">📦 备件领用</p>
+              {selectedOrder.status === 'closed' && selectedOrder.closeNote && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm font-medium text-green-800 mb-1">✅ 关闭说明</p>
+                  <p className="text-sm text-green-700">{selectedOrder.closeNote}</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">📦 备件领用</p>
+                  {selectedOrder.status === 'in_progress' && selectedOrder.assigneeId === user.id && (
+                    <button
+                      onClick={() => setShowSparePartModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      + 领用备件
+                    </button>
+                  )}
+                </div>
+                {selectedOrder.spareParts?.length > 0 ? (
                   <div className="space-y-2">
                     {selectedOrder.spareParts.map((part, idx) => (
                       <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
@@ -308,12 +358,24 @@ function WorkOrders() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-2">暂无领用记录</p>
+                )}
+              </div>
 
-              {selectedOrder.evidences?.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">📷 证据链</p>
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-700">📷 证据链</p>
+                  {selectedOrder.status === 'in_progress' && selectedOrder.assigneeId === user.id && (
+                    <button
+                      onClick={() => setShowEvidenceModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      + 上传证据
+                    </button>
+                  )}
+                </div>
+                {selectedOrder.evidences?.length > 0 ? (
                   <div className="space-y-2">
                     {selectedOrder.evidences.map((ev, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm">
@@ -323,8 +385,10 @@ function WorkOrders() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-2">暂无证据记录</p>
+                )}
+              </div>
 
               {selectedOrder.history?.length > 0 && (
                 <div className="mb-4">
@@ -463,6 +527,90 @@ function WorkOrders() {
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
               >
                 确认关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSparePartModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 p-6">
+            <h3 className="font-semibold text-gray-800 mb-4">领用备件</h3>
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-1">选择备件</label>
+              <select
+                value={selectedSparePart}
+                onChange={(e) => setSelectedSparePart(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">请选择备件</option>
+                {spareParts.filter(p => p.stock > 0).map((part) => (
+                  <option key={part.id} value={part.id}>
+                    {part.name} ({part.model}) - 库存: {part.stock}{part.unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-1">领用数量</label>
+              <input
+                type="number"
+                min="1"
+                value={sparePartQuantity}
+                onChange={(e) => setSparePartQuantity(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowSparePartModal(false); setSelectedSparePart(''); setSparePartQuantity(1); }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRequestSparePart}
+                disabled={!selectedSparePart || sparePartQuantity < 1}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                确认领用
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEvidenceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 p-6">
+            <h3 className="font-semibold text-gray-800 mb-4">登记现场证据</h3>
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-1">证据名称</label>
+              <input
+                type="text"
+                value={evidenceName}
+                onChange={(e) => setEvidenceName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                placeholder="例如：现场照片、告警截图等"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              📌 注：当前为演示模式，记录证据名称用于追溯。生产环境可集成文件上传功能。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowEvidenceModal(false); setEvidenceName(''); }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAddEvidence}
+                disabled={!evidenceName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                确认登记
               </button>
             </div>
           </div>
