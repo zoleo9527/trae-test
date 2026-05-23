@@ -23,7 +23,7 @@ export const WorkOrderStatusLabels: Record<WorkOrderStatus, string> = {
 export const WorkOrderStatusFlow: Record<WorkOrderStatus, WorkOrderStatus[]> = {
   [WorkOrderStatus.ABNORMAL_REPORTED]: [WorkOrderStatus.DOWNTIME_CONFIRMED],
   [WorkOrderStatus.DOWNTIME_CONFIRMED]: [WorkOrderStatus.PART_REQUESTED, WorkOrderStatus.REPAIR_COMPLETED],
-  [WorkOrderStatus.PART_REQUESTED]: [WorkOrderStatus.PART_APPROVED],
+  [WorkOrderStatus.PART_REQUESTED]: [WorkOrderStatus.PART_APPROVED, WorkOrderStatus.DOWNTIME_CONFIRMED],
   [WorkOrderStatus.PART_APPROVED]: [WorkOrderStatus.PART_RECEIVED],
   [WorkOrderStatus.PART_RECEIVED]: [WorkOrderStatus.REPAIR_COMPLETED],
   [WorkOrderStatus.REPAIR_COMPLETED]: [WorkOrderStatus.REVIEW_SUBMITTED],

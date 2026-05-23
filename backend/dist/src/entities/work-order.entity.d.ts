@@ -1,0 +1,30 @@
+import { WorkOrderStatus, AbnormalType } from '../common/enums/work-order.enum';
+import { User } from './user.entity';
+import { DowntimeRecord } from './downtime-record.entity';
+import { PartUsage } from './part-usage.entity';
+import { ReviewRecord } from './review-record.entity';
+import { StatusHistory } from './status-history.entity';
+export declare class WorkOrder {
+    id: string;
+    orderNo: string;
+    title: string;
+    status: WorkOrderStatus;
+    abnormalType: AbnormalType;
+    description: string;
+    equipmentNo: string;
+    station: string;
+    powerLoss: number;
+    totalDowntimeMinutes: number;
+    reporter: User;
+    reporterId: string;
+    handler: User;
+    handlerId: string;
+    remark: string;
+    downtimeRecords: DowntimeRecord[];
+    partUsages: PartUsage[];
+    reviewRecords: ReviewRecord[];
+    statusHistories: StatusHistory[];
+    closedAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}

@@ -31,7 +31,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { workOrderApi, sparePartApi } from '../services/api';
+import { workOrderApi, sparePartApi, userApi } from '../services/api';
 import {
   WorkOrder,
   WorkOrderStatus,
@@ -78,14 +78,13 @@ const workflowSteps = [
   { status: WorkOrderStatus.CLOSED, title: '工单关闭' },
 ];
 
-const mockCurrentUserId = '10000000-0000-0000-0000-000000000001';
-
 const WorkOrderDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [spareParts, setSpareParts] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentAction, setCurrentAction] = useState<string>('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -95,8 +94,18 @@ const WorkOrderDetail: React.FC = () => {
     if (id) {
       loadDetail();
       loadSpareParts();
+      loadUsers();
     }
   }, [id]);
+
+  const loadUsers = async () => {
+    try {
+      const res = await userApi.getList({ page: 1, limit: 100 });
+      setUsers(res.data.data || []);
+    } catch (error) {
+      console.error('加载用户列表失败:', error);
+    }
+  };
 
   const loadDetail = async () => {
     setLoading(true);
@@ -170,12 +179,11 @@ const WorkOrderDetail: React.FC = () => {
       setActionLoading(true);
 
       let apiCall: any;
-      const operatorId = mockCurrentUserId;
 
       switch (currentAction) {
         case 'confirmDowntime':
           apiCall = workOrderApi.confirmDowntime(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             startTime: values.startTime.toDate(),
             endTime: values.endTime?.toDate(),
             reason: values.reason,
@@ -184,7 +192,7 @@ const WorkOrderDetail: React.FC = () => {
           break;
         case 'requestPart':
           apiCall = workOrderApi.requestPart(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             sparePartId: values.sparePartId,
             quantity: values.quantity,
             requestReason: values.requestReason,
@@ -195,7 +203,7 @@ const WorkOrderDetail: React.FC = () => {
             (p: PartUsage) => p.status === PartRequestStatus.PENDING
           );
           apiCall = workOrderApi.approvePart(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             partUsageId: pendingPart?.id,
             status: values.status,
             approvalRemark: values.approvalRemark,
@@ -206,19 +214,19 @@ const WorkOrderDetail: React.FC = () => {
             (p: PartUsage) => p.status === PartRequestStatus.APPROVED
           );
           apiCall = workOrderApi.receivePart(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             partUsageId: approvedPart?.id,
           });
           break;
         case 'completeRepair':
           apiCall = workOrderApi.completeRepair(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             remark: values.remark,
           });
           break;
         case 'submitReview':
           apiCall = workOrderApi.submitReview(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             level: values.level,
             rootCause: values.rootCause,
             repairProcess: values.repairProcess,
@@ -232,7 +240,7 @@ const WorkOrderDetail: React.FC = () => {
           break;
         case 'verifyReview':
           apiCall = workOrderApi.verifyReview(id!, {
-            operatorId,
+            operatorId: values.operatorId,
             remark: values.remark,
           });
           break;
@@ -263,11 +271,24 @@ const WorkOrderDetail: React.FC = () => {
     return titles[currentAction] || '';
   };
 
+  const renderOperatorSelector = () => (
+    <Form.Item name="operatorId" label="操作者" rules={[{ required: true, message: '请选择操作者' }]}>
+      <Select placeholder="请选择当前操作用户">
+        {users.map((user) => (
+          <Option key={user.id} value={user.id}>
+            {user.name} ({user.role === 'admin' ? '管理员' : user.role === 'station_master' ? '站长' : user.role === 'engineer' ? '巡检工程师' : user.role === 'office_staff' ? '运维内勤' : user.role})
+          </Option>
+        ))}
+      </Select>
+    </Form.Item>
+  );
+
   const renderActionForm = () => {
     switch (currentAction) {
       case 'confirmDowntime':
         return (
           <>
+            {renderOperatorSelector()}
             <Form.Item name="startTime" label="停机开始时间" rules={[{ required: true, message: '请选择开始时间' }]}>
               <DatePicker showTime style={{ width: '100%' }} />
             </Form.Item>
@@ -285,6 +306,7 @@ const WorkOrderDetail: React.FC = () => {
       case 'requestPart':
         return (
           <>
+            {renderOperatorSelector()}
             <Form.Item name="sparePartId" label="选择备件" rules={[{ required: true, message: '请选择备件' }]}>
               <Select placeholder="请选择备件">
                 {spareParts.map((part) => (
@@ -308,6 +330,7 @@ const WorkOrderDetail: React.FC = () => {
         );
         return (
           <>
+            {renderOperatorSelector()}
             <Alert
               message={`待审批备件: ${pendingPart?.sparePart?.name} x ${pendingPart?.quantity}`}
               type="info"
@@ -330,21 +353,28 @@ const WorkOrderDetail: React.FC = () => {
           (p: PartUsage) => p.status === PartRequestStatus.APPROVED
         );
         return (
-          <Alert
-            message={`确认签收备件: ${approvedPart?.sparePart?.name} x ${approvedPart?.quantity}`}
-            type="info"
-            showIcon
-          />
+          <>
+            {renderOperatorSelector()}
+            <Alert
+              message={`确认签收备件: ${approvedPart?.sparePart?.name} x ${approvedPart?.quantity}`}
+              type="info"
+              showIcon
+            />
+          </>
         );
       case 'completeRepair':
         return (
-          <Form.Item name="remark" label="维修说明">
-            <TextArea rows={3} placeholder="请输入维修完成说明" />
-          </Form.Item>
+          <>
+            {renderOperatorSelector()}
+            <Form.Item name="remark" label="维修说明">
+              <TextArea rows={3} placeholder="请输入维修完成说明" />
+            </Form.Item>
+          </>
         );
       case 'submitReview':
         return (
           <>
+            {renderOperatorSelector()}
             <Form.Item name="level" label="故障级别">
               <Select placeholder="请选择">
                 <Option value={ReviewLevelEnum.MINOR}>轻微</Option>
@@ -395,6 +425,7 @@ const WorkOrderDetail: React.FC = () => {
         const review = workOrder?.reviewRecords?.[0];
         return (
           <>
+            {renderOperatorSelector()}
             <Alert
               message={`复盘记录: ${review?.rootCause || '无'}`}
               type="info"

@@ -130,7 +130,7 @@ export class WorkOrderService {
     });
 
     if (!workOrder) {
-      throw new BusinessException('工单不存在', ErrorCode.WORK_ORDER_NOT_FOUND);
+      throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
     }
 
     return workOrder;
@@ -147,7 +147,7 @@ export class WorkOrderService {
     const handler = await this.userRepository.findOne({ where: { id: assignDto.handlerId } });
     
     if (!handler) {
-      throw new BusinessException('处理人不存在', ErrorCode.USER_NOT_FOUND);
+      throw new BusinessException(ErrorCode.USER_NOT_FOUND, '处理人不存在');
     }
 
     workOrder.handler = handler;
@@ -162,7 +162,7 @@ export class WorkOrderService {
       const workOrder = await manager.findOne(WorkOrder, { where: { id } });
       
       if (!workOrder) {
-        throw new BusinessException('工单不存在', ErrorCode.WORK_ORDER_NOT_FOUND);
+        throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
       }
 
       const currentStatus = workOrder.status;
@@ -170,8 +170,8 @@ export class WorkOrderService {
 
       if (!this.canTransition(currentStatus, targetStatus)) {
         throw new BusinessException(
-          `无法从 ${currentStatus} 转换到 ${targetStatus}`,
           ErrorCode.INVALID_STATUS_TRANSITION,
+          `无法从 ${currentStatus} 转换到 ${targetStatus}`,
         );
       }
 
@@ -434,6 +434,18 @@ export class WorkOrderService {
           operatedById: dto.operatorId,
         });
         await manager.save(history);
+      } else if (dto.status === PartRequestStatus.REJECTED) {
+        workOrder.status = WorkOrderStatus.DOWNTIME_CONFIRMED;
+        await manager.save(workOrder);
+
+        const history = manager.create(StatusHistory, {
+          workOrderId,
+          fromStatus: WorkOrderStatus.PART_REQUESTED,
+          toStatus: WorkOrderStatus.DOWNTIME_CONFIRMED,
+          remark: dto.approvalRemark || '备件审批驳回，可重新申请',
+          operatedById: dto.operatorId,
+        });
+        await manager.save(history);
       }
 
       return this.findOne(workOrderId);
@@ -488,7 +500,8 @@ export class WorkOrderService {
         throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
       }
 
-      if (workOrder.status !== WorkOrderStatus.PART_RECEIVED) {
+      const fromStatus = workOrder.status;
+      if (![WorkOrderStatus.DOWNTIME_CONFIRMED, WorkOrderStatus.PART_RECEIVED].includes(fromStatus)) {
         throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, '当前状态不允许完成维修');
       }
 
@@ -497,7 +510,7 @@ export class WorkOrderService {
 
       const history = manager.create(StatusHistory, {
         workOrderId,
-        fromStatus: WorkOrderStatus.PART_RECEIVED,
+        fromStatus,
         toStatus: WorkOrderStatus.REPAIR_COMPLETED,
         remark: dto.remark || '维修完成',
         operatedById: dto.operatorId,

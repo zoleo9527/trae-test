@@ -24,7 +24,7 @@ export class SparePartService {
   async createPart(createDto: CreateSparePartDto): Promise<SparePart> {
     const existing = await this.sparePartRepository.findOne({ where: { partCode: createDto.partCode } });
     if (existing) {
-      throw new BusinessException('备件编码已存在', ErrorCode.VALIDATION_ERROR);
+      throw new BusinessException(ErrorCode.VALIDATION_ERROR, '备件编码已存在');
     }
 
     const part = this.sparePartRepository.create(createDto);
@@ -63,7 +63,7 @@ export class SparePartService {
   async findOnePart(id: string): Promise<SparePart> {
     const part = await this.sparePartRepository.findOne({ where: { id } });
     if (!part) {
-      throw new BusinessException('备件不存在', ErrorCode.PART_NOT_FOUND);
+      throw new BusinessException(ErrorCode.PART_NOT_FOUND, '备件不存在');
     }
     return part;
   }
@@ -83,12 +83,12 @@ export class SparePartService {
     return this.dataSource.transaction(async (manager) => {
       const workOrder = await manager.findOne(WorkOrder, { where: { id: createDto.workOrderId } });
       if (!workOrder) {
-        throw new BusinessException('工单不存在', ErrorCode.WORK_ORDER_NOT_FOUND);
+        throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
       }
 
       const sparePart = await manager.findOne(SparePart, { where: { id: createDto.sparePartId } });
       if (!sparePart) {
-        throw new BusinessException('备件不存在', ErrorCode.PART_NOT_FOUND);
+        throw new BusinessException(ErrorCode.PART_NOT_FOUND, '备件不存在');
       }
 
       const partUsage = manager.create(PartUsage, {
@@ -113,18 +113,18 @@ export class SparePartService {
     return this.dataSource.transaction(async (manager) => {
       const partUsage = await manager.findOne(PartUsage, { where: { id } });
       if (!partUsage) {
-        throw new BusinessException('备件领用记录不存在', ErrorCode.PART_NOT_FOUND);
+        throw new BusinessException(ErrorCode.PART_USAGE_NOT_FOUND, '备件领用记录不存在');
       }
 
       if (partUsage.status !== PartRequestStatus.PENDING) {
-        throw new BusinessException('当前状态不允许审批', ErrorCode.INVALID_STATUS_TRANSITION);
+        throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, '当前状态不允许审批');
       }
 
       const sparePart = await manager.findOne(SparePart, { where: { id: partUsage.sparePartId } });
 
       if (approveDto.status === PartRequestStatus.APPROVED) {
         if (sparePart.stockQuantity < partUsage.quantity) {
-          throw new BusinessException('库存不足', ErrorCode.INSUFFICIENT_STOCK);
+          throw new BusinessException(ErrorCode.INSUFFICIENT_STOCK, '库存不足');
         }
         sparePart.stockQuantity -= partUsage.quantity;
         await manager.save(sparePart);
@@ -153,11 +153,11 @@ export class SparePartService {
     return this.dataSource.transaction(async (manager) => {
       const partUsage = await manager.findOne(PartUsage, { where: { id } });
       if (!partUsage) {
-        throw new BusinessException('备件领用记录不存在', ErrorCode.PART_NOT_FOUND);
+        throw new BusinessException(ErrorCode.PART_USAGE_NOT_FOUND, '备件领用记录不存在');
       }
 
       if (partUsage.status !== PartRequestStatus.APPROVED) {
-        throw new BusinessException('当前状态不允许签收', ErrorCode.INVALID_STATUS_TRANSITION);
+        throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, '当前状态不允许签收');
       }
 
       partUsage.status = PartRequestStatus.RECEIVED;
@@ -215,7 +215,7 @@ export class SparePartService {
     });
 
     if (!usage) {
-      throw new BusinessException('备件领用记录不存在', ErrorCode.PART_NOT_FOUND);
+      throw new BusinessException(ErrorCode.PART_USAGE_NOT_FOUND, '备件领用记录不存在');
     }
 
     return usage;

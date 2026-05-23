@@ -17,7 +17,7 @@ export class UserService {
   async create(data: Partial<User>): Promise<User> {
     const existing = await this.userRepository.findOne({ where: { username: data.username } });
     if (existing) {
-      throw new BusinessException('用户名已存在', ErrorCode.VALIDATION_ERROR);
+      throw new BusinessException(ErrorCode.VALIDATION_ERROR, '用户名已存在');
     }
 
     const user = this.userRepository.create(data);
@@ -52,7 +52,7 @@ export class UserService {
   async findOne(id: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
-      throw new BusinessException('用户不存在', ErrorCode.USER_NOT_FOUND);
+      throw new BusinessException(ErrorCode.USER_NOT_FOUND, '用户不存在');
     }
     return user;
   }

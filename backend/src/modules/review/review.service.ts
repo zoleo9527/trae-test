@@ -22,7 +22,7 @@ export class ReviewService {
     return this.dataSource.transaction(async (manager) => {
       const workOrder = await manager.findOne(WorkOrder, { where: { id: createDto.workOrderId } });
       if (!workOrder) {
-        throw new BusinessException('工单不存在', ErrorCode.WORK_ORDER_NOT_FOUND);
+        throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
       }
 
       const totalCost = (createDto.actualPartCost || 0) + (createDto.actualLaborCost || 0);
@@ -82,7 +82,7 @@ export class ReviewService {
     });
 
     if (!review) {
-      throw new BusinessException('复盘记录不存在', ErrorCode.REVIEW_NOT_FOUND);
+      throw new BusinessException(ErrorCode.REVIEW_NOT_FOUND, '复盘记录不存在');
     }
 
     return review;
@@ -106,11 +106,11 @@ export class ReviewService {
     return this.dataSource.transaction(async (manager) => {
       const review = await manager.findOne(ReviewRecord, { where: { id } });
       if (!review) {
-        throw new BusinessException('复盘记录不存在', ErrorCode.REVIEW_NOT_FOUND);
+        throw new BusinessException(ErrorCode.REVIEW_NOT_FOUND, '复盘记录不存在');
       }
 
       if (review.isVerified) {
-        throw new BusinessException('复盘记录已验证', ErrorCode.INVALID_STATUS_TRANSITION);
+        throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, '复盘记录已验证');
       }
 
       review.isVerified = true;

@@ -19,7 +19,7 @@ export class DowntimeService {
   async create(createDto: CreateDowntimeDto): Promise<DowntimeRecord> {
     const workOrder = await this.workOrderRepository.findOne({ where: { id: createDto.workOrderId } });
     if (!workOrder) {
-      throw new BusinessException('工单不存在', ErrorCode.WORK_ORDER_NOT_FOUND);
+      throw new BusinessException(ErrorCode.WORK_ORDER_NOT_FOUND, '工单不存在');
     }
 
     const downtime = this.downtimeRepository.create(createDto);
@@ -62,7 +62,7 @@ export class DowntimeService {
     });
 
     if (!downtime) {
-      throw new BusinessException('停机记录不存在', ErrorCode.DOWNTIME_NOT_FOUND);
+      throw new BusinessException(ErrorCode.DOWNTIME_NOT_FOUND, '停机记录不存在');
     }
 
     return downtime;
