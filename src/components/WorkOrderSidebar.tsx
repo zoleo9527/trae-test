@@ -69,6 +69,7 @@ export default function WorkOrderSidebar() {
   };
 
   const canApproveSparePart = currentUser?.role === 'admin' || currentUser?.role === 'staff';
+  const hasPendingSpareParts = spareParts.some((sp) => sp.status === 'pending');
 
   const getAvailableActions = (): { status: WorkOrderStatus; label: string; color: string; icon: React.ReactNode }[] => {
     if (!workOrder) return [];
@@ -86,6 +87,9 @@ export default function WorkOrderSidebar() {
             { status: 'reviewing', label: '提交完成', color: 'bg-green-600 hover:bg-green-700', icon: <CheckCircle className="w-4 h-4" /> },
           ];
         case 'waiting_spare':
+          if (hasPendingSpareParts) {
+            return [];
+          }
           return [{ status: 'processing', label: '备件到位继续', color: 'bg-blue-600 hover:bg-blue-700', icon: <Send className="w-4 h-4" /> }];
         default:
           return [];
@@ -441,9 +445,11 @@ export default function WorkOrderSidebar() {
             </p>
           )}
 
-          {workOrder.status === 'waiting_spare' && currentUser?.role !== 'engineer' && (
+          {workOrder.status === 'waiting_spare' && hasPendingSpareParts && (
             <p className="text-center text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
-              工单等待备件审批中，请前往备件管理处理
+              {currentUser?.role === 'engineer'
+                ? '存在未审批的备件申请，请等待站长或内勤审批'
+                : '工单等待备件审批中，请前往备件管理或点击上方备件标签页处理'}
             </p>
           )}
         </div>

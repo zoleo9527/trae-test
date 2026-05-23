@@ -24,11 +24,13 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const workOrders = useStore((state) => state.workOrders);
   const alarms = useStore((state) => state.alarms);
+  const spareParts = useStore((state) => state.spareParts);
   const getDashboardStats = useStore((state) => state.getDashboardStats);
   const selectWorkOrder = useStore((state) => state.selectWorkOrder);
   const currentUser = useStore((state) => state.currentUser);
 
   const stats = getDashboardStats();
+  const pendingSparePartsCount = spareParts.filter((sp) => sp.status === 'pending').length;
 
   const pendingWorkOrders = workOrders.filter(
     (wo) => wo.status === 'pending' || wo.status === 'processing' || wo.status === 'returned'
@@ -244,8 +246,15 @@ export default function Dashboard() {
             </div>
             <div className="p-4">
               <div className="text-center py-4">
-                <p className="text-3xl font-bold text-orange-600">2</p>
-                <p className="text-sm text-slate-500 mt-1">个申请待审批</p>
+                <p className={cn(
+                  'text-3xl font-bold',
+                  pendingSparePartsCount > 0 ? 'text-orange-600' : 'text-slate-400'
+                )}>
+                  {pendingSparePartsCount}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {pendingSparePartsCount > 0 ? '个申请待审批' : '暂无待审批申请'}
+                </p>
               </div>
             </div>
           </div>

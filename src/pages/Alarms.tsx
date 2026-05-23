@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, AlertTriangle, Clock, Zap, Filter, ChevronDown, Plus, ArrowUpRight, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -46,6 +47,7 @@ export default function Alarms() {
   const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const navigate = useNavigate();
   const alarms = useStore((state) => state.alarms);
   const selectWorkOrder = useStore((state) => state.selectWorkOrder);
   const currentUser = useStore((state) => state.currentUser);
@@ -306,7 +308,10 @@ export default function Alarms() {
               {selectedAlarm.workorderId ? (
                 <button
                   onClick={() => {
-                    selectWorkOrder(selectedAlarm.workorderId!);
+                    navigate('/workorders');
+                    setTimeout(() => {
+                      selectWorkOrder(selectedAlarm.workorderId!);
+                    }, 100);
                   }}
                   className="w-full py-2.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                 >
@@ -343,8 +348,11 @@ export default function Alarms() {
         onClose={() => setShowCreateModal(false)}
         alarm={selectedAlarm}
         onSuccess={(workOrderId) => {
-          selectWorkOrder(workOrderId);
           setSelectedAlarmId(null);
+          navigate('/workorders');
+          setTimeout(() => {
+            selectWorkOrder(workOrderId);
+          }, 100);
         }}
       />
     </div>
