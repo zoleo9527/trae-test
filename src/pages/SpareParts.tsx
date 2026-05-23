@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Search, Package, Clock, CheckCircle, XCircle, Filter, ChevronDown, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Package, Clock, CheckCircle, XCircle, Filter, ChevronDown, Plus, ExternalLink, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import {
   sparePartStatusLabels,
   sparePartStatusColors,
+  workOrderStatusLabels,
+  workOrderStatusColors,
 } from '../utils/status';
 import { cn } from '../lib/utils';
 import type { SparePartStatus, SparePartRequest } from '../types';
@@ -21,6 +24,7 @@ const statusFilters: { value: SparePartStatus | 'all'; label: string }[] = [
 ];
 
 export default function SpareParts() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<SparePartStatus | 'all'>('all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -28,13 +32,31 @@ export default function SpareParts() {
   const [selectedSparePart, setSelectedSparePart] = useState<SparePartRequest | null>(null);
 
   const spareParts = useStore((state) => state.spareParts);
+  const workOrders = useStore((state) => state.workOrders);
+  const alarms = useStore((state) => state.alarms);
   const getUserName = useStore((state) => state.getUserName);
+  const selectWorkOrder = useStore((state) => state.selectWorkOrder);
   const currentUser = useStore((state) => state.currentUser);
 
+  const getWorkOrderInfo = (workorderId: string) => {
+    return workOrders.find((wo) => wo.id === workorderId);
+  };
+
+  const getAlarmInfo = (workorderId: string) => {
+    return alarms.find((a) => a.workorderId === workorderId);
+  };
+
+  const handleViewWorkOrder = (workorderId: string) => {
+    selectWorkOrder(workorderId);
+    navigate('/workorders');
+  };
+
   const filteredSpareParts = spareParts.filter((sp) => {
+    const workOrder = getWorkOrderInfo(sp.workorderId);
     const matchesSearch =
       sp.partName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sp.partCode.toLowerCase().includes(searchTerm.toLowerCase());
+      sp.partCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (workOrder?.title.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || sp.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -94,7 +116,7 @@ export default function SpareParts() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
-            placeholder="搜索备件名称或型号..."
+            placeholder="搜索备件名称、型号或关联工单..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
@@ -157,6 +179,9 @@ export default function SpareParts() {
                   关联工单
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  来源告警
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   申请时间
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -168,62 +193,112 @@ export default function SpareParts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSpareParts.map((sp) => (
-                <tr key={sp.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-4">
-                    <div>
-                      <p className="font-medium text-slate-800">{sp.partName}</p>
-                      <p className="text-sm text-slate-500">{sp.partCode}</p>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-slate-800">
-                      {sp.quantity} {sp.unit}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-slate-600">{getUserName(sp.requesterId)}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-slate-600 text-sm">{sp.workorderId}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-slate-500 text-sm">{formatDate(sp.createdAt)}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span
-                      className={cn(
-                        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
-                        sparePartStatusColors[sp.status]
+              {filteredSpareParts.map((sp) => {
+                const workOrder = getWorkOrderInfo(sp.workorderId);
+                const alarm = getAlarmInfo(sp.workorderId);
+                return (
+                  <tr key={sp.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-4">
+                      <div>
+                        <p className="font-medium text-slate-800">{sp.partName}</p>
+                        <p className="text-sm text-slate-500">{sp.partCode}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-slate-800">
+                        {sp.quantity} {sp.unit}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-slate-600">{getUserName(sp.requesterId)}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      {workOrder ? (
+                        <div>
+                          <button
+                            onClick={() => handleViewWorkOrder(sp.workorderId)}
+                            className="group flex items-center gap-1 text-left hover:text-blue-600 transition-colors"
+                          >
+                            <span className="font-medium text-slate-800 truncate max-w-[180px] group-hover:text-blue-600">
+                              {workOrder.title}
+                            </span>
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
+                          </button>
+                          <span
+                            className={cn(
+                              'inline-block mt-1 text-xs px-2 py-0.5 rounded-full',
+                              workOrderStatusColors[workOrder.status]
+                            )}
+                          >
+                            {workOrderStatusLabels[workOrder.status]}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-sm">
+                          {sp.workorderId}
+                        </span>
                       )}
-                    >
-                      {sparePartStatusLabels[sp.status]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    {sp.status === 'pending' && canApprove && (
+                    </td>
+                    <td className="px-4 py-4">
+                      {alarm ? (
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className={cn(
+                            'w-4 h-4 flex-shrink-0 mt-0.5',
+                            alarm.level === 'critical' ? 'text-red-500' :
+                            alarm.level === 'warning' ? 'text-orange-500' : 'text-yellow-500'
+                          )} />
+                          <div className="min-w-0">
+                            <p className="text-sm text-slate-700 truncate max-w-[150px]">
+                              {alarm.type}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {alarm.inverterId}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-sm">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-slate-500 text-sm">{formatDate(sp.createdAt)}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={cn(
+                          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
+                          sparePartStatusColors[sp.status]
+                        )}
+                      >
+                        {sparePartStatusLabels[sp.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
+                        {sp.status === 'pending' && canApprove && (
+                          <button
+                            onClick={() => {
+                              setSelectedSparePart(sp);
+                              setShowApprovalModal(true);
+                            }}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="审批"
+                          >
+                            <CheckCircle className="w-5 h-5" />
+                          </button>
+                        )}
                         <button
-                          onClick={() => {
-                            setSelectedSparePart(sp);
-                            setShowApprovalModal(true);
-                          }}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="批准/拒绝"
+                          onClick={() => handleViewWorkOrder(sp.workorderId)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="查看工单"
                         >
-                          <CheckCircle className="w-5 h-5" />
+                          <ExternalLink className="w-5 h-5" />
                         </button>
                       </div>
-                    )}
-                    {sp.status !== 'pending' && (
-                      <span className="text-slate-400 text-sm">-</span>
-                    )}
-                    {sp.status === 'pending' && !canApprove && (
-                      <span className="text-slate-400 text-sm">等待审批</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -243,6 +318,9 @@ export default function SpareParts() {
           setSelectedSparePart(null);
         }}
         sparePart={selectedSparePart}
+        onSuccess={(workorderId) => {
+          handleViewWorkOrder(workorderId);
+        }}
       />
     </div>
   );
