@@ -1,6 +1,15 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { WorkOrderService } from './work-order.service';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, QueryWorkOrderDto, TransitionStatusDto, AssignHandlerDto } from './dto/work-order.dto';
+import {
+  ConfirmDowntimeDto,
+  RequestPartDto,
+  ApprovePartDto,
+  ReceivePartDto,
+  CompleteRepairDto,
+  SubmitReviewDto,
+  VerifyReviewDto,
+} from './dto/workflow.dto';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 
@@ -47,6 +56,41 @@ export class WorkOrderController {
   @Post(':id/transition')
   async transitionStatus(@Param('id') id: string, @Body() transitionDto: TransitionStatusDto): Promise<WorkOrder> {
     return this.workOrderService.transitionStatus(id, transitionDto);
+  }
+
+  @Post(':id/confirm-downtime')
+  async confirmDowntime(@Param('id') id: string, @Body() dto: ConfirmDowntimeDto): Promise<WorkOrder> {
+    return this.workOrderService.confirmDowntime(id, dto);
+  }
+
+  @Post(':id/request-part')
+  async requestPart(@Param('id') id: string, @Body() dto: RequestPartDto): Promise<WorkOrder> {
+    return this.workOrderService.requestPart(id, dto);
+  }
+
+  @Post(':id/approve-part')
+  async approvePart(@Param('id') id: string, @Body() dto: ApprovePartDto): Promise<WorkOrder> {
+    return this.workOrderService.approvePart(id, dto);
+  }
+
+  @Post(':id/receive-part')
+  async receivePart(@Param('id') id: string, @Body() dto: ReceivePartDto): Promise<WorkOrder> {
+    return this.workOrderService.receivePart(id, dto);
+  }
+
+  @Post(':id/complete-repair')
+  async completeRepair(@Param('id') id: string, @Body() dto: CompleteRepairDto): Promise<WorkOrder> {
+    return this.workOrderService.completeRepair(id, dto);
+  }
+
+  @Post(':id/submit-review')
+  async submitReview(@Param('id') id: string, @Body() dto: SubmitReviewDto): Promise<WorkOrder> {
+    return this.workOrderService.submitReview(id, dto);
+  }
+
+  @Post(':id/verify-review')
+  async verifyReview(@Param('id') id: string, @Body() dto: VerifyReviewDto): Promise<WorkOrder> {
+    return this.workOrderService.verifyReview(id, dto);
   }
 
   @Delete(':id')

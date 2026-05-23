@@ -23,6 +23,13 @@ export const workOrderApi = {
   getStatistics: () => api.get('/work-orders/statistics'),
   export: (params?: any) => api.get('/work-orders/export', { params }),
   delete: (id: string) => api.delete(`/work-orders/${id}`),
+  confirmDowntime: (id: string, data: any) => api.post(`/work-orders/${id}/confirm-downtime`, data),
+  requestPart: (id: string, data: any) => api.post(`/work-orders/${id}/request-part`, data),
+  approvePart: (id: string, data: any) => api.post(`/work-orders/${id}/approve-part`, data),
+  receivePart: (id: string, data: any) => api.post(`/work-orders/${id}/receive-part`, data),
+  completeRepair: (id: string, data: any) => api.post(`/work-orders/${id}/complete-repair`, data),
+  submitReview: (id: string, data: any) => api.post(`/work-orders/${id}/submit-review`, data),
+  verifyReview: (id: string, data: any) => api.post(`/work-orders/${id}/verify-review`, data),
 };
 
 export const downtimeApi = {

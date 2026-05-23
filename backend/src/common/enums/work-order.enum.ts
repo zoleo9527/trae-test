@@ -10,13 +10,13 @@ export enum WorkOrderStatus {
 }
 
 export const WorkOrderStatusLabels: Record<WorkOrderStatus, string> = {
-  [WorkOrderStatus.ABNORMAL_REPORTED]: '异常上报',
-  [WorkOrderStatus.DOWNTIME_CONFIRMED]: '停机确认',
-  [WorkOrderStatus.PART_REQUESTED]: '备件申请',
-  [WorkOrderStatus.PART_APPROVED]: '备件审批通过',
-  [WorkOrderStatus.PART_RECEIVED]: '备件已领取',
-  [WorkOrderStatus.REPAIR_COMPLETED]: '维修完成',
-  [WorkOrderStatus.REVIEW_SUBMITTED]: '复盘已提交',
+  [WorkOrderStatus.ABNORMAL_REPORTED]: '待确认停机',
+  [WorkOrderStatus.DOWNTIME_CONFIRMED]: '待申请备件',
+  [WorkOrderStatus.PART_REQUESTED]: '待审批备件',
+  [WorkOrderStatus.PART_APPROVED]: '待签收备件',
+  [WorkOrderStatus.PART_RECEIVED]: '待完成维修',
+  [WorkOrderStatus.REPAIR_COMPLETED]: '待提交复盘',
+  [WorkOrderStatus.REVIEW_SUBMITTED]: '待验证复盘',
   [WorkOrderStatus.CLOSED]: '已关闭',
 };
 

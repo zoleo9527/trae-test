@@ -18,8 +18,9 @@ export class StatusHistory {
   @Column({
     type: 'enum',
     enum: WorkOrderStatus,
+    nullable: true,
   })
-  fromStatus: WorkOrderStatus;
+  fromStatus: WorkOrderStatus | null;
 
   @Column({
     type: 'enum',

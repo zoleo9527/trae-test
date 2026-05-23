@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Button, Space, Input, Select, DatePicker, Row, Col, Modal, Form, message } from 'antd';
-import { PlusOutlined, SearchOutlined, ExportOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Input, Select, DatePicker, Row, Col, Modal, Form, message, Card } from 'antd';
+import { PlusOutlined, SearchOutlined, ExportOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { workOrderApi } from '../services/api';
-import { WorkOrder, WorkOrderStatus, WorkOrderStatusLabels, AbnormalType, AbnormalTypeLabels } from '../types';
+import { WorkOrder, WorkOrderStatus, WorkOrderStatusLabels, AbnormalType, AbnormalTypeLabels } from '../types/index';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -154,13 +154,23 @@ const WorkOrderList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 150,
       fixed: 'right',
       render: (_: any, record: WorkOrder) => (
         <Space>
           <Button type="link" size="small" onClick={() => navigate(`/work-orders/${record.id}`)}>
             详情
           </Button>
+          {record.status !== WorkOrderStatus.CLOSED && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={() => navigate(`/work-orders/${record.id}`)}
+            >
+              处理
+            </Button>
+          )}
         </Space>
       ),
     },

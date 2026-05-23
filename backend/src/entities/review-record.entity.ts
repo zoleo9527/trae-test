@@ -4,6 +4,7 @@ import { User } from './user.entity';
 
 export enum ReviewLevel {
   MINOR = 'minor',
+  MEDIUM = 'medium',
   MAJOR = 'major',
   CRITICAL = 'critical',
 }
