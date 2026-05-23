@@ -345,12 +345,12 @@ const Inventory = () => {
               <Descriptions.Item label="备注" span={2}>{disp.remarks || '-'}</Descriptions.Item>
             </Descriptions>
             <Space style={{ marginTop: 8 }}>
-              {!disp.responsibility_confirmed && user.role === 'store_manager' && selectedInventory.status === 'reviewing' && (
+              {!disp.responsibility_confirmed && user.role === 'store_manager' && ['reviewing', 'confirmed'].includes(selectedInventory.status) && (
                 <Button type="primary" size="small" onClick={() => handleConfirmDisposition(disp.id)}>
                   确认责任
                 </Button>
               )}
-              {disp.responsibility_confirmed && ['after_sales', 'store_manager'].includes(user.role) && selectedInventory.status !== 'resolved' && (
+              {disp.responsibility_confirmed && user.role === 'after_sales' && selectedInventory.status !== 'resolved' && (
                 <Select 
                   size="small" 
                   style={{ width: 120 }}
@@ -361,6 +361,11 @@ const Inventory = () => {
                     <Option key={key} value={key}>{val.label}</Option>
                   ))}
                 </Select>
+              )}
+              {disp.responsibility_confirmed && user.role !== 'after_sales' && selectedInventory.status !== 'resolved' && (
+                <Tag color="blue">
+                  赔付状态：{COMPENSATION_STATUS[disp.compensation_status]?.label}
+                </Tag>
               )}
             </Space>
           </Card>
@@ -621,14 +626,17 @@ const Inventory = () => {
                             编辑
                           </Button>
                         )}
-                        {record.difference_type !== 'none' && ['reviewing', 'confirmed'].includes(selectedInventory.status) && ['after_sales', 'store_manager'].includes(user.role) && (
+                        {record.difference_type !== 'none' && ['reviewing', 'confirmed'].includes(selectedInventory.status) && (
                           <Popover
                             content={
                               <Space direction="vertical" size="small">
-                                {(!record.dispositions || record.dispositions.length === 0) && (
+                                {(!record.dispositions || record.dispositions.length === 0) && user.role === 'after_sales' && (
                                   <Button type="link" size="small" icon={<WarningOutlined />} onClick={() => handleCreateDisposition(record)}>
                                     创建差异处理
                                   </Button>
+                                )}
+                                {(!record.dispositions || record.dispositions.length === 0) && user.role !== 'after_sales' && (
+                                  <Text type="warning" style={{ fontSize: 12 }}>需售后创建差异处理</Text>
                                 )}
                                 {record.dispositions && record.dispositions.length > 0 && record.difference_type !== 'none' && (
                                   <Text type="secondary" style={{ fontSize: 12 }}>点击展开行查看/操作</Text>

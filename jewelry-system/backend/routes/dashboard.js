@@ -87,14 +87,19 @@ router.get('/recent-activities', authenticateToken, (req, res) => {
       LEFT JOIN transfer_requests tr ON ol.ref_type = 'transfer' AND ol.ref_id = tr.id
       LEFT JOIN inventory_checks ic ON ol.ref_type = 'inventory' AND ol.ref_id = ic.id
       LEFT JOIN products p ON ol.ref_type = 'product' AND ol.ref_id = p.id
+      LEFT JOIN difference_dispositions dd ON ol.ref_type = 'disposition' AND ol.ref_id = dd.id
+      LEFT JOIN inventory_items ii ON dd.inventory_item_id = ii.id
+      LEFT JOIN inventory_checks icd ON ii.inventory_check_id = icd.id
+      LEFT JOIN repair_orders ro ON ol.ref_type = 'repair' AND ol.ref_id = ro.id
       WHERE 
         (ol.ref_type = 'transfer' AND (tr.from_store_id = ? OR tr.to_store_id = ?)) OR
         (ol.ref_type = 'inventory' AND ic.store_id = ?) OR
         (ol.ref_type = 'product' AND p.current_store_id = ?) OR
-        (ol.ref_type IN ('disposition', 'repair'))
+        (ol.ref_type = 'disposition' AND icd.store_id = ?) OR
+        (ol.ref_type = 'repair' AND ro.store_id = ?)
       ORDER BY ol.created_at DESC
       LIMIT ?
-    `).all(userStoreId, userStoreId, userStoreId, userStoreId, parseInt(limit));
+    `).all(userStoreId, userStoreId, userStoreId, userStoreId, userStoreId, userStoreId, parseInt(limit));
   }
 
   res.json(logs);

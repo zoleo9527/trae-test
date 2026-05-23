@@ -26,7 +26,7 @@ router.get('/inventory-item/:itemId', authenticateToken, (req, res) => {
   res.json(dispositions);
 });
 
-router.post('/', authenticateToken, requireRoles('after_sales', 'store_manager'), (req, res) => {
+router.post('/', authenticateToken, requireRoles('after_sales'), (req, res) => {
   const { inventory_item_id, disposition_type, related_transfer_id, responsible_person, compensation_amount, remarks } = req.body;
 
   if (!inventory_item_id || !disposition_type) {
@@ -153,7 +153,7 @@ router.post('/:id/confirm', authenticateToken, requireRoles('store_manager'), (r
   res.json({ success: true });
 });
 
-router.post('/:id/compensation-status', authenticateToken, requireRoles('after_sales', 'store_manager'), (req, res) => {
+router.post('/:id/compensation-status', authenticateToken, requireRoles('after_sales'), (req, res) => {
   const { status } = req.body;
   const dispositionId = req.params.id;
 

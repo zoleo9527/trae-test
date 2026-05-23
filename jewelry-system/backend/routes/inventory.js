@@ -323,8 +323,26 @@ router.post('/:id/resolve', authenticateToken, requireRoles('store_manager'), (r
     return res.status(404).json({ error: '盘点记录不存在' });
   }
 
-  if (check.status !== 'confirmed') {
-    return res.status(400).json({ error: '只能处理已确认的盘点' });
+  if (!['reviewing', 'confirmed'].includes(check.status)) {
+    return res.status(400).json({ error: '只能处理复核中或已确认的盘点' });
+  }
+
+  const diffItems = db.prepare(`
+    SELECT ii.id, ii.difference_type
+    FROM inventory_items ii
+    WHERE ii.inventory_check_id = ? AND ii.difference_type != 'none'
+  `).all(checkId);
+
+  const diffWithDisposition = db.prepare(`
+    SELECT DISTINCT ii.id
+    FROM inventory_items ii
+    JOIN difference_dispositions dd ON ii.id = dd.inventory_item_id
+    WHERE ii.inventory_check_id = ? AND ii.difference_type != 'none'
+  `).all(checkId).map(r => r.id);
+
+  const noDispositionItems = diffItems.filter(item => !diffWithDisposition.includes(item.id));
+  if (noDispositionItems.length > 0) {
+    return res.status(400).json({ error: `有 ${noDispositionItems.length} 条差异未创建处理记录` });
   }
 
   const pendingDispositions = db.prepare(`
@@ -335,7 +353,18 @@ router.post('/:id/resolve', authenticateToken, requireRoles('store_manager'), (r
   `).get(checkId);
 
   if (pendingDispositions.count > 0) {
-    return res.status(400).json({ error: '还有未确认的差异处理' });
+    return res.status(400).json({ error: `还有 ${pendingDispositions.count} 条差异处理未确认责任归属` });
+  }
+
+  const pendingCompensation = db.prepare(`
+    SELECT COUNT(*) as count 
+    FROM difference_dispositions dd
+    JOIN inventory_items ii ON dd.inventory_item_id = ii.id
+    WHERE ii.inventory_check_id = ? AND dd.compensation_status = 'pending' AND dd.compensation_amount > 0
+  `).get(checkId);
+
+  if (pendingCompensation.count > 0) {
+    return res.status(400).json({ error: `还有 ${pendingCompensation.count} 条赔付结果未落定（需标记为已赔付/已豁免）` });
   }
 
   db.prepare('UPDATE inventory_checks SET status = ? WHERE id = ?').run('resolved', checkId);
@@ -347,7 +376,7 @@ router.post('/:id/resolve', authenticateToken, requireRoles('store_manager'), (r
     operatorId: req.user.id,
     operatorName: req.user.name,
     action: '完成盘点差异处理',
-    fromStatus: 'confirmed',
+    fromStatus: check.status,
     toStatus: 'resolved'
   });
 
