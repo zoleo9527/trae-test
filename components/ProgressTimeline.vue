@@ -59,7 +59,7 @@ interface Props {
   canEdit?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   showActions: false,
   canEdit: false,
 })

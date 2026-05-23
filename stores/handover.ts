@@ -43,5 +43,14 @@ export const useHandoverStore = defineStore('handover', {
         id: Date.now().toString(),
       })
     },
+
+    createRecord(record: Omit<HandoverRecord, 'id'>) {
+      const newRecord: HandoverRecord = {
+        ...record,
+        id: Date.now().toString(),
+      }
+      this.records.unshift(newRecord)
+      return newRecord
+    },
   },
 })

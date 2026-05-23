@@ -77,7 +77,7 @@
             :can-edit="true"
             @start="handleStartStep"
             @complete="handleCompleteStep"
-            @abnormal="handleAbnormalStep"
+            @abnormal="openAbnormalModal"
           />
         </BaseCard>
 
@@ -275,6 +275,81 @@
   <div v-else class="flex items-center justify-center h-64">
     <div class="animate-spin w-8 h-8 border-2 border-gold-500 border-t-transparent rounded-full"></div>
   </div>
+
+  <BaseModal
+    :visible="showAbnormalModal"
+    title="登记工序异常"
+    @close="closeAbnormalModal"
+  >
+    <form @submit.prevent="handleConfirmAbnormal" class="space-y-5">
+      <div v-if="abnormalStep" class="bg-coral-50 rounded-lg p-4">
+        <p class="text-sm text-coral-600">
+          <span class="font-medium">异常工序：</span>{{ abnormalStep.step }}
+        </p>
+      </div>
+
+      <div>
+        <label class="label">异常类型 <span class="text-coral-500">*</span></label>
+        <select
+          v-model="abnormalForm.type"
+          class="input-field"
+          required
+        >
+          <option v-for="opt in abnormalTypeOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+
+      <div>
+        <label class="label">紧急程度 <span class="text-coral-500">*</span></label>
+        <div class="flex gap-3">
+          <button
+            v-for="level in abnormalLevelOptions"
+            :key="level.value"
+            type="button"
+            :class="[
+              'flex-1 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all',
+              abnormalForm.level === level.value
+                ? 'border-gold-500 bg-gold-50 text-gold-700'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300'
+            ]"
+            @click="abnormalForm.level = level.value as any"
+          >
+            {{ level.label }}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="label">异常描述 <span class="text-coral-500">*</span></label>
+        <textarea
+          v-model="abnormalForm.description"
+          class="input-field min-h-[100px] resize-none"
+          placeholder="请详细描述异常情况..."
+          required
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="label">原因分析</label>
+        <textarea
+          v-model="abnormalForm.cause"
+          class="input-field min-h-[80px] resize-none"
+          placeholder="分析异常产生的原因..."
+        ></textarea>
+      </div>
+
+      <div class="pt-4 flex gap-3">
+        <BaseButton type="button" variant="secondary" class="flex-1" @click="closeAbnormalModal">
+          取消
+        </BaseButton>
+        <BaseButton type="submit" class="flex-1">
+          确认登记
+        </BaseButton>
+      </div>
+    </form>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -284,7 +359,8 @@ import { useAbnormalStore } from '~/stores/abnormal'
 import { useHandoverStore } from '~/stores/handover'
 import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
-import type { ProgressNode } from '~/types'
+import BaseModal from '~/components/BaseModal.vue'
+import type { ProgressNode, AbnormalType, AbnormalLevel } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -327,11 +403,66 @@ const handleCompleteStep = (node: ProgressNode) => {
   }
 }
 
-const handleAbnormalStep = (node: ProgressNode) => {
-  if (order.value) {
-    ordersStore.updateOrderProgress(order.value.id, node.id, 'abnormal', '工序异常，需要处理')
-    navigateTo('/abnormal')
-  }
+const abnormalStep = ref<ProgressNode | null>(null)
+const showAbnormalModal = ref(false)
+const abnormalForm = reactive({
+  type: 'craft_issue' as AbnormalType,
+  level: 'medium' as AbnormalLevel,
+  description: '',
+  cause: '',
+})
+
+const abnormalTypeOptions = [
+  { value: 'stone_shortage', label: '石缺货' },
+  { value: 'craft_issue', label: '工艺问题' },
+  { value: 'customer_change', label: '客户改款' },
+  { value: 'quality_issue', label: '质量问题' },
+  { value: 'damage', label: '货品损坏' },
+  { value: 'other', label: '其他' },
+]
+
+const abnormalLevelOptions = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中' },
+  { value: 'high', label: '高' },
+  { value: 'critical', label: '紧急' },
+]
+
+const openAbnormalModal = (node: ProgressNode) => {
+  abnormalStep.value = node
+  abnormalForm.type = 'craft_issue'
+  abnormalForm.level = 'medium'
+  abnormalForm.description = `${node.step}工序发现异常`
+  abnormalForm.cause = ''
+  showAbnormalModal.value = true
+}
+
+const closeAbnormalModal = () => {
+  showAbnormalModal.value = false
+  abnormalStep.value = null
+}
+
+const handleConfirmAbnormal = async () => {
+  if (!order.value || !abnormalStep.value) return
+
+  const step = abnormalStep.value
+
+  ordersStore.updateOrderProgress(order.value.id, step.id, 'abnormal', abnormalForm.description)
+
+  const newAbnormal = abnormalStore.createRecord({
+    orderId: order.value.id,
+    orderNo: order.value.orderNo,
+    customerName: order.value.customer.name,
+    type: abnormalForm.type,
+    level: abnormalForm.level,
+    description: abnormalForm.description,
+    cause: abnormalForm.cause || undefined,
+    operator: authStore.userName || '王售后',
+  })
+
+  ordersStore.markOrderAbnormal(order.value.id, newAbnormal.id)
+
+  closeAbnormalModal()
 }
 
 const addNote = () => {

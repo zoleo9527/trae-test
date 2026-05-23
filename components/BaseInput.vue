@@ -25,6 +25,8 @@
 </template>
 
 <script setup lang="ts">
+import type { Component } from 'vue'
+
 interface Props {
   id?: string
   type?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'date'
@@ -34,11 +36,11 @@ interface Props {
   disabled?: boolean
   required?: boolean
   error?: string
-  icon?: any
+  icon?: Component
   customClass?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   type: 'text',
   modelValue: '',
   disabled: false,

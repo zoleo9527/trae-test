@@ -121,7 +121,7 @@ export interface Order {
   actualDelivery?: Date
   operator: string
   notes: Note[]
-  handoverRecords: HandoverRecord[]
+  handoverRecords: string[]
   abnormalRecords: string[]
   remodelCount: number
 }

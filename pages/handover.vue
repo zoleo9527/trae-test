@@ -18,7 +18,7 @@
           </button>
         </div>
       </div>
-      <BaseButton>
+      <BaseButton @click="showCreateModal = true">
         <Plus class="w-4 h-4 mr-2" />
         新建交接
       </BaseButton>
@@ -161,22 +161,165 @@
       </BaseCard>
     </div>
   </div>
+
+  <BaseModal
+    :visible="showCreateModal"
+    title="新建交接"
+    @close="closeCreateModal"
+  >
+    <form @submit.prevent="handleSubmit" class="space-y-5">
+      <div>
+        <label class="label">关联订单 <span class="text-coral-500">*</span></label>
+        <select
+          v-model="form.orderId"
+          class="input-field"
+          required
+        >
+          <option value="">请选择订单</option>
+          <option v-for="order in ordersStore.orders" :key="order.id" :value="order.id">
+            {{ order.orderNo }} - {{ order.customer.name }}
+          </option>
+        </select>
+      </div>
+
+      <div>
+        <label class="label">交接类型 <span class="text-coral-500">*</span></label>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            v-for="type in typeOptions"
+            :key="type.value"
+            type="button"
+            :class="[
+              'px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all',
+              form.type === type.value
+                ? 'border-gold-500 bg-gold-50 text-gold-700'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300'
+            ]"
+            @click="form.type = type.value as any"
+          >
+            {{ type.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="label">移交方 <span class="text-coral-500">*</span></label>
+          <input
+            v-model="form.fromParty"
+            type="text"
+            class="input-field"
+            placeholder="如：客户（陈女士）"
+            required
+          />
+        </div>
+        <div>
+          <label class="label">接收方 <span class="text-coral-500">*</span></label>
+          <input
+            v-model="form.toParty"
+            type="text"
+            class="input-field"
+            placeholder="如：门店（李导购）"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label class="label">货品清单 <span class="text-coral-500">*</span></label>
+        <div class="space-y-3">
+          <div
+            v-for="(item, index) in form.items"
+            :key="index"
+            class="flex gap-2"
+          >
+            <input
+              v-model="item.name"
+              type="text"
+              class="input-field flex-1"
+              placeholder="货品名称"
+              required
+            />
+            <input
+              v-model.number="item.quantity"
+              type="number"
+              min="1"
+              class="input-field w-20"
+              placeholder="数量"
+              required
+            />
+            <button
+              v-if="form.items.length > 1"
+              type="button"
+              class="px-3 text-coral-500 hover:bg-coral-50 rounded-lg"
+              @click="removeItem(index)"
+            >
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            class="text-sm text-gold-600 hover:text-gold-700 flex items-center gap-1"
+            @click="addItem"
+          >
+            <Plus class="w-4 h-4" />
+            添加货品
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="label">备注</label>
+        <textarea
+          v-model="form.remark"
+          class="input-field min-h-[80px] resize-none"
+          placeholder="交接备注说明..."
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="label">签名确认</label>
+        <input
+          v-model="form.signature"
+          type="text"
+          class="input-field"
+          placeholder="签名人姓名"
+        />
+      </div>
+
+      <div class="pt-4 flex gap-3">
+        <BaseButton type="button" variant="secondary" class="flex-1" @click="closeCreateModal">
+          取消
+        </BaseButton>
+        <BaseButton type="submit" class="flex-1" :loading="submitting">
+          创建交接
+        </BaseButton>
+      </div>
+    </form>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
-import { Plus, ArrowRight, Camera, PenTool, Package, Image, ShieldCheck } from 'lucide-vue-next'
+import { Plus, ArrowRight, Camera, PenTool, Package, Image, ShieldCheck, X } from 'lucide-vue-next'
 import { useHandoverStore } from '~/stores/handover'
+import { useOrdersStore } from '~/stores/orders'
+import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
-import type { HandoverType } from '~/types'
+import BaseModal from '~/components/BaseModal.vue'
+import type { HandoverType, HandoverItem } from '~/types'
 
 definePageMeta({
   layout: 'default',
 })
 
 const handoverStore = useHandoverStore()
+const ordersStore = useOrdersStore()
+const authStore = useAuthStore()
 const { formatDate, formatDateTime, getHandoverTypeLabel, getHandoverTypeClass } = useFormat()
 
 const activeTab = ref<HandoverType | ''>('')
+const showCreateModal = ref(false)
+const submitting = ref(false)
 
 const tabs = [
   { value: '', label: '全部' },
@@ -185,6 +328,70 @@ const tabs = [
   { value: 'deliver', label: '交付' },
   { value: 'return', label: '退回' },
 ]
+
+const typeOptions = [
+  { value: 'receive', label: '收货' },
+  { value: 'transfer', label: '转送' },
+  { value: 'deliver', label: '交付' },
+  { value: 'return', label: '退回' },
+]
+
+const form = reactive({
+  orderId: '',
+  type: 'receive' as HandoverType,
+  fromParty: '',
+  toParty: '',
+  items: [{ name: '', quantity: 1, description: '' }] as HandoverItem[],
+  remark: '',
+  signature: '',
+})
+
+const addItem = () => {
+  form.items.push({ name: '', quantity: 1, description: '' })
+}
+
+const removeItem = (index: number) => {
+  form.items.splice(index, 1)
+}
+
+const resetForm = () => {
+  form.orderId = ''
+  form.type = 'receive'
+  form.fromParty = ''
+  form.toParty = ''
+  form.items = [{ name: '', quantity: 1, description: '' }]
+  form.remark = ''
+  form.signature = ''
+}
+
+const closeCreateModal = () => {
+  showCreateModal.value = false
+  resetForm()
+}
+
+const handleSubmit = async () => {
+  if (!form.orderId || !form.fromParty || !form.toParty || form.items.some(i => !i.name)) return
+
+  submitting.value = true
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const newRecord = handoverStore.createRecord({
+    orderId: form.orderId,
+    type: form.type,
+    fromParty: form.fromParty,
+    toParty: form.toParty,
+    items: [...form.items],
+    photos: [],
+    signature: form.signature || undefined,
+    timestamp: new Date(),
+    remark: form.remark || undefined,
+  })
+
+  ordersStore.addHandoverRecord(form.orderId, newRecord.id)
+
+  submitting.value = false
+  closeCreateModal()
+}
 
 const filteredRecords = computed(() => {
   let result = [...handoverStore.records]
@@ -204,5 +411,6 @@ const formatTime = (date: Date) => {
 
 onMounted(async () => {
   await handoverStore.fetchRecords()
+  await ordersStore.fetchOrders()
 })
 </script>

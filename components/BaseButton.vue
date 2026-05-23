@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { Loader2 } from 'lucide-vue-next'
+import type { Component } from 'vue'
 
 interface Props {
   type?: 'button' | 'submit' | 'reset'
@@ -20,12 +21,12 @@ interface Props {
   size?: 'sm' | 'md' | 'lg'
   disabled?: boolean
   loading?: boolean
-  icon?: any
+  icon?: Component
   iconOnly?: boolean
   customClass?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   type: 'button',
   variant: 'primary',
   size: 'md',

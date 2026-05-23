@@ -110,5 +110,29 @@ export const useOrdersStore = defineStore('orders', {
         })
       }
     },
+
+    markOrderAbnormal(orderId: string, abnormalRecordId?: string) {
+      const order = this.orders.find(o => o.id === orderId)
+      if (order) {
+        order.status = 'abnormal'
+        if (abnormalRecordId && !order.abnormalRecords.includes(abnormalRecordId)) {
+          order.abnormalRecords.push(abnormalRecordId)
+        }
+      }
+    },
+
+    addAbnormalRecord(orderId: string, abnormalRecordId: string) {
+      const order = this.orders.find(o => o.id === orderId)
+      if (order && !order.abnormalRecords.includes(abnormalRecordId)) {
+        order.abnormalRecords.push(abnormalRecordId)
+      }
+    },
+
+    addHandoverRecord(orderId: string, handoverRecordId: string) {
+      const order = this.orders.find(o => o.id === orderId)
+      if (order && !order.handoverRecords.includes(handoverRecordId)) {
+        order.handoverRecords.push(handoverRecordId)
+      }
+    },
   },
 })

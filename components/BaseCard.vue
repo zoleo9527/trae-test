@@ -20,7 +20,7 @@ interface Props {
   contentClass?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   hoverable: false,
   gold: false,
   customClass: '',

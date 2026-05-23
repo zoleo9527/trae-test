@@ -47,7 +47,7 @@
         <option value="medium">中</option>
         <option value="low">低</option>
       </select>
-      <BaseButton>
+      <BaseButton @click="showCreateModal = true">
         <Plus class="w-4 h-4 mr-2" />
         登记异常
       </BaseButton>
@@ -148,23 +148,144 @@
       <p class="text-gray-500">没有找到匹配的异常记录</p>
     </div>
   </div>
+
+  <BaseModal
+    :visible="showCreateModal"
+    title="登记异常"
+    @close="closeCreateModal"
+  >
+    <form @submit.prevent="handleSubmit" class="space-y-5">
+      <div>
+        <label class="label">关联订单 <span class="text-coral-500">*</span></label>
+        <select
+          v-model="form.orderId"
+          class="input-field"
+          required
+        >
+          <option value="">请选择订单</option>
+          <option v-for="order in ordersStore.orders" :key="order.id" :value="order.id">
+            {{ order.orderNo }} - {{ order.customer.name }}
+          </option>
+        </select>
+      </div>
+
+      <div>
+        <label class="label">异常类型 <span class="text-coral-500">*</span></label>
+        <select
+          v-model="form.type"
+          class="input-field"
+          required
+        >
+          <option value="">请选择异常类型</option>
+          <option value="stone_shortage">石缺货</option>
+          <option value="craft_issue">工艺问题</option>
+          <option value="customer_change">客户改款</option>
+          <option value="quality_issue">质量问题</option>
+          <option value="damage">货品损坏</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="label">紧急程度 <span class="text-coral-500">*</span></label>
+        <div class="flex gap-3">
+          <button
+            v-for="level in levelOptions"
+            :key="level.value"
+            type="button"
+            :class="[
+              'flex-1 px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all',
+              form.level === level.value
+                ? 'border-gold-500 bg-gold-50 text-gold-700'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300'
+            ]"
+            @click="form.level = level.value as any"
+          >
+            {{ level.label }}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="label">异常描述 <span class="text-coral-500">*</span></label>
+        <textarea
+          v-model="form.description"
+          class="input-field min-h-[100px] resize-none"
+          placeholder="请详细描述异常情况..."
+          required
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="label">原因分析</label>
+        <textarea
+          v-model="form.cause"
+          class="input-field min-h-[80px] resize-none"
+          placeholder="分析异常产生的原因..."
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="label">赔付金额（元）</label>
+        <input
+          v-model.number="form.compensation"
+          type="number"
+          min="0"
+          class="input-field"
+          placeholder="0"
+        />
+      </div>
+
+      <div class="pt-4 flex gap-3">
+        <BaseButton type="button" variant="secondary" class="flex-1" @click="closeCreateModal">
+          取消
+        </BaseButton>
+        <BaseButton type="submit" class="flex-1" :loading="submitting">
+          提交登记
+        </BaseButton>
+      </div>
+    </form>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
 import { AlertTriangle, Plus, ShieldCheck } from 'lucide-vue-next'
 import { useAbnormalStore } from '~/stores/abnormal'
+import { useOrdersStore } from '~/stores/orders'
+import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
-import type { AbnormalRecord, AbnormalStatus, AbnormalLevel } from '~/types'
+import BaseModal from '~/components/BaseModal.vue'
+import type { AbnormalRecord, AbnormalStatus, AbnormalLevel, AbnormalType } from '~/types'
 
 definePageMeta({
   layout: 'default',
 })
 
 const abnormalStore = useAbnormalStore()
+const ordersStore = useOrdersStore()
+const authStore = useAuthStore()
 const { formatDateTime, formatPrice, getAbnormalTypeLabel, getAbnormalLevelLabel, getAbnormalLevelClass, getAbnormalStatusLabel, getAbnormalStatusClass } = useFormat()
 
 const activeTab = ref<AbnormalStatus | ''>('')
 const filterLevel = ref<AbnormalLevel | ''>('')
+const showCreateModal = ref(false)
+const submitting = ref(false)
+
+const levelOptions = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中' },
+  { value: 'high', label: '高' },
+  { value: 'critical', label: '紧急' },
+]
+
+const form = reactive({
+  orderId: '',
+  type: '' as AbnormalType | '',
+  level: 'medium' as AbnormalLevel,
+  description: '',
+  cause: '',
+  compensation: 0,
+})
 
 const tabs = computed(() => [
   { value: '', label: '全部', count: abnormalStore.stats.total },
@@ -190,17 +311,59 @@ const filteredRecords = computed(() => {
   })
 })
 
+const resetForm = () => {
+  form.orderId = ''
+  form.type = ''
+  form.level = 'medium'
+  form.description = ''
+  form.cause = ''
+  form.compensation = 0
+}
+
+const closeCreateModal = () => {
+  showCreateModal.value = false
+  resetForm()
+}
+
+const handleSubmit = async () => {
+  if (!form.orderId || !form.type || !form.description) return
+
+  submitting.value = true
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  const order = ordersStore.getOrderById(form.orderId)
+  if (order) {
+    const newRecord = abnormalStore.createRecord({
+      orderId: form.orderId,
+      orderNo: order.orderNo,
+      customerName: order.customer.name,
+      type: form.type as AbnormalType,
+      level: form.level,
+      description: form.description,
+      cause: form.cause || undefined,
+      compensation: form.compensation > 0 ? form.compensation : undefined,
+      operator: authStore.userName || '王售后',
+    })
+
+    ordersStore.markOrderAbnormal(form.orderId, newRecord.id)
+  }
+
+  submitting.value = false
+  closeCreateModal()
+}
+
 const startProcessing = (record: AbnormalRecord) => {
   abnormalStore.updateStatus(record.id, 'processing')
-  abnormalStore.addHistory(record.id, '开始处理', '售后专员已开始跟进此异常', '王售后')
+  abnormalStore.addHistory(record.id, '开始处理', '售后专员已开始跟进此异常', authStore.userName || '王售后')
 }
 
 const resolveRecord = (record: AbnormalRecord) => {
   abnormalStore.updateStatus(record.id, 'resolved')
-  abnormalStore.addHistory(record.id, '问题解决', '异常已处理完成', '王售后')
+  abnormalStore.addHistory(record.id, '问题解决', '异常已处理完成', authStore.userName || '王售后')
 }
 
 onMounted(async () => {
   await abnormalStore.fetchRecords()
+  await ordersStore.fetchOrders()
 })
 </script>

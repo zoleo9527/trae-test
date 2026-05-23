@@ -83,5 +83,43 @@ export const useAbnormalStore = defineStore('abnormal', {
         if (compensation !== undefined) record.compensation = compensation
       }
     },
+
+    createRecord(data: {
+      orderId: string
+      orderNo: string
+      customerName: string
+      type: AbnormalType
+      level: AbnormalLevel
+      description: string
+      cause?: string
+      compensation?: number
+      operator: string
+    }) {
+      const newRecord: AbnormalRecord = {
+        id: Date.now().toString(),
+        orderId: data.orderId,
+        orderNo: data.orderNo,
+        customerName: data.customerName,
+        type: data.type,
+        level: data.level,
+        status: 'pending',
+        description: data.description,
+        cause: data.cause,
+        compensation: data.compensation,
+        createdAt: new Date(),
+        operator: data.operator,
+        history: [
+          {
+            id: Date.now().toString(),
+            action: '异常登记',
+            content: data.description,
+            operator: data.operator,
+            timestamp: new Date(),
+          },
+        ],
+      }
+      this.records.unshift(newRecord)
+      return newRecord
+    },
   },
 })

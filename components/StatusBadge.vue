@@ -6,14 +6,16 @@
 </template>
 
 <script setup lang="ts">
+import type { Component } from 'vue'
+
 interface Props {
   label: string
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'gold'
   customClass?: string
-  icon?: any
+  icon?: Component
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   variant: 'default',
   customClass: '',
 })
