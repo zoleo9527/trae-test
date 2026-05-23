@@ -52,7 +52,7 @@ const Repairs = () => {
   };
 
   const canCreateRepair = ['sales_associate', 'store_manager', 'after_sales'].includes(user.role);
-  const canHandleRepair = (record) => ['after_sales', 'store_manager'].includes(user.role);
+  const canHandleRepair = () => ['after_sales', 'store_manager'].includes(user.role);
 
   const handleCreate = () => {
     form.resetFields();
@@ -107,16 +107,16 @@ const Repairs = () => {
     }
   };
 
-  const handleReturn = async (id) => {
+  const handlePickup = async (id) => {
     try {
-      await request.post(`/repairs/${id}/return`);
-      message.success('货品已返回门店');
+      await request.post(`/repairs/${id}/pickup`);
+      message.success('客户已取货');
       loadData();
       if (selectedRepair) {
         handleViewDetail({ id });
       }
     } catch (error) {
-      console.error('Failed to return:', error);
+      console.error('Failed to pickup:', error);
     }
   };
 
@@ -159,15 +159,15 @@ const Repairs = () => {
       width: 100
     },
     {
-      title: '创建人',
-      dataIndex: 'creator_name',
-      key: 'creator_name',
+      title: '收单人',
+      dataIndex: 'received_by_name',
+      key: 'received_by_name',
       width: 100
     },
     {
-      title: '预估费用',
-      dataIndex: 'estimated_cost',
-      key: 'estimated_cost',
+      title: '费用',
+      dataIndex: 'agreed_price',
+      key: 'agreed_price',
       width: 100,
       render: (val) => `¥${val || 0}`
     },
@@ -197,19 +197,19 @@ const Repairs = () => {
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
             详情
           </Button>
-          {canHandleRepair(record) && record.status === 'pending' && (
+          {canHandleRepair() && record.status === 'received' && (
             <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleStart(record.id)}>
               开始处理
             </Button>
           )}
-          {canHandleRepair(record) && record.status === 'in_progress' && (
+          {canHandleRepair() && record.status === 'in_progress' && (
             <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => { setSelectedRepair(record); completeForm.resetFields(); setCompleteModalVisible(true); }}>
               完成
             </Button>
           )}
-          {canHandleRepair(record) && record.status === 'completed' && (
-            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleReturn(record.id)}>
-              返回门店
+          {canHandleRepair() && record.status === 'completed' && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handlePickup(record.id)}>
+              取货
             </Button>
           )}
         </Space>
@@ -292,14 +292,15 @@ const Repairs = () => {
             </Col>
           </Row>
           <Form.Item
-            name="estimated_cost"
-            label="预估费用（元）"
+            name="agreed_price"
+            label="约定费用（元）"
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
             name="description"
             label="问题描述"
+            rules={[{ required: true, message: '请输入问题描述' }]}
           >
             <TextArea rows={3} placeholder="请详细描述返修问题" />
           </Form.Item>
@@ -321,12 +322,6 @@ const Repairs = () => {
       >
         <Form form={completeForm} layout="vertical" onFinish={handleComplete}>
           <Form.Item
-            name="actual_cost"
-            label="实际费用（元）"
-          >
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
             name="repair_result"
             label="返修结果"
             rules={[{ required: true, message: '请输入返修结果' }]}
@@ -347,19 +342,19 @@ const Repairs = () => {
         open={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={[
-          selectedRepair && canHandleRepair(selectedRepair) && selectedRepair.status === 'pending' && (
+          selectedRepair && canHandleRepair() && selectedRepair.status === 'received' && (
             <Button key="start" type="primary" onClick={() => handleStart(selectedRepair.id)}>
               开始处理
             </Button>
           ),
-          selectedRepair && canHandleRepair(selectedRepair) && selectedRepair.status === 'in_progress' && (
+          selectedRepair && canHandleRepair() && selectedRepair.status === 'in_progress' && (
             <Button key="complete" type="primary" onClick={() => { completeForm.resetFields(); setCompleteModalVisible(true); }}>
               完成返修
             </Button>
           ),
-          selectedRepair && canHandleRepair(selectedRepair) && selectedRepair.status === 'completed' && (
-            <Button key="return" type="primary" onClick={() => handleReturn(selectedRepair.id)}>
-              返回门店
+          selectedRepair && canHandleRepair() && selectedRepair.status === 'completed' && (
+            <Button key="pickup" type="primary" onClick={() => handlePickup(selectedRepair.id)}>
+              客户取货
             </Button>
           ),
           <Button key="close" onClick={() => setDetailVisible(false)}>关闭</Button>
@@ -386,7 +381,7 @@ const Repairs = () => {
                 <Col span={6}>
                   <Statistic 
                     title="费用" 
-                    value={selectedRepair.actual_cost || selectedRepair.estimated_cost || 0}
+                    value={selectedRepair.agreed_price || 0}
                     prefix="¥"
                   />
                 </Col>
@@ -407,23 +402,16 @@ const Repairs = () => {
                 <Descriptions.Item label="返修类型">{REPAIR_TYPE[selectedRepair.repair_type]}</Descriptions.Item>
                 <Descriptions.Item label="客户">{selectedRepair.customer_name || '-'}</Descriptions.Item>
                 <Descriptions.Item label="联系电话">{selectedRepair.customer_phone || '-'}</Descriptions.Item>
-                <Descriptions.Item label="创建人">{selectedRepair.creator_name}</Descriptions.Item>
-                <Descriptions.Item label="处理人">{selectedRepair.handler_name || '-'}</Descriptions.Item>
-                <Descriptions.Item label="预估费用">¥{selectedRepair.estimated_cost || 0}</Descriptions.Item>
-                {selectedRepair.actual_cost !== undefined && (
-                  <Descriptions.Item label="实际费用">¥{selectedRepair.actual_cost}</Descriptions.Item>
+                <Descriptions.Item label="收单人">{selectedRepair.received_by_name}</Descriptions.Item>
+                {selectedRepair.picked_up_by_name && (
+                  <Descriptions.Item label="取货人">{selectedRepair.picked_up_by_name}</Descriptions.Item>
                 )}
+                <Descriptions.Item label="约定费用">¥{selectedRepair.agreed_price || 0}</Descriptions.Item>
               </Descriptions>
               {selectedRepair.description && (
                 <div style={{ marginTop: 8 }}>
                   <Text strong>问题描述：</Text>
                   <Text style={{ marginLeft: 8 }}>{selectedRepair.description}</Text>
-                </div>
-              )}
-              {selectedRepair.repair_result && (
-                <div style={{ marginTop: 8 }}>
-                  <Text strong>返修结果：</Text>
-                  <Text style={{ marginLeft: 8 }}>{selectedRepair.repair_result}</Text>
                 </div>
               )}
             </Card>
@@ -432,16 +420,16 @@ const Repairs = () => {
               <Steps
                 direction="vertical"
                 current={
-                  selectedRepair.status === 'pending' ? 0 :
+                  selectedRepair.status === 'received' ? 0 :
                   selectedRepair.status === 'in_progress' ? 1 :
                   selectedRepair.status === 'completed' ? 2 :
-                  selectedRepair.status === 'returned' ? 3 : 0
+                  selectedRepair.status === 'picked_up' ? 3 : 0
                 }
               >
-                <Steps.Step title="创建返修" description={`${selectedRepair.creator_name} - ${dayjs(selectedRepair.created_at).format('MM-DD HH:mm')}`} status="finish" />
-                <Steps.Step title="开始处理" description={selectedRepair.started_at ? `${selectedRepair.handler_name} - ${dayjs(selectedRepair.started_at).format('MM-DD HH:mm')}` : '待处理'} status={['in_progress', 'completed', 'returned'].includes(selectedRepair.status) ? 'finish' : 'wait'} />
-                <Steps.Step title="完成返修" description={selectedRepair.completed_at ? dayjs(selectedRepair.completed_at).format('MM-DD HH:mm') : '待完成'} status={['completed', 'returned'].includes(selectedRepair.status) ? 'finish' : 'wait'} />
-                <Steps.Step title="返回门店" description={selectedRepair.returned_at ? dayjs(selectedRepair.returned_at).format('MM-DD HH:mm') : '待返回'} status={selectedRepair.status === 'returned' ? 'finish' : 'wait'} />
+                <Steps.Step title="收单登记" description={`${selectedRepair.received_by_name} - ${dayjs(selectedRepair.created_at).format('MM-DD HH:mm')}`} status="finish" />
+                <Steps.Step title="开始处理" description={selectedRepair.status !== 'received' ? '已开始' : '待处理'} status={['in_progress', 'completed', 'picked_up'].includes(selectedRepair.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="完成返修" description={selectedRepair.status === 'completed' || selectedRepair.status === 'picked_up' ? '已完成' : '待完成'} status={['completed', 'picked_up'].includes(selectedRepair.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="客户取货" description={selectedRepair.picked_up_at ? dayjs(selectedRepair.picked_up_at).format('MM-DD HH:mm') : '待取货'} status={selectedRepair.status === 'picked_up' ? 'finish' : 'wait'} />
               </Steps>
             </Card>
 

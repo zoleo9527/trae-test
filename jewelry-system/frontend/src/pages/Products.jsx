@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Card, Typography, Input, Select, Modal, Descriptions, Timeline } from 'antd';
 import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
 import request from '../utils/request';
-import { PRODUCT_STATUS } from '../utils/constants';
+import { PRODUCT_STATUS, REPAIR_STATUS, REPAIR_TYPE } from '../utils/constants';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -207,7 +207,7 @@ const Products = () => {
                       </div>
                     )
                   })),
-                  ...(selectedProduct.repairs || []).map(r => ({
+                  ...(selectedProduct.repair_history || []).map(r => ({
                     type: 'repair',
                     time: r.created_at,
                     color: 'orange',
@@ -215,12 +215,12 @@ const Products = () => {
                       <div key={r.id}>
                         <Text strong>【返修】</Text>
                         <Text style={{ marginLeft: 8 }}>{r.order_no}</Text>
-                        <Tag color={r.status === 'returned' ? 'green' : r.status === 'completed' ? 'blue' : 'orange'} style={{ marginLeft: 8 }}>
-                          {r.status === 'pending' ? '待处理' : r.status === 'in_progress' ? '处理中' : r.status === 'completed' ? '已完成' : '已返回'}
+                        <Tag color={REPAIR_STATUS[r.status]?.color} style={{ marginLeft: 8 }}>
+                          {REPAIR_STATUS[r.status]?.label}
                         </Tag>
                         <div style={{ fontSize: 12, marginTop: 4 }}>
                           <Text type="secondary">
-                            {r.repair_type} · 费用: ¥{r.actual_cost || r.estimated_cost || 0} · {dayjs(r.created_at).format('MM-DD HH:mm')}
+                            {REPAIR_TYPE[r.repair_type]} · 费用: ¥{r.agreed_price || 0} · {dayjs(r.created_at).format('MM-DD HH:mm')}
                           </Text>
                         </div>
                       </div>
@@ -236,16 +236,16 @@ const Products = () => {
 
             <Card title="返修记录" size="small">
               <Table
-                dataSource={selectedProduct.repairs || []}
+                dataSource={selectedProduct.repair_history || []}
                 rowKey="id"
                 size="small"
                 pagination={false}
                 columns={[
                   { title: '返修单号', dataIndex: 'order_no', width: 140 },
-                  { title: '返修类型', dataIndex: 'repair_type', width: 100 },
-                  { title: '费用', dataIndex: 'actual_cost', width: 80, render: v => `¥${v || 0}` },
+                  { title: '返修类型', dataIndex: 'repair_type', width: 100, render: t => REPAIR_TYPE[t] || t },
+                  { title: '费用', dataIndex: 'agreed_price', width: 80, render: v => `¥${v || 0}` },
                   { title: '门店', dataIndex: 'store_name', width: 100 },
-                  { title: '状态', dataIndex: 'status', width: 80, render: s => <Tag>{s}</Tag> },
+                  { title: '状态', dataIndex: 'status', width: 80, render: s => <Tag color={REPAIR_STATUS[s]?.color}>{REPAIR_STATUS[s]?.label}</Tag> },
                   { title: '创建时间', dataIndex: 'created_at', render: t => dayjs(t).format('MM-DD HH:mm') }
                 ]}
               />

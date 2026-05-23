@@ -336,11 +336,20 @@ const Inventory = () => {
                   <Tag color="orange">待确认</Tag>
                 )}
               </Descriptions.Item>
-              <Descriptions.Item label="赔付金额">¥{disp.compensation_amount || 0}</Descriptions.Item>
+              <Descriptions.Item label="赔付金额">
+                {disp.compensation_amount > 0 ? `¥${disp.compensation_amount}` : (
+                  <Tag color="blue">¥0 - 免赔</Tag>
+                )}
+              </Descriptions.Item>
               <Descriptions.Item label="赔付状态">
-                <Tag color={COMPENSATION_STATUS[disp.compensation_status]?.color}>
-                  {COMPENSATION_STATUS[disp.compensation_status]?.label}
-                </Tag>
+                <Space>
+                  <Tag color={COMPENSATION_STATUS[disp.compensation_status]?.color}>
+                    {COMPENSATION_STATUS[disp.compensation_status]?.label}
+                  </Tag>
+                  {disp.compensation_amount === 0 && disp.compensation_status === 'waived' && (
+                    <Tag color="blue">系统自动免赔</Tag>
+                  )}
+                </Space>
               </Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{disp.remarks || '-'}</Descriptions.Item>
             </Descriptions>
@@ -568,6 +577,42 @@ const Inventory = () => {
                 <Steps.Step title="差异处理完成" description={selectedInventory.status === 'resolved' ? '已结案' : '处理中'} status={selectedInventory.status === 'resolved' ? 'finish' : 'wait'} />
               </Steps>
             </Card>
+
+            {selectedInventory.items?.filter(i => i.dispositions && i.dispositions.length > 0).length > 0 && (
+              <Card title="赔付汇总" size="small">
+                <Row gutter={16}>
+                  <Col span={6}>
+                    <Statistic 
+                      title="需赔付差异" 
+                      value={selectedInventory.items?.filter(i => i.dispositions?.some(d => d.compensation_amount > 0)).length || 0}
+                      valueStyle={{ color: '#ff4d4f' }}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic 
+                      title="已赔付" 
+                      value={selectedInventory.items?.filter(i => i.dispositions?.some(d => d.compensation_amount > 0 && d.compensation_status === 'paid')).length || 0}
+                      valueStyle={{ color: '#52c41a' }}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic 
+                      title="已豁免" 
+                      value={selectedInventory.items?.filter(i => i.dispositions?.some(d => d.compensation_status === 'waived')).length || 0}
+                      valueStyle={{ color: '#1890ff' }}
+                    />
+                  </Col>
+                  <Col span={6}>
+                    <Statistic 
+                      title="赔付总额" 
+                      value={selectedInventory.items?.reduce((sum, i) => 
+                        sum + (i.dispositions?.reduce((s, d) => s + (d.compensation_amount || 0), 0) || 0), 0) || 0}
+                      prefix="¥"
+                    />
+                  </Col>
+                </Row>
+              </Card>
+            )}
 
             <Card 
               title="盘点明细" 

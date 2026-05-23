@@ -61,19 +61,17 @@ export const PRODUCT_STATUS = {
 };
 
 export const REPAIR_STATUS = {
-  pending: { label: '待处理', color: 'orange' },
+  received: { label: '已收单', color: 'orange' },
   in_progress: { label: '处理中', color: 'blue' },
   completed: { label: '已完成', color: 'green' },
-  returned: { label: '已返回', color: 'purple' }
+  picked_up: { label: '已取货', color: 'purple' },
+  cancelled: { label: '已取消', color: 'default' }
 };
 
 export const REPAIR_TYPE = {
-  polishing: '抛光翻新',
   resize: '改圈',
-  stone_fix: '镶石修复',
-  chain_fix: '链身修复',
-  clasp_fix: '扣头修复',
-  cleaning: '深度清洗',
-  engraving: '刻字',
-  other: '其他'
+  polish: '抛光翻新',
+  repair: '维修',
+  remake: '重做',
+  modify: '改款'
 };

@@ -7,10 +7,19 @@ const { logOperation } = require('../utils/logger');
 const router = express.Router();
 
 const REPAIR_STATUS = {
-  pending: { label: '待处理', color: 'orange' },
+  received: { label: '已收单', color: 'orange' },
   in_progress: { label: '处理中', color: 'blue' },
   completed: { label: '已完成', color: 'green' },
-  returned: { label: '已返回门店', color: 'purple' }
+  picked_up: { label: '已取货', color: 'purple' },
+  cancelled: { label: '已取消', color: 'default' }
+};
+
+const REPAIR_TYPE = {
+  resize: '改圈',
+  polish: '抛光翻新',
+  repair: '维修',
+  remake: '重做',
+  modify: '改款'
 };
 
 router.get('/', authenticateToken, (req, res) => {
@@ -24,11 +33,13 @@ router.get('/', authenticateToken, (req, res) => {
     SELECT r.*,
            p.sku, p.name as product_name, p.category, p.retail_price,
            s.name as store_name,
-           cr.name as creator_name
+           u.name as received_by_name,
+           pu.name as picked_up_by_name
     FROM repair_orders r
     JOIN products p ON r.product_id = p.id
     JOIN stores s ON r.store_id = s.id
-    LEFT JOIN users cr ON r.created_by = cr.id
+    LEFT JOIN users u ON r.received_by = u.id
+    LEFT JOIN users pu ON r.picked_up_by = pu.id
     WHERE ${whereClause}
     ORDER BY r.created_at DESC
   `).all(...params);
@@ -41,13 +52,13 @@ router.get('/:id', authenticateToken, (req, res) => {
     SELECT r.*,
            p.sku, p.name as product_name, p.category, p.material, p.retail_price, p.status as product_status,
            s.name as store_name,
-           cr.name as creator_name,
-           hs.name as handler_name
+           u.name as received_by_name,
+           pu.name as picked_up_by_name
     FROM repair_orders r
     JOIN products p ON r.product_id = p.id
     JOIN stores s ON r.store_id = s.id
-    LEFT JOIN users cr ON r.created_by = cr.id
-    LEFT JOIN users hs ON r.handled_by = hs.id
+    LEFT JOIN users u ON r.received_by = u.id
+    LEFT JOIN users pu ON r.picked_up_by = pu.id
     WHERE r.id = ?
   `).get(req.params.id);
 
@@ -65,9 +76,9 @@ router.get('/:id', authenticateToken, (req, res) => {
 });
 
 router.post('/', authenticateToken, requireRoles('sales_associate', 'store_manager', 'after_sales'), (req, res) => {
-  const { product_id, repair_type, customer_name, customer_phone, description, estimated_cost } = req.body;
+  const { product_id, repair_type, customer_name, customer_phone, description, agreed_price } = req.body;
 
-  if (!product_id || !repair_type) {
+  if (!product_id || !repair_type || !description) {
     return res.status(400).json({ error: '缺少必要参数' });
   }
 
@@ -85,10 +96,10 @@ router.post('/', authenticateToken, requireRoles('sales_associate', 'store_manag
   db.prepare(`
     INSERT INTO repair_orders 
     (id, order_no, product_id, store_id, repair_type, customer_name, customer_phone, 
-     description, estimated_cost, status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+     description, agreed_price, status, received_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)
   `).run(id, orderNo, product_id, storeId, repair_type, customer_name || null, customer_phone || null, 
-        description || null, estimated_cost || 0, req.user.id);
+        description, agreed_price || 0, req.user.id);
 
   logOperation({
     operationType: 'create',
@@ -97,8 +108,8 @@ router.post('/', authenticateToken, requireRoles('sales_associate', 'store_manag
     operatorId: req.user.id,
     operatorName: req.user.name,
     action: '创建返修单',
-    toStatus: 'pending',
-    remarks: `类型: ${repair_type}, 货品: ${product.name}`
+    toStatus: 'received',
+    remarks: `类型: ${REPAIR_TYPE[repair_type] || repair_type}, 货品: ${product.name}`
   });
 
   res.status(201).json({ id, order_no: orderNo, success: true });
@@ -112,16 +123,15 @@ router.post('/:id/start', authenticateToken, requireRoles('after_sales', 'store_
     return res.status(404).json({ error: '返修记录不存在' });
   }
 
-  if (repair.status !== 'pending') {
-    return res.status(400).json({ error: '只能开始处理待处理的返修单' });
+  if (repair.status !== 'received') {
+    return res.status(400).json({ error: '只能开始处理已收单的返修' });
   }
 
-  const now = new Date().toISOString();
   db.prepare(`
     UPDATE repair_orders 
-    SET status = 'in_progress', handled_by = ?, started_at = ?
+    SET status = 'in_progress'
     WHERE id = ?
-  `).run(req.user.id, now, repairId);
+  `).run(repairId);
 
   logOperation({
     operationType: 'update',
@@ -130,7 +140,7 @@ router.post('/:id/start', authenticateToken, requireRoles('after_sales', 'store_
     operatorId: req.user.id,
     operatorName: req.user.name,
     action: '开始处理返修',
-    fromStatus: 'pending',
+    fromStatus: 'received',
     toStatus: 'in_progress'
   });
 
@@ -138,7 +148,7 @@ router.post('/:id/start', authenticateToken, requireRoles('after_sales', 'store_
 });
 
 router.post('/:id/complete', authenticateToken, requireRoles('after_sales', 'store_manager'), (req, res) => {
-  const { actual_cost, repair_result } = req.body;
+  const { repair_result } = req.body;
   const repairId = req.params.id;
 
   const repair = db.prepare('SELECT * FROM repair_orders WHERE id = ?').get(repairId);
@@ -147,15 +157,15 @@ router.post('/:id/complete', authenticateToken, requireRoles('after_sales', 'sto
   }
 
   if (repair.status !== 'in_progress') {
-    return res.status(400).json({ error: '只能完成处理中的返修单' });
+    return res.status(400).json({ error: '只能完成处理中的返修' });
   }
 
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE repair_orders 
-    SET status = 'completed', actual_cost = ?, repair_result = ?, completed_at = ?
+    SET status = 'completed'
     WHERE id = ?
-  `).run(actual_cost || 0, repair_result || null, now, repairId);
+  `).run(repairId);
 
   logOperation({
     operationType: 'update',
@@ -166,13 +176,13 @@ router.post('/:id/complete', authenticateToken, requireRoles('after_sales', 'sto
     action: '完成返修',
     fromStatus: 'in_progress',
     toStatus: 'completed',
-    remarks: `实际费用: ${actual_cost || 0}`
+    remarks: repair_result
   });
 
   res.json({ success: true, status: 'completed' });
 });
 
-router.post('/:id/return', authenticateToken, requireRoles('after_sales', 'store_manager'), (req, res) => {
+router.post('/:id/pickup', authenticateToken, requireRoles('after_sales', 'store_manager'), (req, res) => {
   const repairId = req.params.id;
 
   const repair = db.prepare('SELECT * FROM repair_orders WHERE id = ?').get(repairId);
@@ -181,15 +191,15 @@ router.post('/:id/return', authenticateToken, requireRoles('after_sales', 'store
   }
 
   if (repair.status !== 'completed') {
-    return res.status(400).json({ error: '只能返回已完成的返修单' });
+    return res.status(400).json({ error: '只能取货已完成的返修' });
   }
 
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE repair_orders 
-    SET status = 'returned', returned_at = ?
+    SET status = 'picked_up', picked_up_by = ?, picked_up_at = ?
     WHERE id = ?
-  `).run(now, repairId);
+  `).run(req.user.id, now, repairId);
 
   logOperation({
     operationType: 'update',
@@ -197,12 +207,12 @@ router.post('/:id/return', authenticateToken, requireRoles('after_sales', 'store
     refId: repairId,
     operatorId: req.user.id,
     operatorName: req.user.name,
-    action: '货品返回门店',
+    action: '客户取货',
     fromStatus: 'completed',
-    toStatus: 'returned'
+    toStatus: 'picked_up'
   });
 
-  res.json({ success: true, status: 'returned' });
+  res.json({ success: true, status: 'picked_up' });
 });
 
 module.exports = router;
