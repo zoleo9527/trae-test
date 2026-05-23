@@ -46,8 +46,9 @@ function Payment() {
 
   const handleStartProcess = async (nodeId) => {
     try {
-      await api.payment.process(nodeId, { currentStep: '启动办理流程' });
-      loadData();
+      const updatedNode = await api.payment.process(nodeId, { currentStep: '启动办理流程' });
+      updateNodeInList(updatedNode);
+      setSelectedNode(updatedNode);
     } catch (error) {
       console.error('启动失败:', error);
     }
@@ -56,10 +57,10 @@ function Payment() {
   const handleComplete = async () => {
     if (!selectedNode) return;
     try {
-      await api.payment.complete(selectedNode.id, completeForm);
+      const updatedNode = await api.payment.complete(selectedNode.id, completeForm);
+      updateNodeInList(updatedNode);
       setShowCompleteModal(false);
       setCompleteForm({ invoiceNo: '', remark: '' });
-      loadData();
     } catch (error) {
       console.error('完成失败:', error);
     }
@@ -70,19 +71,35 @@ function Payment() {
     try {
       await api.payment.addRemark(selectedNode.id, newRemark);
       setNewRemark('');
-      loadData();
+      const updatedNode = await api.payment.get(selectedNode.id);
+      updateNodeInList(updatedNode);
     } catch (error) {
       console.error('添加备注失败:', error);
+    }
+  };
+
+  const updateNodeInList = (updatedNode) => {
+    setNodes(prev => prev.map(n => n.id === updatedNode.id ? updatedNode : n));
+    setSelectedNode(updatedNode);
+    refreshSummary();
+  };
+
+  const refreshSummary = async () => {
+    try {
+      const newSummary = await api.payment.getSummary();
+      setSummary(newSummary);
+    } catch (error) {
+      console.error('刷新汇总失败:', error);
     }
   };
 
   const handleAddEvidence = async () => {
     if (!selectedNode || !evidenceName.trim()) return;
     try {
-      await api.payment.addEvidence(selectedNode.id, evidenceName);
+      const updatedNode = await api.payment.addEvidence(selectedNode.id, evidenceName);
+      updateNodeInList(updatedNode);
       setShowEvidenceModal(false);
       setEvidenceName('');
-      loadData();
     } catch (error) {
       console.error('添加凭证失败:', error);
     }
@@ -91,10 +108,10 @@ function Payment() {
   const handleUpdateProgress = async () => {
     if (!selectedNode) return;
     try {
-      await api.payment.updateProgress(selectedNode.id, progressForm);
+      const updatedNode = await api.payment.updateProgress(selectedNode.id, progressForm);
+      updateNodeInList(updatedNode);
       setShowProgressModal(false);
       setProgressForm({ currentStep: '', nextStep: '' });
-      loadData();
     } catch (error) {
       console.error('更新进度失败:', error);
     }
@@ -298,16 +315,21 @@ function Payment() {
               </div>
 
               <div className="mt-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">💬 沟通记录</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">💬 操作记录</p>
                 <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
                   {selectedNode.remarks?.length > 0 ? (
                     selectedNode.remarks.map((remark) => (
-                      <div key={remark.id} className="p-2 bg-gray-50 rounded text-sm">
+                      <div 
+                        key={remark.id} 
+                        className={`p-2 rounded text-sm ${remark.isSystem ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'}`}
+                      >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-gray-700">{remark.author}</span>
+                          <span className={`font-medium ${remark.isSystem ? 'text-blue-700' : 'text-gray-700'}`}>
+                            {remark.isSystem && '🤖 '}{remark.author}
+                          </span>
                           <span className="text-xs text-gray-400">{remark.time?.slice(5, 16)}</span>
                         </div>
-                        <p className="text-gray-600">{remark.content}</p>
+                        <p className={remark.isSystem ? 'text-blue-600' : 'text-gray-600'}>{remark.content}</p>
                       </div>
                     ))
                   ) : (

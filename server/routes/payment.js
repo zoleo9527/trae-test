@@ -41,6 +41,17 @@ router.post('/:id/process', authenticateToken, requireRole([roles.STATION_MANAGE
   paymentNodes[index].statusName = '办理中';
   paymentNodes[index].currentStep = req.body.currentStep || '启动办理';
   
+  if (!paymentNodes[index].remarks) {
+    paymentNodes[index].remarks = [];
+  }
+  paymentNodes[index].remarks.unshift({
+    id: `remark-${Date.now()}`,
+    author: req.user.name,
+    content: '【系统】启动了办理流程',
+    time: new Date().toISOString(),
+    isSystem: true,
+  });
+  
   res.json(paymentNodes[index]);
 });
 
@@ -55,11 +66,28 @@ router.put('/:id/progress', authenticateToken, requireRole([roles.STATION_MANAGE
   }
   
   const { currentStep, nextStep } = req.body;
-  if (currentStep) {
+  const changes = [];
+  
+  if (currentStep && paymentNodes[index].currentStep !== currentStep) {
     paymentNodes[index].currentStep = currentStep;
+    changes.push(`当前步骤更新为「${currentStep}」`);
   }
-  if (nextStep !== undefined) {
+  if (nextStep !== undefined && paymentNodes[index].nextStep !== nextStep) {
     paymentNodes[index].nextStep = nextStep;
+    changes.push(nextStep ? `下一步更新为「${nextStep}」` : '清除了下一步说明');
+  }
+  
+  if (changes.length > 0) {
+    if (!paymentNodes[index].remarks) {
+      paymentNodes[index].remarks = [];
+    }
+    paymentNodes[index].remarks.unshift({
+      id: `remark-${Date.now()}`,
+      author: req.user.name,
+      content: `【系统】${changes.join('，')}`,
+      time: new Date().toISOString(),
+      isSystem: true,
+    });
   }
   
   res.json(paymentNodes[index]);
@@ -77,9 +105,21 @@ router.post('/:id/complete', authenticateToken, requireRole([roles.STATION_MANAG
   paymentNodes[index].paidAmount = paymentNodes[index].amount;
   paymentNodes[index].invoiceNo = req.body.invoiceNo;
   
+  if (!paymentNodes[index].remarks) {
+    paymentNodes[index].remarks = [];
+  }
+  
+  paymentNodes[index].remarks.unshift({
+    id: `remark-${Date.now()}`,
+    author: req.user.name,
+    content: `【系统】标记节点为已完成，发票号：${req.body.invoiceNo}`,
+    time: new Date().toISOString(),
+    isSystem: true,
+  });
+  
   if (req.body.remark) {
-    paymentNodes[index].remarks.push({
-      id: paymentNodes[index].remarks.length + 1,
+    paymentNodes[index].remarks.unshift({
+      id: `remark-${Date.now() + 1}`,
       content: req.body.remark,
       author: req.user.name,
       time: new Date().toISOString(),
@@ -106,10 +146,14 @@ router.post('/:id/remarks', authenticateToken, (req, res) => {
   res.json(newRemark);
 });
 
-router.post('/:id/evidences', authenticateToken, (req, res) => {
+router.post('/:id/evidences', authenticateToken, requireRole([roles.STATION_MANAGER, roles.ADMIN_STAFF]), (req, res) => {
   const index = paymentNodes.findIndex(n => n.id === req.params.id);
   if (index === -1) {
     return res.status(404).json({ error: '回款节点不存在' });
+  }
+  
+  if (paymentNodes[index].status === 'completed') {
+    return res.status(400).json({ error: '已完成节点不能补充凭证' });
   }
   
   if (!paymentNodes[index].evidences) {
@@ -123,7 +167,19 @@ router.post('/:id/evidences', authenticateToken, (req, res) => {
   };
   
   paymentNodes[index].evidences.push(newEvidence);
-  res.json(newEvidence);
+  
+  if (!paymentNodes[index].remarks) {
+    paymentNodes[index].remarks = [];
+  }
+  paymentNodes[index].remarks.unshift({
+    id: `remark-${Date.now()}`,
+    author: req.user.name,
+    content: `【系统】补充了凭证材料「${req.body.name}」`,
+    time: new Date().toISOString(),
+    isSystem: true,
+  });
+  
+  res.json(paymentNodes[index]);
 });
 
 router.get('/:id', authenticateToken, (req, res) => {
