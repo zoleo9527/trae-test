@@ -356,15 +356,25 @@ router.post('/:id/resolve', authenticateToken, requireRoles('store_manager'), (r
     return res.status(400).json({ error: `还有 ${pendingDispositions.count} 条差异处理未确认责任归属` });
   }
 
-  const pendingCompensation = db.prepare(`
+  db.prepare(`
+    UPDATE difference_dispositions 
+    SET compensation_status = 'waived' 
+    WHERE inventory_item_id IN (SELECT id FROM inventory_items WHERE inventory_check_id = ?)
+      AND compensation_amount = 0 
+      AND compensation_status = 'pending'
+  `).run(checkId);
+
+  const unresolvedCompensation = db.prepare(`
     SELECT COUNT(*) as count 
     FROM difference_dispositions dd
     JOIN inventory_items ii ON dd.inventory_item_id = ii.id
-    WHERE ii.inventory_check_id = ? AND dd.compensation_status = 'pending' AND dd.compensation_amount > 0
+    WHERE ii.inventory_check_id = ? 
+      AND dd.compensation_amount > 0
+      AND dd.compensation_status IN ('pending', 'in_progress')
   `).get(checkId);
 
-  if (pendingCompensation.count > 0) {
-    return res.status(400).json({ error: `还有 ${pendingCompensation.count} 条赔付结果未落定（需标记为已赔付/已豁免）` });
+  if (unresolvedCompensation.count > 0) {
+    return res.status(400).json({ error: `还有 ${unresolvedCompensation.count} 条赔付结果未落定（需标记为已赔付/已豁免）` });
   }
 
   db.prepare('UPDATE inventory_checks SET status = ? WHERE id = ?').run('resolved', checkId);

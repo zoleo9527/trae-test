@@ -10,6 +10,7 @@ const dispositionRoutes = require('./routes/dispositions');
 const productRoutes = require('./routes/products');
 const storeRoutes = require('./routes/stores');
 const dashboardRoutes = require('./routes/dashboard');
+const repairRoutes = require('./routes/repairs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,6 +29,7 @@ app.use('/api/dispositions', dispositionRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/repairs', repairRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Jewelry System API is running' });

@@ -8,7 +8,8 @@ import {
   ShopOutlined,
   LogoutOutlined,
   UserOutlined,
-  BellOutlined
+  BellOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
@@ -39,6 +40,11 @@ const Layout = () => {
       key: '/inventory',
       icon: <UnorderedListOutlined />,
       label: '盘点管理',
+    },
+    {
+      key: '/repairs',
+      icon: <ToolOutlined />,
+      label: '返修管理',
     },
     {
       key: '/products',

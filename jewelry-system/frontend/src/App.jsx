@@ -9,6 +9,7 @@ import Transfers from './pages/Transfers';
 import Inventory from './pages/Inventory';
 import Products from './pages/Products';
 import Stores from './pages/Stores';
+import Repairs from './pages/Repairs';
 import useAuthStore from './store/authStore';
 
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +41,7 @@ const App = () => {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="transfers" element={<Transfers />} />
             <Route path="inventory" element={<Inventory />} />
+            <Route path="repairs" element={<Repairs />} />
             <Route path="products" element={<Products />} />
             <Route path="stores" element={<Stores />} />
           </Route>

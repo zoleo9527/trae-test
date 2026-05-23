@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, List, Tag, Typography, Space, Timeline } from 'antd';
+import { Row, Col, Card, Statistic, List, Tag, Typography, Space, Timeline, message } from 'antd';
 import { 
   SwapOutlined, 
   UnorderedListOutlined, 
   GiftOutlined, 
   WarningOutlined,
   ClockCircleOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import request from '../utils/request';
 import { TRANSFER_STATUS, INVENTORY_STATUS } from '../utils/constants';
 import dayjs from 'dayjs';
@@ -18,10 +20,44 @@ const Dashboard = () => {
   const [overview, setOverview] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const getActivityIcon = (refType) => {
+    switch (refType) {
+      case 'transfer': return <SwapOutlined style={{ color: '#1890ff' }} />;
+      case 'inventory': return <UnorderedListOutlined style={{ color: '#722ed1' }} />;
+      case 'disposition': return <WarningOutlined style={{ color: '#fa8c16' }} />;
+      case 'repair': return <ToolOutlined style={{ color: '#eb2f96' }} />;
+      default: return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+    }
+  };
+
+  const handleActivityClick = (activity) => {
+    switch (activity.ref_type) {
+      case 'transfer':
+        message.info('跳转到调货单详情');
+        navigate('/transfers');
+        break;
+      case 'inventory':
+        message.info('跳转到盘点单详情');
+        navigate('/inventory');
+        break;
+      case 'repair':
+        message.info('跳转到返修单详情');
+        navigate('/repairs');
+        break;
+      case 'disposition':
+        message.info('跳转到盘点差异处理');
+        navigate('/inventory');
+        break;
+      default:
+        break;
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -137,16 +173,29 @@ const Dashboard = () => {
             <Card 
               title="最近操作日志" 
               loading={loading}
-              extra={<Text type="secondary">最近10条</Text>}
+              extra={<Text type="secondary">点击可跳转详情</Text>}
             >
-              <Timeline
-                style={{ maxHeight: 300, overflow: 'auto' }}
-                items={activities.map(activity => ({
-                  color: activity.to_status === 'completed' ? 'green' : 
-                         activity.to_status === 'rejected' ? 'red' : 'blue',
-                  children: (
-                    <div>
-                      <Text strong>{activity.action}</Text>
+              <Timeline style={{ maxHeight: 300, overflow: 'auto' }}>
+                {activities.map((activity, idx) => (
+                  <Timeline.Item 
+                    key={idx}
+                    dot={getActivityIcon(activity.ref_type)}
+                    color={activity.to_status === 'completed' ? 'green' : 
+                           activity.to_status === 'rejected' ? 'red' : 'blue'}
+                  >
+                    <div 
+                      style={{ cursor: 'pointer', padding: '4px 0' }}
+                      onClick={() => handleActivityClick(activity)}
+                    >
+                      <Tag color="blue" style={{ marginBottom: 4 }}>
+                        {activity.ref_type === 'transfer' ? '调货' : 
+                         activity.ref_type === 'inventory' ? '盘点' :
+                         activity.ref_type === 'disposition' ? '差异' :
+                         activity.ref_type === 'repair' ? '返修' : activity.ref_type}
+                      </Tag>
+                      <div>
+                        <Text strong>{activity.action}</Text>
+                      </div>
                       <div style={{ fontSize: 12 }}>
                         <Text type="secondary">{activity.operator_name}</Text>
                         {' · '}
@@ -158,9 +207,9 @@ const Dashboard = () => {
                         </div>
                       )}
                     </div>
-                  )
-                }))}
-              />
+                  </Timeline.Item>
+                ))}
+              </Timeline>
             </Card>
           </Col>
         </Row>

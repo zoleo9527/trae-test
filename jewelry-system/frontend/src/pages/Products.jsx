@@ -185,28 +185,68 @@ const Products = () => {
               </Descriptions.Item>
             </Descriptions>
 
-            <Card title="调货历史" size="small">
+            <Card title="货品责任链路" size="small">
+              <Timeline style={{ maxHeight: 400, overflow: 'auto' }}>
+                {[
+                  ...(selectedProduct.transfer_history || []).map(t => ({
+                    type: 'transfer',
+                    time: t.created_at,
+                    color: 'blue',
+                    content: (
+                      <div key={t.id}>
+                        <Text strong>【调货】</Text>
+                        <Text style={{ marginLeft: 8 }}>{t.request_no}</Text>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>
+                          <Tag color="cyan">{t.from_store_name}</Tag>
+                          <span style={{ padding: '0 4px' }}>→</span>
+                          <Tag color="purple">{t.to_store_name}</Tag>
+                          <Text type="secondary" style={{ marginLeft: 8 }}>
+                            {t.requester_name} · {dayjs(t.created_at).format('MM-DD HH:mm')}
+                          </Text>
+                        </div>
+                      </div>
+                    )
+                  })),
+                  ...(selectedProduct.repairs || []).map(r => ({
+                    type: 'repair',
+                    time: r.created_at,
+                    color: 'orange',
+                    content: (
+                      <div key={r.id}>
+                        <Text strong>【返修】</Text>
+                        <Text style={{ marginLeft: 8 }}>{r.order_no}</Text>
+                        <Tag color={r.status === 'returned' ? 'green' : r.status === 'completed' ? 'blue' : 'orange'} style={{ marginLeft: 8 }}>
+                          {r.status === 'pending' ? '待处理' : r.status === 'in_progress' ? '处理中' : r.status === 'completed' ? '已完成' : '已返回'}
+                        </Tag>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>
+                          <Text type="secondary">
+                            {r.repair_type} · 费用: ¥{r.actual_cost || r.estimated_cost || 0} · {dayjs(r.created_at).format('MM-DD HH:mm')}
+                          </Text>
+                        </div>
+                      </div>
+                    )
+                  }))
+                ].sort((a, b) => new Date(b.time) - new Date(a.time)).map((item, idx) => (
+                  <Timeline.Item key={idx} color={item.color}>
+                    {item.content}
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+            </Card>
+
+            <Card title="返修记录" size="small">
               <Table
-                dataSource={selectedProduct.transfer_history || []}
+                dataSource={selectedProduct.repairs || []}
                 rowKey="id"
                 size="small"
                 pagination={false}
                 columns={[
-                  { title: '申请单号', dataIndex: 'request_no', width: 140 },
-                  { title: '调出', dataIndex: 'from_store_name', width: 120 },
-                  { title: '调入', dataIndex: 'to_store_name', width: 120 },
-                  { title: '申请人', dataIndex: 'requester_name', width: 80 },
-                  { 
-                    title: '状态', 
-                    dataIndex: 'status', 
-                    width: 80,
-                    render: (s) => <Tag>{s}</Tag>
-                  },
-                  { 
-                    title: '创建时间', 
-                    dataIndex: 'created_at',
-                    render: (t) => dayjs(t).format('MM-DD HH:mm')
-                  }
+                  { title: '返修单号', dataIndex: 'order_no', width: 140 },
+                  { title: '返修类型', dataIndex: 'repair_type', width: 100 },
+                  { title: '费用', dataIndex: 'actual_cost', width: 80, render: v => `¥${v || 0}` },
+                  { title: '门店', dataIndex: 'store_name', width: 100 },
+                  { title: '状态', dataIndex: 'status', width: 80, render: s => <Tag>{s}</Tag> },
+                  { title: '创建时间', dataIndex: 'created_at', render: t => dayjs(t).format('MM-DD HH:mm') }
                 ]}
               />
             </Card>
