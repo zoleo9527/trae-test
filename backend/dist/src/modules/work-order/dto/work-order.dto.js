@@ -77,6 +77,11 @@ __decorate([
 ], QueryWorkOrderDto.prototype, "status", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(work_order_enum_1.WorkOrderStatus, { each: true }),
+    __metadata("design:type", Array)
+], QueryWorkOrderDto.prototype, "statuses", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(work_order_enum_1.AbnormalType),
     __metadata("design:type", String)
 ], QueryWorkOrderDto.prototype, "abnormalType", void 0);

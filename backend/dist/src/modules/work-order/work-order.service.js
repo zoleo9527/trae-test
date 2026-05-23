@@ -51,7 +51,7 @@ let WorkOrderService = class WorkOrderService {
         return this.findOne(saved.id);
     }
     async findAll(queryDto) {
-        const { page, limit, sortBy = 'createdAt', sortOrder, status, abnormalType, station, keyword, reporterId, handlerId, startDate, endDate } = queryDto;
+        const { page, limit, sortBy = 'createdAt', sortOrder, status, statuses, abnormalType, station, keyword, reporterId, handlerId, startDate, endDate } = queryDto;
         const queryBuilder = this.workOrderRepository.createQueryBuilder('workOrder')
             .leftJoinAndSelect('workOrder.reporter', 'reporter')
             .leftJoinAndSelect('workOrder.handler', 'handler')
@@ -60,6 +60,9 @@ let WorkOrderService = class WorkOrderService {
             .leftJoinAndSelect('partUsages.sparePart', 'sparePart');
         if (status) {
             queryBuilder.andWhere('workOrder.status = :status', { status });
+        }
+        else if (statuses && statuses.length > 0) {
+            queryBuilder.andWhere('workOrder.status IN (:...statuses)', { statuses });
         }
         if (abnormalType) {
             queryBuilder.andWhere('workOrder.abnormalType = :abnormalType', { abnormalType });

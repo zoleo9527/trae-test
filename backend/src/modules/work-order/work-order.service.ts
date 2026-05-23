@@ -60,7 +60,7 @@ export class WorkOrderService {
   }
 
   async findAll(queryDto: QueryWorkOrderDto): Promise<PaginatedResult<WorkOrder>> {
-    const { page, limit, sortBy = 'createdAt', sortOrder, status, abnormalType, station, keyword, reporterId, handlerId, startDate, endDate } = queryDto;
+    const { page, limit, sortBy = 'createdAt', sortOrder, status, statuses, abnormalType, station, keyword, reporterId, handlerId, startDate, endDate } = queryDto;
     
     const queryBuilder = this.workOrderRepository.createQueryBuilder('workOrder')
       .leftJoinAndSelect('workOrder.reporter', 'reporter')
@@ -71,6 +71,8 @@ export class WorkOrderService {
 
     if (status) {
       queryBuilder.andWhere('workOrder.status = :status', { status });
+    } else if (statuses && statuses.length > 0) {
+      queryBuilder.andWhere('workOrder.status IN (:...statuses)', { statuses });
     }
 
     if (abnormalType) {

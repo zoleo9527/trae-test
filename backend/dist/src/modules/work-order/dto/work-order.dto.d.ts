@@ -16,6 +16,7 @@ export declare class UpdateWorkOrderDto {
 }
 export declare class QueryWorkOrderDto extends PaginationDto {
     status?: WorkOrderStatus;
+    statuses?: WorkOrderStatus[];
     abnormalType?: AbnormalType;
     station?: string;
     keyword?: string;

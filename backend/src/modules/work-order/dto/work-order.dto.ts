@@ -50,6 +50,10 @@ export class QueryWorkOrderDto extends PaginationDto {
   status?: WorkOrderStatus;
 
   @IsOptional()
+  @IsEnum(WorkOrderStatus, { each: true })
+  statuses?: WorkOrderStatus[];
+
+  @IsOptional()
   @IsEnum(AbnormalType)
   abnormalType?: AbnormalType;
 

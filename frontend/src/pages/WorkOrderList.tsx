@@ -1,13 +1,46 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Tag, Button, Space, Input, Select, DatePicker, Row, Col, Modal, Form, message, Card } from 'antd';
-import { PlusOutlined, SearchOutlined, ExportOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  Table,
+  Tag,
+  Button,
+  Space,
+  Input,
+  Select,
+  DatePicker,
+  Row,
+  Col,
+  Modal,
+  Form,
+  message,
+  Card,
+  Tabs,
+  Badge,
+  Typography,
+} from 'antd';
+import {
+  PlusOutlined,
+  SearchOutlined,
+  ExportOutlined,
+  PlayCircleOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { workOrderApi } from '../services/api';
-import { WorkOrder, WorkOrderStatus, WorkOrderStatusLabels, AbnormalType, AbnormalTypeLabels } from '../types/index';
+import {
+  WorkOrder,
+  WorkOrderStatus,
+  WorkOrderStatusLabels,
+  AbnormalType,
+  AbnormalTypeLabels,
+  UserRole,
+  RoleLabels,
+} from '../types/index';
+import { useRole } from '../contexts/RoleContext';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+const { Text } = Typography;
 
 const statusColors: Record<WorkOrderStatus, string> = {
   [WorkOrderStatus.ABNORMAL_REPORTED]: 'red',
@@ -22,26 +55,43 @@ const statusColors: Record<WorkOrderStatus, string> = {
 
 const WorkOrderList: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { currentRole, setCurrentRole, roleTodoStatuses, getActionLabel } = useRole();
   const [data, setData] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState<any>({});
+  const [activeTab, setActiveTab] = useState<'all' | 'todo'>('todo');
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [form] = Form.useForm();
 
   useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    if (statusFromUrl) {
+      setFilters({ ...filters, status: statusFromUrl });
+      setActiveTab('all');
+    }
+  }, []);
+
+  useEffect(() => {
     loadData();
-  }, [page, pageSize, filters]);
+  }, [page, pageSize, filters, activeTab, roleTodoStatuses]);
 
   const loadData = async () => {
     setLoading(true);
     try {
+      const queryFilters: any = { ...filters };
+
+      if (activeTab === 'todo') {
+        queryFilters.statuses = roleTodoStatuses;
+      }
+
       const res = await workOrderApi.getList({
         page,
         limit: pageSize,
-        ...filters,
+        ...queryFilters,
       });
       setData(res.data.data);
       setTotal(res.data.meta.total);
@@ -61,6 +111,7 @@ const WorkOrderList: React.FC = () => {
   const handleReset = () => {
     setFilters({});
     setPage(1);
+    setSearchParams({});
   };
 
   const handleCreate = async (values: any) => {
@@ -78,7 +129,11 @@ const WorkOrderList: React.FC = () => {
 
   const handleExport = async () => {
     try {
-      const res = await workOrderApi.export(filters);
+      const queryFilters: any = { ...filters };
+      if (activeTab === 'todo') {
+        queryFilters.statuses = roleTodoStatuses;
+      }
+      const res = await workOrderApi.export(queryFilters);
       message.success(`导出成功，文件路径: ${res.data.filePath}`);
     } catch (error) {
       console.error('导出失败:', error);
@@ -86,12 +141,17 @@ const WorkOrderList: React.FC = () => {
     }
   };
 
+  const todoCount = useMemo(() => {
+    return data.filter((order) => roleTodoStatuses.includes(order.status)).length;
+  }, [data, roleTodoStatuses]);
+
   const columns = [
     {
       title: '工单号',
       dataIndex: 'orderNo',
       key: 'orderNo',
       width: 150,
+      fixed: 'left',
     },
     {
       title: '标题',
@@ -110,7 +170,7 @@ const WorkOrderList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
+      width: 140,
       render: (status: WorkOrderStatus) => (
         <Tag color={statusColors[status]}>
           {WorkOrderStatusLabels[status]}
@@ -128,6 +188,7 @@ const WorkOrderList: React.FC = () => {
       dataIndex: 'totalDowntimeMinutes',
       key: 'totalDowntimeMinutes',
       width: 100,
+      sorter: (a: WorkOrder, b: WorkOrder) => (a.totalDowntimeMinutes || 0) - (b.totalDowntimeMinutes || 0),
       render: (minutes?: number) => minutes ? `${minutes}分钟` : '-',
     },
     {
@@ -152,32 +213,85 @@ const WorkOrderList: React.FC = () => {
       render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm'),
     },
     {
-      title: '操作',
+      title: '待办动作',
       key: 'action',
-      width: 150,
+      width: 140,
       fixed: 'right',
-      render: (_: any, record: WorkOrder) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => navigate(`/work-orders/${record.id}`)}>
-            详情
-          </Button>
-          {record.status !== WorkOrderStatus.CLOSED && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={() => navigate(`/work-orders/${record.id}`)}
-            >
-              处理
+      render: (_: any, record: WorkOrder) => {
+        const isTodo = roleTodoStatuses.includes(record.status);
+        return (
+          <Space>
+            <Button type="link" size="small" onClick={() => navigate(`/work-orders/${record.id}`)}>
+              详情
             </Button>
-          )}
+            {record.status !== WorkOrderStatus.CLOSED && (
+              <Button
+                type={isTodo ? 'primary' : 'default'}
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => navigate(`/work-orders/${record.id}`)}
+              >
+                {isTodo ? getActionLabel(record.status) : '查看'}
+              </Button>
+            )}
+          </Space>
+        );
+      },
+    },
+  ];
+
+  const tabItems = [
+    {
+      key: 'todo',
+      label: (
+        <Space>
+          我的待办
+          <Badge count={total} size="small" />
         </Space>
       ),
+    },
+    {
+      key: 'all',
+      label: '全部工单',
     },
   ];
 
   return (
     <div>
+      <Card style={{ marginBottom: 16 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Space align="center">
+              <UserOutlined style={{ fontSize: 16, color: '#1890ff' }} />
+              <Text strong>当前视角：</Text>
+              <Select
+                value={currentRole}
+                onChange={(value) => {
+                  setCurrentRole(value);
+                  setPage(1);
+                }}
+                style={{ width: 160 }}
+              >
+                <Option value={UserRole.STATION_MASTER}>{RoleLabels[UserRole.STATION_MASTER]}</Option>
+                <Option value={UserRole.INSPECTION_ENGINEER}>{RoleLabels[UserRole.INSPECTION_ENGINEER]}</Option>
+                <Option value={UserRole.OPERATION_STAFF}>{RoleLabels[UserRole.OPERATION_STAFF]}</Option>
+                <Option value={UserRole.ADMIN}>{RoleLabels[UserRole.ADMIN]}</Option>
+              </Select>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Text type="secondary">待办状态：</Text>
+              {roleTodoStatuses.map((status) => (
+                <Tag key={status} color={statusColors[status]}>
+                  {WorkOrderStatusLabels[status]}
+                </Tag>
+              ))}
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
       <Card style={{ marginBottom: 16 }}>
         <Form layout="inline">
           <Row gutter={[16, 16]} style={{ width: '100%' }}>
@@ -197,6 +311,7 @@ const WorkOrderList: React.FC = () => {
                   placeholder="选择状态"
                   allowClear
                   style={{ width: '100%' }}
+                  value={filters.status || undefined}
                   onChange={(value) => setFilters({ ...filters, status: value })}
                 >
                   {Object.entries(WorkOrderStatusLabels).map(([value, label]) => (
@@ -211,6 +326,7 @@ const WorkOrderList: React.FC = () => {
                   placeholder="选择异常类型"
                   allowClear
                   style={{ width: '100%' }}
+                  value={filters.abnormalType || undefined}
                   onChange={(value) => setFilters({ ...filters, abnormalType: value })}
                 >
                   {Object.entries(AbnormalTypeLabels).map(([value, label]) => (
@@ -225,6 +341,7 @@ const WorkOrderList: React.FC = () => {
                   placeholder="选择电站"
                   allowClear
                   style={{ width: '100%' }}
+                  value={filters.station || undefined}
                   onChange={(value) => setFilters({ ...filters, station: value })}
                 >
                   <Option value="光伏A站">光伏A站</Option>
@@ -244,12 +361,22 @@ const WorkOrderList: React.FC = () => {
 
       <Card>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>
-            新建工单
-          </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport}>
-            导出
-          </Button>
+          <Tabs
+            activeKey={activeTab}
+            onChange={(key) => {
+              setActiveTab(key as 'all' | 'todo');
+              setPage(1);
+            }}
+            items={tabItems}
+          />
+          <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>
+              新建工单
+            </Button>
+            <Button icon={<ExportOutlined />} onClick={handleExport}>
+              导出
+            </Button>
+          </Space>
         </div>
 
         <Table
@@ -257,7 +384,7 @@ const WorkOrderList: React.FC = () => {
           dataSource={data}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1400 }}
           pagination={{
             current: page,
             pageSize,
