@@ -23,12 +23,9 @@ router.get('/', authenticateToken, (req, res) => {
   res.json(filtered);
 });
 
-router.get('/:id', authenticateToken, (req, res) => {
-  const part = spareParts.find(p => p.id === req.params.id);
-  if (!part) {
-    return res.status(404).json({ error: '备件不存在' });
-  }
-  res.json(part);
+router.get('/alerts/low-stock', authenticateToken, (req, res) => {
+  const lowStockItems = spareParts.filter(p => p.stock <= p.minStock);
+  res.json(lowStockItems);
 });
 
 router.post('/:id/request', authenticateToken, (req, res) => {
@@ -63,9 +60,12 @@ router.post('/:id/restock', authenticateToken, (req, res) => {
   res.json(spareParts[index]);
 });
 
-router.get('/alerts/low-stock', authenticateToken, (req, res) => {
-  const lowStockItems = spareParts.filter(p => p.stock <= p.minStock);
-  res.json(lowStockItems);
+router.get('/:id', authenticateToken, (req, res) => {
+  const part = spareParts.find(p => p.id === req.params.id);
+  if (!part) {
+    return res.status(404).json({ error: '备件不存在' });
+  }
+  res.json(part);
 });
 
 module.exports = router;

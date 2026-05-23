@@ -9,7 +9,8 @@ router.get('/', authenticateToken, (req, res) => {
   let filtered = [...workOrders];
 
   if (status) {
-    filtered = filtered.filter(wo => wo.status === status);
+    const statuses = status.split(',');
+    filtered = filtered.filter(wo => statuses.includes(wo.status));
   }
   if (type) {
     filtered = filtered.filter(wo => wo.type === type);
@@ -29,12 +30,21 @@ router.get('/', authenticateToken, (req, res) => {
   res.json(filtered);
 });
 
-router.get('/:id', authenticateToken, (req, res) => {
-  const wo = workOrders.find(w => w.id === req.params.id);
-  if (!wo) {
-    return res.status(404).json({ error: '工单不存在' });
-  }
-  res.json(wo);
+router.get('/stats/summary', authenticateToken, (req, res) => {
+  const pending = workOrders.filter(w => w.status === 'pending').length;
+  const inProgress = workOrders.filter(w => w.status === 'in_progress').length;
+  const completed = workOrders.filter(w => w.status === 'completed' || w.status === 'closed').length;
+  const totalDowntime = workOrders.reduce((sum, w) => sum + (w.downtimeMinutes || 0), 0);
+  const totalPowerLoss = workOrders.reduce((sum, w) => sum + (w.powerLoss || 0), 0);
+
+  res.json({
+    total: workOrders.length,
+    pending,
+    inProgress,
+    completed,
+    totalDowntime,
+    totalPowerLoss,
+  });
 });
 
 router.post('/', authenticateToken, (req, res) => {
@@ -174,21 +184,12 @@ router.post('/:id/spare-parts', authenticateToken, (req, res) => {
   res.json(newPart);
 });
 
-router.get('/stats/summary', authenticateToken, (req, res) => {
-  const pending = workOrders.filter(w => w.status === 'pending').length;
-  const inProgress = workOrders.filter(w => w.status === 'in_progress').length;
-  const completed = workOrders.filter(w => w.status === 'completed' || w.status === 'closed').length;
-  const totalDowntime = workOrders.reduce((sum, w) => sum + (w.downtimeMinutes || 0), 0);
-  const totalPowerLoss = workOrders.reduce((sum, w) => sum + (w.powerLoss || 0), 0);
-
-  res.json({
-    total: workOrders.length,
-    pending,
-    inProgress,
-    completed,
-    totalDowntime,
-    totalPowerLoss,
-  });
+router.get('/:id', authenticateToken, (req, res) => {
+  const wo = workOrders.find(w => w.id === req.params.id);
+  if (!wo) {
+    return res.status(404).json({ error: '工单不存在' });
+  }
+  res.json(wo);
 });
 
 module.exports = router;

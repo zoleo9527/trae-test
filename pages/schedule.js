@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -67,6 +68,10 @@ function SortableWorkOrder({ order, onDragStart }) {
 }
 
 function EngineerColumn({ engineer, orders, onDragStart }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: engineer.id,
+  });
+
   return (
     <div className="flex-shrink-0 w-72">
       <div className="bg-white rounded-t-lg border border-gray-200 border-b-0 p-4">
@@ -92,7 +97,13 @@ function EngineerColumn({ engineer, orders, onDragStart }) {
           </div>
         )}
       </div>
-      <div className="bg-gray-50 border border-gray-200 rounded-b-lg p-3 min-h-96 scrollbar-thin overflow-y-auto" style={{ maxHeight: '500px' }}>
+      <div 
+        ref={setNodeRef}
+        className={`border rounded-b-lg p-3 min-h-96 scrollbar-thin overflow-y-auto transition-colors ${
+          isOver ? 'bg-blue-50 border-blue-400 border-2' : 'border-gray-200 bg-gray-50'
+        }`}
+        style={{ maxHeight: '500px' }}
+      >
         <SortableContext items={orders.map(o => o.id)} strategy={verticalListSortingStrategy}>
           {orders.map(order => (
             <SortableWorkOrder
@@ -102,9 +113,9 @@ function EngineerColumn({ engineer, orders, onDragStart }) {
             />
           ))}
           {orders.length === 0 && (
-            <div className="text-center text-gray-400 py-8">
+            <div className={`text-center py-8 transition-colors ${isOver ? 'text-blue-500' : 'text-gray-400'}`}>
               <p className="text-4xl mb-2">📋</p>
-              <p className="text-sm">暂无待办任务</p>
+              <p className="text-sm">{isOver ? '拖放到此处分配工单' : '暂无待办任务'}</p>
             </div>
           )}
         </SortableContext>
@@ -191,7 +202,7 @@ function Schedule() {
       
       const assignedMap = {};
       engineersRes.forEach(eng => {
-        assignedMap[eng.id] = assigned.filter(o => o.assigneeId === eng.id);
+        assignedMap[eng.id] = assigned.filter(o => o.assigneeId == eng.id);
       });
       setAssignedOrders(assignedMap);
     } catch (error) {
@@ -232,11 +243,16 @@ function Schedule() {
 
     if (!movedOrder) return;
 
-    const targetEngineer = engineers.find(e => 
-      assignedOrders[e.id]?.some(o => o.id === overId) || e.id == overId
-    );
+    let targetEngineer = null;
+    
+    for (const eng of engineers) {
+      if (eng.id == overId || assignedOrders[eng.id]?.some(o => o.id === overId)) {
+        targetEngineer = eng;
+        break;
+      }
+    }
 
-    if (targetEngineer && sourceColumn !== targetEngineer.id) {
+    if (targetEngineer && sourceColumn != targetEngineer.id) {
       try {
         await api.workOrders.assign(activeId, targetEngineer.id);
         

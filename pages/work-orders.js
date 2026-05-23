@@ -26,6 +26,8 @@ function WorkOrders() {
   const [engineers, setEngineers] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedEngineer, setSelectedEngineer] = useState('');
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closeNote, setCloseNote] = useState('');
   const { hasRole, ROLES, user } = useAuth();
   const isManager = hasRole(ROLES.STATION_MANAGER);
   const isEngineer = hasRole(ROLES.ENGINEER);
@@ -71,12 +73,14 @@ function WorkOrders() {
     }
   };
 
-  const handleUpdateStatus = async (status, statusName) => {
+  const handleUpdateStatus = async (status, statusName, closeNoteVal) => {
     if (!selectedOrder) return;
     try {
-      await api.workOrders.updateStatus(selectedOrder.id, status, statusName);
+      await api.workOrders.updateStatus(selectedOrder.id, status, statusName, closeNoteVal);
       loadData();
       setSelectedOrder(null);
+      setShowCloseModal(false);
+      setCloseNote('');
     } catch (error) {
       console.error('更新失败:', error);
     }
@@ -124,12 +128,12 @@ function WorkOrders() {
             <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-500 mb-1">今日停机</p>
-            <p className="text-2xl font-bold text-red-600">{formatDuration(stats.todayDowntime)}</p>
+            <p className="text-sm text-gray-500 mb-1">累计停机</p>
+            <p className="text-2xl font-bold text-red-600">{formatDuration(stats.totalDowntime)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-sm text-gray-500 mb-1">损失电量</p>
-            <p className="text-2xl font-bold text-gray-800">{(stats.todayPowerLoss / 1000).toFixed(1)}kWh</p>
+            <p className="text-2xl font-bold text-gray-800">{(stats.totalPowerLoss / 1000).toFixed(1)}kWh</p>
           </div>
         </div>
       )}
@@ -394,7 +398,7 @@ function WorkOrders() {
               )}
               {isManager && selectedOrder.status === 'completed' && (
                 <button
-                  onClick={() => handleUpdateStatus('closed', '已关闭')}
+                  onClick={() => setShowCloseModal(true)}
                   className="flex-1 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
                 >
                   关闭工单
@@ -431,6 +435,34 @@ function WorkOrders() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
               >
                 确定分配
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 p-6">
+            <h3 className="font-semibold text-gray-800 mb-4">关闭工单</h3>
+            <textarea
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4 h-24 resize-none"
+              placeholder="请输入关闭说明（验收结果、遗留问题等）..."
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowCloseModal(false); setCloseNote(''); }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleUpdateStatus('closed', '已关闭', closeNote)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
+              >
+                确认关闭
               </button>
             </div>
           </div>

@@ -15,14 +15,6 @@ router.get('/', authenticateToken, (req, res) => {
   res.json(filtered);
 });
 
-router.get('/:id', authenticateToken, (req, res) => {
-  const node = paymentNodes.find(n => n.id === req.params.id);
-  if (!node) {
-    return res.status(404).json({ error: '回款节点不存在' });
-  }
-  res.json(node);
-});
-
 router.get('/summary', authenticateToken, (req, res) => {
   const total = paymentNodes.reduce((sum, n) => sum + n.amount, 0);
   const paid = paymentNodes.reduce((sum, n) => sum + n.paidAmount, 0);
@@ -111,6 +103,14 @@ router.post('/:id/evidences', authenticateToken, (req, res) => {
   
   paymentNodes[index].evidences.push(newEvidence);
   res.json(newEvidence);
+});
+
+router.get('/:id', authenticateToken, (req, res) => {
+  const node = paymentNodes.find(n => n.id === req.params.id);
+  if (!node) {
+    return res.status(404).json({ error: '回款节点不存在' });
+  }
+  res.json(node);
 });
 
 module.exports = router;
