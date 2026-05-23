@@ -188,7 +188,7 @@ const handleClose = () => {
 
 const navigateToOrder = () => {
   if (props.record) {
-    navigateTo(`/orders/${props.record.orderId}`)
+    navigateTo(`/orders/${props.record.orderId}?handoverId=${props.record.id}`)
     handleClose()
   }
 }

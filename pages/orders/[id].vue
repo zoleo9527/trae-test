@@ -243,7 +243,13 @@
             <div
               v-for="record in handoverRecords"
               :key="record.id"
-              class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors -mx-2"
+              :id="`handover-${record.id}`"
+              :class="[
+                'flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all duration-300 -mx-2',
+                highlightedHandoverId === record.id
+                  ? 'bg-gold-100 ring-2 ring-gold-400 ring-offset-2'
+                  : 'hover:bg-gray-50'
+              ]"
               @click="openHandoverDetail(record)"
             >
               <div :class="[
@@ -400,11 +406,19 @@ const { formatDate, formatDateTime, formatPrice, formatWeight, formatCarat, getO
 
 const newNote = ref('')
 const highlightedAbnormalId = ref<string | null>(null)
+const highlightedHandoverId = ref<string | null>(null)
 
 const order = computed(() => ordersStore.getOrderById(route.params.id as string))
 
-watchEffect(() => {
+const handoverRecords = computed(() => {
+  if (!order.value) return []
+  return handoverStore.recordsByOrder(order.value.id)
+})
+
+const handleHighlightAndScroll = () => {
   const abnormalId = route.query.abnormalId as string
+  const handoverId = route.query.handoverId as string
+  
   if (abnormalId) {
     highlightedAbnormalId.value = abnormalId
     nextTick(() => {
@@ -417,12 +431,26 @@ watchEffect(() => {
       highlightedAbnormalId.value = null
     }, 3000)
   }
-})
-
-const handoverRecords = computed(() => {
-  if (!order.value) return []
-  return handoverStore.recordsByOrder(order.value.id)
-})
+  
+  if (handoverId) {
+    highlightedHandoverId.value = handoverId
+    nextTick(() => {
+      const element = document.getElementById(`handover-${handoverId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      const record = handoverRecords.value.find(r => r.id === handoverId)
+      if (record) {
+        setTimeout(() => {
+          openHandoverDetail(record)
+        }, 500)
+      }
+    })
+    setTimeout(() => {
+      highlightedHandoverId.value = null
+    }, 3000)
+  }
+}
 
 const getAbnormal = (id: string) => {
   return abnormalStore.records.find(r => r.id === id)
@@ -530,5 +558,8 @@ onMounted(async () => {
   await ordersStore.fetchOrders()
   await abnormalStore.fetchRecords()
   await handoverStore.fetchRecords()
+  nextTick(() => {
+    handleHighlightAndScroll()
+  })
 })
 </script>
