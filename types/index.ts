@@ -71,6 +71,8 @@ export interface HandoverItem {
 export interface HandoverRecord {
   id: string
   orderId: string
+  orderNo: string
+  customerName: string
   type: HandoverType
   fromParty: string
   toParty: string

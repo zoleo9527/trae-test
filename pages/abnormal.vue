@@ -117,7 +117,11 @@
             <BaseButton v-if="record.status === 'processing'" size="sm" variant="secondary" @click="resolveRecord(record)">
               标记解决
             </BaseButton>
-            <BaseButton size="sm" variant="ghost">
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              @click="navigateTo(`/orders/${record.orderId}?abnormalId=${record.id}`)"
+            >
               查看详情
             </BaseButton>
           </div>

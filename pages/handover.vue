@@ -33,26 +33,28 @@
           <thead>
             <tr class="border-b border-gray-100">
               <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">时间</th>
-              <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">订单号</th>
+              <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">订单信息</th>
               <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">类型</th>
               <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">交接双方</th>
               <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">货品</th>
               <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">留痕</th>
-              <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">备注</th>
+              <th class="text-left py-3 px-4 text-sm font-medium text-gray-500">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="record in filteredRecords"
               :key="record.id"
-              class="border-b border-gray-50 hover:bg-gold-50/50 transition-colors"
+              class="border-b border-gray-50 hover:bg-gold-50/50 transition-colors cursor-pointer"
+              @click="openDetailDrawer(record)"
             >
               <td class="py-4 px-4">
                 <p class="text-sm font-medium text-gray-800">{{ formatDate(record.timestamp) }}</p>
                 <p class="text-xs text-gray-400">{{ formatTime(record.timestamp) }}</p>
               </td>
               <td class="py-4 px-4">
-                <span class="text-sm font-medium text-gray-800">{{ record.orderId }}</span>
+                <p class="text-sm font-medium text-gray-800">{{ record.orderNo }}</p>
+                <p class="text-xs text-gray-500">{{ record.customerName }}</p>
               </td>
               <td class="py-4 px-4">
                 <span :class="['status-badge', getHandoverTypeClass(record.type)]">
@@ -67,10 +69,13 @@
                 </div>
               </td>
               <td class="py-4 px-4">
-                <div v-for="(item, idx) in record.items" :key="idx" class="text-sm">
+                <div v-for="(item, idx) in record.items.slice(0, 2)" :key="idx" class="text-sm">
                   <span class="text-gray-800">{{ item.name }}</span>
                   <span class="text-gray-400 ml-1">x{{ item.quantity }}</span>
                 </div>
+                <p v-if="record.items.length > 2" class="text-xs text-gray-400 mt-1">
+                  等 {{ record.items.length }} 件货品
+                </p>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-3">
@@ -85,7 +90,9 @@
                 </div>
               </td>
               <td class="py-4 px-4">
-                <p class="text-sm text-gray-600">{{ record.remark || '-' }}</p>
+                <BaseButton size="sm" variant="ghost" @click.stop="openDetailDrawer(record)">
+                  查看详情
+                </BaseButton>
               </td>
             </tr>
           </tbody>
@@ -94,9 +101,14 @@
     </BaseCard>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <BaseCard v-for="record in recentDetailed" :key="record.id" hoverable>
+      <BaseCard
+        v-for="record in recentDetailed"
+        :key="record.id"
+        hoverable
+        @click="openDetailDrawer(record)"
+      >
         <template #header>
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-3">
               <div :class="[
                 'w-10 h-10 rounded-lg flex items-center justify-center',
@@ -108,12 +120,16 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-semibold text-gray-800">{{ record.orderId }}</span>
+                  <span class="font-semibold text-gray-800">{{ record.orderNo }}</span>
                   <span :class="['status-badge', getHandoverTypeClass(record.type)]">
                     {{ getHandoverTypeLabel(record.type) }}
                   </span>
                 </div>
-                <p class="text-sm text-gray-500">{{ formatDateTime(record.timestamp) }}</p>
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                  <span>{{ record.customerName }}</span>
+                  <span class="text-gray-300">·</span>
+                  <span>{{ formatDateTime(record.timestamp) }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -134,28 +150,29 @@
 
           <div class="bg-gray-50 rounded-lg p-3">
             <p class="text-xs text-gray-500 mb-2">货品清单</p>
-            <div v-for="(item, idx) in record.items" :key="idx" class="flex items-center justify-between py-1">
+            <div v-for="(item, idx) in record.items.slice(0, 3)" :key="idx" class="flex items-center justify-between py-1">
               <span class="text-sm text-gray-700">{{ item.name }}</span>
               <span class="text-sm text-gray-500">x{{ item.quantity }}</span>
             </div>
+            <p v-if="record.items.length > 3" class="text-xs text-gray-400 mt-1">
+              等 {{ record.items.length }} 件货品
+            </p>
           </div>
 
-          <div v-if="record.photos.length > 0">
-            <p class="text-xs text-gray-500 mb-2">照片留痕</p>
-            <div class="flex gap-2">
-              <div
-                v-for="(photo, idx) in record.photos"
-                :key="idx"
-                class="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center"
-              >
-                <Image class="w-6 h-6 text-gray-400" />
+          <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div class="flex items-center gap-3">
+              <div v-if="record.photos.length > 0" class="flex items-center gap-1 text-sm text-gray-500">
+                <Image class="w-4 h-4" />
+                {{ record.photos.length }}张照片
+              </div>
+              <div v-if="record.signature" class="flex items-center gap-1 text-sm text-forest-600">
+                <ShieldCheck class="w-4 h-4" />
+                已签名
               </div>
             </div>
-          </div>
-
-          <div v-if="record.signature" class="flex items-center gap-2 pt-2 border-t border-gray-100">
-            <ShieldCheck class="w-4 h-4 text-forest-500" />
-            <span class="text-sm text-forest-600">已由 {{ record.signature }} 签名确认</span>
+            <BaseButton size="sm" variant="ghost" @click.stop="openDetailDrawer(record)">
+              查看详情
+            </BaseButton>
           </div>
         </div>
       </BaseCard>
@@ -297,6 +314,12 @@
       </div>
     </form>
   </BaseModal>
+
+  <HandoverDetailDrawer
+    :visible="showDetailDrawer"
+    :record="selectedRecord"
+    @close="closeDetailDrawer"
+  />
 </template>
 
 <script setup lang="ts">
@@ -306,7 +329,8 @@ import { useOrdersStore } from '~/stores/orders'
 import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
 import BaseModal from '~/components/BaseModal.vue'
-import type { HandoverType, HandoverItem } from '~/types'
+import HandoverDetailDrawer from '~/components/HandoverDetailDrawer.vue'
+import type { HandoverType, HandoverItem, HandoverRecord } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -319,7 +343,19 @@ const { formatDate, formatDateTime, getHandoverTypeLabel, getHandoverTypeClass }
 
 const activeTab = ref<HandoverType | ''>('')
 const showCreateModal = ref(false)
+const showDetailDrawer = ref(false)
+const selectedRecord = ref<HandoverRecord | null>(null)
 const submitting = ref(false)
+
+const openDetailDrawer = (record: HandoverRecord) => {
+  selectedRecord.value = record
+  showDetailDrawer.value = true
+}
+
+const closeDetailDrawer = () => {
+  showDetailDrawer.value = false
+  selectedRecord.value = null
+}
 
 const tabs = [
   { value: '', label: '全部' },
@@ -375,8 +411,12 @@ const handleSubmit = async () => {
   submitting.value = true
   await new Promise(resolve => setTimeout(resolve, 500))
 
+  const order = ordersStore.getOrderById(form.orderId)
+
   const newRecord = handoverStore.createRecord({
     orderId: form.orderId,
+    orderNo: order?.orderNo || '',
+    customerName: order?.customer.name || '',
     type: form.type,
     fromParty: form.fromParty,
     toParty: form.toParty,

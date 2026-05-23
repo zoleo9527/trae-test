@@ -428,6 +428,8 @@ export const mockHandoverRecords: HandoverRecord[] = [
   {
     id: '1',
     orderId: '2',
+    orderNo: 'DD20240503002',
+    customerName: '王先生',
     type: 'receive',
     fromParty: '客户（王先生）',
     toParty: '门店（李导购）',
@@ -440,6 +442,8 @@ export const mockHandoverRecords: HandoverRecord[] = [
   {
     id: '2',
     orderId: '3',
+    orderNo: 'DD20240505003',
+    customerName: '刘女士',
     type: 'receive',
     fromParty: '客户（刘女士）',
     toParty: '门店（李导购）',
@@ -452,6 +456,8 @@ export const mockHandoverRecords: HandoverRecord[] = [
   {
     id: '3',
     orderId: '5',
+    orderNo: 'DD20240428005',
+    customerName: '孙女士',
     type: 'deliver',
     fromParty: '门店（李导购）',
     toParty: '客户（孙女士）',
@@ -464,6 +470,8 @@ export const mockHandoverRecords: HandoverRecord[] = [
   {
     id: '4',
     orderId: '8',
+    orderNo: 'DD20240506008',
+    customerName: '郑先生',
     type: 'receive',
     fromParty: '客户（郑先生）',
     toParty: '门店（李导购）',
@@ -476,6 +484,8 @@ export const mockHandoverRecords: HandoverRecord[] = [
   {
     id: '5',
     orderId: '2',
+    orderNo: 'DD20240503002',
+    customerName: '王先生',
     type: 'transfer',
     fromParty: '门店（李导购）',
     toParty: '工厂（张师傅）',

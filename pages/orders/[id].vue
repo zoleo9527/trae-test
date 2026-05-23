@@ -199,7 +199,7 @@
           </div>
         </BaseCard>
 
-        <BaseCard v-if="order.abnormalRecords.length > 0">
+        <BaseCard v-if="order.abnormalRecords.length > 0" :id="highlightedAbnormalId ? 'abnormal-section' : undefined">
           <template #header>
             <div class="flex items-center gap-2">
               <AlertTriangle class="w-5 h-5 text-coral-600" />
@@ -210,15 +210,27 @@
             <div
               v-for="abnormalId in order.abnormalRecords"
               :key="abnormalId"
-              class="border border-coral-100 bg-coral-50 rounded-lg p-3"
+              :id="`abnormal-${abnormalId}`"
+              :class="[
+                'border rounded-lg p-3 transition-all duration-300',
+                highlightedAbnormalId === abnormalId
+                  ? 'border-coral-400 bg-coral-100 ring-2 ring-coral-300 ring-offset-2'
+                  : 'border-coral-100 bg-coral-50'
+              ]"
             >
               <div class="flex items-center gap-2 mb-1">
                 <span :class="['status-badge text-xs', getAbnormalLevelClass(getAbnormal(abnormalId)?.level || 'low')]">
                   {{ getAbnormalLevelLabel(getAbnormal(abnormalId)?.level || 'low') }}
                 </span>
+                <span :class="['status-badge text-xs', getAbnormalStatusClass(getAbnormal(abnormalId)?.status || 'pending')]">
+                  {{ getAbnormalStatusLabel(getAbnormal(abnormalId)?.status || 'pending') }}
+                </span>
                 <span class="text-sm text-gray-600">{{ getAbnormalTypeLabel(getAbnormal(abnormalId)?.type || 'other') }}</span>
               </div>
               <p class="text-sm text-gray-700">{{ getAbnormal(abnormalId)?.description }}</p>
+              <div v-if="getAbnormal(abnormalId)?.cause" class="mt-2 pt-2 border-t border-coral-100">
+                <p class="text-xs text-coral-600">原因：{{ getAbnormal(abnormalId)?.cause }}</p>
+              </div>
             </div>
           </div>
         </BaseCard>
@@ -231,7 +243,8 @@
             <div
               v-for="record in handoverRecords"
               :key="record.id"
-              class="flex items-start gap-3"
+              class="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors -mx-2"
+              @click="openHandoverDetail(record)"
             >
               <div :class="[
                 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
@@ -241,26 +254,30 @@
               ]">
                 <ArrowRightLeft class="w-4 h-4 text-gray-600" />
               </div>
-              <div class="flex-1">
+              <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                   <span :class="['status-badge text-xs', getHandoverTypeClass(record.type)]">
                     {{ getHandoverTypeLabel(record.type) }}
                   </span>
+                  <span class="text-xs text-gray-400">{{ record.orderNo }}</span>
                 </div>
                 <p class="text-sm text-gray-600 mt-0.5">{{ record.fromParty }} → {{ record.toParty }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ formatDateTime(record.timestamp) }}</p>
-                <div v-if="record.photos.length > 0" class="flex gap-1 mt-2">
-                  <div
-                    v-for="(photo, idx) in record.photos.slice(0, 3)"
-                    :key="idx"
-                    class="w-10 h-10 bg-gray-200 rounded flex items-center justify-center"
-                  >
-                    <Image class="w-4 h-4 text-gray-500" />
+                <div class="flex items-center gap-3 mt-2">
+                  <div v-if="record.photos.length > 0" class="flex items-center gap-1 text-xs text-gray-500">
+                    <Image class="w-3 h-3" />
+                    {{ record.photos.length }}张
                   </div>
-                  <div v-if="record.photos.length > 3" class="w-10 h-10 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-500">
-                    +{{ record.photos.length - 3 }}
+                  <div v-if="record.signature" class="flex items-center gap-1 text-xs text-forest-600">
+                    <ShieldCheck class="w-3 h-3" />
+                    已签名
                   </div>
                 </div>
+              </div>
+              <div class="flex-shrink-0">
+                <BaseButton size="sm" variant="ghost" @click.stop="openHandoverDetail(record)">
+                  详情
+                </BaseButton>
               </div>
             </div>
             <div v-if="handoverRecords.length === 0" class="text-center py-4 text-gray-400 text-sm">
@@ -350,17 +367,24 @@
       </div>
     </form>
   </BaseModal>
+
+  <HandoverDetailDrawer
+    :visible="showHandoverDrawer"
+    :record="selectedHandover"
+    @close="closeHandoverDetail"
+  />
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, User, Phone, MessageCircle, Diamond, Clock, FileText, AlertTriangle, ArrowRightLeft, Image, Printer, Edit } from 'lucide-vue-next'
+import { ArrowLeft, User, Phone, MessageCircle, Diamond, Clock, FileText, AlertTriangle, ArrowRightLeft, Image, Printer, Edit, ShieldCheck } from 'lucide-vue-next'
 import { useOrdersStore } from '~/stores/orders'
 import { useAbnormalStore } from '~/stores/abnormal'
 import { useHandoverStore } from '~/stores/handover'
 import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
 import BaseModal from '~/components/BaseModal.vue'
-import type { ProgressNode, AbnormalType, AbnormalLevel } from '~/types'
+import HandoverDetailDrawer from '~/components/HandoverDetailDrawer.vue'
+import type { ProgressNode, AbnormalType, AbnormalLevel, HandoverRecord } from '~/types'
 
 definePageMeta({
   layout: 'default',
@@ -372,11 +396,28 @@ const abnormalStore = useAbnormalStore()
 const handoverStore = useHandoverStore()
 const authStore = useAuthStore()
 
-const { formatDate, formatDateTime, formatPrice, formatWeight, formatCarat, getOrderStatusLabel, getOrderStatusClass, getJewelryCategoryLabel, getAbnormalTypeLabel, getAbnormalLevelLabel, getAbnormalLevelClass, getHandoverTypeLabel, getHandoverTypeClass } = useFormat()
+const { formatDate, formatDateTime, formatPrice, formatWeight, formatCarat, getOrderStatusLabel, getOrderStatusClass, getJewelryCategoryLabel, getAbnormalTypeLabel, getAbnormalLevelLabel, getAbnormalLevelClass, getAbnormalStatusLabel, getAbnormalStatusClass, getHandoverTypeLabel, getHandoverTypeClass } = useFormat()
 
 const newNote = ref('')
+const highlightedAbnormalId = ref<string | null>(null)
 
 const order = computed(() => ordersStore.getOrderById(route.params.id as string))
+
+watchEffect(() => {
+  const abnormalId = route.query.abnormalId as string
+  if (abnormalId) {
+    highlightedAbnormalId.value = abnormalId
+    nextTick(() => {
+      const element = document.getElementById(`abnormal-${abnormalId}`)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
+    setTimeout(() => {
+      highlightedAbnormalId.value = null
+    }, 3000)
+  }
+})
 
 const handoverRecords = computed(() => {
   if (!order.value) return []
@@ -427,6 +468,19 @@ const abnormalLevelOptions = [
   { value: 'high', label: '高' },
   { value: 'critical', label: '紧急' },
 ]
+
+const showHandoverDrawer = ref(false)
+const selectedHandover = ref<HandoverRecord | null>(null)
+
+const openHandoverDetail = (record: HandoverRecord) => {
+  selectedHandover.value = record
+  showHandoverDrawer.value = true
+}
+
+const closeHandoverDetail = () => {
+  showHandoverDrawer.value = false
+  selectedHandover.value = null
+}
 
 const openAbnormalModal = (node: ProgressNode) => {
   abnormalStep.value = node
