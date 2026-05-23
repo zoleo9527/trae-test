@@ -83,8 +83,27 @@ router.get('/:id', authenticateToken, (req, res) => {
     WHERE ii.inventory_check_id = ?
   `).all(req.params.id);
 
+  const itemsWithDispositions = items.map(item => {
+    if (item.difference_type !== 'none') {
+      const dispositions = db.prepare(`
+        SELECT d.*,
+               tr.request_no as related_transfer_no,
+               rp.name as responsible_person_name,
+               cf.name as confirmer_name
+        FROM difference_dispositions d
+        LEFT JOIN transfer_requests tr ON d.related_transfer_id = tr.id
+        LEFT JOIN users rp ON d.responsible_person = rp.id
+        LEFT JOIN users cf ON d.confirmed_by = cf.id
+        WHERE d.inventory_item_id = ?
+        ORDER BY d.created_at DESC
+      `).all(item.id);
+      return { ...item, dispositions };
+    }
+    return item;
+  });
+
   const logs = getLogs('inventory', req.params.id);
-  res.json({ ...check, items, logs });
+  res.json({ ...check, items: itemsWithDispositions, logs });
 });
 
 router.post('/', authenticateToken, requireRoles('sales_associate', 'store_manager', 'after_sales'), (req, res) => {

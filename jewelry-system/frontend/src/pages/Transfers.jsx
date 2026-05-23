@@ -58,7 +58,10 @@ const Transfers = () => {
     }
   };
 
+  const canCreateTransfer = ['sales_associate', 'store_manager'].includes(user.role);
+
   const handleCreate = () => {
+    if (!canCreateTransfer) return;
     form.resetFields();
     setModalVisible(true);
   };
@@ -85,6 +88,10 @@ const Transfers = () => {
   };
 
   const handleApprove = async (id, approved) => {
+    if (user.role !== 'store_manager') {
+      message.error('只有店长可以审批');
+      return;
+    }
     if (approved) {
       Modal.confirm({
         title: '确认批准调货申请',
@@ -96,6 +103,9 @@ const Transfers = () => {
             await request.post(`/transfers/${id}/approve`, {});
             message.success('已批准');
             loadData();
+            if (selectedTransfer) {
+              handleViewDetail({ id });
+            }
           } catch (error) {
             console.error('Failed to approve transfer:', error);
           }
@@ -115,6 +125,9 @@ const Transfers = () => {
             });
             message.success('已拒绝');
             loadData();
+            if (selectedTransfer) {
+              handleViewDetail({ id });
+            }
           } catch (error) {
             console.error('Failed to reject transfer:', error);
           }
@@ -124,34 +137,60 @@ const Transfers = () => {
   };
 
   const handleShip = async (id) => {
+    if (!['sales_associate', 'store_manager'].includes(user.role)) {
+      message.error('只有导购和店长可以发货');
+      return;
+    }
     try {
       await request.post(`/transfers/${id}/ship`);
       message.success('已标记发货');
       loadData();
+      if (selectedTransfer) {
+        handleViewDetail({ id });
+      }
     } catch (error) {
       console.error('Failed to ship:', error);
     }
   };
 
   const handleReceive = async (id) => {
+    if (!['sales_associate', 'store_manager'].includes(user.role)) {
+      message.error('只有导购和店长可以收货');
+      return;
+    }
     try {
       await request.post(`/transfers/${id}/receive`);
       message.success('已确认收货');
       loadData();
+      if (selectedTransfer) {
+        handleViewDetail({ id });
+      }
     } catch (error) {
       console.error('Failed to receive:', error);
     }
   };
 
   const handleComplete = async (id) => {
+    if (user.role !== 'store_manager') {
+      message.error('只有店长可以完成调货');
+      return;
+    }
     try {
       await request.post(`/transfers/${id}/complete`);
       message.success('调货已完成');
       loadData();
+      if (selectedTransfer) {
+        handleViewDetail({ id });
+      }
     } catch (error) {
       console.error('Failed to complete:', error);
     }
   };
+
+  const canApprove = (record) => record.status === 'pending' && record.from_store_id === user.store_id && user.role === 'store_manager';
+  const canShip = (record) => record.status === 'approved' && record.from_store_id === user.store_id && ['sales_associate', 'store_manager'].includes(user.role);
+  const canReceive = (record) => record.status === 'shipped' && record.to_store_id === user.store_id && ['sales_associate', 'store_manager'].includes(user.role);
+  const canComplete = (record) => record.status === 'received' && user.role === 'store_manager';
 
   const columns = [
     {
@@ -218,45 +257,38 @@ const Transfers = () => {
       title: '操作',
       key: 'action',
       width: 280,
-      render: (_, record) => {
-        const canApprove = record.status === 'pending' && record.from_store_id === user.store_id && user.role === 'store_manager';
-        const canShip = record.status === 'approved' && record.from_store_id === user.store_id;
-        const canReceive = record.status === 'shipped' && record.to_store_id === user.store_id;
-        const canComplete = record.status === 'received' && user.role === 'store_manager';
-
-        return (
-          <Space size="small">
-            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
-              详情
+      render: (_, record) => (
+        <Space size="small">
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
+            详情
+          </Button>
+          {canApprove(record) && (
+            <>
+              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(record.id, true)}>
+                批准
+              </Button>
+              <Button type="link" size="small" danger icon={<CloseOutlined />} onClick={() => handleApprove(record.id, false)}>
+                拒绝
+              </Button>
+            </>
+          )}
+          {canShip(record) && (
+            <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => handleShip(record.id)}>
+              发货
             </Button>
-            {canApprove && (
-              <>
-                <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(record.id, true)}>
-                  批准
-                </Button>
-                <Button type="link" size="small" danger icon={<CloseOutlined />} onClick={() => handleApprove(record.id, false)}>
-                  拒绝
-                </Button>
-              </>
-            )}
-            {canShip && (
-              <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => handleShip(record.id)}>
-                发货
-              </Button>
-            )}
-            {canReceive && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleReceive(record.id)}>
-                收货
-              </Button>
-            )}
-            {canComplete && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleComplete(record.id)}>
-                完成
-              </Button>
-            )}
-          </Space>
-        );
-      }
+          )}
+          {canReceive(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleReceive(record.id)}>
+              收货
+            </Button>
+          )}
+          {canComplete(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleComplete(record.id)}>
+              完成
+            </Button>
+          )}
+        </Space>
+      )
     }
   ];
 
@@ -268,9 +300,11 @@ const Transfers = () => {
             <Title level={4} style={{ margin: 0 }}>调货管理</Title>
             <Text type="secondary">跨门店货品调拨申请与跟踪</Text>
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            新建调货申请
-          </Button>
+          {canCreateTransfer && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+              新建调货申请
+            </Button>
+          )}
         </div>
         <Table
           columns={columns}
@@ -353,47 +387,88 @@ const Transfers = () => {
         open={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={[
+          selectedTransfer && canApprove(selectedTransfer) && (
+            <Button key="approve" type="primary" onClick={() => handleApprove(selectedTransfer.id, true)}>
+              批准
+            </Button>
+          ),
+          selectedTransfer && canApprove(selectedTransfer) && (
+            <Button key="reject" danger onClick={() => handleApprove(selectedTransfer.id, false)}>
+              拒绝
+            </Button>
+          ),
+          selectedTransfer && canShip(selectedTransfer) && (
+            <Button key="ship" type="primary" onClick={() => handleShip(selectedTransfer.id)}>
+              确认发货
+            </Button>
+          ),
+          selectedTransfer && canReceive(selectedTransfer) && (
+            <Button key="receive" type="primary" onClick={() => handleReceive(selectedTransfer.id)}>
+              确认收货
+            </Button>
+          ),
+          selectedTransfer && canComplete(selectedTransfer) && (
+            <Button key="complete" type="primary" onClick={() => handleComplete(selectedTransfer.id)}>
+              完成调货
+            </Button>
+          ),
           <Button key="close" onClick={() => setDetailVisible(false)}>关闭</Button>
-        ]}
+        ].filter(Boolean)}
         width={800}
       >
         {selectedTransfer && (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="申请单号" span={2}>
-                <Text strong>{selectedTransfer.request_no}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="调出门店">{selectedTransfer.from_store_name}</Descriptions.Item>
-              <Descriptions.Item label="调入门店">{selectedTransfer.to_store_name}</Descriptions.Item>
-              <Descriptions.Item label="货品名称">{selectedTransfer.product_name}</Descriptions.Item>
-              <Descriptions.Item label="货品SKU">{selectedTransfer.sku}</Descriptions.Item>
-              <Descriptions.Item label="品类">{selectedTransfer.category}</Descriptions.Item>
-              <Descriptions.Item label="材质">{selectedTransfer.material}</Descriptions.Item>
-              <Descriptions.Item label="零售价">¥{selectedTransfer.retail_price}</Descriptions.Item>
-              <Descriptions.Item label="申请人">{selectedTransfer.requester_name}</Descriptions.Item>
-              <Descriptions.Item label="调货原因" span={2}>{selectedTransfer.reason}</Descriptions.Item>
-            </Descriptions>
+            <Card size="small">
+              <Descriptions column={2} size="small">
+                <Descriptions.Item label="申请单号">{selectedTransfer.request_no}</Descriptions.Item>
+                <Descriptions.Item label="状态">
+                  <Tag color={TRANSFER_STATUS[selectedTransfer.status]?.color}>
+                    {TRANSFER_STATUS[selectedTransfer.status]?.label}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="调出门店">{selectedTransfer.from_store_name}</Descriptions.Item>
+                <Descriptions.Item label="调入门店">{selectedTransfer.to_store_name}</Descriptions.Item>
+                <Descriptions.Item label="申请人">{selectedTransfer.requester_name}</Descriptions.Item>
+                <Descriptions.Item label="优先级">{PRIORITY[selectedTransfer.priority]}</Descriptions.Item>
+                <Descriptions.Item label="申请时间">{dayjs(selectedTransfer.created_at).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+              </Descriptions>
+            </Card>
+
+            <Card size="small">
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="货品名称">{selectedTransfer.product_name}</Descriptions.Item>
+                <Descriptions.Item label="SKU">{selectedTransfer.sku}</Descriptions.Item>
+                <Descriptions.Item label="品类">{selectedTransfer.category}</Descriptions.Item>
+                <Descriptions.Item label="零售价">¥{selectedTransfer.retail_price}</Descriptions.Item>
+              </Descriptions>
+            </Card>
 
             <Card title="处理流程" size="small">
               <Steps
                 direction="vertical"
                 current={
-                  selectedTransfer.status === 'pending' ? 0 :
-                  selectedTransfer.status === 'approved' ? 1 :
-                  selectedTransfer.status === 'shipped' ? 2 :
-                  selectedTransfer.status === 'received' ? 3 :
-                  selectedTransfer.status === 'completed' ? 4 : 1
+                  selectedTransfer.status === 'pending' ? 1 :
+                  selectedTransfer.status === 'approved' ? 2 :
+                  selectedTransfer.status === 'shipped' ? 3 :
+                  selectedTransfer.status === 'received' ? 4 :
+                  selectedTransfer.status === 'completed' ? 5 :
+                  selectedTransfer.status === 'rejected' ? 1 : 1
                 }
-                status={selectedTransfer.status === 'rejected' || selectedTransfer.status === 'cancelled' ? 'error' : 'process'}
-                items={[
-                  { title: '创建申请', description: `${selectedTransfer.requester_name} - ${dayjs(selectedTransfer.created_at).format('MM-DD HH:mm')}`, status: 'finish' },
-                  { title: '店长审批', description: selectedTransfer.approver_name ? `${selectedTransfer.approver_name} - ${dayjs(selectedTransfer.approved_at).format('MM-DD HH:mm')}` : '待审批', status: selectedTransfer.status === 'pending' ? 'process' : 'finish' },
-                  { title: '货品发出', description: selectedTransfer.shipper_name ? `${selectedTransfer.shipper_name} - ${dayjs(selectedTransfer.shipped_at).format('MM-DD HH:mm')}` : '待发货', status: ['shipped', 'received', 'completed'].includes(selectedTransfer.status) ? 'finish' : 'wait' },
-                  { title: '确认收货', description: selectedTransfer.receiver_name ? `${selectedTransfer.receiver_name} - ${dayjs(selectedTransfer.received_at).format('MM-DD HH:mm')}` : '待收货', status: ['received', 'completed'].includes(selectedTransfer.status) ? 'finish' : 'wait' },
-                  { title: '调货完成', description: selectedTransfer.completed_by ? `${selectedTransfer.completed_by} - ${dayjs(selectedTransfer.completed_at).format('MM-DD HH:mm')}` : '待完成', status: selectedTransfer.status === 'completed' ? 'finish' : 'wait' }
-                ]}
-              />
+                status={selectedTransfer.status === 'rejected' ? 'error' : 'process'}
+              >
+                <Steps.Step title="创建申请" description={`${selectedTransfer.requester_name} - ${dayjs(selectedTransfer.created_at).format('MM-DD HH:mm')}`} status="finish" />
+                <Steps.Step title="店长审批" description={selectedTransfer.status !== 'pending' ? `${selectedTransfer.approver_name || '系统'} - ${dayjs(selectedTransfer.approved_at || selectedTransfer.created_at).format('MM-DD HH:mm')}` : '待审批'} status={selectedTransfer.status === 'pending' ? 'process' : selectedTransfer.status === 'rejected' ? 'error' : 'finish'} />
+                <Steps.Step title="调出门店发货" description={selectedTransfer.shipped_at ? `${dayjs(selectedTransfer.shipped_at).format('MM-DD HH:mm')}` : '待发货'} status={['shipped', 'received', 'completed'].includes(selectedTransfer.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="调入门店收货" description={selectedTransfer.received_at ? `${dayjs(selectedTransfer.received_at).format('MM-DD HH:mm')}` : '待收货'} status={['received', 'completed'].includes(selectedTransfer.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="调货完成" description={selectedTransfer.completed_at ? `${dayjs(selectedTransfer.completed_at).format('MM-DD HH:mm')}` : '待完成'} status={selectedTransfer.status === 'completed' ? 'finish' : 'wait'} />
+              </Steps>
             </Card>
+
+            {selectedTransfer.reason && (
+              <Card title="调货原因" size="small">
+                <Text>{selectedTransfer.reason}</Text>
+              </Card>
+            )}
 
             <Card title="操作日志" size="small">
               <Timeline
@@ -407,11 +482,6 @@ const Transfers = () => {
                         {' · '}
                         <Text type="secondary">{dayjs(log.created_at).format('MM-DD HH:mm')}</Text>
                       </div>
-                      {log.remarks && (
-                        <div style={{ fontSize: 12, marginTop: 4 }}>
-                          <Text type="secondary">{log.remarks}</Text>
-                        </div>
-                      )}
                     </div>
                   )
                 }))}

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Table, Button, Space, Tag, Modal, Form, DatePicker, message, Card, Typography, Descriptions, Steps, Timeline,
-  InputNumber, Input, Select, Row, Col, Divider, Statistic
+  Table, Button, Space, Tag, Modal, Form, message, Card, Typography, Descriptions, Steps, Timeline,
+  InputNumber, Input, Select, Row, Col, Statistic, Popover
 } from 'antd';
-import { PlusOutlined, EyeOutlined, CheckOutlined, EditOutlined, WarningOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, CheckOutlined, EditOutlined, WarningOutlined, DownOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 import { INVENTORY_STATUS, DIFFERENCE_TYPE, DISPOSITION_TYPE, COMPENSATION_STATUS } from '../utils/constants';
 import useAuthStore from '../store/authStore';
@@ -22,7 +22,6 @@ const Inventory = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [dispositionModalVisible, setDispositionModalVisible] = useState(false);
   const [transfers, setTransfers] = useState([]);
-  const [stores, setStores] = useState([]);
   const [form] = Form.useForm();
   const [dispositionForm] = Form.useForm();
   const user = useAuthStore(state => state.user);
@@ -30,7 +29,6 @@ const Inventory = () => {
   useEffect(() => {
     loadData();
     loadTransfers();
-    loadStores();
   }, []);
 
   const loadData = async () => {
@@ -51,15 +49,6 @@ const Inventory = () => {
       setTransfers(result.data || []);
     } catch (error) {
       console.error('Failed to load transfers:', error);
-    }
-  };
-
-  const loadStores = async () => {
-    try {
-      const result = await request.get('/stores');
-      setStores(result);
-    } catch (error) {
-      console.error('Failed to load stores:', error);
     }
   };
 
@@ -126,16 +115,24 @@ const Inventory = () => {
   };
 
   const handleResolve = async (id) => {
-    try {
-      await request.post(`/inventory/${id}/resolve`);
-      message.success('盘点差异已全部处理');
-      loadData();
-      if (selectedInventory) {
-        handleViewDetail({ id });
+    Modal.confirm({
+      title: '确认结案',
+      content: '所有差异处理都已确认了吗？结案后将无法修改。',
+      okText: '确认结案',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await request.post(`/inventory/${id}/resolve`);
+          message.success('盘点差异已全部处理，结案成功');
+          loadData();
+          if (selectedInventory) {
+            handleViewDetail({ id });
+          }
+        } catch (error) {
+          console.error('Failed to resolve:', error);
+        }
       }
-    } catch (error) {
-      console.error('Failed to resolve:', error);
-    }
+    });
   };
 
   const handleEditItem = (item) => {
@@ -187,6 +184,40 @@ const Inventory = () => {
       console.error('Failed to create disposition:', error);
     }
   };
+
+  const handleConfirmDisposition = async (dispositionId) => {
+    Modal.confirm({
+      title: '确认责任归属',
+      content: '确认后将无法修改，确定继续吗？',
+      okText: '确认',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await request.post(`/dispositions/${dispositionId}/confirm`);
+          message.success('责任已确认');
+          handleViewDetail({ id: selectedInventory.id });
+        } catch (error) {
+          console.error('Failed to confirm disposition:', error);
+        }
+      }
+    });
+  };
+
+  const handleUpdateCompensationStatus = async (dispositionId, status) => {
+    try {
+      await request.post(`/dispositions/${dispositionId}/compensation-status`, { status });
+      message.success('赔付状态已更新');
+      handleViewDetail({ id: selectedInventory.id });
+    } catch (error) {
+      console.error('Failed to update compensation status:', error);
+    }
+  };
+
+  const canCreateInventory = ['sales_associate', 'store_manager', 'after_sales'].includes(user.role);
+  const canSubmitInventory = (record) => record.status === 'draft' && record.checked_by === user.id;
+  const canReviewInventory = (record) => ['submitted', 'reviewing'].includes(record.status) && ['after_sales', 'store_manager'].includes(user.role);
+  const canConfirmInventory = (record) => record.status === 'reviewing' && record.store_id === user.store_id && user.role === 'store_manager';
+  const canResolveInventory = (record) => record.status === 'confirmed' && user.role === 'store_manager';
 
   const columns = [
     {
@@ -254,42 +285,89 @@ const Inventory = () => {
       title: '操作',
       key: 'action',
       width: 280,
-      render: (_, record) => {
-        const canSubmit = record.status === 'draft' && record.checked_by === user.id;
-        const canReview = ['submitted', 'reviewing'].includes(record.status) && ['after_sales', 'store_manager'].includes(user.role);
-        const canConfirm = record.status === 'reviewing' && record.store_id === user.store_id && user.role === 'store_manager';
-        const canResolve = record.status === 'confirmed' && user.role === 'store_manager';
-
-        return (
-          <Space size="small">
-            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
-              详情
+      render: (_, record) => (
+        <Space size="small">
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record)}>
+            详情
+          </Button>
+          {canSubmitInventory(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleSubmit(record.id)}>
+              提交
             </Button>
-            {canSubmit && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleSubmit(record.id)}>
-                提交
-              </Button>
-            )}
-            {canReview && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleReview(record.id)}>
-                复核
-              </Button>
-            )}
-            {canConfirm && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleConfirm(record.id)}>
-                确认
-              </Button>
-            )}
-            {canResolve && (
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleResolve(record.id)}>
-                结案
-              </Button>
-            )}
-          </Space>
-        );
-      }
+          )}
+          {canReviewInventory(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleReview(record.id)}>
+              复核
+            </Button>
+          )}
+          {canConfirmInventory(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleConfirm(record.id)}>
+              确认
+            </Button>
+          )}
+          {canResolveInventory(record) && (
+            <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleResolve(record.id)}>
+              结案
+            </Button>
+          )}
+        </Space>
+      )
     }
   ];
+
+  const expandedRowRender = (record) => {
+    if (!record.dispositions || record.dispositions.length === 0) {
+      return <Text type="secondary" style={{ padding: '8px 16px' }}>暂无差异处理记录</Text>;
+    }
+
+    return (
+      <div style={{ padding: '8px 16px', background: '#fafafa' }}>
+        <Text strong>差异处理记录：</Text>
+        {record.dispositions.map((disp) => (
+          <Card key={disp.id} size="small" style={{ marginTop: 8, marginBottom: 8 }}>
+            <Descriptions size="small" column={4}>
+              <Descriptions.Item label="处理类型">{DISPOSITION_TYPE[disp.disposition_type]}</Descriptions.Item>
+              <Descriptions.Item label="关联调货">{disp.related_transfer_no || '-'}</Descriptions.Item>
+              <Descriptions.Item label="责任人">{disp.responsible_person_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="责任确认">
+                {disp.responsibility_confirmed ? (
+                  <Tag color="green">已确认 ({disp.confirmer_name})</Tag>
+                ) : (
+                  <Tag color="orange">待确认</Tag>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="赔付金额">¥{disp.compensation_amount || 0}</Descriptions.Item>
+              <Descriptions.Item label="赔付状态">
+                <Tag color={COMPENSATION_STATUS[disp.compensation_status]?.color}>
+                  {COMPENSATION_STATUS[disp.compensation_status]?.label}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{disp.remarks || '-'}</Descriptions.Item>
+            </Descriptions>
+            <Space style={{ marginTop: 8 }}>
+              {!disp.responsibility_confirmed && user.role === 'store_manager' && selectedInventory.status === 'reviewing' && (
+                <Button type="primary" size="small" onClick={() => handleConfirmDisposition(disp.id)}>
+                  确认责任
+                </Button>
+              )}
+              {disp.responsibility_confirmed && ['after_sales', 'store_manager'].includes(user.role) && selectedInventory.status !== 'resolved' && (
+                <Select 
+                  size="small" 
+                  style={{ width: 120 }}
+                  value={disp.compensation_status}
+                  onChange={(val) => handleUpdateCompensationStatus(disp.id, val)}
+                >
+                  {Object.entries(COMPENSATION_STATUS).map(([key, val]) => (
+                    <Option key={key} value={key}>{val.label}</Option>
+                  ))}
+                </Select>
+              )}
+            </Space>
+          </Card>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -299,9 +377,11 @@ const Inventory = () => {
             <Title level={4} style={{ margin: 0 }}>盘点管理</Title>
             <Text type="secondary">门店库存盘点与差异处理</Text>
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            新建盘点
-          </Button>
+          {canCreateInventory && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+              新建盘点
+            </Button>
+          )}
         </div>
         <Table
           columns={columns}
@@ -415,8 +495,28 @@ const Inventory = () => {
         open={detailVisible}
         onCancel={() => setDetailVisible(false)}
         footer={[
+          selectedInventory && canSubmitInventory(selectedInventory) && (
+            <Button key="submit" type="primary" onClick={() => handleSubmit(selectedInventory.id)}>
+              提交盘点
+            </Button>
+          ),
+          selectedInventory && canReviewInventory(selectedInventory) && (
+            <Button key="review" type="primary" onClick={() => handleReview(selectedInventory.id)}>
+              开始复核
+            </Button>
+          ),
+          selectedInventory && canConfirmInventory(selectedInventory) && (
+            <Button key="confirm" type="primary" onClick={() => handleConfirm(selectedInventory.id)}>
+              确认盘点
+            </Button>
+          ),
+          selectedInventory && canResolveInventory(selectedInventory) && (
+            <Button key="resolve" type="primary" onClick={() => handleResolve(selectedInventory.id)}>
+              结案
+            </Button>
+          ),
           <Button key="close" onClick={() => setDetailVisible(false)}>关闭</Button>
-        ]}
+        ].filter(Boolean)}
         width={1000}
       >
         {selectedInventory && (
@@ -455,14 +555,13 @@ const Inventory = () => {
                   selectedInventory.status === 'confirmed' ? 3 :
                   selectedInventory.status === 'resolved' ? 4 : 1
                 }
-                items={[
-                  { title: '创建盘点', description: `${selectedInventory.checker_name} - ${dayjs(selectedInventory.created_at).format('MM-DD HH:mm')}`, status: 'finish' },
-                  { title: '提交盘点', description: selectedInventory.status !== 'draft' ? '已提交' : '待提交', status: selectedInventory.status === 'draft' ? 'process' : 'finish' },
-                  { title: '复核中', description: selectedInventory.reviewer_name ? `${selectedInventory.reviewer_name} - ${dayjs(selectedInventory.reviewed_at).format('MM-DD HH:mm')}` : '待复核', status: ['reviewing', 'confirmed', 'resolved'].includes(selectedInventory.status) ? 'finish' : 'wait' },
-                  { title: '店长确认', description: selectedInventory.confirmer_name ? `${selectedInventory.confirmer_name} - ${dayjs(selectedInventory.confirmed_at).format('MM-DD HH:mm')}` : '待确认', status: ['confirmed', 'resolved'].includes(selectedInventory.status) ? 'finish' : 'wait' },
-                  { title: '差异处理完成', description: selectedInventory.status === 'resolved' ? '已结案' : '处理中', status: selectedInventory.status === 'resolved' ? 'finish' : 'wait' }
-                ]}
-              />
+              >
+                <Steps.Step title="创建盘点" description={`${selectedInventory.checker_name} - ${dayjs(selectedInventory.created_at).format('MM-DD HH:mm')}`} status="finish" />
+                <Steps.Step title="提交盘点" description={selectedInventory.status !== 'draft' ? '已提交' : '待提交'} status={selectedInventory.status === 'draft' ? 'process' : 'finish'} />
+                <Steps.Step title="复核中" description={selectedInventory.reviewer_name ? `${selectedInventory.reviewer_name} - ${dayjs(selectedInventory.reviewed_at).format('MM-DD HH:mm')}` : '待复核'} status={['reviewing', 'confirmed', 'resolved'].includes(selectedInventory.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="店长确认" description={selectedInventory.confirmer_name ? `${selectedInventory.confirmer_name} - ${dayjs(selectedInventory.confirmed_at).format('MM-DD HH:mm')}` : '待确认'} status={['confirmed', 'resolved'].includes(selectedInventory.status) ? 'finish' : 'wait'} />
+                <Steps.Step title="差异处理完成" description={selectedInventory.status === 'resolved' ? '已结案' : '处理中'} status={selectedInventory.status === 'resolved' ? 'finish' : 'wait'} />
+              </Steps>
             </Card>
 
             <Card 
@@ -479,6 +578,10 @@ const Inventory = () => {
                 rowKey="id"
                 size="small"
                 pagination={false}
+                expandable={{
+                  expandedRowRender,
+                  rowExpandable: (record) => record.difference_type !== 'none'
+                }}
                 scroll={{ y: 300 }}
                 columns={[
                   { title: 'SKU', dataIndex: 'sku', width: 120 },
@@ -496,7 +599,18 @@ const Inventory = () => {
                       </Tag>
                     )
                   },
-                  { title: '备注', dataIndex: 'remarks', width: 120, ellipsis: true },
+                  { 
+                    title: '处理状态', 
+                    dataIndex: 'dispositions',
+                    width: 100,
+                    render: (disps, record) => {
+                      if (record.difference_type === 'none') return '-';
+                      if (!disps || disps.length === 0) return <Tag color="orange">未处理</Tag>;
+                      const allConfirmed = disps.every(d => d.responsibility_confirmed);
+                      return allConfirmed ? <Tag color="green">已确认</Tag> : <Tag color="blue">处理中</Tag>;
+                    }
+                  },
+                  { title: '备注', dataIndex: 'remarks', width: 100, ellipsis: true },
                   {
                     title: '操作',
                     width: 180,
@@ -507,10 +621,26 @@ const Inventory = () => {
                             编辑
                           </Button>
                         )}
-                        {record.difference_type !== 'none' && ['reviewing', 'confirmed'].includes(selectedInventory.status) && (
-                          <Button type="link" size="small" icon={<WarningOutlined />} onClick={() => handleCreateDisposition(record)}>
-                            处理差异
-                          </Button>
+                        {record.difference_type !== 'none' && ['reviewing', 'confirmed'].includes(selectedInventory.status) && ['after_sales', 'store_manager'].includes(user.role) && (
+                          <Popover
+                            content={
+                              <Space direction="vertical" size="small">
+                                {(!record.dispositions || record.dispositions.length === 0) && (
+                                  <Button type="link" size="small" icon={<WarningOutlined />} onClick={() => handleCreateDisposition(record)}>
+                                    创建差异处理
+                                  </Button>
+                                )}
+                                {record.dispositions && record.dispositions.length > 0 && record.difference_type !== 'none' && (
+                                  <Text type="secondary" style={{ fontSize: 12 }}>点击展开行查看/操作</Text>
+                                )}
+                              </Space>
+                            }
+                            trigger="click"
+                          >
+                            <Button type="link" size="small">
+                              处理 <DownOutlined />
+                            </Button>
+                          </Popover>
                         )}
                       </Space>
                     )

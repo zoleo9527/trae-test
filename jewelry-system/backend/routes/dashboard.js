@@ -71,16 +71,31 @@ router.get('/overview', authenticateToken, (req, res) => {
 router.get('/recent-activities', authenticateToken, (req, res) => {
   const { limit = 20 } = req.query;
   const userStoreId = req.user.store_id;
+  const isAdmin = req.user.role === 'admin';
   
-  const logs = db.prepare(`
-    SELECT 
-      ol.*,
-      s.name as store_name
-    FROM operation_logs ol
-    WHERE 1=1
-    ORDER BY ol.created_at DESC
-    LIMIT ?
-  `).all(parseInt(limit));
+  let logs;
+  if (isAdmin) {
+    logs = db.prepare(`
+      SELECT * FROM operation_logs
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(parseInt(limit));
+  } else {
+    logs = db.prepare(`
+      SELECT ol.*
+      FROM operation_logs ol
+      LEFT JOIN transfer_requests tr ON ol.ref_type = 'transfer' AND ol.ref_id = tr.id
+      LEFT JOIN inventory_checks ic ON ol.ref_type = 'inventory' AND ol.ref_id = ic.id
+      LEFT JOIN products p ON ol.ref_type = 'product' AND ol.ref_id = p.id
+      WHERE 
+        (ol.ref_type = 'transfer' AND (tr.from_store_id = ? OR tr.to_store_id = ?)) OR
+        (ol.ref_type = 'inventory' AND ic.store_id = ?) OR
+        (ol.ref_type = 'product' AND p.current_store_id = ?) OR
+        (ol.ref_type IN ('disposition', 'repair'))
+      ORDER BY ol.created_at DESC
+      LIMIT ?
+    `).all(userStoreId, userStoreId, userStoreId, userStoreId, parseInt(limit));
+  }
 
   res.json(logs);
 });
