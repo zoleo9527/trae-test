@@ -493,7 +493,7 @@
 					<button class="btn btn-primary" on:click={useSpare}>确认领用</button>
 				</div>
 			</div>
-		{/if}
+		</div>
 	{/if}
 
 	{#if showReviewModal}

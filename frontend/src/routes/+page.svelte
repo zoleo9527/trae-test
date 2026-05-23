@@ -120,22 +120,41 @@
 
 			<div class="panel">
 				<div class="panel-header">
+					<h2>处理中缺陷</h2>
+					<a href="/defects?status=in_progress" class="link">查看全部</a>
+				</div>
+				<div class="defect-list">
+					{#each defects.filter(d => d.status === 'in_progress').slice(0, 5) as defect}
+						<a href={`/defects/${defect.id}`} class="defect-item">
+							<div class="defect-info">
+								<span class="status-badge status-in_progress">处理中</span>
+								<span class="defect-title">{defect.title}</span>
+								{#if defect.last_review_result === 'fail'}
+									<span class="review-tag result-fail">✗ 回查不通过</span>
+								{/if}
+							</div>
+							<div class="defect-meta">
+								<span>处理人: {defect.assignee_name || '未分配'}</span>
+								<span>{new Date(defect.updated_at).toLocaleDateString()}</span>
+							</div>
+						</a>
+					{:else}
+						<div class="empty">暂无处理中缺陷</div>
+					{/each}
+				</div>
+			</div>
+
+			<div class="panel">
+				<div class="panel-header">
 					<h2>需回查缺陷</h2>
 					<a href="/defects?status=need_review" class="link">查看全部</a>
 				</div>
 				<div class="defect-list">
-					{#each defects.filter(d => d.status === 'need_review' || d.status === 'pending_review').slice(0, 5) as defect}
+					{#each defects.filter(d => d.status === 'need_review').slice(0, 5) as defect}
 						<a href={`/defects/${defect.id}`} class="defect-item">
 							<div class="defect-info">
-								<span class="status-badge status-{defect.status}">
-									{defect.status === 'need_review' ? '需回查' : '待审核'}
-								</span>
+								<span class="status-badge status-need_review">需回查</span>
 								<span class="defect-title">{defect.title}</span>
-								{#if defect.last_review_result}
-									<span class="review-tag result-{defect.last_review_result}">
-										{defect.last_review_result === 'pass' ? '✓ 通过' : '✗ 不通过'}
-									</span>
-								{/if}
 							</div>
 							<div class="defect-meta">
 								<span>处理人: {defect.assignee_name || '未分配'}</span>
@@ -159,11 +178,6 @@
 							<div class="defect-info">
 								<span class="status-badge status-rejected">已驳回</span>
 								<span class="defect-title">{defect.title}</span>
-								{#if defect.last_review_result}
-									<span class="review-tag result-{defect.last_review_result}">
-										{defect.last_review_result === 'pass' ? '✓ 通过' : '✗ 不通过'}
-									</span>
-								{/if}
 							</div>
 							<div class="defect-meta">
 								<span>驳回人: {defect.reporter_name}</span>
@@ -172,6 +186,32 @@
 						</a>
 					{:else}
 						<div class="empty">暂无已驳回缺陷</div>
+					{/each}
+				</div>
+			</div>
+
+			<div class="panel">
+				<div class="panel-header">
+					<h2>已关闭缺陷</h2>
+					<a href="/defects?status=closed" class="link">查看全部</a>
+				</div>
+				<div class="defect-list">
+					{#each defects.filter(d => d.status === 'closed').slice(0, 5) as defect}
+						<a href={`/defects/${defect.id}`} class="defect-item">
+							<div class="defect-info">
+								<span class="status-badge status-closed">已关闭</span>
+								<span class="defect-title">{defect.title}</span>
+								{#if defect.last_review_result === 'pass'}
+									<span class="review-tag result-pass">✓ 回查通过</span>
+								{/if}
+							</div>
+							<div class="defect-meta">
+								<span>处理人: {defect.assignee_name || '未分配'}</span>
+								<span>{new Date(defect.updated_at).toLocaleDateString()}</span>
+							</div>
+						</a>
+					{:else}
+						<div class="empty">暂无已关闭缺陷</div>
 					{/each}
 				</div>
 			</div>
@@ -307,7 +347,7 @@
 
 	.content-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(5, 1fr);
 		gap: 16px;
 		margin-bottom: 24px;
 	}

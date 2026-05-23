@@ -374,12 +374,20 @@ func CreateReviewRecord(c *fiber.Ctx) error {
 	}
 
 	userRole := UserRole(c.Get("X-User-Role", "inspector"))
+	if userRole != RoleStationMaster {
+		return c.Status(403).JSON(fiber.Map{"error": "只有站长可以执行回查"})
+	}
+
 	var user User
 	DB.Where("role = ?", userRole).First(&user)
 
 	var defect Defect
 	if err := DB.First(&defect, "id = ?", defectID).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "缺陷不存在"})
+	}
+
+	if defect.Status != StatusNeedReview {
+		return c.Status(400).JSON(fiber.Map{"error": "只有需回查状态的工单可以提交回查"})
 	}
 
 	now := time.Now()
