@@ -1,0 +1,17 @@
+{
+  "name": "jewelry-aftersales-system",
+  "version": "1.0.0",
+  "description": "珠宝门店售后返修与会员回访系统",
+  "scripts": {
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "db:init": "cd backend && npm run db:init",
+    "db:seed": "cd backend && npm run db:seed"
+  },
+  "keywords": ["jewelry", "aftersales", "nestjs", "react"],
+  "author": "",
+  "license": "MIT"
+}

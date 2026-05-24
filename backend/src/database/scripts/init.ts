@@ -1,0 +1,17 @@
+import 'reflect-metadata';
+import { AppDataSource } from '../data-source';
+
+async function initDatabase() {
+  try {
+    console.log('正在初始化数据库...');
+    await AppDataSource.initialize();
+    console.log('数据库连接成功！');
+    console.log('数据表已自动创建');
+    process.exit(0);
+  } catch (error) {
+    console.error('数据库初始化失败:', error);
+    process.exit(1);
+  }
+}
+
+initDatabase();
