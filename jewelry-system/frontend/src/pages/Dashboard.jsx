@@ -13,51 +13,50 @@ import {
   DollarSign,
   RefreshCw
 } from 'lucide-react';
-import { visaCases, refundCases } from '../data/mockData';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { api } from '../utils/api';
-import { format, differenceInDays } from 'date-fns';
+import { useToast } from '../context/ToastContext';
+import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-const today = new Date('2024-01-26');
-
 export default function Dashboard() {
+  const { toast } = useToast();
+  
   const [stats, setStats] = useState(null);
+  const [myTasks, setMyTasks] = useState([]);
+  const [supplementAlerts, setSupplementAlerts] = useState([]);
+  const [refundCases, setRefundCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadData = async () => {
+  const loadAllData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.getDashboardStats();
-      setStats(result.data);
+      const [statsRes, tasksRes, supplementsRes, refundsRes] = await Promise.all([
+        api.getDashboardStats(),
+        api.getMyTasks(),
+        api.getSupplementAlerts(),
+        api.getDashboardRefunds()
+      ]);
+
+      setStats(statsRes.data);
+      setMyTasks(tasksRes.data || []);
+      setSupplementAlerts(supplementsRes.data || []);
+      setRefundCases(refundsRes.data || []);
     } catch (err) {
       setError(err.message);
+      toast.error('加载工作台数据失败');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadAllData();
   }, []);
-
-  const myTasks = visaCases
-    .filter(c => c.status !== 'approved')
-    .slice(0, 5)
-    .map(c => {
-      const deadline = new Date(c.deadline);
-      const daysLeft = differenceInDays(deadline, today);
-      return { ...c, daysLeft };
-    })
-    .sort((a, b) => a.daysLeft - b.daysLeft);
-
-  const supplementCases = visaCases.filter(c => 
-    c.supplements && c.supplements.some(s => ['required', 'rejected', 'under_review'].includes(s.status))
-  );
 
   if (loading) {
     return <LoadingState text="正在加载工作台数据..." />;
@@ -69,7 +68,7 @@ export default function Dashboard() {
         <ErrorState
           title="加载失败"
           message={error}
-          onRetry={loadData}
+          onRetry={loadAllData}
         />
       </div>
     );
@@ -111,8 +110,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-gray-900">工作台</h2>
         <button
-          onClick={loadData}
+          onClick={loadAllData}
           className="btn-secondary flex items-center gap-2 text-sm"
+          disabled={loading}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           刷新
@@ -207,23 +207,27 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-4">
-              {supplementCases.length === 0 ? (
+              {supplementAlerts.length === 0 ? (
                 <div className="text-center py-4 text-gray-500">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-500" />
                   <p className="text-sm">暂无需要补件的案件</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {supplementCases.map(c => (
-                    <div key={c.id} className="p-3 bg-orange-50 rounded-lg">
+                  {supplementAlerts.map(c => (
+                    <Link
+                      key={c.id}
+                      to={`/cases/${c.id}`}
+                      className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                    >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-gray-900 text-sm">{c.studentName}</span>
                         <StatusBadge status="required" text="需补件" />
                       </div>
                       <p className="text-xs text-gray-500">
-                        {c.supplements.filter(s => ['required', 'rejected'].includes(s.status)).length} 项材料待补充
+                        {c.supplements?.length || 0} 项材料待补充
                       </p>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

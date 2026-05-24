@@ -2,12 +2,17 @@ const API_BASE = '/api';
 
 async function request(url, options = {}) {
   try {
+    const isFormData = options.body instanceof FormData;
+    const headers = isFormData 
+      ? options.headers 
+      : {
+          'Content-Type': 'application/json',
+          ...options.headers
+        };
+
     const response = await fetch(`${API_BASE}${url}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
+      ...options,
+      headers
     });
 
     const data = await response.json();
@@ -27,14 +32,16 @@ async function request(url, options = {}) {
 
 export const api = {
   getDashboardStats: () => request('/dashboard/stats'),
+  getMyTasks: () => request('/dashboard/mytasks'),
+  getSupplementAlerts: () => request('/dashboard/supplement-alerts'),
+  getDashboardRefunds: () => request('/dashboard/refunds'),
   getCases: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return request(`/cases${query ? `?${query}` : ''}`);
   },
   getCaseById: (id) => request(`/cases/${id}`),
-  getSupplements: () => request('/supplements'),
-  getRefunds: () => request('/refunds'),
-  getNotifications: () => request('/notifications'),
+  getCaseDocuments: (id) => request(`/cases/${id}/documents`),
+  getCaseNotes: (id) => request(`/cases/${id}/notes`),
   addCaseNote: (caseId, content) => request(`/cases/${caseId}/notes`, {
     method: 'POST',
     body: JSON.stringify({ content })
@@ -44,9 +51,11 @@ export const api = {
     formData.append('file', file);
     return request(`/cases/${caseId}/supplements/${supplementId}/upload`, {
       method: 'POST',
-      body: formData,
-      headers: {}
+      body: formData
     });
   },
+  getSupplements: () => request('/supplements'),
+  getRefunds: () => request('/refunds'),
+  getNotifications: () => request('/notifications'),
   getHealth: () => request('/health')
 };

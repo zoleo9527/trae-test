@@ -26,23 +26,6 @@ import { useToast } from '../context/ToastContext';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
-const caseDocuments = [
-  { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-10', uploader: '王顾问', size: '2.3 MB' },
-  { id: 'DOC002', name: '身份证正反面.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-10', uploader: '王顾问', size: '1.1 MB' },
-  { id: 'DOC003', name: '大学成绩单.pdf', category: '学术材料', status: 'under_review', uploadedAt: '2024-01-15', uploader: '李文案', size: '1.5 MB' },
-  { id: 'DOC004', name: '在读证明.pdf', category: '学术材料', status: 'approved', uploadedAt: '2024-01-12', uploader: '李文案', size: '890 KB' },
-  { id: 'DOC005', name: '银行存款证明.pdf', category: '资金证明', status: 'required', uploadedAt: null, uploader: null, size: null },
-  { id: 'DOC006', name: '收入证明.pdf', category: '资金证明', status: 'rejected', uploadedAt: '2024-01-18', uploader: '张助理', size: '560 KB', rejectReason: '需要英文版盖章' },
-  { id: 'DOC007', name: '语言成绩.pdf', category: '学术材料', status: 'approved', uploadedAt: '2024-01-08', uploader: '王顾问', size: '450 KB' },
-  { id: 'DOC008', name: '推荐信.pdf', category: '学术材料', status: 'under_review', uploadedAt: '2024-01-20', uploader: '李文案', size: '1.2 MB' }
-];
-
-const caseNotes = [
-  { id: 1, content: '学生已提供护照扫描件，开始处理材料收集', author: '王顾问', createdAt: '2024-01-10 10:30' },
-  { id: 2, content: '文书初稿完成，已发送给学生确认', author: '李文案', createdAt: '2024-01-15 14:20' },
-  { id: 3, content: '材料审核发现资金证明不足，已通知学生补充', author: '张助理', createdAt: '2024-01-25 09:15' }
-];
-
 export default function CaseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -50,11 +33,12 @@ export default function CaseDetail() {
   const fileInputRef = useRef(null);
   
   const [caseData, setCaseData] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('timeline');
   const [newNote, setNewNote] = useState('');
-  const [notes, setNotes] = useState(caseNotes);
   const [submittingNote, setSubmittingNote] = useState(false);
   const [uploadingSupplement, setUploadingSupplement] = useState(null);
   const [selectedUploadSupplement, setSelectedUploadSupplement] = useState(null);
@@ -63,8 +47,15 @@ export default function CaseDetail() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.getCaseById(id);
-      setCaseData(result.data);
+      const [caseRes, docsRes, notesRes] = await Promise.all([
+        api.getCaseById(id),
+        api.getCaseDocuments(id),
+        api.getCaseNotes(id)
+      ]);
+      
+      setCaseData(caseRes.data);
+      setDocuments(docsRes.data || []);
+      setNotes(notesRes.data || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -85,15 +76,11 @@ export default function CaseDetail() {
     setSubmittingNote(true);
     try {
       await api.addCaseNote(id, newNote);
-      const newNoteItem = {
-        id: Date.now(),
-        content: newNote,
-        author: '当前用户',
-        createdAt: format(new Date(), 'yyyy-MM-dd HH:mm')
-      };
-      setNotes(prev => [newNoteItem, ...prev]);
-      setNewNote('');
       toast.success('备注添加成功');
+      setNewNote('');
+      
+      const notesRes = await api.getCaseNotes(id);
+      setNotes(notesRes.data || []);
     } catch (err) {
       toast.error(`添加备注失败: ${err.message}`);
     } finally {
@@ -113,31 +100,9 @@ export default function CaseDetail() {
     setUploadingSupplement(selectedUploadSupplement);
     try {
       await api.uploadSupplement(id, selectedUploadSupplement, file);
-      
-      setCaseData(prev => ({
-        ...prev,
-        supplements: prev.supplements.map(s => 
-          s.id === selectedUploadSupplement
-            ? {
-                ...s,
-                status: 'under_review',
-                uploads: [
-                  ...(s.uploads || []),
-                  {
-                    id: `U${Date.now()}`,
-                    name: file.name,
-                    uploadDate: format(new Date(), 'yyyy-MM-dd'),
-                    uploader: '当前用户',
-                    version: (s.uploads?.length || 0) + 1,
-                    status: 'reviewing'
-                  }
-                ]
-              }
-            : s
-        )
-      }));
-      
       toast.success('文件上传成功，等待审核');
+      
+      await loadCaseData();
     } catch (err) {
       toast.error(`上传失败: ${err.message}`);
     } finally {
@@ -194,7 +159,7 @@ export default function CaseDetail() {
     return (
       <div className="p-6">
         <ErrorState
-          title="案件不存在"
+          title="加载失败"
           message={error}
           onRetry={loadCaseData}
         />
@@ -306,8 +271,8 @@ export default function CaseDetail() {
               <div className="flex">
                 {[
                   { id: 'timeline', label: '时间线' },
-                  { id: 'supplements', label: `补件 (${caseData.supplements.length})` },
-                  { id: 'documents', label: '材料' },
+                  { id: 'supplements', label: `补件 (${caseData.supplements?.length || 0})` },
+                  { id: 'documents', label: `材料 (${documents.length})` },
                   { id: 'notes', label: `备注 (${notes.length})` }
                 ].map(tab => (
                   <button
@@ -328,7 +293,7 @@ export default function CaseDetail() {
             <div className="p-6">
               {activeTab === 'supplements' && (
                 <div className="space-y-4">
-                  {caseData.supplements.length === 0 ? (
+                  {!caseData.supplements || caseData.supplements.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500" />
                       <p>该案件暂无补件要求</p>
@@ -373,6 +338,7 @@ export default function CaseDetail() {
                                       <p className="text-sm font-medium text-gray-900">{upload.name}</p>
                                       <p className="text-xs text-gray-500">
                                         v{upload.version} · {upload.uploader} · {upload.uploadDate}
+                                        {upload.size && ` · ${upload.size}`}
                                       </p>
                                     </div>
                                   </div>
@@ -422,76 +388,83 @@ export default function CaseDetail() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-medium text-gray-900">材料清单</h3>
                     <span className="text-sm text-gray-500">
-                      共 {caseDocuments.length} 项 · 
-                      已通过 {caseDocuments.filter(d => d.status === 'approved').length} 项
+                      共 {documents.length} 项 · 
+                      已通过 {documents.filter(d => d.status === 'approved').length} 项
                     </span>
                   </div>
                   
                   <div className="space-y-3">
-                    {caseDocuments.map(doc => (
-                      <div 
-                        key={doc.id} 
-                        className={`p-4 rounded-lg border ${
-                          doc.status === 'rejected' ? 'border-red-200 bg-red-50/30' :
-                          doc.status === 'required' ? 'border-dashed border-gray-300' :
-                          'border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getDocStatusColor(doc.status)}`}>
-                              {doc.status === 'approved' ? (
-                                <FileCheck className="w-5 h-5" />
-                              ) : doc.status === 'rejected' ? (
-                                <X className="w-5 h-5" />
+                    {documents.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p>暂无材料记录</p>
+                      </div>
+                    ) : (
+                      documents.map(doc => (
+                        <div 
+                          key={doc.id} 
+                          className={`p-4 rounded-lg border ${
+                            doc.status === 'rejected' ? 'border-red-200 bg-red-50/30' :
+                            doc.status === 'required' ? 'border-dashed border-gray-300' :
+                            'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getDocStatusColor(doc.status)}`}>
+                                {doc.status === 'approved' ? (
+                                  <FileCheck className="w-5 h-5" />
+                                ) : doc.status === 'rejected' ? (
+                                  <X className="w-5 h-5" />
+                                ) : (
+                                  <FileText className="w-5 h-5" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium text-gray-900">{doc.name}</h4>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDocStatusColor(doc.status)}`}>
+                                    {getDocStatusText(doc.status)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                  <span>{doc.category}</span>
+                                  {doc.uploadedAt && <span>{doc.uploadedAt}</span>}
+                                  {doc.uploader && <span>{doc.uploader}</span>}
+                                  {doc.size && <span>{doc.size}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {doc.status === 'required' ? (
+                                <button className="btn-primary text-sm py-1.5 px-3 flex items-center gap-1">
+                                  <Upload className="w-3 h-3" />
+                                  上传
+                                </button>
                               ) : (
-                                <FileText className="w-5 h-5" />
+                                <>
+                                  <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  {doc.status === 'rejected' && (
+                                    <button className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium text-gray-900">{doc.name}</h4>
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDocStatusColor(doc.status)}`}>
-                                  {getDocStatusText(doc.status)}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                                <span>{doc.category}</span>
-                                {doc.uploadedAt && <span>{doc.uploadedAt}</span>}
-                                {doc.uploader && <span>{doc.uploader}</span>}
-                                {doc.size && <span>{doc.size}</span>}
-                              </div>
+                          </div>
+                          {doc.rejectReason && (
+                            <div className="mt-3 ml-13 pl-13">
+                              <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">
+                                驳回原因：{doc.rejectReason}
+                              </p>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {doc.status === 'required' ? (
-                              <button className="btn-primary text-sm py-1.5 px-3 flex items-center gap-1">
-                                <Upload className="w-3 h-3" />
-                                上传
-                              </button>
-                            ) : (
-                              <>
-                                <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                {doc.status === 'rejected' && (
-                                  <button className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
+                          )}
                         </div>
-                        {doc.rejectReason && (
-                          <div className="mt-3 ml-13 pl-13">
-                            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">
-                              驳回原因：{doc.rejectReason}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               )}

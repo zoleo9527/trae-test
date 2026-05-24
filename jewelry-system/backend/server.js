@@ -1,12 +1,15 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
+import multer from 'multer';
 
 const app = express();
 const PORT = 5000;
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const visaCases = [
   {
@@ -54,9 +57,24 @@ const visaCases = [
         requiredDate: '2024-01-20',
         description: '详细的学习计划和职业规划',
         uploads: [
-          { id: 'U001', name: '学习计划_v2.pdf', uploadDate: '2024-01-18', uploader: '李文案', version: 2 }
+          { id: 'U001', name: '学习计划_v2.pdf', uploadDate: '2024-01-18', uploader: '李文案', version: 2, size: '1.2 MB' }
         ]
       }
+    ],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-10', uploader: '王顾问', size: '2.3 MB' },
+      { id: 'DOC002', name: '身份证正反面.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-10', uploader: '王顾问', size: '1.1 MB' },
+      { id: 'DOC003', name: '大学成绩单.pdf', category: '学术材料', status: 'under_review', uploadedAt: '2024-01-15', uploader: '李文案', size: '1.5 MB' },
+      { id: 'DOC004', name: '在读证明.pdf', category: '学术材料', status: 'approved', uploadedAt: '2024-01-12', uploader: '李文案', size: '890 KB' },
+      { id: 'DOC005', name: '银行存款证明.pdf', category: '资金证明', status: 'required', uploadedAt: null, uploader: null, size: null },
+      { id: 'DOC006', name: '收入证明.pdf', category: '资金证明', status: 'rejected', uploadedAt: '2024-01-18', uploader: '张助理', size: '560 KB', rejectReason: '需要英文版盖章' },
+      { id: 'DOC007', name: '语言成绩.pdf', category: '学术材料', status: 'approved', uploadedAt: '2024-01-08', uploader: '王顾问', size: '450 KB' },
+      { id: 'DOC008', name: '推荐信.pdf', category: '学术材料', status: 'under_review', uploadedAt: '2024-01-20', uploader: '李文案', size: '1.2 MB' }
+    ],
+    notes: [
+      { id: 1, content: '学生已提供护照扫描件，开始处理材料收集', author: '王顾问', createdAt: '2024-01-10 10:30' },
+      { id: 2, content: '文书初稿完成，已发送给学生确认', author: '李文案', createdAt: '2024-01-15 14:20' },
+      { id: 3, content: '材料审核发现资金证明不足，已通知学生补充', author: '张助理', createdAt: '2024-01-25 09:15' }
     ]
   },
   {
@@ -86,7 +104,16 @@ const visaCases = [
       { step: 6, title: '面签安排', status: 'pending', date: null, operator: null },
       { step: 7, title: '签证获批', status: 'pending', date: null, operator: null }
     ],
-    supplements: []
+    supplements: [],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-05', uploader: '陈顾问', size: '1.8 MB' },
+      { id: 'DOC002', name: '大学成绩单.pdf', category: '学术材料', status: 'approved', uploadedAt: '2024-01-08', uploader: '刘文案', size: '2.1 MB' },
+      { id: 'DOC003', name: '存款证明.pdf', category: '资金证明', status: 'under_review', uploadedAt: '2024-01-18', uploader: '赵助理', size: '3.2 MB' }
+    ],
+    notes: [
+      { id: 1, content: '材料收集完成，转入文书撰写阶段', author: '陈顾问', createdAt: '2024-01-08 11:00' },
+      { id: 2, content: '文书完成，正在审核材料', author: '赵助理', createdAt: '2024-01-22 16:30' }
+    ]
   },
   {
     id: 'V2024003',
@@ -124,9 +151,18 @@ const visaCases = [
         requiredDate: '2024-01-25',
         description: '需重新撰写GTE声明，详细说明学习目的和回国计划',
         uploads: [
-          { id: 'U002', name: 'GTE声明_v1.pdf', uploadDate: '2024-01-10', uploader: '李文案', version: 1, status: 'rejected' }
+          { id: 'U002', name: 'GTE声明_v1.pdf', uploadDate: '2024-01-10', uploader: '李文案', version: 1, status: 'rejected', size: '450 KB' }
         ]
       }
+    ],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2023-12-15', uploader: '王顾问', size: '2.0 MB' },
+      { id: 'DOC002', name: 'GTE声明.pdf', category: '文书材料', status: 'rejected', uploadedAt: '2024-01-10', uploader: '李文案', size: '450 KB', rejectReason: '学习目的阐述不清晰' },
+      { id: 'DOC003', name: '雅思成绩.pdf', category: '学术材料', status: 'approved', uploadedAt: '2023-12-20', uploader: '王顾问', size: '320 KB' }
+    ],
+    notes: [
+      { id: 1, content: '学生目标院校墨尔本大学，GTE需要重点关注', author: '王顾问', createdAt: '2023-12-16 09:00' },
+      { id: 2, content: '使馆已驳回，需要重新提交GTE', author: '张助理', createdAt: '2024-01-20 14:00' }
     ]
   },
   {
@@ -156,7 +192,16 @@ const visaCases = [
       { step: 6, title: '面签安排', status: 'completed', date: '2024-01-05', operator: '赵助理' },
       { step: 7, title: '签证获批', status: 'completed', date: '2024-01-15', operator: '使馆' }
     ],
-    supplements: []
+    supplements: [],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2023-11-20', uploader: '陈顾问', size: '1.5 MB' },
+      { id: 'DOC002', name: '录取通知书.pdf', category: '学术材料', status: 'approved', uploadedAt: '2023-11-22', uploader: '陈顾问', size: '2.3 MB' },
+      { id: 'DOC003', name: '资金证明.pdf', category: '资金证明', status: 'approved', uploadedAt: '2023-11-25', uploader: '刘文案', size: '4.1 MB' }
+    ],
+    notes: [
+      { id: 1, content: '加拿大学签申请，材料完整', author: '陈顾问', createdAt: '2023-11-21 10:00' },
+      { id: 2, content: '签证已获批，恭喜学生！', author: '赵助理', createdAt: '2024-01-15 11:30' }
+    ]
   },
   {
     id: 'V2024005',
@@ -194,9 +239,17 @@ const visaCases = [
         requiredDate: '2024-01-28',
         description: '需提供中英文对照的官方成绩单',
         uploads: [
-          { id: 'U003', name: '成绩单.pdf', uploadDate: '2024-01-22', uploader: '王顾问', version: 1, status: 'reviewing' }
+          { id: 'U003', name: '成绩单.pdf', uploadDate: '2024-01-22', uploader: '王顾问', version: 1, status: 'reviewing', size: '1.5 MB' }
         ]
       }
+    ],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2024-01-08', uploader: '王顾问', size: '1.9 MB' },
+      { id: 'DOC002', name: '成绩单.pdf', category: '学术材料', status: 'under_review', uploadedAt: '2024-01-22', uploader: '王顾问', size: '1.5 MB' }
+    ],
+    notes: [
+      { id: 1, content: '新西兰学生签证申请启动', author: '王顾问', createdAt: '2024-01-08 15:00' },
+      { id: 2, content: '成绩单已上传，等待使馆审核', author: '张助理', createdAt: '2024-01-24 09:30' }
     ]
   },
   {
@@ -226,7 +279,15 @@ const visaCases = [
       { step: 6, title: '面签安排', status: 'pending', date: null, operator: null },
       { step: 7, title: '签证获批', status: 'pending', date: null, operator: null }
     ],
-    supplements: []
+    supplements: [],
+    documents: [
+      { id: 'DOC001', name: '护照扫描件.pdf', category: '个人材料', status: 'approved', uploadedAt: '2023-12-01', uploader: '陈顾问', size: '2.1 MB' },
+      { id: 'DOC002', name: '德语成绩.pdf', category: '学术材料', status: 'required', uploadedAt: null, uploader: null, size: null }
+    ],
+    notes: [
+      { id: 1, content: '德国留学，需要APS审核', author: '陈顾问', createdAt: '2023-12-02 10:00' },
+      { id: 2, content: '文书进度滞后，已催办文案', author: '陈顾问', createdAt: '2024-01-15 16:00' }
+    ]
   }
 ];
 
@@ -280,6 +341,85 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: '签证进度管理系统API运行正常' });
 });
 
+app.get('/api/dashboard/stats', (req, res) => {
+  const pendingCases = visaCases.filter(c => 
+    ['pending_supplement', 'processing', 'under_review', 'in_progress', 'overdue'].includes(c.status)
+  ).length;
+  
+  const rejectedCases = visaCases.filter(c => c.status === 'rejected').length;
+  
+  const supplementCases = visaCases.filter(c => 
+    c.supplements && c.supplements.some(s => ['required', 'rejected', 'under_review'].includes(s.status))
+  ).length;
+  
+  const today = new Date('2024-01-26');
+  const urgentCases = visaCases.filter(c => {
+    const deadline = new Date(c.deadline);
+    const diffTime = deadline - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 7 && c.status !== 'approved';
+  }).length;
+  
+  const approvedCases = visaCases.filter(c => c.status === 'approved').length;
+  
+  res.json({
+    success: true,
+    data: {
+      pendingCases,
+      rejectedCases,
+      supplementCases,
+      urgentCases,
+      approvedCases,
+      totalCases: visaCases.length,
+      approvalRate: Math.round((approvedCases / visaCases.length) * 100)
+    }
+  });
+});
+
+app.get('/api/dashboard/mytasks', (req, res) => {
+  const today = new Date('2024-01-26');
+  
+  const myTasks = visaCases
+    .filter(c => c.status !== 'approved')
+    .slice(0, 5)
+    .map(c => {
+      const deadline = new Date(c.deadline);
+      const diffTime = deadline - today;
+      const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return { ...c, daysLeft };
+    })
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+
+  res.json({
+    success: true,
+    data: myTasks
+  });
+});
+
+app.get('/api/dashboard/supplement-alerts', (req, res) => {
+  const supplementCases = visaCases
+    .filter(c => 
+      c.supplements && c.supplements.some(s => ['required', 'rejected'].includes(s.status))
+    )
+    .map(c => ({
+      id: c.id,
+      studentName: c.studentName,
+      supplements: c.supplements.filter(s => ['required', 'rejected'].includes(s.status))
+    }));
+
+  res.json({
+    success: true,
+    data: supplementCases
+  });
+});
+
+app.get('/api/dashboard/refunds', (req, res) => {
+  res.json({
+    success: true,
+    data: refundCases
+  });
+});
+
 app.get('/api/cases', (req, res) => {
   const { status, search } = req.query;
   let filteredCases = [...visaCases];
@@ -320,6 +460,78 @@ app.get('/api/cases/:id', (req, res) => {
   });
 });
 
+app.get('/api/cases/:id/documents', (req, res) => {
+  const caseData = visaCases.find(c => c.id === req.params.id);
+  
+  if (!caseData) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该案件'
+    });
+  }
+  
+  res.json({
+    success: true,
+    data: caseData.documents || []
+  });
+});
+
+app.get('/api/cases/:id/notes', (req, res) => {
+  const caseData = visaCases.find(c => c.id === req.params.id);
+  
+  if (!caseData) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该案件'
+    });
+  }
+  
+  res.json({
+    success: true,
+    data: caseData.notes || []
+  });
+});
+
+app.post('/api/cases/:id/notes', (req, res) => {
+  const { content } = req.body;
+  
+  if (!content || !content.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: '备注内容不能为空'
+    });
+  }
+  
+  const caseData = visaCases.find(c => c.id === req.params.id);
+  
+  if (!caseData) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该案件'
+    });
+  }
+  
+  const newNote = {
+    id: Date.now(),
+    content: content.trim(),
+    author: '当前用户',
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+  };
+  
+  if (!caseData.notes) {
+    caseData.notes = [];
+  }
+  
+  caseData.notes.unshift(newNote);
+  caseData.updatedAt = new Date().toISOString().split('T')[0];
+  
+  res.json({
+    success: true,
+    message: '备注添加成功',
+    data: newNote
+  });
+});
+
 app.get('/api/supplements', (req, res) => {
   const allSupplements = visaCases.flatMap(c => 
     c.supplements.map(s => ({
@@ -335,6 +547,70 @@ app.get('/api/supplements', (req, res) => {
     success: true,
     data: allSupplements,
     total: allSupplements.length
+  });
+});
+
+app.post('/api/cases/:id/supplements/:supplementId/upload', upload.single('file'), (req, res) => {
+  const caseData = visaCases.find(c => c.id === req.params.id);
+  
+  if (!caseData) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该案件'
+    });
+  }
+  
+  const supplement = caseData.supplements?.find(s => s.id === req.params.supplementId);
+  
+  if (!supplement) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该补件项'
+    });
+  }
+  
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: '请选择要上传的文件'
+    });
+  }
+  
+  const fileSize = req.file.size;
+  let sizeText;
+  if (fileSize < 1024) {
+    sizeText = fileSize + ' B';
+  } else if (fileSize < 1024 * 1024) {
+    sizeText = (fileSize / 1024).toFixed(1) + ' KB';
+  } else {
+    sizeText = (fileSize / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  
+  const newUpload = {
+    id: 'U' + Date.now(),
+    name: req.file.originalname,
+    uploadDate: new Date().toISOString().split('T')[0],
+    uploader: '当前用户',
+    version: (supplement.uploads?.length || 0) + 1,
+    status: 'reviewing',
+    size: sizeText
+  };
+  
+  if (!supplement.uploads) {
+    supplement.uploads = [];
+  }
+  
+  supplement.uploads.push(newUpload);
+  supplement.status = 'under_review';
+  caseData.updatedAt = new Date().toISOString().split('T')[0];
+  
+  res.json({
+    success: true,
+    message: '文件上传成功',
+    data: {
+      supplement: supplement,
+      upload: newUpload
+    }
   });
 });
 
@@ -354,62 +630,9 @@ app.get('/api/notifications', (req, res) => {
   });
 });
 
-app.get('/api/dashboard/stats', (req, res) => {
-  const pendingCases = visaCases.filter(c => 
-    ['pending_supplement', 'processing', 'under_review', 'in_progress', 'overdue'].includes(c.status)
-  ).length;
-  
-  const rejectedCases = visaCases.filter(c => c.status === 'rejected').length;
-  
-  const supplementCases = visaCases.filter(c => 
-    c.supplements && c.supplements.some(s => ['required', 'rejected', 'under_review'].includes(s.status))
-  ).length;
-  
-  const today = new Date('2024-01-26');
-  const urgentCases = visaCases.filter(c => {
-    const deadline = new Date(c.deadline);
-    const diffTime = deadline - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7 && c.status !== 'approved';
-  }).length;
-  
-  const approvedCases = visaCases.filter(c => c.status === 'approved').length;
-  
-  res.json({
-    success: true,
-    data: {
-      pendingCases,
-      rejectedCases,
-      supplementCases,
-      urgentCases,
-      approvedCases,
-      totalCases: visaCases.length,
-      approvalRate: Math.round((approvedCases / visaCases.length) * 100)
-    }
-  });
-});
-
-app.post('/api/cases/:id/supplements/:supplementId/upload', (req, res) => {
-  res.json({
-    success: true,
-    message: '文件上传成功'
-  });
-});
-
-app.post('/api/cases/:id/notes', (req, res) => {
-  res.json({
-    success: true,
-    message: '备注添加成功',
-    data: {
-      id: Date.now(),
-      content: req.body.content,
-      createdAt: new Date().toISOString(),
-      author: '当前用户'
-    }
-  });
-});
-
 app.listen(PORT, () => {
   console.log(`🚀 后端API服务器运行在 http://localhost:${PORT}`);
   console.log(`📋 健康检查: http://localhost:${PORT}/api/health`);
+  console.log(`📊 工作台统计: http://localhost:${PORT}/api/dashboard/stats`);
+  console.log(`📋 待办任务: http://localhost:${PORT}/api/dashboard/mytasks`);
 });
