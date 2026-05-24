@@ -85,22 +85,28 @@ def init_demo_data(db: Session):
     db.add_all(issues)
     db.commit()
 
+    day_5 = now - timedelta(days=5)
+    day_4 = now - timedelta(days=4)
+    day_3 = now - timedelta(days=3)
+    day_2 = now - timedelta(days=2)
+    day_1 = now - timedelta(days=1)
+
     inspection_histories = [
-        models.StatusHistory(inspection_id=1, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=2, hours=8)),
-        models.StatusHistory(inspection_id=1, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=2, hours=9)),
-        models.StatusHistory(inspection_id=1, from_status="in_progress", to_status="rectifying", comment="发现3个问题，已派单整改", operator_id=1, created_at=now - timedelta(days=2, hours=11)),
-        models.StatusHistory(inspection_id=2, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=5, hours=8)),
-        models.StatusHistory(inspection_id=2, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=5, hours=9)),
-        models.StatusHistory(inspection_id=2, from_status="in_progress", to_status="completed", comment="验收通过，轻微问题现场整改", operator_id=1, created_at=now - timedelta(days=5, hours=12)),
-        models.StatusHistory(inspection_id=4, to_status="created", comment="复检单创建", operator_id=1, created_at=now - timedelta(days=4, hours=8)),
-        models.StatusHistory(inspection_id=4, from_status="created", to_status="in_progress", comment="现场复检", operator_id=1, created_at=now - timedelta(days=4, hours=10)),
-        models.StatusHistory(inspection_id=4, from_status="in_progress", to_status="rectifying", comment="发现墙砖问题，发起整改", operator_id=1, created_at=now - timedelta(days=4, hours=12)),
-        models.StatusHistory(inspection_id=4, from_status="rectifying", to_status="rechecking", comment="整改完成，待复查", operator_id=4, created_at=now - timedelta(days=2, hours=10)),
-        models.StatusHistory(inspection_id=4, from_status="rechecking", to_status="disputed", comment="业主对整改结果有异议", operator_id=2, created_at=now - timedelta(days=1, hours=15)),
-        models.StatusHistory(inspection_id=5, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=3, hours=8)),
-        models.StatusHistory(inspection_id=5, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=3, hours=9)),
-        models.StatusHistory(inspection_id=5, from_status="in_progress", to_status="rectifying", comment="发现水管问题，派单整改", operator_id=1, created_at=now - timedelta(days=3, hours=11)),
-        models.StatusHistory(inspection_id=5, from_status="rectifying", to_status="rechecking", comment="施工方已完成整改，待复查", operator_id=4, created_at=now - timedelta(days=1, hours=9)),
+        models.StatusHistory(inspection_id=1, to_status="created", comment="巡检单创建", operator_id=1, created_at=day_2.replace(hour=8, minute=0)),
+        models.StatusHistory(inspection_id=1, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=day_2.replace(hour=9, minute=0)),
+        models.StatusHistory(inspection_id=1, from_status="in_progress", to_status="rectifying", comment="发现3个问题，已派单整改", operator_id=1, created_at=day_2.replace(hour=11, minute=0)),
+        models.StatusHistory(inspection_id=2, to_status="created", comment="巡检单创建", operator_id=1, created_at=day_5.replace(hour=8, minute=0)),
+        models.StatusHistory(inspection_id=2, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=day_5.replace(hour=9, minute=0)),
+        models.StatusHistory(inspection_id=2, from_status="in_progress", to_status="completed", comment="验收通过，轻微问题现场整改", operator_id=1, created_at=day_5.replace(hour=12, minute=0)),
+        models.StatusHistory(inspection_id=4, to_status="created", comment="复检单创建", operator_id=1, created_at=day_4.replace(hour=8, minute=0)),
+        models.StatusHistory(inspection_id=4, from_status="created", to_status="in_progress", comment="现场复检", operator_id=1, created_at=day_4.replace(hour=10, minute=0)),
+        models.StatusHistory(inspection_id=4, from_status="in_progress", to_status="rectifying", comment="发现墙砖问题，发起整改", operator_id=1, created_at=day_4.replace(hour=12, minute=0)),
+        models.StatusHistory(inspection_id=4, from_status="rectifying", to_status="rechecking", comment="整改完成，待复查", operator_id=4, created_at=day_2.replace(hour=10, minute=0)),
+        models.StatusHistory(inspection_id=4, from_status="rechecking", to_status="disputed", comment="业主对整改结果有异议，认为返工不彻底", operator_id=2, created_at=day_1.replace(hour=15, minute=0)),
+        models.StatusHistory(inspection_id=5, to_status="created", comment="巡检单创建", operator_id=1, created_at=day_3.replace(hour=8, minute=0)),
+        models.StatusHistory(inspection_id=5, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=day_3.replace(hour=9, minute=0)),
+        models.StatusHistory(inspection_id=5, from_status="in_progress", to_status="rectifying", comment="发现水管问题，派单整改", operator_id=1, created_at=day_3.replace(hour=11, minute=0)),
+        models.StatusHistory(inspection_id=5, from_status="rectifying", to_status="rechecking", comment="施工方已完成整改，待复查", operator_id=4, created_at=day_1.replace(hour=9, minute=0)),
     ]
     db.add_all(inspection_histories)
     db.commit()
@@ -136,16 +142,16 @@ def init_demo_data(db: Session):
     db.commit()
 
     rect_histories = [
-        models.StatusHistory(rectification_id=1, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=2, hours=11)),
-        models.StatusHistory(rectification_id=1, from_status="created", to_status="in_progress", comment="施工队开始整改", operator_id=4, created_at=now - timedelta(days=2, hours=14)),
-        models.StatusHistory(rectification_id=2, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=4, hours=12)),
-        models.StatusHistory(rectification_id=2, from_status="created", to_status="in_progress", comment="开始墙砖整改", operator_id=4, created_at=now - timedelta(days=3, hours=9)),
-        models.StatusHistory(rectification_id=2, from_status="in_progress", to_status="completed", comment="整改完成提交", operator_id=4, created_at=now - timedelta(days=2, hours=10)),
-        models.StatusHistory(rectification_id=2, from_status="completed", to_status="rechecking", comment="监理开始复查", operator_id=1, created_at=now - timedelta(days=2, hours=14)),
-        models.StatusHistory(rectification_id=2, from_status="rechecking", to_status="disputed", comment="业主不认可整改质量", operator_id=2, created_at=now - timedelta(days=1, hours=15)),
-        models.StatusHistory(rectification_id=3, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=3, hours=11)),
-        models.StatusHistory(rectification_id=3, from_status="created", to_status="in_progress", comment="开始水管整改", operator_id=4, created_at=now - timedelta(days=3, hours=14)),
-        models.StatusHistory(rectification_id=3, from_status="in_progress", to_status="rechecking", comment="整改完成待复查", operator_id=4, created_at=now - timedelta(days=1, hours=9)),
+        models.StatusHistory(rectification_id=1, to_status="created", comment="整改单创建", operator_id=1, created_at=day_2.replace(hour=11, minute=5)),
+        models.StatusHistory(rectification_id=1, from_status="created", to_status="in_progress", comment="施工队开始整改", operator_id=4, created_at=day_2.replace(hour=14, minute=0)),
+        models.StatusHistory(rectification_id=2, to_status="created", comment="整改单创建", operator_id=1, created_at=day_4.replace(hour=12, minute=5)),
+        models.StatusHistory(rectification_id=2, from_status="created", to_status="in_progress", comment="开始墙砖整改", operator_id=4, created_at=day_3.replace(hour=9, minute=0)),
+        models.StatusHistory(rectification_id=2, from_status="in_progress", to_status="completed", comment="整改完成提交", operator_id=4, created_at=day_2.replace(hour=10, minute=0)),
+        models.StatusHistory(rectification_id=2, from_status="completed", to_status="rechecking", comment="监理开始复查", operator_id=1, created_at=day_2.replace(hour=14, minute=0)),
+        models.StatusHistory(rectification_id=2, from_status="rechecking", to_status="disputed", comment="业主不认可整改质量，要求全部返工", operator_id=2, created_at=day_1.replace(hour=15, minute=0)),
+        models.StatusHistory(rectification_id=3, to_status="created", comment="整改单创建", operator_id=1, created_at=day_3.replace(hour=11, minute=5)),
+        models.StatusHistory(rectification_id=3, from_status="created", to_status="in_progress", comment="开始水管整改", operator_id=4, created_at=day_3.replace(hour=14, minute=0)),
+        models.StatusHistory(rectification_id=3, from_status="in_progress", to_status="rechecking", comment="整改完成待复查", operator_id=4, created_at=day_1.replace(hour=9, minute=0)),
     ]
     db.add_all(rect_histories)
     db.commit()
