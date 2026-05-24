@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import complaintService from '../services/complaintService.js';
-import { requirePermission } from '../middleware/auth.js';
+import { requirePermission, canAccessComplaint } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -41,6 +41,7 @@ router.post('/',
 );
 
 router.get('/:id',
+  canAccessComplaint,
   (req, res) => {
     const complaint = complaintService.getComplaintById(req.params.id);
     if (!complaint) {
@@ -51,6 +52,7 @@ router.get('/:id',
 );
 
 router.get('/:id/detail',
+  canAccessComplaint,
   (req, res) => {
     const detail = complaintService.getComplaintDetail(req.params.id);
     if (!detail) {
@@ -62,6 +64,7 @@ router.get('/:id/detail',
 
 router.put('/:id',
   requirePermission('complaint:update'),
+  canAccessComplaint,
   (req, res) => {
     try {
       const complaint = complaintService.updateComplaint(
@@ -80,6 +83,7 @@ router.put('/:id',
 
 router.post('/:id/status',
   requirePermission('complaint:process'),
+  canAccessComplaint,
   body('status').notEmpty(),
   (req, res) => {
     try {
@@ -99,6 +103,7 @@ router.post('/:id/status',
 
 router.post('/:id/assign',
   requirePermission('complaint:assign'),
+  canAccessComplaint,
   body('handler_id').notEmpty(),
   (req, res) => {
     try {
@@ -117,6 +122,7 @@ router.post('/:id/assign',
 );
 
 router.get('/:id/versions',
+  canAccessComplaint,
   (req, res) => {
     const versions = complaintService.getVersionHistory(req.params.id);
     res.json({ data: versions });
@@ -124,6 +130,7 @@ router.get('/:id/versions',
 );
 
 router.get('/:id/comments',
+  canAccessComplaint,
   (req, res) => {
     const comments = complaintService.getComments(req.params.id);
     res.json({ data: comments });
@@ -131,6 +138,7 @@ router.get('/:id/comments',
 );
 
 router.post('/:id/comments',
+  canAccessComplaint,
   body('content').notEmpty(),
   (req, res) => {
     try {

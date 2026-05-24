@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import confirmationService from '../services/confirmationService.js';
-import { requirePermission } from '../middleware/auth.js';
+import { requirePermission, canAccessConfirmation, canAccessConfirmationByRef } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -33,6 +33,7 @@ router.post('/',
 );
 
 router.get('/:id',
+  canAccessConfirmation,
   (req, res) => {
     const confirmation = confirmationService.getConfirmationById(req.params.id);
     if (!confirmation) {
@@ -44,6 +45,7 @@ router.get('/:id',
 
 router.post('/:id/confirm',
   requirePermission('confirmation:confirm'),
+  canAccessConfirmation,
   (req, res) => {
     try {
       const confirmation = confirmationService.confirm(req.params.id, req.user.id, req);
@@ -56,6 +58,7 @@ router.post('/:id/confirm',
 
 router.post('/:id/reject',
   requirePermission('confirmation:confirm'),
+  canAccessConfirmation,
   (req, res) => {
     try {
       const confirmation = confirmationService.reject(
@@ -72,6 +75,7 @@ router.post('/:id/reject',
 );
 
 router.get('/ref/:type/:refId',
+  canAccessConfirmationByRef,
   (req, res) => {
     const confirmations = confirmationService.getConfirmationsByRef(
       req.params.type,
@@ -82,6 +86,7 @@ router.get('/ref/:type/:refId',
 );
 
 router.get('/ref/:type/:refId/latest',
+  canAccessConfirmationByRef,
   (req, res) => {
     const confirmation = confirmationService.getLatestConfirmation(
       req.params.type,
@@ -92,6 +97,7 @@ router.get('/ref/:type/:refId/latest',
 );
 
 router.get('/ref/:type/:refId/history',
+  canAccessConfirmationByRef,
   (req, res) => {
     const history = confirmationService.getVersionHistory(
       req.params.type,
@@ -103,9 +109,11 @@ router.get('/ref/:type/:refId/history',
 
 router.post('/ref/:type/:refId/new-version',
   requirePermission('confirmation:confirm'),
+  canAccessConfirmationByRef,
   (req, res) => {
     try {
       const confirmation = confirmationService.createNewVersion(
+        req.params.type,
         req.params.refId,
         req.body,
         req.user.id,

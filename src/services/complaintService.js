@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDB } from '../config/database.js';
 import audit from './auditService.js';
 import { getProjectById } from './projectService.js';
+import reminderService from './reminderService.js';
 
 const db = getDB();
 
@@ -13,6 +14,66 @@ const STATUS_FLOW = {
   completed: ['closed'],
   closed: []
 };
+
+function upsertComplaintReminder(complaint, creatorId, req = null) {
+  if (!complaint.due_date || !complaint.handler_id) return null;
+  if (['completed', 'closed'].includes(complaint.status)) {
+    const existing = db.prepare(`
+      SELECT id FROM reminders 
+      WHERE complaint_id = ? AND type = 'deadline' AND is_sent = 0
+    `).all(complaint.id);
+    for (const r of existing) {
+      reminderService.deleteReminder(r.id, creatorId, req);
+    }
+    return null;
+  }
+
+  const dueDate = new Date(complaint.due_date);
+  const remindAt = new Date(dueDate);
+  remindAt.setDate(remindAt.getDate() - 1);
+
+  const existing = db.prepare(`
+    SELECT id FROM reminders 
+    WHERE complaint_id = ? AND type = 'deadline'
+  `).get(complaint.id);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE reminders 
+      SET remind_at = ?, title = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      remindAt.toISOString(),
+      `客诉到期提醒：${complaint.title}`,
+      `客诉【${complaint.complaint_no}】将于 ${complaint.due_date} 到期，请及时处理。\n当前状态：${complaint.status}`,
+      existing.id
+    );
+    return reminderService.getReminderById(existing.id);
+  } else {
+    return reminderService.createReminder({
+      complaint_id: complaint.id,
+      type: 'deadline',
+      title: `客诉到期提醒：${complaint.title}`,
+      content: `客诉【${complaint.complaint_no}】将于 ${complaint.due_date} 到期，请及时处理。\n当前状态：${complaint.status}`,
+      remind_at: remindAt.toISOString(),
+      recipient_id: complaint.handler_id
+    }, creatorId, req);
+  }
+}
+
+function createHandlerAssignReminder(complaint, handlerId, assignerId, req = null) {
+  const remindAt = new Date();
+  remindAt.setMinutes(remindAt.getMinutes() + 5);
+
+  return reminderService.createReminder({
+    complaint_id: complaint.id,
+    type: 'complaint',
+    title: `新客诉分配：${complaint.title}`,
+    content: `您被分配处理客诉【${complaint.complaint_no}】：${complaint.title}\n请尽快跟进，截止日期：${complaint.due_date || '未设置'}`,
+    remind_at: remindAt.toISOString(),
+    recipient_id: handlerId
+  }, assignerId, req);
+}
 
 export function createComplaint(data, reporterId, req = null) {
   const id = uuidv4();
@@ -43,7 +104,14 @@ export function createComplaint(data, reporterId, req = null) {
 
   recordVersion(id, 'status', null, 'pending', reporterId, '新建客诉');
 
-  return getComplaintById(id);
+  const complaint = getComplaintById(id);
+
+  if (complaint.handler_id) {
+    createHandlerAssignReminder(complaint, complaint.handler_id, reporterId, req);
+    upsertComplaintReminder(complaint, reporterId, req);
+  }
+
+  return complaint;
 }
 
 function generateComplaintNo() {
@@ -73,6 +141,7 @@ export function getComplaintById(id) {
   return db.prepare(`
     SELECT c.*,
       p.name as project_name, p.project_no, p.address as project_address,
+      p.supervisor_id, p.manager_id,
       p.owner_name, p.owner_phone,
       r.name as reporter_name, r.role as reporter_role,
       h.name as handler_name, h.role as handler_role, h.phone as handler_phone
@@ -172,6 +241,10 @@ export function updateComplaint(id, updates, updaterId, req = null, reason = nul
   const newComplaint = getComplaintById(id);
   audit.log('update', 'complaint', id, updaterId, oldComplaint, newComplaint, req);
 
+  if (updates.due_date !== undefined || updates.handler_id !== undefined || updates.status !== undefined) {
+    upsertComplaintReminder(newComplaint, updaterId, req);
+  }
+
   return newComplaint;
 }
 
@@ -197,6 +270,8 @@ export function updateStatus(id, newStatus, updaterId, req = null, reason = null
     req
   );
 
+  upsertComplaintReminder(newComplaint, updaterId, req);
+
   return newComplaint;
 }
 
@@ -217,6 +292,9 @@ export function assignHandler(id, handlerId, assignerId, req = null, reason = nu
     { handler_id: handlerId, status: 'assigned' },
     req
   );
+
+  createHandlerAssignReminder(newComplaint, handlerId, assignerId, req);
+  upsertComplaintReminder(newComplaint, assignerId, req);
 
   return newComplaint;
 }
@@ -265,12 +343,20 @@ export function getComplaintDetail(id) {
   const comments = getComments(id);
   const versions = getVersionHistory(id);
   const auditLogs = audit.getLogsByRef('complaint', id);
+  const reminders = db.prepare(`
+    SELECT r.*, u.name as recipient_name
+    FROM reminders r
+    LEFT JOIN users u ON r.recipient_id = u.id
+    WHERE r.complaint_id = ?
+    ORDER BY r.created_at DESC
+  `).all(id);
 
   return {
     complaint,
     comments,
     versions,
-    auditLogs
+    auditLogs,
+    reminders
   };
 }
 

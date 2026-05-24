@@ -1,7 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import milestoneService from '../services/milestoneService.js';
-import { requirePermission } from '../middleware/auth.js';
+import { requirePermission, canAccessMilestone } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -40,6 +40,7 @@ router.post('/',
 );
 
 router.get('/:id',
+  canAccessMilestone,
   (req, res) => {
     const milestone = milestoneService.getMilestoneById(req.params.id);
     if (!milestone) {
@@ -51,6 +52,7 @@ router.get('/:id',
 
 router.put('/:id',
   requirePermission('milestone:update'),
+  canAccessMilestone,
   (req, res) => {
     try {
       const milestone = milestoneService.updateMilestone(req.params.id, req.body, req.user.id, req);
@@ -63,6 +65,7 @@ router.put('/:id',
 
 router.post('/:id/complete',
   requirePermission('milestone:update'),
+  canAccessMilestone,
   (req, res) => {
     try {
       const milestone = milestoneService.completeMilestone(

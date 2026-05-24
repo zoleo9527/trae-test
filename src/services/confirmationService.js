@@ -4,32 +4,49 @@ import audit from './auditService.js';
 
 const db = getDB();
 
+function getNextVersion(type, refId) {
+  const result = db.prepare(`
+    SELECT COALESCE(MAX(version), 0) + 1 as next_version
+    FROM confirmations
+    WHERE type = ? AND ref_id = ?
+  `).get(type, refId);
+  return result.next_version;
+}
+
 export function createConfirmation(data, creatorId, req = null) {
   const id = uuidv4();
 
+  if (!data.type || !data.ref_id) {
+    throw new Error('type 和 ref_id 不能为空');
+  }
+
+  const nextVersion = getNextVersion(data.type, data.ref_id);
+
   const stmt = db.prepare(`
     INSERT INTO confirmations (id, type, ref_id, title, content, version, created_by)
-    VALUES (?, ?, ?, ?, ?, 1, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(id, data.type, data.ref_id, data.title, data.content || null, creatorId);
+  stmt.run(id, data.type, data.ref_id, data.title, data.content || null, nextVersion, creatorId);
 
   audit.log('create', 'confirmation', id, creatorId, null, {
     type: data.type,
     refId: data.ref_id,
     title: data.title,
-    version: 1
+    version: nextVersion
   }, req);
 
   return getConfirmationById(id);
 }
 
-export function createNewVersion(refId, data, creatorId, req = null) {
-  const oldConfirmations = db.prepare(`
-    SELECT * FROM confirmations WHERE ref_id = ? ORDER BY version DESC LIMIT 1
-  `).all(refId);
+export function createNewVersion(type, refId, data, creatorId, req = null) {
+  if (!type || !refId) {
+    throw new Error('type 和 ref_id 不能为空');
+  }
 
-  const currentVersion = oldConfirmations.length > 0 ? oldConfirmations[0].version : 0;
+  const oldConf = getLatestConfirmation(type, refId);
+  const currentVersion = oldConf ? oldConf.version : 0;
+  const nextVersion = currentVersion + 1;
   const id = uuidv4();
 
   const stmt = db.prepare(`
@@ -37,20 +54,19 @@ export function createNewVersion(refId, data, creatorId, req = null) {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const oldConf = oldConfirmations[0];
   stmt.run(
     id,
-    data.type || oldConf?.type,
+    type,
     refId,
     data.title || oldConf?.title,
     data.content || null,
-    currentVersion + 1,
+    nextVersion,
     creatorId
   );
 
   audit.log('new_version', 'confirmation', id, creatorId,
-    { refId, version: currentVersion },
-    { refId, version: currentVersion + 1 },
+    { type, refId, version: currentVersion },
+    { type, refId, version: nextVersion },
     req
   );
 
@@ -148,7 +164,7 @@ export function confirm(id, confirmerId, req = null) {
 
   const newConf = getConfirmationById(id);
   audit.log('confirm', 'confirmation', id, confirmerId,
-    { status: oldConf.status },
+    { status: oldConf.status, type: oldConf.type, refId: oldConf.ref_id, version: oldConf.version },
     { status: 'confirmed', confirmerId },
     req
   );
@@ -173,7 +189,7 @@ export function reject(id, confirmerId, reason = null, req = null) {
 
   const newConf = getConfirmationById(id);
   audit.log('reject', 'confirmation', id, confirmerId,
-    { status: oldConf.status, reason },
+    { status: oldConf.status, type: oldConf.type, refId: oldConf.ref_id, version: oldConf.version, reason },
     { status: 'rejected', confirmerId },
     req
   );

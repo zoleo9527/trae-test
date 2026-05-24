@@ -82,16 +82,10 @@ export function requireRole(...roles) {
   };
 }
 
-export function canAccessProject(req, res, next) {
-  const user = req.user;
-  const projectId = req.params.projectId || req.body.project_id;
-
-  if (!projectId) {
-    return next();
-  }
-
+function checkProjectAccess(user, projectId) {
+  if (!projectId) return { allowed: true };
   if (user.role === 'admin' || user.role === 'service') {
-    return next();
+    return { allowed: true };
   }
 
   const db = getDB();
@@ -100,18 +94,241 @@ export function canAccessProject(req, res, next) {
   ).get(projectId);
 
   if (!project) {
-    return res.status(404).json({ error: '项目不存在' });
+    return { allowed: false, error: '项目不存在', status: 404 };
   }
 
   if (user.role === 'supervisor' && project.supervisor_id === user.id) {
-    return next();
+    return { allowed: true };
   }
 
   if (user.role === 'manager' && project.manager_id === user.id) {
+    return { allowed: true };
+  }
+
+  return { allowed: false, error: '无权访问此项目', status: 403 };
+}
+
+export function canAccessProject(req, res, next) {
+  const user = req.user;
+  const projectId = req.params.projectId || req.body.project_id || req.params.id;
+
+  const result = checkProjectAccess(user, projectId);
+  if (!result.allowed) {
+    return res.status(result.status || 403).json({ error: result.error });
+  }
+
+  return next();
+}
+
+export function canAccessComplaint(req, res, next) {
+  const user = req.user;
+  const complaintId = req.params.id || req.params.complaintId;
+
+  if (user.role === 'admin' || user.role === 'service') {
     return next();
   }
 
-  return res.status(403).json({ error: '无权访问此项目' });
+  const db = getDB();
+  const complaint = db.prepare(`
+    SELECT p.supervisor_id, p.manager_id, c.handler_id
+    FROM complaints c
+    LEFT JOIN projects p ON c.project_id = p.id
+    WHERE c.id = ?
+  `).get(complaintId);
+
+  if (!complaint) {
+    return res.status(404).json({ error: '客诉不存在' });
+  }
+
+  if (user.role === 'supervisor' && complaint.supervisor_id === user.id) {
+    return next();
+  }
+
+  if (user.role === 'manager' && (complaint.manager_id === user.id || complaint.handler_id === user.id)) {
+    return next();
+  }
+
+  return res.status(403).json({ error: '无权访问此客诉' });
 }
 
-export default { authenticate, requirePermission, requireRole, canAccessProject };
+export function canAccessMilestone(req, res, next) {
+  const user = req.user;
+  const milestoneId = req.params.id || req.params.milestoneId;
+
+  if (user.role === 'admin' || user.role === 'service') {
+    return next();
+  }
+
+  const db = getDB();
+  const milestone = db.prepare(`
+    SELECT p.supervisor_id, p.manager_id
+    FROM milestones m
+    LEFT JOIN projects p ON m.project_id = p.id
+    WHERE m.id = ?
+  `).get(milestoneId);
+
+  if (!milestone) {
+    return res.status(404).json({ error: '节点不存在' });
+  }
+
+  if (user.role === 'supervisor' && milestone.supervisor_id === user.id) {
+    return next();
+  }
+
+  if (user.role === 'manager' && milestone.manager_id === user.id) {
+    return next();
+  }
+
+  return res.status(403).json({ error: '无权访问此节点' });
+}
+
+export function canAccessConfirmation(req, res, next) {
+  const user = req.user;
+  const confirmationId = req.params.id;
+
+  if (user.role === 'admin' || user.role === 'service') {
+    return next();
+  }
+
+  const db = getDB();
+  const conf = db.prepare('SELECT type, ref_id FROM confirmations WHERE id = ?').get(confirmationId);
+
+  if (!conf) {
+    return res.status(404).json({ error: '签认单不存在' });
+  }
+
+  let projectId = null;
+
+  if (conf.type === 'complaint') {
+    const result = db.prepare(`
+      SELECT p.supervisor_id, p.manager_id, c.handler_id
+      FROM complaints c
+      LEFT JOIN projects p ON c.project_id = p.id
+      WHERE c.id = ?
+    `).get(conf.ref_id);
+
+    if (!result) {
+      return res.status(404).json({ error: '关联客诉不存在' });
+    }
+
+    if (user.role === 'supervisor' && result.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && (result.manager_id === user.id || result.handler_id === user.id)) {
+      return next();
+    }
+  } else if (conf.type === 'milestone') {
+    const result = db.prepare(`
+      SELECT p.supervisor_id, p.manager_id
+      FROM milestones m
+      LEFT JOIN projects p ON m.project_id = p.id
+      WHERE m.id = ?
+    `).get(conf.ref_id);
+
+    if (!result) {
+      return res.status(404).json({ error: '关联节点不存在' });
+    }
+
+    if (user.role === 'supervisor' && result.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && result.manager_id === user.id) {
+      return next();
+    }
+  } else if (conf.type === 'cost' || conf.type === 'change') {
+    const project = db.prepare(
+      'SELECT supervisor_id, manager_id FROM projects WHERE id = ?'
+    ).get(conf.ref_id);
+
+    if (!project) {
+      return res.status(404).json({ error: '关联项目不存在' });
+    }
+
+    if (user.role === 'supervisor' && project.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && project.manager_id === user.id) {
+      return next();
+    }
+  }
+
+  return res.status(403).json({ error: '无权访问此签认单' });
+}
+
+export function canAccessConfirmationByRef(req, res, next) {
+  const user = req.user;
+  const type = req.params.type;
+  const refId = req.params.refId;
+
+  if (user.role === 'admin' || user.role === 'service') {
+    return next();
+  }
+
+  const db = getDB();
+
+  if (type === 'complaint') {
+    const result = db.prepare(`
+      SELECT p.supervisor_id, p.manager_id, c.handler_id
+      FROM complaints c
+      LEFT JOIN projects p ON c.project_id = p.id
+      WHERE c.id = ?
+    `).get(refId);
+
+    if (!result) {
+      return res.status(404).json({ error: '关联客诉不存在' });
+    }
+
+    if (user.role === 'supervisor' && result.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && (result.manager_id === user.id || result.handler_id === user.id)) {
+      return next();
+    }
+  } else if (type === 'milestone') {
+    const result = db.prepare(`
+      SELECT p.supervisor_id, p.manager_id
+      FROM milestones m
+      LEFT JOIN projects p ON m.project_id = p.id
+      WHERE m.id = ?
+    `).get(refId);
+
+    if (!result) {
+      return res.status(404).json({ error: '关联节点不存在' });
+    }
+
+    if (user.role === 'supervisor' && result.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && result.manager_id === user.id) {
+      return next();
+    }
+  } else if (type === 'cost' || type === 'change') {
+    const project = db.prepare(
+      'SELECT supervisor_id, manager_id FROM projects WHERE id = ?'
+    ).get(refId);
+
+    if (!project) {
+      return res.status(404).json({ error: '关联项目不存在' });
+    }
+
+    if (user.role === 'supervisor' && project.supervisor_id === user.id) {
+      return next();
+    }
+    if (user.role === 'manager' && project.manager_id === user.id) {
+      return next();
+    }
+  }
+
+  return res.status(403).json({ error: '无权访问此签认单' });
+}
+
+export default {
+  authenticate,
+  requirePermission,
+  requireRole,
+  canAccessProject,
+  canAccessComplaint,
+  canAccessMilestone,
+  canAccessConfirmation,
+  canAccessConfirmationByRef
+};
