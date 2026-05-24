@@ -186,12 +186,21 @@ func (h *QuotationHandler) Update(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
 	}
 
-	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+	if userRole == models.RoleAfterSales {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "After-sales staff cannot edit quotations")
+	}
+
+	if userRole != models.RoleSalesperson {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "Only the creator salesperson can edit this quotation")
+	}
+
+	if quotation.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only update your own quotations")
 	}
 
 	if quotation.Status != models.QuotationStatusDraft && quotation.Status != models.QuotationStatusRevising {
-		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Only draft or revising quotations can be updated")
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, 
+			fmt.Sprintf("Cannot update quotation with status '%s'. Only draft or revising quotations can be edited", quotation.Status))
 	}
 
 	oldQuotation := quotation

@@ -39,14 +39,13 @@ type CreateMaintenanceRequest struct {
 }
 
 type UpdateMaintenanceRequest struct {
-	ProductName     string         `json:"product_name"`
-	Description     string         `json:"description"`
-	Issues          string         `json:"issues"`
-	EstimatedPrice  float64        `json:"estimated_price"`
-	ActualPrice     float64        `json:"actual_price"`
-	AppointmentDate *time.Time    `json:"appointment_date"`
-	HandlerID       *uint          `json:"handler_id"`
-	Remark          string         `json:"remark"`
+	ProductName     string      `json:"product_name"`
+	Description     string      `json:"description"`
+	Issues          string      `json:"issues"`
+	EstimatedPrice  float64     `json:"estimated_price"`
+	ActualPrice     float64     `json:"actual_price"`
+	AppointmentDate *time.Time `json:"appointment_date"`
+	Remark          string      `json:"remark"`
 }
 
 type UpdateStatusRequest struct {
@@ -218,8 +217,20 @@ func (h *MaintenanceHandler) Update(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Maintenance not found")
 	}
 
+	if userRole == models.RoleAfterSales {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, 
+			"After-sales staff cannot edit maintenance details. Use status changes must be updated via status interface")
+	}
+
 	if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only update your own maintenance records")
+	}
+
+	if maintenance.Status == models.MaintenanceStatusCompleted || 
+	   maintenance.Status == models.MaintenanceStatusPickedUp ||
+	   maintenance.Status == models.MaintenanceStatusCancelled {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, 
+			fmt.Sprintf("Cannot update maintenance with status '%s'. Only pending or confirmed records can be edited", maintenance.Status))
 	}
 
 	oldMaintenance := maintenance
@@ -237,7 +248,6 @@ func (h *MaintenanceHandler) Update(c *fiber.Ctx) error {
 	maintenance.EstimatedPrice = req.EstimatedPrice
 	maintenance.ActualPrice = req.ActualPrice
 	maintenance.AppointmentDate = req.AppointmentDate
-	maintenance.HandlerID = req.HandlerID
 	maintenance.Remark = req.Remark
 
 	if err := h.db.Save(&maintenance).Error; err != nil {
