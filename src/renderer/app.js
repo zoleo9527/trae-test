@@ -58,10 +58,8 @@ function bindEvents() {
         alert('您没有权限访问此功能');
         return;
       }
-      let viewName = item.dataset.view;
-      if (viewName === 'dashboard') {
-        viewName = getDefaultViewByRole(currentUser.role);
-      }
+      const navViewName = item.dataset.view;
+      const viewName = navViewName === 'dashboard' ? getDefaultViewByRole(currentUser.role) : navViewName;
       switchView(viewName);
     });
   });
@@ -123,9 +121,8 @@ async function handleLogout() {
 
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.remove('active');
-    item.style.display = 'flex';
+    item.style.display = '';
   });
-  document.querySelector('.nav-item[data-view="dashboard"]').classList.add('active');
 
   document.querySelectorAll('.view').forEach(view => {
     view.classList.remove('active');
@@ -160,30 +157,42 @@ function getDefaultViewByRole(role) {
 function updateNavigationByRole() {
   document.querySelectorAll('.nav-item').forEach(item => {
     const viewName = item.dataset.view;
+    const requiredRole = item.dataset.role;
+
+    if (requiredRole) {
+      item.style.display = currentUser.role === requiredRole ? 'flex' : 'none';
+      return;
+    }
+
+    if (viewName === 'dashboard') {
+      item.style.display = 'flex';
+      return;
+    }
 
     if (currentUser.role === 'manager') {
       item.style.display = 'flex';
     } else if (currentUser.role === 'writer') {
-      const allowedViews = ['dashboard-writer', 'students', 'documents', 'essays'];
+      const allowedViews = ['students', 'documents', 'essays'];
       item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
     } else if (currentUser.role === 'visa') {
-      const allowedViews = ['dashboard-visa', 'students', 'visa'];
+      const allowedViews = ['students', 'visa'];
       item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
     }
   });
 }
 
+function mapViewToNavView(viewName) {
+  if (['dashboard-manager', 'dashboard-writer', 'dashboard-visa'].includes(viewName)) {
+    return 'dashboard';
+  }
+  return viewName;
+}
+
 function switchView(viewName) {
+  const navViewName = mapViewToNavView(viewName);
+
   document.querySelectorAll('.nav-item').forEach(item => {
-    const itemView = item.dataset.view;
-    let isActive = false;
-    if (itemView === viewName) {
-      isActive = true;
-    } else if (itemView === 'dashboard' && 
-               ['dashboard-manager', 'dashboard-writer', 'dashboard-visa'].includes(viewName)) {
-      isActive = true;
-    }
-    item.classList.toggle('active', isActive);
+    item.classList.toggle('active', item.dataset.view === navViewName);
   });
 
   document.querySelectorAll('.view').forEach(view => {
