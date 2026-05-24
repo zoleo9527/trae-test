@@ -212,6 +212,41 @@ class DataStore {
       .filter(l => l.studentId === studentId)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }
+
+  canAccessStudent(studentId, userId, role) {
+    const student = this.getStudentById(studentId);
+    if (!student) return false;
+    
+    if (role === 'consultant_manager') return true;
+    if (role === 'copywriter') return student.copywriterId === userId;
+    if (role === 'visa_assistant') return student.visaAssistantId === userId;
+    return false;
+  }
+
+  getDeadlinesByRole(userId, role) {
+    const accessibleStudents = this.getStudentsByRole(userId, role);
+    const accessibleStudentIds = accessibleStudents.map(s => s.id);
+    return this.deadlines.filter(d => accessibleStudentIds.includes(d.studentId));
+  }
+
+  getIssuesByRole(userId, role) {
+    if (role === 'consultant_manager') return this.issues;
+    
+    const accessibleStudents = this.getStudentsByRole(userId, role);
+    const accessibleStudentIds = accessibleStudents.map(s => s.id);
+    
+    return this.issues.filter(i => {
+      if (accessibleStudentIds.includes(i.studentId)) return true;
+      if (i.assignedTo === userId) return true;
+      return false;
+    });
+  }
+
+  getDocumentsByRole(userId, role) {
+    const accessibleStudents = this.getStudentsByRole(userId, role);
+    const accessibleStudentIds = accessibleStudents.map(s => s.id);
+    return this.documents.filter(d => accessibleStudentIds.includes(d.studentId));
+  }
 }
 
 module.exports = new DataStore();

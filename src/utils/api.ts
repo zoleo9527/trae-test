@@ -28,6 +28,9 @@ export const api = {
     logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
     me: () => request<{ user: { id: string; name: string; email: string; role: string } }>('/auth/me'),
   },
+  dashboard: {
+    getStats: () => request<any>('/dashboard/stats'),
+  },
   students: {
     list: (params?: { status?: string; search?: string }) => {
       const query = new URLSearchParams(params as any).toString();

@@ -8,6 +8,7 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 const authRoutes = require('./routes/auth');
+const dashboardRoutes = require('./routes/dashboard');
 const studentRoutes = require('./routes/students');
 const documentRoutes = require('./routes/documents');
 const visaRoutes = require('./routes/visa');
@@ -28,6 +29,7 @@ app.prepare().then(() => {
   server.use(express.json());
 
   server.use('/api/auth', authRoutes);
+  server.use('/api/dashboard', dashboardRoutes);
   server.use('/api/students', studentRoutes);
   server.use('/api/documents', documentRoutes);
   server.use('/api/visa', visaRoutes);

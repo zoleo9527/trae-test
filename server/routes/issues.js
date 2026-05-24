@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', (req, res) => {
-  let issues = store.getIssues();
+  let issues = store.getIssuesByRole(req.user.id, req.user.role);
   const { status, category, priority } = req.query;
   
   if (status && status !== 'all') {

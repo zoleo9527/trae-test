@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', (req, res) => {
-  const deadlines = store.getAllDeadlines();
+  const deadlines = store.getDeadlinesByRole(req.user.id, req.user.role);
   const { start, end, type } = req.query;
   
   let filtered = deadlines;
