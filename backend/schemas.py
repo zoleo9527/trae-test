@@ -140,6 +140,7 @@ class RectificationBase(BaseModel):
 class RectificationCreate(RectificationBase):
     inspection_id: int
     items: List[RectificationItemCreate]
+    operator_id: int
 
 
 class Rectification(RectificationBase):
@@ -177,6 +178,7 @@ class InspectionBase(BaseModel):
 class InspectionCreate(InspectionBase):
     project_id: int
     issues: List[IssueCreate] = []
+    operator_id: int
 
 
 class Inspection(InspectionBase):

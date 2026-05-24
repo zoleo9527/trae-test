@@ -4,6 +4,7 @@ import { Search, Filter, Plus, ChevronRight } from 'lucide-react'
 import axios from 'axios'
 import { statusConfig, priorityConfig, typeConfig, formatDate } from '../utils/format'
 import BatchActionBar from '../components/BatchActionBar'
+import CreateInspectionModal from '../components/CreateInspectionModal'
 import { currentUser } from '../components/Layout'
 
 export default function InspectionList() {
@@ -11,6 +12,7 @@ export default function InspectionList() {
   const [selectedIds, setSelectedIds] = useState([])
   const [filterStatus, setFilterStatus] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     fetchInspections()
@@ -66,7 +68,10 @@ export default function InspectionList() {
     <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">巡检管理</h1>
-        <button className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
           <Plus size={16} />
           新建巡检
         </button>
@@ -177,6 +182,15 @@ export default function InspectionList() {
         selectedCount={selectedIds.length}
         onAction={handleBatchAction}
         onClear={() => setSelectedIds([])}
+      />
+
+      <CreateInspectionModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false)
+          fetchInspections()
+        }}
       />
     </div>
   )

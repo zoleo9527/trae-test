@@ -62,7 +62,7 @@ def init_demo_data(db: Session):
     inspection4 = models.Inspection(
         project_id=1, title="墙砖铺贴质量复检", type="review", status="disputed",
         priority="high", description="业主对整改结果有异议，需要重新确认",
-        created_by=1, assigned_to=4, inspection_date=now - timedelta(days=1)
+        created_by=1, assigned_to=4, inspection_date=now - timedelta(days=4)
     )
     inspection5 = models.Inspection(
         project_id=2, title="隐蔽工程巡检", type="routine", status="rechecking",
@@ -85,21 +85,24 @@ def init_demo_data(db: Session):
     db.add_all(issues)
     db.commit()
 
-    histories = [
-        models.StatusHistory(inspection_id=1, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=2, hours=2)),
-        models.StatusHistory(inspection_id=1, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=2, hours=3)),
-        models.StatusHistory(inspection_id=1, from_status="in_progress", to_status="rectifying", comment="发现3个问题，已派单整改", operator_id=1, created_at=now - timedelta(days=2, hours=5)),
-        models.StatusHistory(inspection_id=2, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=5, hours=2)),
-        models.StatusHistory(inspection_id=2, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=5, hours=3)),
-        models.StatusHistory(inspection_id=2, from_status="in_progress", to_status="completed", comment="验收通过，轻微问题现场整改", operator_id=1, created_at=now - timedelta(days=5, hours=6)),
-        models.StatusHistory(inspection_id=4, to_status="created", comment="复检单创建", operator_id=1, created_at=now - timedelta(days=1, hours=1)),
-        models.StatusHistory(inspection_id=4, from_status="created", to_status="in_progress", comment="现场复检", operator_id=1, created_at=now - timedelta(days=1, hours=2)),
-        models.StatusHistory(inspection_id=4, from_status="in_progress", to_status="disputed", comment="业主对整改结果有异议", operator_id=1, created_at=now - timedelta(hours=20)),
-        models.StatusHistory(inspection_id=5, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=3, hours=2)),
-        models.StatusHistory(inspection_id=5, from_status="created", to_status="rectifying", comment="发现水管问题，派单整改", operator_id=1, created_at=now - timedelta(days=3, hours=4)),
-        models.StatusHistory(inspection_id=5, from_status="rectifying", to_status="rechecking", comment="施工方已完成整改，待复查", operator_id=4, created_at=now - timedelta(days=1, hours=5)),
+    inspection_histories = [
+        models.StatusHistory(inspection_id=1, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=2, hours=8)),
+        models.StatusHistory(inspection_id=1, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=2, hours=9)),
+        models.StatusHistory(inspection_id=1, from_status="in_progress", to_status="rectifying", comment="发现3个问题，已派单整改", operator_id=1, created_at=now - timedelta(days=2, hours=11)),
+        models.StatusHistory(inspection_id=2, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=5, hours=8)),
+        models.StatusHistory(inspection_id=2, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=5, hours=9)),
+        models.StatusHistory(inspection_id=2, from_status="in_progress", to_status="completed", comment="验收通过，轻微问题现场整改", operator_id=1, created_at=now - timedelta(days=5, hours=12)),
+        models.StatusHistory(inspection_id=4, to_status="created", comment="复检单创建", operator_id=1, created_at=now - timedelta(days=4, hours=8)),
+        models.StatusHistory(inspection_id=4, from_status="created", to_status="in_progress", comment="现场复检", operator_id=1, created_at=now - timedelta(days=4, hours=10)),
+        models.StatusHistory(inspection_id=4, from_status="in_progress", to_status="rectifying", comment="发现墙砖问题，发起整改", operator_id=1, created_at=now - timedelta(days=4, hours=12)),
+        models.StatusHistory(inspection_id=4, from_status="rectifying", to_status="rechecking", comment="整改完成，待复查", operator_id=4, created_at=now - timedelta(days=2, hours=10)),
+        models.StatusHistory(inspection_id=4, from_status="rechecking", to_status="disputed", comment="业主对整改结果有异议", operator_id=2, created_at=now - timedelta(days=1, hours=15)),
+        models.StatusHistory(inspection_id=5, to_status="created", comment="巡检单创建", operator_id=1, created_at=now - timedelta(days=3, hours=8)),
+        models.StatusHistory(inspection_id=5, from_status="created", to_status="in_progress", comment="开始现场巡检", operator_id=1, created_at=now - timedelta(days=3, hours=9)),
+        models.StatusHistory(inspection_id=5, from_status="in_progress", to_status="rectifying", comment="发现水管问题，派单整改", operator_id=1, created_at=now - timedelta(days=3, hours=11)),
+        models.StatusHistory(inspection_id=5, from_status="rectifying", to_status="rechecking", comment="施工方已完成整改，待复查", operator_id=4, created_at=now - timedelta(days=1, hours=9)),
     ]
-    db.add_all(histories)
+    db.add_all(inspection_histories)
     db.commit()
 
     rect1 = models.Rectification(
@@ -107,42 +110,42 @@ def init_demo_data(db: Session):
         description="针对防水层和地漏问题进行整改",
         deadline=now + timedelta(days=1), created_by=1, assigned_to=4
     )
-    rect4 = models.Rectification(
+    rect2 = models.Rectification(
         inspection_id=4, title="墙砖空鼓整改", status="disputed",
         description="墙砖空鼓问题整改后业主有异议",
-        deadline=now - timedelta(days=1), created_by=1, assigned_to=4
+        deadline=now - timedelta(days=2), created_by=1, assigned_to=4
     )
-    rect5 = models.Rectification(
+    rect3 = models.Rectification(
         inspection_id=5, title="水管打压问题整改", status="rechecking",
         description="水管打压不合格，重新施工后待复查",
         deadline=now - timedelta(days=1), created_by=1, assigned_to=4
     )
 
-    db.add_all([rect1, rect4, rect5])
+    db.add_all([rect1, rect2, rect3])
     db.commit()
 
     rect_items = [
         models.RectificationItem(rectification_id=1, issue_id=1, status="in_progress", rectification_method="重新涂刷防水层，确保厚度达标"),
         models.RectificationItem(rectification_id=1, issue_id=2, status="pending", rectification_method="调整地漏周边坡度"),
-        models.RectificationItem(rectification_id=1, issue_id=3, status="completed", rectification_method="重新找平墙面", cost=800, cost_confirmed=True, actual_finish_date=now - timedelta(days=1)),
-        models.RectificationItem(rectification_id=2, issue_id=5, status="completed", rectification_method="返工重贴空鼓墙砖", cost=1500, cost_confirmed=False, actual_finish_date=now - timedelta(days=2)),
-        models.RectificationItem(rectification_id=2, issue_id=6, status="completed", rectification_method="修正阴阳角", cost=300, cost_confirmed=False, actual_finish_date=now - timedelta(days=2)),
-        models.RectificationItem(rectification_id=3, issue_id=7, status="rechecking", rectification_method="更换漏水接头，重新打压测试", cost=600, actual_finish_date=now - timedelta(days=1)),
+        models.RectificationItem(rectification_id=1, issue_id=3, status="completed", rectification_method="重新找平墙面", cost=800, cost_confirmed=True, actual_finish_date=now - timedelta(days=1, hours=15)),
+        models.RectificationItem(rectification_id=2, issue_id=5, status="completed", rectification_method="返工重贴空鼓墙砖", cost=1500, cost_confirmed=False, actual_finish_date=now - timedelta(days=2, hours=16)),
+        models.RectificationItem(rectification_id=2, issue_id=6, status="completed", rectification_method="修正阴阳角", cost=300, cost_confirmed=False, actual_finish_date=now - timedelta(days=2, hours=15)),
+        models.RectificationItem(rectification_id=3, issue_id=7, status="rechecking", rectification_method="更换漏水接头，重新打压测试", cost=600, actual_finish_date=now - timedelta(days=1, hours=8)),
     ]
     db.add_all(rect_items)
     db.commit()
 
     rect_histories = [
-        models.StatusHistory(rectification_id=1, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=2, hours=6)),
-        models.StatusHistory(rectification_id=1, from_status="created", to_status="in_progress", comment="施工队开始整改", operator_id=4, created_at=now - timedelta(days=2, hours=8)),
-        models.StatusHistory(rectification_id=2, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=4, hours=6)),
-        models.StatusHistory(rectification_id=2, from_status="created", to_status="in_progress", comment="开始墙砖整改", operator_id=4, created_at=now - timedelta(days=4, hours=8)),
+        models.StatusHistory(rectification_id=1, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=2, hours=11)),
+        models.StatusHistory(rectification_id=1, from_status="created", to_status="in_progress", comment="施工队开始整改", operator_id=4, created_at=now - timedelta(days=2, hours=14)),
+        models.StatusHistory(rectification_id=2, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=4, hours=12)),
+        models.StatusHistory(rectification_id=2, from_status="created", to_status="in_progress", comment="开始墙砖整改", operator_id=4, created_at=now - timedelta(days=3, hours=9)),
         models.StatusHistory(rectification_id=2, from_status="in_progress", to_status="completed", comment="整改完成提交", operator_id=4, created_at=now - timedelta(days=2, hours=10)),
-        models.StatusHistory(rectification_id=2, from_status="completed", to_status="rechecking", comment="监理开始复查", operator_id=1, created_at=now - timedelta(days=1, hours=10)),
-        models.StatusHistory(rectification_id=2, from_status="rechecking", to_status="disputed", comment="业主不认可整改质量", operator_id=2, created_at=now - timedelta(hours=20)),
-        models.StatusHistory(rectification_id=3, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=3, hours=6)),
-        models.StatusHistory(rectification_id=3, from_status="created", to_status="in_progress", comment="开始水管整改", operator_id=4, created_at=now - timedelta(days=3, hours=8)),
-        models.StatusHistory(rectification_id=3, from_status="in_progress", to_status="rechecking", comment="整改完成待复查", operator_id=4, created_at=now - timedelta(days=1, hours=6)),
+        models.StatusHistory(rectification_id=2, from_status="completed", to_status="rechecking", comment="监理开始复查", operator_id=1, created_at=now - timedelta(days=2, hours=14)),
+        models.StatusHistory(rectification_id=2, from_status="rechecking", to_status="disputed", comment="业主不认可整改质量", operator_id=2, created_at=now - timedelta(days=1, hours=15)),
+        models.StatusHistory(rectification_id=3, to_status="created", comment="整改单创建", operator_id=1, created_at=now - timedelta(days=3, hours=11)),
+        models.StatusHistory(rectification_id=3, from_status="created", to_status="in_progress", comment="开始水管整改", operator_id=4, created_at=now - timedelta(days=3, hours=14)),
+        models.StatusHistory(rectification_id=3, from_status="in_progress", to_status="rechecking", comment="整改完成待复查", operator_id=4, created_at=now - timedelta(days=1, hours=9)),
     ]
     db.add_all(rect_histories)
     db.commit()
@@ -190,7 +193,10 @@ def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/inspections", response_model=schemas.Inspection)
 def create_inspection(data: schemas.InspectionCreate, db: Session = Depends(get_db)):
-    inspection = models.Inspection(**data.model_dump(exclude={"issues"}), created_by=data.operator_id if hasattr(data, 'operator_id') else 1)
+    inspection = models.Inspection(
+        **data.model_dump(exclude={"issues", "operator_id"}),
+        created_by=data.operator_id
+    )
     db.add(inspection)
     db.flush()
 
@@ -202,7 +208,7 @@ def create_inspection(data: schemas.InspectionCreate, db: Session = Depends(get_
         inspection_id=inspection.id,
         to_status=inspection.status,
         comment="巡检单创建",
-        operator_id=inspection.created_by
+        operator_id=data.operator_id
     )
     db.add(history)
 
@@ -277,7 +283,10 @@ def get_rectification(rectification_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/rectifications", response_model=schemas.Rectification)
 def create_rectification(data: schemas.RectificationCreate, db: Session = Depends(get_db)):
-    rectification = models.Rectification(**data.model_dump(exclude={"items"}), created_by=data.operator_id if hasattr(data, 'operator_id') else 1)
+    rectification = models.Rectification(
+        **data.model_dump(exclude={"items", "operator_id"}),
+        created_by=data.operator_id
+    )
     db.add(rectification)
     db.flush()
 
@@ -285,13 +294,28 @@ def create_rectification(data: schemas.RectificationCreate, db: Session = Depend
         item = models.RectificationItem(**item_data.model_dump(), rectification_id=rectification.id)
         db.add(item)
 
-    history = models.StatusHistory(
+    rect_history = models.StatusHistory(
         rectification_id=rectification.id,
         to_status=rectification.status,
         comment="整改单创建",
-        operator_id=rectification.created_by
+        operator_id=data.operator_id
     )
-    db.add(history)
+    db.add(rect_history)
+
+    inspection = db.query(models.Inspection).filter(models.Inspection.id == rectification.inspection_id).first()
+    if inspection:
+        inspection_old_status = inspection.status
+        inspection.status = "rectifying"
+        inspection.version += 1
+
+        inspection_history = models.StatusHistory(
+            inspection_id=inspection.id,
+            from_status=inspection_old_status,
+            to_status="rectifying",
+            comment=f"已发起整改单 #{rectification.id}，进入整改流程",
+            operator_id=data.operator_id
+        )
+        db.add(inspection_history)
 
     db.commit()
     db.refresh(rectification)
@@ -328,7 +352,7 @@ def review_rectification(rectification_id: int, data: schemas.ReviewRectificatio
     if not rectification:
         raise HTTPException(status_code=404, detail="Rectification not found")
 
-    old_status = rectification.status
+    old_rect_status = rectification.status
     rectification.status = data.status
     rectification.review_comment = data.review_comment
     rectification.review_by = data.operator_id
@@ -344,28 +368,40 @@ def review_rectification(rectification_id: int, data: schemas.ReviewRectificatio
                 if result.get("status") == "passed":
                     item.actual_finish_date = datetime.now()
 
-    history = models.StatusHistory(
+    rect_history = models.StatusHistory(
         rectification_id=rectification.id,
-        from_status=old_status,
+        from_status=old_rect_status,
         to_status=data.status,
         comment=data.review_comment,
         operator_id=data.operator_id
     )
-    db.add(history)
+    db.add(rect_history)
 
     inspection = db.query(models.Inspection).filter(models.Inspection.id == rectification.inspection_id).first()
-    if inspection and data.status == "passed":
-        inspection.status = "completed"
-        inspection_history = models.StatusHistory(
-            inspection_id=inspection.id,
-            from_status=inspection.status,
-            to_status="completed",
-            comment="整改复查通过，巡检完成",
-            operator_id=data.operator_id
-        )
-        db.add(inspection_history)
-    elif inspection and data.status == "failed":
-        inspection.status = "rectifying"
+    if inspection:
+        inspection_old_status = inspection.status
+        if data.status == "passed":
+            inspection.status = "completed"
+            inspection.version += 1
+            inspection_history = models.StatusHistory(
+                inspection_id=inspection.id,
+                from_status=inspection_old_status,
+                to_status="completed",
+                comment="整改复查通过，巡检完成",
+                operator_id=data.operator_id
+            )
+            db.add(inspection_history)
+        elif data.status == "failed":
+            inspection.status = "rectifying"
+            inspection.version += 1
+            inspection_history = models.StatusHistory(
+                inspection_id=inspection.id,
+                from_status=inspection_old_status,
+                to_status="rectifying",
+                comment="整改复查不通过，需重新整改",
+                operator_id=data.operator_id
+            )
+            db.add(inspection_history)
 
     db.commit()
     db.refresh(rectification)
