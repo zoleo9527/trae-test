@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>留学服务追踪系统</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="login-screen" class="screen">
+    <div class="login-container">
+      <h1>留学服务追踪系统</h1>
+      <div class="login-form">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="username" placeholder="请输入用户名">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="password" placeholder="请输入密码">
+        </div>
+        <button id="login-btn" class="btn btn-primary">登录</button>
+        <div class="login-hint">
+          <p>测试账号：</p>
+          <p>主管: admin / admin123</p>
+          <p>文案: writer1 / writer123</p>
+          <p>签证: visa1 / visa123</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-screen" class="screen hidden">
+    <header class="top-bar">
+      <div class="logo">留学服务追踪系统</div>
+      <div class="user-info">
+        <span id="user-role"></span>
+        <span id="user-name"></span>
+        <button id="logout-btn" class="btn btn-small">退出</button>
+      </div>
+    </header>
+
+    <div class="main-container">
+      <aside class="sidebar">
+        <nav class="nav-menu">
+          <div class="nav-item active" data-view="dashboard">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">工作台</span>
+          </div>
+          <div class="nav-item" data-view="students">
+            <span class="nav-icon">👥</span>
+            <span class="nav-text">学生管理</span>
+          </div>
+          <div class="nav-item" data-view="documents">
+            <span class="nav-icon">📁</span>
+            <span class="nav-text">材料中心</span>
+          </div>
+          <div class="nav-item" data-view="essays">
+            <span class="nav-icon">✍️</span>
+            <span class="nav-text">文书管理</span>
+          </div>
+          <div class="nav-item" data-view="visa">
+            <span class="nav-icon">🛂</span>
+            <span class="nav-text">签证追踪</span>
+          </div>
+          <div class="nav-item" data-view="refunds" data-role="manager">
+            <span class="nav-icon">💰</span>
+            <span class="nav-text">退款管理</span>
+          </div>
+          <div class="nav-item" data-view="logs" data-role="manager">
+            <span class="nav-icon">📋</span>
+            <span class="nav-text">操作日志</span>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <div id="view-dashboard" class="view active">
+          <h2>工作台</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-title">总学生数</div>
+              <div class="stat-value" id="stat-total-students">0</div>
+            </div>
+            <div class="stat-card alert">
+              <div class="stat-title">待处理材料</div>
+              <div class="stat-value" id="stat-pending-docs">0</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-title">7天内截止</div>
+              <div class="stat-value" id="stat-upcoming-deadlines">0</div>
+            </div>
+            <div class="stat-card danger">
+              <div class="stat-title">异常状态</div>
+              <div class="stat-value" id="stat-warnings">0</div>
+            </div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>截止日提醒</h3>
+            <div id="deadline-list" class="list-container"></div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>待审核材料</h3>
+            <div id="pending-docs-list" class="list-container"></div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>异常提醒</h3>
+            <div id="alert-list" class="list-container"></div>
+          </div>
+        </div>
+
+        <div id="view-students" class="view">
+          <div class="view-header">
+            <h2>学生管理</h2>
+            <div class="view-actions">
+              <input type="text" id="student-search" class="search-input" placeholder="搜索学生...">
+              <button id="add-student-btn" class="btn btn-primary">+ 新增学生</button>
+            </div>
+          </div>
+          <div id="students-list" class="data-table"></div>
+        </div>
+
+        <div id="view-documents" class="view">
+          <div class="view-header">
+            <h2>材料中心</h2>
+            <div class="view-actions">
+              <select id="doc-filter-status" class="select-input">
+                <option value="">全部状态</option>
+                <option value="pending">待审核</option>
+                <option value="reviewing">审核中</option>
+                <option value="approved">已通过</option>
+                <option value="rejected">已退回</option>
+              </select>
+              <button id="batch-approve-btn" class="btn btn-success">批量通过</button>
+            </div>
+          </div>
+          <div id="documents-list" class="data-table"></div>
+        </div>
+
+        <div id="view-essays" class="view">
+          <div class="view-header">
+            <h2>文书管理</h2>
+            <div class="view-actions">
+              <button id="add-essay-btn" class="btn btn-primary">+ 新增文书</button>
+            </div>
+          </div>
+          <div id="essays-list" class="data-table"></div>
+        </div>
+
+        <div id="view-visa" class="view">
+          <div class="view-header">
+            <h2>签证追踪</h2>
+            <div class="view-actions">
+              <button id="add-visa-btn" class="btn btn-primary">+ 新增签证流程</button>
+            </div>
+          </div>
+          <div id="visa-list" class="data-table"></div>
+        </div>
+
+        <div id="view-refunds" class="view">
+          <div class="view-header">
+            <h2>退款管理</h2>
+          </div>
+          <div id="refunds-list" class="data-table"></div>
+        </div>
+
+        <div id="view-logs" class="view">
+          <div class="view-header">
+            <h2>操作日志</h2>
+          </div>
+          <div id="logs-list" class="data-table"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="student-detail-modal" class="modal hidden">
+    <div class="modal-content large">
+      <div class="modal-header">
+        <h3 id="detail-student-name">学生详情</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-tabs">
+          <div class="detail-tab active" data-tab="info">基本信息</div>
+          <div class="detail-tab" data-tab="programs">选校方案</div>
+          <div class="detail-tab" data-tab="documents">材料清单</div>
+          <div class="detail-tab" data-tab="timeline">时间线</div>
+        </div>
+
+        <div id="tab-info" class="tab-content active">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>姓名</label>
+              <input type="text" id="detail-name" readonly>
+            </div>
+            <div class="form-group">
+              <label>电话</label>
+              <input type="text" id="detail-phone" readonly>
+            </div>
+            <div class="form-group">
+              <label>邮箱</label>
+              <input type="text" id="detail-email" readonly>
+            </div>
+            <div class="form-group">
+              <label>目标国家</label>
+              <input type="text" id="detail-country" readonly>
+            </div>
+            <div class="form-group">
+              <label>目标专业</label>
+              <input type="text" id="detail-major" readonly>
+            </div>
+            <div class="form-group">
+              <label>GPA</label>
+              <input type="text" id="detail-gpa" readonly>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-programs" class="tab-content">
+          <button id="add-program-btn" class="btn btn-small btn-primary">+ 添加选校</button>
+          <div id="detail-programs" class="data-table"></div>
+        </div>
+
+        <div id="tab-documents" class="tab-content">
+          <button id="add-document-btn" class="btn btn-small btn-primary">+ 添加材料</button>
+          <div id="detail-documents" class="data-table"></div>
+        </div>
+
+        <div id="tab-timeline" class="tab-content">
+          <div id="detail-timeline" class="timeline"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="export-receipt-btn" class="btn btn-info">打印回执</button>
+        <button class="btn btn-secondary modal-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="form-modal" class="modal hidden">
+    <div class="modal-content medium">
+      <div class="modal-header">
+        <h3 id="form-title">表单</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="form-content"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="form-submit" class="btn btn-primary">保存</button>
+        <button class="btn btn-secondary modal-close">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

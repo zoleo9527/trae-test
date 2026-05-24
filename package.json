@@ -1,0 +1,36 @@
+{
+  "name": "study-abroad-tracker",
+  "version": "1.0.0",
+  "description": "留学服务-选校方案与材料收集追踪系统",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "package": "electron-builder"
+  },
+  "keywords": ["study-abroad", "tracker", "electron"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^9.2.2",
+    "electron-store": "^8.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.studyabroad.tracker",
+    "productName": "留学服务追踪系统",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}
