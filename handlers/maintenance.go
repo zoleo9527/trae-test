@@ -54,6 +54,44 @@ type UpdateStatusRequest struct {
 	Comment string                    `json:"comment"`
 }
 
+type AssignMaintenanceRequest struct {
+	HandlerID uint `json:"handler_id" validate:"required"`
+	Comment   string `json:"comment"`
+}
+
+var validStatusTransitions = map[models.MaintenanceStatus][]models.MaintenanceStatus{
+	models.MaintenanceStatusPending: {
+		models.MaintenanceStatusConfirmed,
+		models.MaintenanceStatusCancelled,
+	},
+	models.MaintenanceStatusConfirmed: {
+		models.MaintenanceStatusInProgress,
+		models.MaintenanceStatusCancelled,
+	},
+	models.MaintenanceStatusInProgress: {
+		models.MaintenanceStatusCompleted,
+		models.MaintenanceStatusCancelled,
+	},
+	models.MaintenanceStatusCompleted: {
+		models.MaintenanceStatusPickedUp,
+	},
+	models.MaintenanceStatusPickedUp:   {},
+	models.MaintenanceStatusCancelled:  {},
+}
+
+func isValidStatusTransition(oldStatus, newStatus models.MaintenanceStatus) bool {
+	validNext, exists := validStatusTransitions[oldStatus]
+	if !exists {
+		return false
+	}
+	for _, s := range validNext {
+		if s == newStatus {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *MaintenanceHandler) generateMaintenanceNo() string {
 	now := time.Now()
 	var count int64
@@ -146,12 +184,21 @@ func (h *MaintenanceHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *MaintenanceHandler) Get(c *fiber.Ctx) error {
+	userID, _, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
 
 	var maintenance models.Maintenance
 	if err := h.db.Preload("Customer").Preload("Product").Preload("Salesperson").Preload("Handler").Preload("Quotation").
 		First(&maintenance, id).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Maintenance not found")
+	}
+
+	if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view your own maintenance records")
+	}
+
+	if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view maintenance assigned to you")
 	}
 
 	statusHistory, _ := h.auditService.GetStatusHistory("maintenance", uint(id))
@@ -208,7 +255,7 @@ func (h *MaintenanceHandler) Update(c *fiber.Ctx) error {
 }
 
 func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
-	userID, userName, _ := middleware.GetCurrentUser(c)
+	userID, userName, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
 
 	var req UpdateStatusRequest
@@ -221,10 +268,43 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Maintenance not found")
 	}
 
+	if !isValidStatusTransition(maintenance.Status, req.Status) {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, 
+			fmt.Sprintf("Invalid status transition from %s to %s", maintenance.Status, req.Status))
+	}
+
+	switch req.Status {
+	case models.MaintenanceStatusConfirmed, models.MaintenanceStatusInProgress:
+		if userRole != models.RoleManager && userRole != models.RoleAfterSales {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or after-sales can confirm/process maintenance")
+		}
+		if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only process maintenance assigned to you")
+		}
+
+	case models.MaintenanceStatusCompleted:
+		if userRole != models.RoleManager && userRole != models.RoleAfterSales {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or after-sales can complete maintenance")
+		}
+		if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only complete maintenance assigned to you")
+		}
+
+	case models.MaintenanceStatusPickedUp:
+		if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only mark pickup for your own maintenance records")
+		}
+
+	case models.MaintenanceStatusCancelled:
+		if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only cancel your own maintenance records")
+		}
+	}
+
 	oldStatus := maintenance.Status
 	maintenance.Status = req.Status
 
-	if req.Status == models.MaintenanceStatusInProgress {
+	if req.Status == models.MaintenanceStatusInProgress && maintenance.HandlerID == nil {
 		maintenance.HandlerID = &userID
 	}
 
@@ -259,26 +339,60 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 }
 
 func (h *MaintenanceHandler) Assign(c *fiber.Ctx) error {
-	userID, userName, _ := middleware.GetCurrentUser(c)
+	userID, userName, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
+
+	var req AssignMaintenanceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body")
+	}
 
 	var maintenance models.Maintenance
 	if err := h.db.First(&maintenance, id).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Maintenance not found")
 	}
 
+	if userRole != models.RoleManager {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager can assign maintenance handler")
+	}
+
+	var handler models.User
+	if err := h.db.Where("id = ? AND role = ?", req.HandlerID, models.RoleAfterSales).First(&handler).Error; err != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid handler: must be an after-sales staff")
+	}
+
 	oldStatus := maintenance.Status
-	maintenance.HandlerID = &userID
-	maintenance.Status = models.MaintenanceStatusConfirmed
+	oldHandlerID := maintenance.HandlerID
+	maintenance.HandlerID = &req.HandlerID
+
+	if maintenance.Status == models.MaintenanceStatusPending {
+		maintenance.Status = models.MaintenanceStatusConfirmed
+	}
 
 	if err := h.db.Save(&maintenance).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to assign maintenance")
 	}
 
+	comment := req.Comment
+	if comment == "" {
+		if oldHandlerID == nil {
+			comment = fmt.Sprintf("Assigned to handler: %s", handler.Name)
+		} else {
+			comment = fmt.Sprintf("Reassigned to handler: %s", handler.Name)
+		}
+	}
+
 	h.auditService.AddStatusHistory(
 		"maintenance", maintenance.ID,
 		string(oldStatus), string(maintenance.Status),
-		userID, userName, "Assigned to handler",
+		userID, userName, comment,
+	)
+
+	h.auditService.LogAction(
+		"assign", "maintenance", maintenance.ID,
+		userID, userName,
+		oldHandlerID, maintenance.HandlerID,
+		c.IP(), c.Get("User-Agent"),
 	)
 
 	return utils.SuccessResponse(c, maintenance)

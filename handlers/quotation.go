@@ -148,12 +148,17 @@ func (h *QuotationHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Get(c *fiber.Ctx) error {
+	userID, _, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
 
 	var quotation models.Quotation
 	if err := h.db.Preload("Customer").Preload("Product").Preload("Salesperson").Preload("Approver").
 		First(&quotation, id).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
+	}
+
+	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view your own quotations")
 	}
 
 	var approvalRecords []models.ApprovalRecord
@@ -221,12 +226,16 @@ func (h *QuotationHandler) Update(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Submit(c *fiber.Ctx) error {
-	userID, userName, _ := middleware.GetCurrentUser(c)
+	userID, userName, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
 
 	var quotation models.Quotation
 	if err := h.db.First(&quotation, id).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
+	}
+
+	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only submit your own quotations")
 	}
 
 	if quotation.Status != models.QuotationStatusDraft && quotation.Status != models.QuotationStatusRevising {
@@ -333,12 +342,16 @@ func (h *QuotationHandler) Approve(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Complete(c *fiber.Ctx) error {
-	userID, userName, _ := middleware.GetCurrentUser(c)
+	userID, userName, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
 
 	var quotation models.Quotation
 	if err := h.db.First(&quotation, id).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
+	}
+
+	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only complete your own quotations")
 	}
 
 	if quotation.Status != models.QuotationStatusApproved {

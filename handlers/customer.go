@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"jewelry-store-system/middleware"
 	"jewelry-store-system/models"
 	"jewelry-store-system/utils"
 	"strconv"

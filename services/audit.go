@@ -10,11 +10,27 @@ import (
 )
 
 type AuditService struct {
-	db *gorm.DB
+	db         *gorm.DB
+	asyncTask  *AsyncTaskService
+	useAsync   bool
 }
 
 func NewAuditService(db *gorm.DB) *AuditService {
-	return &AuditService{db: db}
+	asyncService := GetAsyncTaskService(db)
+	return &AuditService{
+		db:        db,
+		asyncTask: asyncService,
+		useAsync:  true,
+	}
+}
+
+func NewAuditServiceWithAsync(db *gorm.DB, useAsync bool) *AuditService {
+	asyncService := GetAsyncTaskService(db)
+	return &AuditService{
+		db:        db,
+		asyncTask: asyncService,
+		useAsync:  useAsync,
+	}
 }
 
 func (s *AuditService) LogAction(
@@ -34,7 +50,7 @@ func (s *AuditService) LogAction(
 	changedFields := s.getChangedFields(oldValues, newValues)
 	changedJSON, _ := json.Marshal(changedFields)
 
-	log := models.AuditLog{
+	log := &models.AuditLog{
 		Action:        action,
 		Module:        module,
 		RecordID:      recordID,
@@ -47,7 +63,12 @@ func (s *AuditService) LogAction(
 		UserAgent:     userAgent,
 	}
 
-	return s.db.Create(&log).Error
+	if s.useAsync {
+		s.asyncTask.SubmitAuditLog(log)
+		return nil
+	}
+
+	return s.db.Create(log).Error
 }
 
 func (s *AuditService) getChangedFields(oldValues, newValues interface{}) []string {
@@ -108,7 +129,7 @@ func (s *AuditService) AddStatusHistory(
 	operatorName string,
 	comment string,
 ) error {
-	history := models.StatusHistory{
+	history := &models.StatusHistory{
 		Module:       module,
 		RecordID:     recordID,
 		OldStatus:    oldStatus,
@@ -118,7 +139,12 @@ func (s *AuditService) AddStatusHistory(
 		Comment:      comment,
 	}
 
-	return s.db.Create(&history).Error
+	if s.useAsync {
+		s.asyncTask.SubmitStatusHistory(history)
+		return nil
+	}
+
+	return s.db.Create(history).Error
 }
 
 func (s *AuditService) GetAuditLogs(module string, recordID uint) ([]models.AuditLog, error) {

@@ -42,7 +42,7 @@ func Setup(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	maintenances.Get("/:id", maintenanceHandler.Get)
 	maintenances.Put("/:id", maintenanceHandler.Update)
 	maintenances.Post("/:id/status", maintenanceHandler.UpdateStatus)
-	maintenances.Post("/:id/assign", middleware.RequireRole(models.RoleManager, models.RoleAfterSales), maintenanceHandler.Assign)
+	maintenances.Post("/:id/assign", middleware.RequireRole(models.RoleManager), maintenanceHandler.Assign)
 
 	customers := protected.Group("/customers")
 	customers.Post("", customerHandler.Create)

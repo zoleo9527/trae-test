@@ -4,7 +4,11 @@ import (
 	"jewelry-store-system/config"
 	"jewelry-store-system/database"
 	"jewelry-store-system/routes"
+	"jewelry-store-system/services"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -30,6 +34,9 @@ func main() {
 		log.Fatalf("Failed to seed demo data: %v", err)
 	}
 
+	asyncService := services.GetAsyncTaskService(db)
+	asyncService.Start()
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -43,6 +50,24 @@ func main() {
 
 	routes.Setup(app, db, cfg)
 
-	log.Printf("Server starting on port %s", cfg.ServerPort)
-	log.Fatal(app.Listen(":" + cfg.ServerPort))
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("Server starting on port %s", cfg.ServerPort)
+		if err := app.Listen(":" + cfg.ServerPort); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	<-quit
+	log.Println("Shutting down server...")
+
+	if err := app.Shutdown(); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	}
+
+	asyncService.Stop()
+
+	log.Println("Server gracefully stopped")
 }
