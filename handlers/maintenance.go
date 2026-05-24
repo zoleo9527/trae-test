@@ -208,9 +208,31 @@ func (h *MaintenanceHandler) Get(c *fiber.Ctx) error {
 	})
 }
 
+type RawMaintenanceUpdateRequest struct {
+	HandlerID *uint `json:"handler_id"`
+	Status    *string `json:"status"`
+}
+
+const (
+	ErrHandlerIDNotAllowed = "handler_id field is not allowed in update request. " +
+		"To assign or reassign a handler, use the manager-only assign endpoint: POST /api/maintenances/:id/assign"
+	ErrStatusNotAllowed = "status field is not allowed in update request. " +
+		"To change status, use the dedicated status endpoint: POST /api/maintenances/:id/status"
+)
+
 func (h *MaintenanceHandler) Update(c *fiber.Ctx) error {
 	userID, userName, userRole := middleware.GetCurrentUser(c)
 	id, _ := strconv.Atoi(c.Params("id"))
+
+	var rawReq RawMaintenanceUpdateRequest
+	_ = c.BodyParser(&rawReq)
+
+	if rawReq.HandlerID != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, ErrHandlerIDNotAllowed)
+	}
+	if rawReq.Status != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, ErrStatusNotAllowed)
+	}
 
 	var maintenance models.Maintenance
 	if err := h.db.First(&maintenance, id).Error; err != nil {
@@ -219,18 +241,19 @@ func (h *MaintenanceHandler) Update(c *fiber.Ctx) error {
 
 	if userRole == models.RoleAfterSales {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, 
-			"After-sales staff cannot edit maintenance details. Use status changes must be updated via status interface")
+			"After-sales staff cannot edit maintenance details. To update status, use POST /api/maintenances/:id/status")
 	}
 
 	if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only update your own maintenance records")
 	}
 
-	if maintenance.Status == models.MaintenanceStatusCompleted || 
-	   maintenance.Status == models.MaintenanceStatusPickedUp ||
-	   maintenance.Status == models.MaintenanceStatusCancelled {
+	if maintenance.Status != models.MaintenanceStatusPending && 
+	   maintenance.Status != models.MaintenanceStatusConfirmed {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, 
-			fmt.Sprintf("Cannot update maintenance with status '%s'. Only pending or confirmed records can be edited", maintenance.Status))
+			fmt.Sprintf("Cannot update maintenance with status '%s'. "+
+				"Only pending (pending) or confirmed (confirmed) records can be edited. "+
+				"Records in progress cannot be modified via this endpoint", maintenance.Status))
 	}
 
 	oldMaintenance := maintenance
