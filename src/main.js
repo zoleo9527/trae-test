@@ -143,93 +143,100 @@ function initDemoData() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   if (userCount > 0) return;
 
-  const insertUser = db.prepare(`
-    INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)
-  `);
-  insertUser.run('admin', 'admin123', 'manager', '王主管');
-  insertUser.run('writer1', 'writer123', 'writer', '李文案');
-  insertUser.run('visa1', 'visa123', 'visa', '张签证');
+  try {
+    db.exec('BEGIN TRANSACTION');
 
-  const students = [
-    { name: '张明', phone: '13800138001', email: 'zhangming@email.com', target_country: '美国', target_major: '计算机科学', gpa: 3.8, consultant: '王主管', status: 'active' },
-    { name: '李华', phone: '13800138002', email: 'lihua@email.com', target_country: '英国', target_major: '金融学', gpa: 3.5, consultant: '王主管', status: 'active' },
-    { name: '王芳', phone: '13800138003', email: 'wangfang@email.com', target_country: '澳大利亚', target_major: '教育学', gpa: 3.2, consultant: '王主管', status: 'warning' },
-    { name: '赵伟', phone: '13800138004', email: 'zhaowei@email.com', target_country: '加拿大', target_major: '工程管理', gpa: 3.0, consultant: '王主管', status: 'refund_pending' },
-  ];
+    const insertUser = db.prepare(`
+      INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)
+    `);
+    insertUser.run('admin', 'admin123', 'manager', '王主管');
+    insertUser.run('writer1', 'writer123', 'writer', '李文案');
+    insertUser.run('visa1', 'visa123', 'visa', '张签证');
 
-  const insertStudent = db.prepare(`
-    INSERT INTO students (name, phone, email, target_country, target_major, gpa, consultant, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+    const students = [
+      { name: '张明', phone: '13800138001', email: 'zhangming@email.com', target_country: '美国', target_major: '计算机科学', gpa: 3.8, consultant: '王主管', status: 'active' },
+      { name: '李华', phone: '13800138002', email: 'lihua@email.com', target_country: '英国', target_major: '金融学', gpa: 3.5, consultant: '王主管', status: 'active' },
+      { name: '王芳', phone: '13800138003', email: 'wangfang@email.com', target_country: '澳大利亚', target_major: '教育学', gpa: 3.2, consultant: '王主管', status: 'warning' },
+      { name: '赵伟', phone: '13800138004', email: 'zhaowei@email.com', target_country: '加拿大', target_major: '工程管理', gpa: 3.0, consultant: '王主管', status: 'refund_pending' },
+    ];
 
-  students.forEach((s, idx) => {
-    const result = insertStudent.run(s.name, s.phone, s.email, s.target_country, s.target_major, s.gpa, s.consultant, s.status);
-    const studentId = result.lastInsertRowid;
+    const insertStudent = db.prepare(`
+      INSERT INTO students (name, phone, email, target_country, target_major, gpa, consultant, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-    if (idx === 0) {
-      const insertProgram = db.prepare(`
-        INSERT INTO school_programs (student_id, school_name, program_name, deadline, application_status, priority, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertProgram.run(studentId, '斯坦福大学', '计算机科学硕士', '2025-01-15', 'submitted', 1, '冲刺校，需要补充科研经历');
-      insertProgram.run(studentId, '加州大学伯克利分校', '计算机科学硕士', '2024-12-20', 'materials_missing', 2, '成绩单未官方认证');
-      insertProgram.run(studentId, '南加州大学', '计算机科学硕士', '2025-02-01', 'pending', 3, '保底校');
+    const insertProgram = db.prepare(`
+      INSERT INTO school_programs (student_id, school_name, program_name, deadline, application_status, priority, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
-      const insertDoc = db.prepare(`
-        INSERT INTO documents (student_id, doc_type, doc_name, version, status, review_notes, is_latest)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertDoc.run(studentId, 'transcript', '大学成绩单', 1, 'approved', 'GPA 3.8，排名前5%', 1);
-      insertDoc.run(studentId, 'recommendation', '推荐信1', 1, 'pending', NULL, 1);
-      insertDoc.run(studentId, 'recommendation', '推荐信2', 1, 'rejected', '推荐人信息不完整', 1);
-      insertDoc.run(studentId, 'personal_statement', '个人陈述', 2, 'reviewing', '需要修改职业规划部分', 1);
+    const insertDoc = db.prepare(`
+      INSERT INTO documents (student_id, doc_type, doc_name, version, status, review_notes, is_latest)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
-      const insertEssay = db.prepare(`
-        INSERT INTO essays (student_id, essay_title, version, status, deadline, assigned_to, feedback)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertEssay.run(studentId, 'Why CS Essay', 2, 'reviewing', '2024-12-10', '李文案', '技术深度足够，但缺少个人故事');
-      insertEssay.run(studentId, 'Leadership Statement', 1, 'draft', '2024-12-20', '李文案', NULL);
-    }
+    const insertEssay = db.prepare(`
+      INSERT INTO essays (student_id, essay_title, version, status, deadline, assigned_to, feedback)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
-    if (idx === 2) {
-      const insertProgram = db.prepare(`
-        INSERT INTO school_programs (student_id, school_name, program_name, deadline, application_status, priority, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertProgram.run(studentId, '墨尔本大学', '教育学硕士', '2024-11-30', 'deadline_missed', 1, '已错过截止日期，学生沟通不畅');
+    const insertRefund = db.prepare(`
+      INSERT INTO refund_requests (student_id, amount, reason, status, requested_by)
+      VALUES (?, ?, ?, ?, ?)
+    `);
 
-      const insertDoc = db.prepare(`
-        INSERT INTO documents (student_id, doc_type, doc_name, version, status, review_notes, is_latest)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertDoc.run(studentId, 'transcript', '大学成绩单', 1, 'approved', NULL, 1);
-      insertDoc.run(studentId, 'language', '雅思成绩', 1, 'pending', NULL, 1);
-    }
+    const insertVisa = db.prepare(`
+      INSERT INTO visa_process (student_id, visa_type, status, notes)
+      VALUES (?, ?, ?, ?)
+    `);
 
-    if (idx === 3) {
-      const insertRefund = db.prepare(`
-        INSERT INTO refund_requests (student_id, amount, reason, status, requested_by)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      insertRefund.run(studentId, 15000, 'GPA不足，申请难度大，学生要求退款', 'pending', '王主管');
+    const insertLog = db.prepare(`
+      INSERT INTO operation_logs (student_id, operator, action, module, details)
+      VALUES (?, ?, ?, ?, ?)
+    `);
 
-      const insertVisa = db.prepare(`
-        INSERT INTO visa_process (student_id, visa_type, status, notes)
-        VALUES (?, ?, ?, ?)
-      `);
-      insertVisa.run(studentId, '加拿大学签', 'not_started', '退款申请中，暂停签证流程');
-    }
-  });
+    students.forEach((s, idx) => {
+      const result = insertStudent.run(s.name, s.phone, s.email, s.target_country, s.target_major, s.gpa, s.consultant, s.status);
+      const studentId = result.lastInsertRowid;
 
-  const insertLog = db.prepare(`
-    INSERT INTO operation_logs (student_id, operator, action, module, details)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  insertLog.run(1, '李文案', 'update_status', 'document', '推荐信2被标记为需要修改');
-  insertLog.run(2, '王主管', 'create', 'student', '创建学生李华档案');
-  insertLog.run(3, '系统', 'alert', 'deadline', '墨尔本大学申请已过截止日期');
-  insertLog.run(4, '王主管', 'request', 'refund', '提交退款申请');
+      if (idx === 0) {
+        insertProgram.run(studentId, '斯坦福大学', '计算机科学硕士', '2025-01-15', 'submitted', 1, '冲刺校，需要补充科研经历');
+        insertProgram.run(studentId, '加州大学伯克利分校', '计算机科学硕士', '2024-12-20', 'materials_missing', 2, '成绩单未官方认证');
+        insertProgram.run(studentId, '南加州大学', '计算机科学硕士', '2025-02-01', 'pending', 3, '保底校');
+
+        insertDoc.run(studentId, 'transcript', '大学成绩单', 1, 'approved', 'GPA 3.8，排名前5%', 1);
+        insertDoc.run(studentId, 'recommendation', '推荐信1', 1, 'pending', null, 1);
+        insertDoc.run(studentId, 'recommendation', '推荐信2', 1, 'rejected', '推荐人信息不完整', 1);
+        insertDoc.run(studentId, 'personal_statement', '个人陈述', 2, 'reviewing', '需要修改职业规划部分', 1);
+
+        insertEssay.run(studentId, 'Why CS Essay', 2, 'reviewing', '2024-12-10', '李文案', '技术深度足够，但缺少个人故事');
+        insertEssay.run(studentId, 'Leadership Statement', 1, 'draft', '2024-12-20', '李文案', null);
+      }
+
+      if (idx === 2) {
+        insertProgram.run(studentId, '墨尔本大学', '教育学硕士', '2024-11-30', 'deadline_missed', 1, '已错过截止日期，学生沟通不畅');
+
+        insertDoc.run(studentId, 'transcript', '大学成绩单', 1, 'approved', null, 1);
+        insertDoc.run(studentId, 'language', '雅思成绩', 1, 'pending', null, 1);
+      }
+
+      if (idx === 3) {
+        insertRefund.run(studentId, 15000, 'GPA不足，申请难度大，学生要求退款', 'pending', '王主管');
+
+        insertVisa.run(studentId, '加拿大学签', 'not_started', '退款申请中，暂停签证流程');
+      }
+    });
+
+    insertLog.run(1, '李文案', 'update_status', 'document', '推荐信2被标记为需要修改');
+    insertLog.run(2, '王主管', 'create', 'student', '创建学生李华档案');
+    insertLog.run(3, '系统', 'alert', 'deadline', '墨尔本大学申请已过截止日期');
+    insertLog.run(4, '王主管', 'request', 'refund', '提交退款申请');
+
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    console.error('Demo data init error:', error.message);
+  }
 }
 
 function createWindow() {
