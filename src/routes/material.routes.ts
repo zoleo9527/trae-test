@@ -4,6 +4,7 @@ import { MaterialStatus, UserRole } from '@prisma/client';
 import { materialService } from '../services/material.service';
 import { authenticate, requireRoles, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { idempotency } from '../middleware/idempotency';
 import { createObjectCsvWriter } from 'csv-writer';
 
 const router = Router();
@@ -44,6 +45,7 @@ const idParamsSchema = Joi.object({
 router.post(
   '/',
   authenticate,
+  idempotency,
   requireRoles(UserRole.PROJECT_MANAGER, UserRole.SUPERVISOR),
   validate({ body: createBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -163,6 +165,7 @@ router.get(
 router.patch(
   '/:id/status',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR, UserRole.PROJECT_MANAGER),
   validate({ params: idParamsSchema, body: statusBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -187,6 +190,7 @@ router.patch(
 router.patch(
   '/:id/assign',
   authenticate,
+  idempotency,
   requireRoles(UserRole.PROJECT_MANAGER),
   validate({ params: idParamsSchema, body: assignBodySchema }),
   async (req: AuthRequest, res, next) => {

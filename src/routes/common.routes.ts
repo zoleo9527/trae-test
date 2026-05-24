@@ -4,6 +4,7 @@ import { UserRole, EvidenceType } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { authenticate, requireRoles, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { idempotency } from '../middleware/idempotency';
 
 const router = Router();
 
@@ -151,6 +152,7 @@ router.get(
 router.post(
   '/materials/:id/comments',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR, UserRole.PROJECT_MANAGER, UserRole.CUSTOMER_SERVICE),
   validate({ params: idParamsSchema, body: commentBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -198,6 +200,7 @@ router.post(
 router.post(
   '/materials/:id/evidences',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR, UserRole.PROJECT_MANAGER),
   validate({ params: idParamsSchema, body: evidenceBodySchema }),
   async (req: AuthRequest, res, next) => {

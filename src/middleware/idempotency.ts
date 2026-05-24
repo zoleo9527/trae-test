@@ -1,19 +1,19 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from './auth';
 
 export const idempotency = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  if (req.method !== 'POST' && req.method !== 'PUT' && req.method !== 'PATCH') {
-    return next();
-  }
-
   const idempotencyKey = req.headers['x-idempotency-key'] as string;
 
   if (!idempotencyKey) {
     return next();
   }
 
-  const userId = req.user?.id || 'anonymous';
+  if (!req.user) {
+    return next();
+  }
+
+  const userId = req.user.id;
 
   try {
     const existing = await prisma.idempotencyRecord.findUnique({

@@ -240,15 +240,144 @@ async function runTests() {
     }
   }
 
+  console.log('\n📋 9. 验证本次核心修复');
+
+  console.log('\n   9.1 最终验收FAIL不自动打回REJECTED（职责拆分）');
+  if (testData.normalMaterialId) {
+    const beforeMaterial = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
+    const beforeStatus = beforeMaterial.data?.data?.status;
+    const beforeVersion = beforeMaterial.data?.data?.version;
+
+    const failInspection: any = {
+      materialId: testData.normalMaterialId,
+      type: 'FINAL_ACCEPTANCE',
+      result: 'FAIL',
+      status: 'PENDING',
+      rejectionReason: '测试：最终验收失败但不应自动打回'
+    };
+    result = await request('POST', '/api/inspections', failInspection, supervisorId);
+    printResult('创建最终验收FAIL记录', result, 201);
+
+    const afterMaterial = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
+    const afterStatus = afterMaterial.data?.data?.status;
+    const afterVersion = afterMaterial.data?.data?.version;
+
+    const statusUnchanged = beforeStatus === afterStatus;
+    const versionUnchanged = beforeVersion === afterVersion;
+    console.log(`     状态不变验证: ${beforeStatus} → ${afterStatus} (${statusUnchanged ? '✅' : '❌'})`);
+    console.log(`     版本不变验证: v${beforeVersion} → v${afterVersion} (${versionUnchanged ? '✅' : '❌'})`);
+    console.log(`     说明: 最终验收FAIL仅记录，需手动调用/reject才打回`);
+  }
+
+  console.log('\n   9.2 reject接口重复调用不重复递增版本');
+  if (testData.normalMaterialId) {
+    const inspectionList = await request('GET', `/api/inspections/material/${testData.normalMaterialId}`, undefined, supervisorId);
+    const failInspections = (inspectionList.data?.data || []).filter((i: any) => i.result === 'FAIL');
+    if (failInspections.length > 0) {
+      const inspectionId = failInspections[0].id;
+
+      const beforeReject = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
+      const beforeVersion = beforeReject.data?.data?.version;
+      const beforeStatus = beforeReject.data?.data?.status;
+
+      result = await request('POST', `/api/inspections/${inspectionId}/reject`, {
+        rejectionReason: '第一次驳回'
+      }, supervisorId);
+      printResult('第一次驳回验收', result);
+
+      const afterReject1 = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
+      const afterVersion1 = afterReject1.data?.data?.version;
+      const afterStatus1 = afterReject1.data?.data?.status;
+
+      result = await request('POST', `/api/inspections/${inspectionId}/reject`, {
+        rejectionReason: '第二次驳回（测试重复调用）'
+      }, supervisorId);
+      printResult('第二次驳回验收（测试幂等）', result);
+
+      const afterReject2 = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
+      const afterVersion2 = afterReject2.data?.data?.version;
+
+      console.log(`     版本变化: v${beforeVersion} → v${afterVersion1} → v${afterVersion2}`);
+      const correctVersion = (beforeStatus !== 'REJECTED' && afterVersion1 === beforeVersion + 1 && afterVersion2 === afterVersion1);
+      console.log(`     重复驳回不重复递增: ${correctVersion ? '✅' : '❌'}`);
+    }
+  }
+
+  console.log('\n   9.3 补录接口变量名修复验证');
+  if (testData.problemMaterialId) {
+    const inspectionList = await request('GET', `/api/inspections/material/${testData.problemMaterialId}`, undefined, supervisorId);
+    const inspections = inspectionList.data?.data || [];
+    if (inspections.length > 0) {
+      const inspectionId = inspections[0].id;
+
+      result = await request('POST', `/api/inspections/${inspectionId}/supplement`, {
+        supplementNote: '测试补录变量名修复'
+      }, supervisorId);
+      printResult('补录说明（oldValue变量已修复）', result);
+    }
+  }
+
+  console.log('\n   9.4 幂等记录用户维度验证');
+  const idempotencyKey = 'test-key-' + Date.now();
+  const testMaterial = {
+    projectId: testData.projectId,
+    name: '幂等测试材料',
+    category: '测试',
+    brand: 'Test',
+    model: 'T-001',
+    quantity: 1,
+    unit: '个'
+  };
+
+  function requestWithIdempotency(userId: string, key: string) {
+    return new Promise((resolve) => {
+      const options: any = {
+        hostname: BASE_URL,
+        port: PORT,
+        path: '/api/materials',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+          'x-idempotency-key': key
+        }
+      };
+      const req = http.request(options, (res: any) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode, data: JSON.parse(body) });
+          } catch {
+            resolve({ status: res.statusCode, data: body });
+          }
+        });
+      });
+      req.on('error', resolve);
+      req.write(JSON.stringify(testMaterial));
+      req.end();
+    });
+  }
+
+  const r1: any = await requestWithIdempotency(supervisorId, idempotencyKey);
+  console.log(`     监理用key ${idempotencyKey.substring(0, 15)}... 创建: ${r1.status === 201 ? '✅' : '❌'}`);
+
+  const r2: any = await requestWithIdempotency(supervisorId, idempotencyKey);
+  const isCached = r2.status === 200 && r1.data?.data?.id === r2.data?.data?.id;
+  console.log(`     同一用户同key返回缓存: ${isCached ? '✅' : '❌'}`);
+
+  const r3: any = await requestWithIdempotency(managerId, idempotencyKey);
+  const isNewCreate = r3.status === 201;
+  console.log(`     不同用户同key独立创建: ${isNewCreate ? '✅' : '❌'}`);
+  console.log(`     说明: 已消除anonymous作用域，用户维度完全隔离`);
+
   console.log('\n🎉 测试完成!');
-  console.log('\n📊 修复总结:');
-  console.log('  ✅ 验证中间件修复 - Joi分别验证body/query/params，使用next传递错误');
-  console.log('  ✅ 权限边界落实 - 各路由添加requireRoles，角色各司其职');
-  console.log('  ✅ 驳回回流 - 驳回后主材状态→REJECTED，版本+1，变更日志记录');
-  console.log('  ✅ 补录回流 - 补录后主材状态回流到待验收/安装中，版本+1');
-  console.log('  ✅ 状态流转校验 - 非法跳转返回400，附带allowedTransitions');
-  console.log('  ✅ 审计记录 - 所有操作均写入auditLog，可追溯');
-  console.log('  ✅ 证据链闭环 - 验收/主材均可上传证据，支持照片/视频');
+  console.log('\n📊 本次修复总结:');
+  console.log('  ✅ supplement变量修复 - oldValue→oldStatus，避免补录时报错');
+  console.log('  ✅ 验收职责拆分 - 最终验收FAIL仅记录，需手动/reject才打回REJECTED');
+  console.log('  ✅ 防重复递增 - reject接口增加状态前置检查，状态相同不重复增版本');
+  console.log('  ✅ 幂等用户维度 - 移除anonymous，idempotency在authenticate后执行，不串单');
+  console.log('  ✅ 中间件顺序 - 移除全局idempotency，各路由在authenticate后独立引入');
 }
 
 runTests().catch(console.error);

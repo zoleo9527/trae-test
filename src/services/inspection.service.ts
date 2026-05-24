@@ -70,9 +70,6 @@ export const inspectionService = {
         if (data.result === 'PASS') {
           newMaterialStatus = MaterialStatus.ACCEPTED;
           changeReason = '最终验收通过';
-        } else {
-          newMaterialStatus = MaterialStatus.REJECTED;
-          changeReason = '最终验收不通过';
         }
       }
 
@@ -154,24 +151,26 @@ export const inspectionService = {
       const oldStatus = inspection.material.status;
       const newStatus = MaterialStatus.REJECTED;
 
-      await tx.material.update({
-        where: { id: inspection.materialId },
-        data: {
-          status: newStatus,
-          version: { increment: 1 }
-        }
-      });
+      if (oldStatus !== newStatus) {
+        await tx.material.update({
+          where: { id: inspection.materialId },
+          data: {
+            status: newStatus,
+            version: { increment: 1 }
+          }
+        });
 
-      await tx.changeLog.create({
-        data: {
-          materialId: inspection.materialId,
-          fieldName: 'status',
-          oldValue: oldStatus,
-          newValue: newStatus,
-          changedBy: userId,
-          changeReason: `验收驳回: ${rejectionReason}`
-        }
-      });
+        await tx.changeLog.create({
+          data: {
+            materialId: inspection.materialId,
+            fieldName: 'status',
+            oldValue: oldStatus,
+            newValue: newStatus,
+            changedBy: userId,
+            changeReason: `验收驳回: ${rejectionReason}`
+          }
+        });
+      }
 
       return insp;
     });
@@ -241,7 +240,7 @@ export const inspectionService = {
           data: {
             materialId: inspection.materialId,
             fieldName: 'status',
-            oldValue,
+            oldValue: oldStatus,
             newValue: newStatus,
             changedBy: userId,
             changeReason: `${changeReason} - ${data.supplementNote}`

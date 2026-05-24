@@ -4,6 +4,7 @@ import { InspectionType, EvidenceType, UserRole } from '@prisma/client';
 import { inspectionService } from '../services/inspection.service';
 import { authenticate, requireRoles, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { idempotency } from '../middleware/idempotency';
 
 const router = Router();
 
@@ -49,6 +50,7 @@ const materialIdParamsSchema = Joi.object({
 router.post(
   '/',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR),
   validate({ body: createBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -85,6 +87,7 @@ router.get(
 router.post(
   '/:id/reject',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR),
   validate({ params: idParamsSchema, body: rejectBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -109,6 +112,7 @@ router.post(
 router.post(
   '/:id/supplement',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR, UserRole.PROJECT_MANAGER),
   validate({ params: idParamsSchema, body: supplementBodySchema }),
   async (req: AuthRequest, res, next) => {
@@ -133,6 +137,7 @@ router.post(
 router.post(
   '/:id/comments',
   authenticate,
+  idempotency,
   requireRoles(UserRole.SUPERVISOR, UserRole.PROJECT_MANAGER, UserRole.CUSTOMER_SERVICE),
   validate({ params: idParamsSchema, body: commentBodySchema }),
   async (req: AuthRequest, res, next) => {

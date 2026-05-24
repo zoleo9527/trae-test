@@ -1,7 +1,6 @@
 import express from 'express';
 import { requestLogger } from './middleware/logger';
 import { errorHandler } from './middleware/errorHandler';
-import { idempotency } from './middleware/idempotency';
 import materialRoutes from './routes/material.routes';
 import inspectionRoutes from './routes/inspection.routes';
 import commonRoutes from './routes/common.routes';
@@ -12,7 +11,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(requestLogger);
-app.use(idempotency);
 
 app.get('/health', (req, res) => {
   res.json({
