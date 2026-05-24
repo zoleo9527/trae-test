@@ -54,8 +54,20 @@ export const api = {
       body: formData
     });
   },
-  getSupplements: () => request('/supplements'),
+  getSupplements: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/supplements${query ? `?${query}` : ''}`);
+  },
   getRefunds: () => request('/refunds'),
+  getRefundById: (id) => request(`/refunds/${id}`),
+  addRefundMessage: (refundId, content) => request(`/refunds/${refundId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content })
+  }),
   getNotifications: () => request('/notifications'),
+  getReportStats: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/reports/stats${query ? `?${query}` : ''}`);
+  },
   getHealth: () => request('/health')
 };

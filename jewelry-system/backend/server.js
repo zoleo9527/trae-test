@@ -294,18 +294,60 @@ const visaCases = [
 const refundCases = [
   {
     id: 'R2024001',
-    caseId: 'V2024007',
-    studentName: '周小明',
+    caseId: 'V2024003',
+    studentName: '陈雨萱',
     amount: 15000,
     reason: '签证被拒，申请退款',
     status: 'reviewing',
     statusText: '审核中',
     requestedDate: '2024-01-20',
     deadline: '2024-02-03',
+    case: {
+      id: 'V2024003',
+      studentName: '陈雨萱',
+      country: '澳大利亚',
+      visaType: '500学生签',
+      university: '墨尔本大学',
+      status: 'rejected',
+      statusText: '已驳回',
+      consultant: '王顾问'
+    },
     documents: [
       { id: 'D001', name: '拒签信.pdf', uploaded: true },
       { id: 'D002', name: '退款申请.pdf', uploaded: true },
       { id: 'D003', name: '合同复印件.pdf', uploaded: false }
+    ],
+    messages: [
+      { id: 1, author: '系统', content: '退款申请已提交，等待材料审核', time: '2024-01-20 10:30' },
+      { id: 2, author: '王顾问', content: '已收到拒签信，正在审核材料', time: '2024-01-21 09:15' }
+    ]
+  },
+  {
+    id: 'R2024002',
+    caseId: 'V2024006',
+    studentName: '孙浩然',
+    amount: 8000,
+    reason: '文书进度滞后，学生要求退款',
+    status: 'pending',
+    statusText: '待处理',
+    requestedDate: '2024-01-22',
+    deadline: '2024-02-05',
+    case: {
+      id: 'V2024006',
+      studentName: '孙浩然',
+      country: '德国',
+      visaType: '学生签证',
+      university: '慕尼黑工业大学',
+      status: 'overdue',
+      statusText: '已逾期',
+      consultant: '陈顾问'
+    },
+    documents: [
+      { id: 'D001', name: '退款申请.pdf', uploaded: true },
+      { id: 'D002', name: '合同复印件.pdf', uploaded: true }
+    ],
+    messages: [
+      { id: 1, author: '系统', content: '退款申请已提交', time: '2024-01-22 14:00' }
     ]
   }
 ];
@@ -627,6 +669,117 @@ app.get('/api/notifications', (req, res) => {
     success: true,
     data: notifications,
     total: notifications.length
+  });
+});
+
+app.get('/api/reports/stats', (req, res) => {
+  const { dateRange = 'this_month' } = req.query;
+  
+  const totalCases = visaCases.length;
+  const approvedCases = visaCases.filter(c => c.status === 'approved').length;
+  const rejectedCases = visaCases.filter(c => c.status === 'rejected').length;
+  const pendingCases = visaCases.filter(c => 
+    ['processing', 'under_review', 'pending_supplement', 'in_progress'].includes(c.status)
+  ).length;
+  const overdueCases = visaCases.filter(c => c.status === 'overdue').length;
+  const approvalRate = Math.round((approvedCases / totalCases) * 100);
+
+  const countryMap = {};
+  visaCases.forEach(c => {
+    countryMap[c.country] = (countryMap[c.country] || 0) + 1;
+  });
+  
+  const countryStats = Object.entries(countryMap).map(([country, count]) => ({
+    country,
+    count,
+    percentage: Math.round((count / totalCases) * 100)
+  })).sort((a, b) => b.count - a.count);
+
+  const avgProcessDays = 5.2;
+  const avgSupplementDays = 3.8;
+
+  const stats = [
+    { label: '总案件数', value: totalCases, change: '+12%', trend: 'up' },
+    { label: '已完成', value: approvedCases, change: '+8%', trend: 'up' },
+    { label: '进行中', value: pendingCases, change: '-3%', trend: 'down' },
+    { label: '已驳回', value: rejectedCases, change: '+2%', trend: 'up' }
+  ];
+
+  res.json({
+    success: true,
+    data: {
+      dateRange,
+      stats,
+      totalCases,
+      approvedCases,
+      rejectedCases,
+      pendingCases,
+      overdueCases,
+      approvalRate,
+      countryStats,
+      avgProcessDays,
+      avgSupplementDays
+    }
+  });
+});
+
+app.get('/api/refunds/:id', (req, res) => {
+  const refund = refundCases.find(r => r.id === req.params.id);
+  
+  if (!refund) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该退款申请'
+    });
+  }
+
+  const relatedCase = visaCases.find(c => c.id === refund.caseId);
+
+  res.json({
+    success: true,
+    data: {
+      ...refund,
+      case: relatedCase || null
+    }
+  });
+});
+
+app.post('/api/refunds/:id/messages', (req, res) => {
+  const { content } = req.body;
+  
+  if (!content || !content.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: '消息内容不能为空'
+    });
+  }
+
+  const refund = refundCases.find(r => r.id === req.params.id);
+  
+  if (!refund) {
+    return res.status(404).json({
+      success: false,
+      message: '未找到该退款申请'
+    });
+  }
+
+  const newMessage = {
+    id: Date.now(),
+    author: '当前用户',
+    content: content.trim(),
+    time: new Date().toISOString().replace('T', ' ').slice(0, 16)
+  };
+
+  if (!refund.messages) {
+    refund.messages = [];
+  }
+  
+  refund.messages.push(newMessage);
+
+  res.json({
+    success: true,
+    message: '消息发送成功',
+    data: newMessage
   });
 });
 

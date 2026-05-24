@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Upload,
   Check,
@@ -10,16 +10,23 @@ import {
   Send,
   Filter,
   ChevronDown,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
-import { visaCases } from '../data/mockData';
+import { api } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
+import { LoadingState } from '../components/common/LoadingState';
 
 export default function Supplements() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [supplements, setSupplements] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const filterOptions = [
     { value: 'all', label: '全部状态' },
@@ -29,26 +36,34 @@ export default function Supplements() {
     { value: 'rejected', label: '已驳回' }
   ];
 
-  const allSupplements = visaCases.flatMap(c => 
-    c.supplements.map(s => ({
-      ...s,
-      caseId: c.id,
-      studentName: c.studentName,
-      country: c.country,
-      deadline: c.deadline
-    }))
-  ).filter(s => {
-    const matchesSearch = s.studentName.includes(searchTerm) || 
-                          s.name.includes(searchTerm);
+  const loadSupplements = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getSupplements();
+      setSupplements(res.data || []);
+    } catch (err) {
+      toast.error(`加载补件数据失败: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSupplements();
+  }, []);
+
+  const filteredSupplements = supplements.filter(s => {
+    const matchesSearch = s.studentName?.includes(searchTerm) || 
+                          s.name?.includes(searchTerm);
     const matchesFilter = filterStatus === 'all' || s.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
   const stats = {
-    total: allSupplements.length,
-    required: allSupplements.filter(s => s.status === 'required').length,
-    underReview: allSupplements.filter(s => s.status === 'under_review').length,
-    approved: allSupplements.filter(s => s.status === 'approved').length
+    total: supplements.length,
+    required: supplements.filter(s => s.status === 'required').length,
+    underReview: supplements.filter(s => s.status === 'under_review').length,
+    approved: supplements.filter(s => s.status === 'approved').length
   };
 
   const getStatusIcon = (status) => {
@@ -66,8 +81,28 @@ export default function Supplements() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-6">
+        <LoadingState text="正在加载补件数据..." />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">补件回查</h2>
+        <button 
+          onClick={loadSupplements}
+          className="btn-secondary flex items-center gap-2"
+          disabled={loading}
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          刷新
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="card p-4">
           <p className="text-sm text-gray-500 mb-1">补件总数</p>
@@ -131,7 +166,7 @@ export default function Supplements() {
       </div>
 
       <div className="card overflow-hidden">
-        {allSupplements.length === 0 ? (
+        {filteredSupplements.length === 0 ? (
           <EmptyState
             icon="noData"
             title="暂无补件记录"
@@ -139,8 +174,8 @@ export default function Supplements() {
           />
         ) : (
           <div className="divide-y divide-gray-100">
-            {allSupplements.map((supplement) => (
-              <div key={supplement.id} className="p-4 hover:bg-gray-50 transition-colors">
+            {filteredSupplements.map((supplement) => (
+              <div key={`${supplement.caseId}-${supplement.id}`} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     {getStatusIcon(supplement.status)}
@@ -176,6 +211,7 @@ export default function Supplements() {
                                 <p className="text-sm font-medium text-gray-700">{upload.name}</p>
                                 <p className="text-xs text-gray-400">
                                   v{upload.version} · {upload.uploader} · {upload.uploadDate}
+                                  {upload.size && ` · ${upload.size}`}
                                 </p>
                               </div>
                             </div>
@@ -199,7 +235,10 @@ export default function Supplements() {
                   <div className="flex flex-col gap-2">
                     {supplement.status === 'required' || supplement.status === 'rejected' ? (
                       <>
-                        <button className="btn-primary flex items-center gap-2 text-sm">
+                        <button 
+                          onClick={() => navigate(`/cases/${supplement.caseId}`)}
+                          className="btn-primary flex items-center gap-2 text-sm"
+                        >
                           <Upload className="w-4 h-4" />
                           上传
                         </button>
@@ -209,12 +248,18 @@ export default function Supplements() {
                         </button>
                       </>
                     ) : supplement.status === 'under_review' ? (
-                      <button className="btn-secondary flex items-center gap-2 text-sm">
+                      <button 
+                        onClick={() => navigate(`/cases/${supplement.caseId}`)}
+                        className="btn-secondary flex items-center gap-2 text-sm"
+                      >
                         <Eye className="w-4 h-4" />
                         查看
                       </button>
                     ) : (
-                      <button className="btn-secondary flex items-center gap-2 text-sm">
+                      <button 
+                        onClick={() => navigate(`/cases/${supplement.caseId}`)}
+                        className="btn-secondary flex items-center gap-2 text-sm"
+                      >
                         <Download className="w-4 h-4" />
                         下载
                       </button>
