@@ -5,13 +5,16 @@ import {
   WorkOrder,
   WorkOrderStatus,
   WorkOrderItem,
+  ItemHandoverStatus,
   StatusHistory,
   User,
   Member,
   AuditModule,
+  FollowUpType,
 } from '../../database/entities';
 import { WorkOrderStateMachine } from '../../common/state-machine';
 import { AuditService } from '../../common/audit';
+import { FollowUpService } from '../follow-up/follow-up.service';
 
 export interface CreateWorkOrderDto {
   type: string;
@@ -49,6 +52,13 @@ export interface ChangeStatusDto {
   reason?: string;
 }
 
+export interface HandoverItemDto {
+  itemId: string;
+  conditionAfter?: string;
+  imageUrlsAfter?: string;
+  handoverRemark?: string;
+}
+
 @Injectable()
 export class WorkOrderService {
   constructor(
@@ -62,6 +72,7 @@ export class WorkOrderService {
     private memberRepository: Repository<Member>,
     private stateMachine: WorkOrderStateMachine,
     private auditService: AuditService,
+    private followUpService: FollowUpService,
     private dataSource: DataSource,
   ) {}
 
@@ -256,7 +267,130 @@ export class WorkOrderService {
       operator,
     );
 
+    if (dto.status === WorkOrderStatus.COMPLETED) {
+      try {
+        await this.autoCreateFollowUp(id, operator);
+      } catch (error) {
+        console.error('自动创建回访任务失败:', error);
+      }
+    }
+
     return this.findOne(id);
+  }
+
+  async autoCreateFollowUp(workOrderId: string, operator: User): Promise<void> {
+    const workOrder = await this.findOne(workOrderId);
+    
+    const plannedAt = new Date();
+    plannedAt.setDate(plannedAt.getDate() + 3);
+
+    await this.followUpService.create(
+      {
+        memberId: workOrder.memberId,
+        workOrderId: workOrder.id,
+        type: FollowUpType.REPAIR_COMPLETED,
+        channel: 'phone',
+        followUpContent: '售后工单完成回访，了解客户满意度和货品使用情况',
+        plannedAt,
+      },
+      operator,
+    );
+  }
+
+  async receiveItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
+    const item = await this.workOrderItemRepository.findOne({
+      where: { id: itemId, isDeleted: false },
+    });
+
+    if (!item) {
+      throw new NotFoundException('工单物品不存在');
+    }
+
+    if (item.handoverStatus !== ItemHandoverStatus.PENDING) {
+      throw new BadRequestException('该物品已接收，无法重复接收');
+    }
+
+    const oldValues = { ...item };
+
+    item.handoverStatus = ItemHandoverStatus.RECEIVED;
+    item.receivedAt = new Date();
+    item.receivedBy = operator.id;
+    item.conditionAfter = dto.conditionAfter;
+    item.imageUrlsAfter = dto.imageUrlsAfter;
+    item.handoverRemark = dto.handoverRemark;
+    item.updatedBy = operator.id;
+
+    const updated = await this.workOrderItemRepository.save(item);
+
+    await this.auditService.logHandover(
+      AuditModule.WORK_ORDER,
+      item.workOrderId,
+      'receive',
+      `接收物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`,
+      operator,
+    );
+
+    await this.auditService.logUpdate(
+      AuditModule.WORK_ORDER,
+      item.workOrderId,
+      { item: oldValues },
+      { item: updated },
+      operator,
+    );
+
+    return updated;
+  }
+
+  async returnItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
+    const item = await this.workOrderItemRepository.findOne({
+      where: { id: itemId, isDeleted: false },
+    });
+
+    if (!item) {
+      throw new NotFoundException('工单物品不存在');
+    }
+
+    if (item.handoverStatus === ItemHandoverStatus.PENDING) {
+      throw new BadRequestException('该物品尚未接收，无法返还');
+    }
+
+    if (item.handoverStatus === ItemHandoverStatus.RETURNED || item.handoverStatus === ItemHandoverStatus.SHIPPED) {
+      throw new BadRequestException('该物品已返还/发货');
+    }
+
+    const oldValues = { ...item };
+
+    item.handoverStatus = ItemHandoverStatus.RETURNED;
+    item.returnedAt = new Date();
+    item.returnedBy = operator.id;
+    item.conditionAfter = dto.conditionAfter || item.conditionAfter;
+    item.imageUrlsAfter = dto.imageUrlsAfter || item.imageUrlsAfter;
+    item.handoverRemark = dto.handoverRemark || item.handoverRemark;
+    item.updatedBy = operator.id;
+
+    const updated = await this.workOrderItemRepository.save(item);
+
+    await this.auditService.logHandover(
+      AuditModule.WORK_ORDER,
+      item.workOrderId,
+      'return',
+      `返还物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`,
+      operator,
+    );
+
+    await this.auditService.logUpdate(
+      AuditModule.WORK_ORDER,
+      item.workOrderId,
+      { item: oldValues },
+      { item: updated },
+      operator,
+    );
+
+    return updated;
+  }
+
+  async getAuditLogs(workOrderId: string): Promise<any[]> {
+    return this.auditService.getLogsByRecord(AuditModule.WORK_ORDER, workOrderId);
   }
 
   async getDashboardStats(): Promise<any> {

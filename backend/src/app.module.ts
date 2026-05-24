@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { WorkOrderModule } from './modules/work-order/work-order.module';
 import { FollowUpModule } from './modules/follow-up/follow-up.module';
 import { MemberModule } from './modules/member/member.module';
+import { RepairModule } from './modules/repair/repair.module';
 import { RolesGuard } from './common/auth';
 
 @Module({
@@ -28,6 +29,7 @@ import { RolesGuard } from './common/auth';
     WorkOrderModule,
     FollowUpModule,
     MemberModule,
+    RepairModule,
   ],
   providers: [
     {

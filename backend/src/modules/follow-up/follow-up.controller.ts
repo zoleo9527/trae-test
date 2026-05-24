@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowUpService, CreateFollowUpDto, CompleteFollowUpDto } from './follow-up.service';
-import { CurrentUser } from '../../common/auth';
-import { User, FollowUpStatus, FollowUpType } from '../../database/entities';
+import { CurrentUser, Roles } from '../../common/auth';
+import { User, UserRole, FollowUpStatus, FollowUpType } from '../../database/entities';
 
 @Controller('follow-ups')
 @UseGuards(AuthGuard('jwt'))
@@ -53,6 +53,7 @@ export class FollowUpController {
   }
 
   @Put(':id/complete')
+  @Roles(UserRole.CUSTOMER_SERVICE, UserRole.MANAGER, UserRole.ADMIN)
   complete(
     @Param('id') id: string,
     @Body() dto: CompleteFollowUpDto,

@@ -45,6 +45,24 @@ export const workOrderAPI = {
   changeStatus: (id: string, status: string, reason?: string) =>
     api.put(`/work-orders/${id}/status`, { status, reason }),
   getHistories: (id: string) => api.get(`/work-orders/${id}/histories`),
+  getAuditLogs: (id: string) => api.get(`/work-orders/${id}/audit-logs`),
+  receiveItem: (workOrderId: string, itemId: string, data: any) =>
+    api.put(`/work-orders/${workOrderId}/items/${itemId}/receive`, data),
+  returnItem: (workOrderId: string, itemId: string, data: any) =>
+    api.put(`/work-orders/${workOrderId}/items/${itemId}/return`, data),
+};
+
+export const repairAPI = {
+  getList: (params?: any) => api.get('/repairs', { params }),
+  getByWorkOrderId: (workOrderId: string) => api.get(`/repairs/work-order/${workOrderId}`),
+  getById: (id: string) => api.get(`/repairs/${id}`),
+  create: (data: any) => api.post('/repairs', data),
+  update: (id: string, data: any) => api.put(`/repairs/${id}`, data),
+  changeStatus: (id: string, status: string, reason?: string) =>
+    api.put(`/repairs/${id}/status`, { status, reason }),
+  getTransitions: (id: string) => api.get(`/repairs/${id}/transitions`),
+  addStep: (repairId: string, data: any) => api.post(`/repairs/${repairId}/steps`, data),
+  updateStep: (stepId: string, data: any) => api.put(`/repairs/steps/${stepId}`, data),
 };
 
 export const followUpAPI = {

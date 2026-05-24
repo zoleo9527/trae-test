@@ -10,7 +10,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { WorkOrderService, CreateWorkOrderDto, UpdateWorkOrderDto, ChangeStatusDto } from './work-order.service';
+import { WorkOrderService, CreateWorkOrderDto, UpdateWorkOrderDto, ChangeStatusDto, HandoverItemDto } from './work-order.service';
 import { CurrentUser, Roles } from '../../common/auth';
 import { User, UserRole, WorkOrder, WorkOrderStatus } from '../../database/entities';
 
@@ -74,5 +74,32 @@ export class WorkOrderController {
   @Get(':id/histories')
   getStatusHistories(@Param('id') id: string) {
     return this.workOrderService.getStatusHistories(id);
+  }
+
+  @Get(':id/audit-logs')
+  getAuditLogs(@Param('id') id: string) {
+    return this.workOrderService.getAuditLogs(id);
+  }
+
+  @Put(':id/items/:itemId/receive')
+  @Roles(UserRole.WORKSHOP, UserRole.MANAGER, UserRole.ADMIN)
+  receiveItem(
+    @Param('id') workOrderId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: HandoverItemDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.workOrderService.receiveItem(itemId, dto, user);
+  }
+
+  @Put(':id/items/:itemId/return')
+  @Roles(UserRole.SALES, UserRole.MANAGER, UserRole.ADMIN)
+  returnItem(
+    @Param('id') workOrderId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: HandoverItemDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.workOrderService.returnItem(itemId, dto, user);
   }
 }
