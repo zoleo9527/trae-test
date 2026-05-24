@@ -346,6 +346,55 @@ const WorkOrderDetail: React.FC = () => {
     return ['workshop', 'manager', 'admin'].includes(user.role);
   };
 
+  const getStepStatusOptions = (currentStatus: string) => {
+    const validTransitions: Record<string, Array<{ value: string; label: string; color: string }>> = {
+      pending: [
+        { value: 'in_progress', label: '进行中', color: 'processing' },
+        { value: 'skipped', label: '已跳过', color: 'default' },
+      ],
+      in_progress: [
+        { value: 'pending', label: '待开始', color: 'default' },
+        { value: 'completed', label: '已完成', color: 'success' },
+        { value: 'skipped', label: '已跳过', color: 'default' },
+      ],
+      completed: [
+        { value: 'pending', label: '待开始', color: 'default' },
+        { value: 'in_progress', label: '进行中', color: 'processing' },
+      ],
+      skipped: [
+        { value: 'pending', label: '待开始', color: 'default' },
+        { value: 'in_progress', label: '进行中', color: 'processing' },
+      ],
+    };
+    return validTransitions[currentStatus] || [];
+  };
+
+  const getStepStatusDisplay = (status: string) => {
+    const statusMap: Record<string, { text: string; color: string; icon: React.ReactNode }> = {
+      pending: {
+        text: '待开始',
+        color: 'default',
+        icon: <ClockCircleOutlined style={{ color: '#d9d9d9' }} />,
+      },
+      in_progress: {
+        text: '进行中',
+        color: 'processing',
+        icon: <ClockCircleOutlined style={{ color: '#1890ff' }} />,
+      },
+      completed: {
+        text: '已完成',
+        color: 'success',
+        icon: <CheckOutlined style={{ color: '#52c41a' }} />,
+      },
+      skipped: {
+        text: '已跳过',
+        color: 'default',
+        icon: <CloseOutlined style={{ color: '#999' }} />,
+      },
+    };
+    return statusMap[status] || statusMap.pending;
+  };
+
   const itemColumns = [
     { title: '物品名称', dataIndex: 'itemName', key: 'itemName' },
     { title: '规格描述', dataIndex: 'itemSpec', key: 'itemSpec' },
@@ -554,45 +603,46 @@ const WorkOrderDetail: React.FC = () => {
                   size="small"
                   dataSource={repair.steps || []}
                   locale={{ emptyText: '暂无步骤' }}
-                  renderItem={(step: any) => (
-                    <List.Item
-                      actions={canManageRepairSteps() && repair.status !== 'completed' && repair.status !== 'cancelled' ? [
-                        <Button type="link" size="small" onClick={() => openStepStatusModal(step)}>
-                          更新状态
-                        </Button>
-                      ] : []}
-                    >
-                      <List.Item.Meta
-                        avatar={
-                          step.status === 'completed' ? <CheckOutlined style={{ color: '#52c41a' }} /> :
-                          step.status === 'in_progress' ? <ClockCircleOutlined style={{ color: '#1890ff' }} /> :
-                          <ClockCircleOutlined style={{ color: '#d9d9d9' }} />
-                        }
-                        title={
-                          <Space>
-                            <span>{step.stepOrder}. {step.stepName}</span>
-                            <Tag color={
-                              step.status === 'completed' ? 'success' :
-                              step.status === 'in_progress' ? 'processing' : 'default'
-                            } style={{ fontSize: 12 }}>
-                              {step.status === 'completed' ? '已完成' : step.status === 'in_progress' ? '进行中' : '待开始'}
-                            </Tag>
-                          </Space>
-                        }
-                        description={
-                          <div>
-                            {step.stepDescription && <div>{step.stepDescription}</div>}
-                            {step.operatorNote && <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>备注: {step.operatorNote}</div>}
-                            {step.completedAt && step.operator && (
-                              <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
-                                {step.operator.realName} 于 {dayjs(step.completedAt).format('YYYY-MM-DD HH:mm')} 完成
-                              </div>
-                            )}
-                          </div>
-                        }
-                      />
-                    </List.Item>
-                  )}
+                  renderItem={(step: any) => {
+                    const statusDisplay = getStepStatusDisplay(step.status);
+                    return (
+                      <List.Item
+                        actions={canManageRepairSteps() && repair.status !== 'completed' && repair.status !== 'cancelled' ? [
+                          <Button type="link" size="small" onClick={() => openStepStatusModal(step)}>
+                            更新状态
+                          </Button>
+                        ] : []}
+                      >
+                        <List.Item.Meta
+                          avatar={statusDisplay.icon}
+                          title={
+                            <Space>
+                              <span>{step.stepOrder}. {step.stepName}</span>
+                              <Tag color={statusDisplay.color} style={{ fontSize: 12 }}>
+                                {statusDisplay.text}
+                              </Tag>
+                            </Space>
+                          }
+                          description={
+                            <div>
+                              {step.stepDescription && <div>{step.stepDescription}</div>}
+                              {step.operatorNote && <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>备注: {step.operatorNote}</div>}
+                              {step.status === 'completed' && step.completedAt && step.operator && (
+                                <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                                  {step.operator.realName} 于 {dayjs(step.completedAt).format('YYYY-MM-DD HH:mm')} 完成
+                                </div>
+                              )}
+                              {step.status === 'in_progress' && step.startedAt && (
+                                <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                                  开始时间: {dayjs(step.startedAt).format('YYYY-MM-DD HH:mm')}
+                                </div>
+                              )}
+                            </div>
+                          }
+                        />
+                      </List.Item>
+                    );
+                  }}
                 />
               </div>
             ))}
@@ -911,7 +961,10 @@ const WorkOrderDetail: React.FC = () => {
         onOk={() => stepStatusForm.submit()}
       >
         <div style={{ marginBottom: 16 }}>
-          <strong>步骤:</strong> {selectedStep?.stepName}
+          <div><strong>步骤:</strong> {selectedStep?.stepName}</div>
+          <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>
+            当前状态: {selectedStep ? getStepStatusDisplay(selectedStep.status).text : ''}
+          </div>
         </div>
         <Form form={stepStatusForm} layout="vertical" onFinish={handleStepStatusChange}>
           <Form.Item
@@ -920,9 +973,11 @@ const WorkOrderDetail: React.FC = () => {
             rules={[{ required: true, message: '请选择目标状态' }]}
           >
             <Select placeholder="请选择">
-              <Option value="pending">待开始</Option>
-              <Option value="in_progress">进行中</Option>
-              <Option value="completed">已完成</Option>
+              {selectedStep && getStepStatusOptions(selectedStep.status).map((opt) => (
+                <Option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item label="操作备注" name="operatorNote">
