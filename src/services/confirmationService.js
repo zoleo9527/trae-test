@@ -13,6 +13,42 @@ function getNextVersion(type, refId) {
   return result.next_version;
 }
 
+function getProjectIdByRef(type, refId) {
+  if (type === 'complaint') {
+    const result = db.prepare('SELECT project_id FROM complaints WHERE id = ?').get(refId);
+    return result?.project_id;
+  } else if (type === 'milestone') {
+    const result = db.prepare('SELECT project_id FROM milestones WHERE id = ?').get(refId);
+    return result?.project_id;
+  } else if (type === 'cost' || type === 'change') {
+    return refId;
+  }
+  return null;
+}
+
+export function canAccessConfirmationRef(type, refId, user) {
+  if (!type || !refId) return false;
+  if (user.role === 'admin' || user.role === 'service') return true;
+
+  const projectId = getProjectIdByRef(type, refId);
+  if (!projectId) return false;
+
+  const project = db.prepare(
+    'SELECT supervisor_id, manager_id FROM projects WHERE id = ?'
+  ).get(projectId);
+
+  if (!project) return false;
+
+  if (user.role === 'supervisor' && project.supervisor_id === user.id) {
+    return true;
+  }
+  if (user.role === 'manager' && project.manager_id === user.id) {
+    return true;
+  }
+
+  return false;
+}
+
 export function createConfirmation(data, creatorId, req = null) {
   const id = uuidv4();
 
@@ -124,6 +160,24 @@ export function getConfirmationList(params = {}, user = null) {
   `;
   const values = [];
 
+  if (user && user.role !== 'admin' && user.role !== 'service') {
+    if (user.role === 'supervisor') {
+      sql += ` AND (
+        (c.type = 'complaint' AND EXISTS (SELECT 1 FROM complaints k LEFT JOIN projects p ON k.project_id = p.id WHERE k.id = c.ref_id AND p.supervisor_id = ?))
+        OR (c.type = 'milestone' AND EXISTS (SELECT 1 FROM milestones m LEFT JOIN projects p ON m.project_id = p.id WHERE m.id = c.ref_id AND p.supervisor_id = ?))
+        OR (c.type IN ('cost', 'change') AND EXISTS (SELECT 1 FROM projects p WHERE p.id = c.ref_id AND p.supervisor_id = ?))
+      )`;
+      values.push(user.id, user.id, user.id);
+    } else if (user.role === 'manager') {
+      sql += ` AND (
+        (c.type = 'complaint' AND EXISTS (SELECT 1 FROM complaints k LEFT JOIN projects p ON k.project_id = p.id WHERE k.id = c.ref_id AND p.manager_id = ?))
+        OR (c.type = 'milestone' AND EXISTS (SELECT 1 FROM milestones m LEFT JOIN projects p ON m.project_id = p.id WHERE m.id = c.ref_id AND p.manager_id = ?))
+        OR (c.type IN ('cost', 'change') AND EXISTS (SELECT 1 FROM projects p WHERE p.id = c.ref_id AND p.manager_id = ?))
+      )`;
+      values.push(user.id, user.id, user.id);
+    }
+  }
+
   if (params.type) {
     sql += ' AND c.type = ?';
     values.push(params.type);
@@ -219,5 +273,6 @@ export default {
   getConfirmationList,
   confirm,
   reject,
-  getVersionHistory
+  getVersionHistory,
+  canAccessConfirmationRef
 };

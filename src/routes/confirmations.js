@@ -24,6 +24,9 @@ router.post('/',
     }
 
     try {
+      if (!confirmationService.canAccessConfirmationRef(req.body.type, req.body.ref_id, req.user)) {
+        return res.status(403).json({ error: '无权为此关联对象创建签认单' });
+      }
       const confirmation = confirmationService.createConfirmation(req.body, req.user.id, req);
       res.json({ data: confirmation });
     } catch (err) {

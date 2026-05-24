@@ -37,15 +37,18 @@ function upsertComplaintReminder(complaint, creatorId, req = null) {
     WHERE complaint_id = ? AND type = 'deadline'
   `).get(complaint.id);
 
+  const content = `客诉【${complaint.complaint_no}】将于 ${complaint.due_date} 到期，责任人：${complaint.handler_name}。\n当前状态：${complaint.status}`;
+
   if (existing) {
     db.prepare(`
       UPDATE reminders 
-      SET remind_at = ?, title = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+      SET remind_at = ?, title = ?, content = ?, recipient_id = ?
       WHERE id = ?
     `).run(
       remindAt.toISOString(),
       `客诉到期提醒：${complaint.title}`,
-      `客诉【${complaint.complaint_no}】将于 ${complaint.due_date} 到期，请及时处理。\n当前状态：${complaint.status}`,
+      content,
+      complaint.handler_id,
       existing.id
     );
     return reminderService.getReminderById(existing.id);
@@ -54,7 +57,7 @@ function upsertComplaintReminder(complaint, creatorId, req = null) {
       complaint_id: complaint.id,
       type: 'deadline',
       title: `客诉到期提醒：${complaint.title}`,
-      content: `客诉【${complaint.complaint_no}】将于 ${complaint.due_date} 到期，请及时处理。\n当前状态：${complaint.status}`,
+      content,
       remind_at: remindAt.toISOString(),
       recipient_id: complaint.handler_id
     }, creatorId, req);
