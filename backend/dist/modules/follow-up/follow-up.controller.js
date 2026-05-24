@@ -84,7 +84,7 @@ __decorate([
 ], FollowUpController.prototype, "complete", null);
 exports.FollowUpController = FollowUpController = __decorate([
     (0, common_1.Controller)('follow-ups'),
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), auth_1.RolesGuard),
     __metadata("design:paramtypes", [follow_up_service_1.FollowUpService])
 ], FollowUpController);
 //# sourceMappingURL=follow-up.controller.js.map

@@ -15,6 +15,7 @@ import {
 import { PhoneOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { followUpAPI, memberAPI } from '../services/api';
 import dayjs from 'dayjs';
+import { useAuth } from '../contexts/AuthContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -33,6 +34,7 @@ interface FollowUp {
 }
 
 const FollowUpList: React.FC = () => {
+  const { user } = useAuth();
   const [data, setData] = useState<FollowUp[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -42,6 +44,11 @@ const FollowUpList: React.FC = () => {
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [currentFollowUp, setCurrentFollowUp] = useState<FollowUp | null>(null);
   const [form] = Form.useForm();
+
+  const canCompleteFollowUp = () => {
+    if (!user) return false;
+    return ['customer_service', 'manager', 'admin'].includes(user.role);
+  };
 
   useEffect(() => {
     loadData();
@@ -190,7 +197,7 @@ const FollowUpList: React.FC = () => {
       key: 'action',
       render: (_: any, record: FollowUp) => (
         <Space>
-          {record.status === 'pending' && (
+          {record.status === 'pending' && canCompleteFollowUp() && (
             <Button
               type="primary"
               size="small"

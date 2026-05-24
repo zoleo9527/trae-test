@@ -69,8 +69,8 @@ export declare class WorkOrderService {
     update(id: string, dto: UpdateWorkOrderDto, operator: User): Promise<WorkOrder>;
     changeStatus(id: string, dto: ChangeStatusDto, operator: User): Promise<WorkOrder>;
     autoCreateFollowUp(workOrderId: string, operator: User): Promise<void>;
-    receiveItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem>;
-    returnItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem>;
+    receiveItem(workOrderId: string, itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem>;
+    returnItem(workOrderId: string, itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem>;
     getAuditLogs(workOrderId: string): Promise<any[]>;
     getDashboardStats(): Promise<any>;
     getStatusHistories(workOrderId: string): Promise<StatusHistory[]>;

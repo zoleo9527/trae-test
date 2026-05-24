@@ -184,12 +184,15 @@ let WorkOrderService = class WorkOrderService {
             plannedAt,
         }, operator);
     }
-    async receiveItem(itemId, dto, operator) {
+    async receiveItem(workOrderId, itemId, dto, operator) {
         const item = await this.workOrderItemRepository.findOne({
             where: { id: itemId, isDeleted: false },
         });
         if (!item) {
             throw new common_1.NotFoundException('工单物品不存在');
+        }
+        if (item.workOrderId !== workOrderId) {
+            throw new common_1.BadRequestException('该物品不属于当前工单');
         }
         if (item.handoverStatus !== entities_1.ItemHandoverStatus.PENDING) {
             throw new common_1.BadRequestException('该物品已接收，无法重复接收');
@@ -203,16 +206,19 @@ let WorkOrderService = class WorkOrderService {
         item.handoverRemark = dto.handoverRemark;
         item.updatedBy = operator.id;
         const updated = await this.workOrderItemRepository.save(item);
-        await this.auditService.logHandover(entities_1.AuditModule.WORK_ORDER, item.workOrderId, 'receive', `接收物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`, operator);
-        await this.auditService.logUpdate(entities_1.AuditModule.WORK_ORDER, item.workOrderId, { item: oldValues }, { item: updated }, operator);
+        await this.auditService.logHandover(entities_1.AuditModule.WORK_ORDER, workOrderId, 'receive', `接收物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`, operator);
+        await this.auditService.logUpdate(entities_1.AuditModule.WORK_ORDER, workOrderId, { item: oldValues }, { item: updated }, operator);
         return updated;
     }
-    async returnItem(itemId, dto, operator) {
+    async returnItem(workOrderId, itemId, dto, operator) {
         const item = await this.workOrderItemRepository.findOne({
             where: { id: itemId, isDeleted: false },
         });
         if (!item) {
             throw new common_1.NotFoundException('工单物品不存在');
+        }
+        if (item.workOrderId !== workOrderId) {
+            throw new common_1.BadRequestException('该物品不属于当前工单');
         }
         if (item.handoverStatus === entities_1.ItemHandoverStatus.PENDING) {
             throw new common_1.BadRequestException('该物品尚未接收，无法返还');
@@ -229,8 +235,8 @@ let WorkOrderService = class WorkOrderService {
         item.handoverRemark = dto.handoverRemark || item.handoverRemark;
         item.updatedBy = operator.id;
         const updated = await this.workOrderItemRepository.save(item);
-        await this.auditService.logHandover(entities_1.AuditModule.WORK_ORDER, item.workOrderId, 'return', `返还物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`, operator);
-        await this.auditService.logUpdate(entities_1.AuditModule.WORK_ORDER, item.workOrderId, { item: oldValues }, { item: updated }, operator);
+        await this.auditService.logHandover(entities_1.AuditModule.WORK_ORDER, workOrderId, 'return', `返还物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`, operator);
+        await this.auditService.logUpdate(entities_1.AuditModule.WORK_ORDER, workOrderId, { item: oldValues }, { item: updated }, operator);
         return updated;
     }
     async getAuditLogs(workOrderId) {

@@ -47,10 +47,10 @@ let WorkOrderController = class WorkOrderController {
         return this.workOrderService.getAuditLogs(id);
     }
     receiveItem(workOrderId, itemId, dto, user) {
-        return this.workOrderService.receiveItem(itemId, dto, user);
+        return this.workOrderService.receiveItem(workOrderId, itemId, dto, user);
     }
     returnItem(workOrderId, itemId, dto, user) {
-        return this.workOrderService.returnItem(itemId, dto, user);
+        return this.workOrderService.returnItem(workOrderId, itemId, dto, user);
     }
 };
 exports.WorkOrderController = WorkOrderController;

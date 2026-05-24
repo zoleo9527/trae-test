@@ -56,15 +56,20 @@ const WorkOrderDetail: React.FC = () => {
   const [handoverModalVisible, setHandoverModalVisible] = useState(false);
   const [repairModalVisible, setRepairModalVisible] = useState(false);
   const [repairStatusModalVisible, setRepairStatusModalVisible] = useState(false);
+  const [addStepModalVisible, setAddStepModalVisible] = useState(false);
+  const [stepStatusModalVisible, setStepStatusModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [handoverType, setHandoverType] = useState<'receive' | 'return'>('receive');
   const [selectedRepair, setSelectedRepair] = useState<any>(null);
+  const [selectedStep, setSelectedStep] = useState<any>(null);
   const [availableRepairTransitions, setAvailableRepairTransitions] = useState<any[]>([]);
   const [form] = Form.useForm();
   const [followUpForm] = Form.useForm();
   const [handoverForm] = Form.useForm();
   const [repairForm] = Form.useForm();
   const [repairStatusForm] = Form.useForm();
+  const [addStepForm] = Form.useForm();
+  const [stepStatusForm] = Form.useForm();
 
   useEffect(() => {
     if (id) {
@@ -194,9 +199,9 @@ const WorkOrderDetail: React.FC = () => {
         { value: 'rejected', label: '复核不通过', roles: ['manager', 'admin'] },
       ],
       pending_confirm: [
-        { value: 'completed', label: '确认完成', roles: ['sales', 'manager', 'admin'] },
+        { value: 'completed', label: '确认完成', roles: ['sales', 'customer_service', 'manager', 'admin'] },
         { value: 'in_progress', label: '返工', roles: ['workshop', 'manager', 'admin'] },
-        { value: 'needs_review', label: '需要复核', roles: ['manager', 'admin'] },
+        { value: 'needs_review', label: '需要复核', roles: ['sales', 'manager', 'admin'] },
       ],
       rejected: [
         { value: 'draft', label: '修改后重新提交', roles: ['sales', 'manager', 'admin'] },
@@ -300,6 +305,47 @@ const WorkOrderDetail: React.FC = () => {
     }
   };
 
+  const openAddStepModal = (repair: any) => {
+    setSelectedRepair(repair);
+    addStepForm.resetFields();
+    setAddStepModalVisible(true);
+  };
+
+  const handleAddStep = async (values: any) => {
+    try {
+      await repairAPI.addStep(selectedRepair.id, values);
+      message.success('维修步骤添加成功');
+      setAddStepModalVisible(false);
+      addStepForm.resetFields();
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '添加失败');
+    }
+  };
+
+  const openStepStatusModal = (step: any) => {
+    setSelectedStep(step);
+    stepStatusForm.resetFields();
+    setStepStatusModalVisible(true);
+  };
+
+  const handleStepStatusChange = async (values: any) => {
+    try {
+      await repairAPI.updateStep(selectedStep.id, values);
+      message.success('步骤状态更新成功');
+      setStepStatusModalVisible(false);
+      stepStatusForm.resetFields();
+      loadData();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || '更新失败');
+    }
+  };
+
+  const canManageRepairSteps = () => {
+    if (!user) return false;
+    return ['workshop', 'manager', 'admin'].includes(user.role);
+  };
+
   const itemColumns = [
     { title: '物品名称', dataIndex: 'itemName', key: 'itemName' },
     { title: '规格描述', dataIndex: 'itemSpec', key: 'itemSpec' },
@@ -384,9 +430,16 @@ const WorkOrderDetail: React.FC = () => {
     },
     { title: '操作', key: 'action',
       render: (_: any, record: any) => (
-        <Button type="link" size="small" onClick={() => openRepairStatusModal(record)}>
-          变更状态
-        </Button>
+        <Space>
+          <Button type="link" size="small" onClick={() => openRepairStatusModal(record)}>
+            变更状态
+          </Button>
+          {canManageRepairSteps() && record.status !== 'completed' && record.status !== 'cancelled' && (
+            <Button type="link" size="small" onClick={() => openAddStepModal(record)}>
+              添加步骤
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -489,27 +542,58 @@ const WorkOrderDetail: React.FC = () => {
 
             {repairs.map((repair: any) => (
               <div key={repair.id} style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-                <h5>{repair.repairNo} - 维修步骤</h5>
-                <Steps direction="vertical" size="small" current={repair.steps?.filter((s: any) => s.status === 'completed').length}>
-                  {repair.steps?.map((step: any, index: number) => (
-                    <Steps.Step
-                      key={step.id}
-                      title={step.stepName}
-                      description={
-                        <div>
-                          <div>{step.stepDescription}</div>
-                          {step.operatorNote && <div style={{ color: '#666', fontSize: 12 }}>备注: {step.operatorNote}</div>}
-                          {step.completedAt && (
-                            <div style={{ color: '#999', fontSize: 12 }}>
-                              完成时间: {dayjs(step.completedAt).format('YYYY-MM-DD HH:mm')}
-                            </div>
-                          )}
-                        </div>
-                      }
-                      status={step.status === 'completed' ? 'finish' : step.status === 'in_progress' ? 'process' : 'wait'}
-                    />
-                  ))}
-                </Steps>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h5 style={{ margin: 0 }}>{repair.repairNo} - 维修步骤</h5>
+                  {canManageRepairSteps() && repair.status !== 'completed' && repair.status !== 'cancelled' && (
+                    <Button type="link" size="small" onClick={() => openAddStepModal(repair)}>
+                      + 添加步骤
+                    </Button>
+                  )}
+                </div>
+                <List
+                  size="small"
+                  dataSource={repair.steps || []}
+                  locale={{ emptyText: '暂无步骤' }}
+                  renderItem={(step: any) => (
+                    <List.Item
+                      actions={canManageRepairSteps() && repair.status !== 'completed' && repair.status !== 'cancelled' ? [
+                        <Button type="link" size="small" onClick={() => openStepStatusModal(step)}>
+                          更新状态
+                        </Button>
+                      ] : []}
+                    >
+                      <List.Item.Meta
+                        avatar={
+                          step.status === 'completed' ? <CheckOutlined style={{ color: '#52c41a' }} /> :
+                          step.status === 'in_progress' ? <ClockCircleOutlined style={{ color: '#1890ff' }} /> :
+                          <ClockCircleOutlined style={{ color: '#d9d9d9' }} />
+                        }
+                        title={
+                          <Space>
+                            <span>{step.stepOrder}. {step.stepName}</span>
+                            <Tag color={
+                              step.status === 'completed' ? 'success' :
+                              step.status === 'in_progress' ? 'processing' : 'default'
+                            } style={{ fontSize: 12 }}>
+                              {step.status === 'completed' ? '已完成' : step.status === 'in_progress' ? '进行中' : '待开始'}
+                            </Tag>
+                          </Space>
+                        }
+                        description={
+                          <div>
+                            {step.stepDescription && <div>{step.stepDescription}</div>}
+                            {step.operatorNote && <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>备注: {step.operatorNote}</div>}
+                            {step.completedAt && step.operator && (
+                              <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                                {step.operator.realName} 于 {dayjs(step.completedAt).format('YYYY-MM-DD HH:mm')} 完成
+                              </div>
+                            )}
+                          </div>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
               </div>
             ))}
           </TabPane>
@@ -789,6 +873,60 @@ const WorkOrderDetail: React.FC = () => {
           </Form.Item>
           <Form.Item label="变更原因" name="reason">
             <Input.TextArea rows={3} placeholder="请输入变更原因（选填）" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="添加维修步骤"
+        open={addStepModalVisible}
+        onCancel={() => setAddStepModalVisible(false)}
+        onOk={() => addStepForm.submit()}
+      >
+        <Form form={addStepForm} layout="vertical" onFinish={handleAddStep}>
+          <Form.Item
+            label="步骤序号"
+            name="stepOrder"
+            rules={[{ required: true, message: '请输入步骤序号' }]}
+          >
+            <Input type="number" placeholder="例如：1, 2, 3" />
+          </Form.Item>
+          <Form.Item
+            label="步骤名称"
+            name="stepName"
+            rules={[{ required: true, message: '请输入步骤名称' }]}
+          >
+            <Input placeholder="例如：检测、抛光、焊接等" />
+          </Form.Item>
+          <Form.Item label="步骤描述" name="stepDescription">
+            <Input.TextArea rows={3} placeholder="请详细描述该步骤的操作内容（选填）" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="更新步骤状态"
+        open={stepStatusModalVisible}
+        onCancel={() => setStepStatusModalVisible(false)}
+        onOk={() => stepStatusForm.submit()}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <strong>步骤:</strong> {selectedStep?.stepName}
+        </div>
+        <Form form={stepStatusForm} layout="vertical" onFinish={handleStepStatusChange}>
+          <Form.Item
+            label="目标状态"
+            name="status"
+            rules={[{ required: true, message: '请选择目标状态' }]}
+          >
+            <Select placeholder="请选择">
+              <Option value="pending">待开始</Option>
+              <Option value="in_progress">进行中</Option>
+              <Option value="completed">已完成</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item label="操作备注" name="operatorNote">
+            <Input.TextArea rows={3} placeholder="请输入操作备注（选填）" />
           </Form.Item>
         </Form>
       </Modal>

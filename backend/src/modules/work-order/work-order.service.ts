@@ -297,13 +297,17 @@ export class WorkOrderService {
     );
   }
 
-  async receiveItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
+  async receiveItem(workOrderId: string, itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
     const item = await this.workOrderItemRepository.findOne({
       where: { id: itemId, isDeleted: false },
     });
 
     if (!item) {
       throw new NotFoundException('工单物品不存在');
+    }
+
+    if (item.workOrderId !== workOrderId) {
+      throw new BadRequestException('该物品不属于当前工单');
     }
 
     if (item.handoverStatus !== ItemHandoverStatus.PENDING) {
@@ -324,7 +328,7 @@ export class WorkOrderService {
 
     await this.auditService.logHandover(
       AuditModule.WORK_ORDER,
-      item.workOrderId,
+      workOrderId,
       'receive',
       `接收物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`,
       operator,
@@ -332,7 +336,7 @@ export class WorkOrderService {
 
     await this.auditService.logUpdate(
       AuditModule.WORK_ORDER,
-      item.workOrderId,
+      workOrderId,
       { item: oldValues },
       { item: updated },
       operator,
@@ -341,13 +345,17 @@ export class WorkOrderService {
     return updated;
   }
 
-  async returnItem(itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
+  async returnItem(workOrderId: string, itemId: string, dto: HandoverItemDto, operator: User): Promise<WorkOrderItem> {
     const item = await this.workOrderItemRepository.findOne({
       where: { id: itemId, isDeleted: false },
     });
 
     if (!item) {
       throw new NotFoundException('工单物品不存在');
+    }
+
+    if (item.workOrderId !== workOrderId) {
+      throw new BadRequestException('该物品不属于当前工单');
     }
 
     if (item.handoverStatus === ItemHandoverStatus.PENDING) {
@@ -372,7 +380,7 @@ export class WorkOrderService {
 
     await this.auditService.logHandover(
       AuditModule.WORK_ORDER,
-      item.workOrderId,
+      workOrderId,
       'return',
       `返还物品: ${item.itemName}${dto.handoverRemark ? `, 备注: ${dto.handoverRemark}` : ''}`,
       operator,
@@ -380,7 +388,7 @@ export class WorkOrderService {
 
     await this.auditService.logUpdate(
       AuditModule.WORK_ORDER,
-      item.workOrderId,
+      workOrderId,
       { item: oldValues },
       { item: updated },
       operator,

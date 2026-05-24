@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RepairController = void 0;
 const common_1 = require("@nestjs/common");
+const passport_1 = require("@nestjs/passport");
 const repair_service_1 = require("./repair.service");
 const auth_1 = require("../../common/auth");
 const entities_1 = require("../../database/entities");
@@ -21,8 +22,8 @@ let RepairController = class RepairController {
     constructor(repairService) {
         this.repairService = repairService;
     }
-    create(dto, req) {
-        return this.repairService.create(dto, req.user);
+    create(dto, user) {
+        return this.repairService.create(dto, user);
     }
     findAll(status, repairType, workOrderId, technicianId, page = 1, limit = 20) {
         return this.repairService.findAll({ status: status, repairType: repairType, workOrderId, technicianId }, Number(page), Number(limit));
@@ -33,20 +34,20 @@ let RepairController = class RepairController {
     findOne(id) {
         return this.repairService.findOne(id);
     }
-    getAvailableTransitions(id, req) {
-        return this.repairService.getAvailableTransitions(id, req.user.role);
+    getAvailableTransitions(id, user) {
+        return this.repairService.getAvailableTransitions(id, user.role);
     }
-    update(id, dto, req) {
-        return this.repairService.update(id, dto, req.user);
+    update(id, dto, user) {
+        return this.repairService.update(id, dto, user);
     }
-    changeStatus(id, dto, req) {
-        return this.repairService.changeStatus(id, dto, req.user);
+    changeStatus(id, dto, user) {
+        return this.repairService.changeStatus(id, dto, user);
     }
-    addStep(repairId, stepDto, req) {
-        return this.repairService.addStep(repairId, stepDto, req.user);
+    addStep(repairId, stepDto, user) {
+        return this.repairService.addStep(repairId, stepDto, user);
     }
-    updateStep(stepId, dto, req) {
-        return this.repairService.updateStep(stepId, dto, req.user);
+    updateStep(stepId, dto, user) {
+        return this.repairService.updateStep(stepId, dto, user);
     }
 };
 exports.RepairController = RepairController;
@@ -54,9 +55,9 @@ __decorate([
     (0, common_1.Post)(),
     (0, auth_1.Roles)(entities_1.UserRole.WORKSHOP, entities_1.UserRole.MANAGER, entities_1.UserRole.ADMIN),
     __param(0, (0, common_1.Body)()),
-    __param(1, (0, common_1.Request)()),
+    __param(1, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "create", null);
 __decorate([
@@ -88,9 +89,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/transitions'),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Request)()),
+    __param(1, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "getAvailableTransitions", null);
 __decorate([
@@ -98,9 +99,9 @@ __decorate([
     (0, auth_1.Roles)(entities_1.UserRole.WORKSHOP, entities_1.UserRole.MANAGER, entities_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Request)()),
+    __param(2, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:paramtypes", [String, Object, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "update", null);
 __decorate([
@@ -108,9 +109,9 @@ __decorate([
     (0, auth_1.Roles)(entities_1.UserRole.WORKSHOP, entities_1.UserRole.SALES, entities_1.UserRole.MANAGER, entities_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Request)()),
+    __param(2, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:paramtypes", [String, Object, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "changeStatus", null);
 __decorate([
@@ -118,9 +119,9 @@ __decorate([
     (0, auth_1.Roles)(entities_1.UserRole.WORKSHOP, entities_1.UserRole.MANAGER, entities_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Request)()),
+    __param(2, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:paramtypes", [String, Object, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "addStep", null);
 __decorate([
@@ -128,14 +129,14 @@ __decorate([
     (0, auth_1.Roles)(entities_1.UserRole.WORKSHOP, entities_1.UserRole.MANAGER, entities_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('stepId')),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.Request)()),
+    __param(2, (0, auth_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:paramtypes", [String, Object, entities_1.User]),
     __metadata("design:returntype", void 0)
 ], RepairController.prototype, "updateStep", null);
 exports.RepairController = RepairController = __decorate([
     (0, common_1.Controller)('repairs'),
-    (0, common_1.UseGuards)(auth_1.RolesGuard),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), auth_1.RolesGuard),
     __metadata("design:paramtypes", [repair_service_1.RepairService])
 ], RepairController);
 //# sourceMappingURL=repair.controller.js.map

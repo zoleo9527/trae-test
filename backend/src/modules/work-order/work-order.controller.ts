@@ -89,7 +89,7 @@ export class WorkOrderController {
     @Body() dto: HandoverItemDto,
     @CurrentUser() user: User,
   ) {
-    return this.workOrderService.receiveItem(itemId, dto, user);
+    return this.workOrderService.receiveItem(workOrderId, itemId, dto, user);
   }
 
   @Put(':id/items/:itemId/return')
@@ -100,6 +100,6 @@ export class WorkOrderController {
     @Body() dto: HandoverItemDto,
     @CurrentUser() user: User,
   ) {
-    return this.workOrderService.returnItem(itemId, dto, user);
+    return this.workOrderService.returnItem(workOrderId, itemId, dto, user);
   }
 }

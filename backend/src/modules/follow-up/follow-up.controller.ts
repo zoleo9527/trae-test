@@ -10,11 +10,11 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowUpService, CreateFollowUpDto, CompleteFollowUpDto } from './follow-up.service';
-import { CurrentUser, Roles } from '../../common/auth';
+import { CurrentUser, Roles, RolesGuard } from '../../common/auth';
 import { User, UserRole, FollowUpStatus, FollowUpType } from '../../database/entities';
 
 @Controller('follow-ups')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class FollowUpController {
   constructor(private followUpService: FollowUpService) {}
 
