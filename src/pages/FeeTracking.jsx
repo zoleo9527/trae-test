@@ -10,7 +10,9 @@ import {
   FileText,
   Download,
   Check,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  MessageSquare
 } from 'lucide-react';
 import { statusMap, typeMap } from '../data/mockData';
 import { useApp } from '../context/AppContext';
@@ -33,11 +35,13 @@ function StatusBadge({ status }) {
 }
 
 export default function FeeTracking({ currentUser }) {
-  const { feeRecords, confirmFee, markFeePaid } = useApp();
+  const { feeRecords, confirmFee, markFeePaid, sendPaymentReminder } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterDropdown, setFilterDropdown] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(null);
+  const [showReminderModal, setShowReminderModal] = useState(null);
+  const [reminderRemark, setReminderRemark] = useState('');
 
   const filteredRecords = feeRecords.filter(record => {
     const matchSearch = record.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -63,6 +67,12 @@ export default function FeeTracking({ currentUser }) {
   const handleMarkPaid = (feeId) => {
     markFeePaid(feeId, currentUser.id);
     setShowConfirmModal(null);
+  };
+
+  const handleSendReminder = (feeId) => {
+    sendPaymentReminder(feeId, currentUser.id, reminderRemark);
+    setShowReminderModal(null);
+    setReminderRemark('');
   };
 
   return (
@@ -175,6 +185,9 @@ export default function FeeTracking({ currentUser }) {
                 状态
               </th>
               <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                跟进状态
+              </th>
+              <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 创建时间
               </th>
               <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -214,6 +227,23 @@ export default function FeeTracking({ currentUser }) {
                 <td className="px-6 py-4">
                   <StatusBadge status={record.status} />
                 </td>
+                <td className="px-6 py-4">
+                  {record.lastReminderAt ? (
+                    <div className="text-xs">
+                      <div className="flex items-center text-blue-600">
+                        <Bell className="w-3 h-3 mr-1" />
+                        已提醒 {record.reminders?.length || 0} 次
+                      </div>
+                      <div className="text-gray-500 mt-0.5">
+                        {record.lastReminderAt} · {record.lastReminderBy}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      {record.status === 'pending_pay' ? '待跟进' : '-'}
+                    </span>
+                  )}
+                </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {record.createdAt}
                 </td>
@@ -228,12 +258,21 @@ export default function FeeTracking({ currentUser }) {
                       </button>
                     )}
                     {record.status === 'pending_pay' && currentUser.role === 'service' && (
-                      <button 
-                        onClick={() => setShowConfirmModal({ type: 'paid', id: record.id, amount: record.amount })}
-                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        标记已付
-                      </button>
+                      <>
+                        <button 
+                          onClick={() => setShowReminderModal({ id: record.id, title: record.title })}
+                          className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors flex items-center"
+                        >
+                          <Bell className="w-3 h-3 mr-1" />
+                          提醒
+                        </button>
+                        <button 
+                          onClick={() => setShowConfirmModal({ type: 'paid', id: record.id, amount: record.amount })}
+                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          标记已付
+                        </button>
+                      </>
                     )}
                     {record.status === 'paid' && (
                       <span className="px-3 py-1.5 text-sm text-gray-500">
@@ -272,7 +311,11 @@ export default function FeeTracking({ currentUser }) {
                 </div>
                 <div className="text-xs text-gray-500">{record.projectName}</div>
                 <div className="mt-3 flex space-x-2">
-                  <button className="flex-1 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors">
+                  <button 
+                    onClick={() => setShowReminderModal({ id: record.id, title: record.title })}
+                    className="flex-1 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center"
+                  >
+                    <Bell className="w-4 h-4 mr-1" />
                     发送收款提醒
                   </button>
                   <button 
@@ -282,6 +325,12 @@ export default function FeeTracking({ currentUser }) {
                     标记已付
                   </button>
                 </div>
+                {record.lastReminderAt && (
+                  <div className="mt-2 text-xs text-gray-500 flex items-center">
+                    <MessageSquare className="w-3 h-3 mr-1" />
+                    已提醒 {record.reminders?.length || 0} 次 · 最近 {record.lastReminderAt} · {record.lastReminderBy}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -331,6 +380,51 @@ export default function FeeTracking({ currentUser }) {
               >
                 <Check className="w-4 h-4 mr-2" />
                 确认
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReminderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowReminderModal(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Bell className="w-5 h-5 mr-2 text-yellow-600" />
+              发送收款提醒
+            </h3>
+            <div className="mb-4 p-4 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-700 mb-2">
+                向业主发送「{showReminderModal.title}」的付款提醒。
+              </p>
+              <p className="text-xs text-yellow-600">
+                提醒记录将同步至变更单时间线，便于后续追溯。
+              </p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">跟进备注（可选）</label>
+              <textarea
+                value={reminderRemark}
+                onChange={(e) => setReminderRemark(e.target.value)}
+                placeholder="例如：电话提醒业主、微信已发送支付链接..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                rows={3}
+              />
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowReminderModal(null)}
+                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => handleSendReminder(showReminderModal.id)}
+                className="flex-1 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center"
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                发送提醒
               </button>
             </div>
           </div>

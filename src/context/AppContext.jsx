@@ -295,6 +295,48 @@ const appReducer = (state, action) => {
       };
     }
 
+    case 'SEND_PAYMENT_REMINDER': {
+      const { feeId, userId, remark } = action.payload;
+      const user = users.find(u => u.id === userId);
+      const fee = state.feeRecords.find(f => f.id === feeId);
+      
+      const reminderRecord = {
+        time: getCurrentTime(),
+        user: user?.name || '未知',
+        userId: userId,
+        role: user?.role || 'service',
+        remark: remark || '发送收款提醒',
+      };
+      
+      return {
+        ...state,
+        feeRecords: state.feeRecords.map(f => {
+          if (f.id !== feeId) return f;
+          return {
+            ...f,
+            reminders: f.reminders ? [...f.reminders, reminderRecord] : [reminderRecord],
+            lastReminderAt: reminderRecord.time,
+            lastReminderBy: reminderRecord.user,
+          };
+        }),
+        changeOrders: state.changeOrders.map(order => {
+          if (order.id !== fee?.relatedId) return order;
+          return {
+            ...order,
+            timeline: [
+              ...order.timeline,
+              {
+                time: reminderRecord.time,
+                action: `客服发送收款提醒 - ${remark || '跟进支付进度'}`,
+                user: reminderRecord.user,
+                role: 'service',
+              },
+            ],
+          };
+        }),
+      };
+    }
+
     case 'RESET_DATA': {
       return {
         changeOrders: initialChangeOrders,
@@ -337,6 +379,9 @@ export function AppProvider({ children }) {
     },
     markFeePaid: (feeId, userId) => {
       dispatch({ type: 'MARK_FEE_PAID', payload: { feeId, userId } });
+    },
+    sendPaymentReminder: (feeId, userId, remark = '') => {
+      dispatch({ type: 'SEND_PAYMENT_REMINDER', payload: { feeId, userId, remark } });
     },
     resetData: () => {
       dispatch({ type: 'RESET_DATA' });

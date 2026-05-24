@@ -10,7 +10,10 @@ import {
   Edit3,
   Send,
   RefreshCw,
-  CheckCircle
+  CheckCircle,
+  Bell,
+  DollarSign,
+  ExternalLink
 } from 'lucide-react';
 import { statusMap, typeMap, roleMap } from '../data/mockData';
 import { useApp } from '../context/AppContext';
@@ -94,8 +97,9 @@ function ApprovalStep({ title, role, approval, isCurrent, isPending }) {
 export default function ChangeOrderDetail({ currentUser }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { changeOrders, managerApprove, managerReject, supervisorResubmit, sendOwnerConfirmation, ownerApprove } = useApp();
+  const { changeOrders, feeRecords, managerApprove, managerReject, supervisorResubmit, sendOwnerConfirmation, ownerApprove } = useApp();
   const order = changeOrders.find(o => o.id === id);
+  const relatedFee = feeRecords.find(f => f.relatedId === id);
   
   const [comment, setComment] = useState('');
   const [showActionModal, setShowActionModal] = useState(null);
@@ -415,6 +419,54 @@ export default function ChangeOrderDetail({ currentUser }) {
               </div>
             </div>
           </div>
+
+          {relatedFee && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+                  费用记录
+                </h2>
+                <Link 
+                  to="/fee-tracking" 
+                  className="text-xs text-primary-600 hover:text-primary-700 flex items-center"
+                >
+                  费用页 <ExternalLink className="w-3 h-3 ml-1" />
+                </Link>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">费用编号</span>
+                  <span className="font-medium text-primary-600">{relatedFee.id}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">费用金额</span>
+                  <span className="font-bold text-gray-900">¥{relatedFee.amount.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">当前状态</span>
+                  <StatusBadge status={relatedFee.status} />
+                </div>
+                {relatedFee.lastReminderAt && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center text-blue-600 text-sm mb-2">
+                      <Bell className="w-4 h-4 mr-1" />
+                      收款跟进记录（{relatedFee.reminders?.length || 0} 次）
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
+                      <div className="font-medium">最近跟进：{relatedFee.lastReminderAt}</div>
+                      <div className="mt-1">跟进人：{relatedFee.lastReminderBy}</div>
+                      {relatedFee.reminders && relatedFee.reminders[relatedFee.reminders.length - 1]?.remark && (
+                        <div className="mt-1 text-blue-600">
+                          备注：{relatedFee.reminders[relatedFee.reminders.length - 1].remark}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">当前处理</h2>

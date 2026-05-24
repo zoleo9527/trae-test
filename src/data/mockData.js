@@ -206,6 +206,19 @@ export const feeRecords = [
     paidAt: '2024-05-12 10:00:00',
     createdAt: '2024-05-11 11:00:00',
   },
+  {
+    id: 'FY202405002',
+    projectId: 1,
+    projectName: '万科城市花园 3栋201',
+    type: 'change_order',
+    relatedId: 'CG20240501001',
+    title: '水电线路改造费用',
+    amount: 8500,
+    status: 'pending_pay',
+    confirmedBy: '张管家',
+    confirmedAt: '2024-05-18 09:00:00',
+    createdAt: '2024-05-17 16:30:00',
+  },
 ];
 
 export const statusMap = {
