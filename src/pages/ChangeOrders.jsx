@@ -11,7 +11,8 @@ import {
   ChevronDown,
   Clock
 } from 'lucide-react';
-import { changeOrders, statusMap, typeMap, roleMap } from '../data/mockData';
+import { statusMap, typeMap, roleMap } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 import { cn } from '../utils/cn';
 
 function StatusBadge({ status }) {
@@ -41,6 +42,7 @@ function TypeIcon({ type }) {
 }
 
 export default function ChangeOrders({ currentUser }) {
+  const { changeOrders } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');

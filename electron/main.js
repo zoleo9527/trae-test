@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 let mainWindow;
-let printWindow;
+let printWindows = new Map();
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -11,8 +11,9 @@ function createMainWindow() {
     minWidth: 1200,
     minHeight: 700,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
     },
     title: '家装监理-变更签认与费用追踪系统',
   });
@@ -32,13 +33,13 @@ function createMainWindow() {
 }
 
 function createPrintWindow(content) {
-  printWindow = new BrowserWindow({
+  const printWindow = new BrowserWindow({
     width: 800,
     height: 1000,
     show: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
@@ -81,31 +82,60 @@ function createPrintWindow(content) {
       printWindow.close();
     });
   });
+
+  printWindows.set(printWindow.id, printWindow);
+  printWindow.on('closed', () => {
+    printWindows.delete(printWindow.id);
+  });
 }
 
-ipcMain.handle('print-receipt', async (event, content) => {
-  createPrintWindow(content);
-  return { success: true };
-});
-
-ipcMain.handle('open-new-window', async (event, url) => {
+function createNewWindow(route) {
   const newWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1200,
+    height: 800,
+    minWidth: 1000,
+    minHeight: 600,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
   
   const isDev = !app.isPackaged;
   if (isDev) {
-    newWindow.loadURL('http://localhost:5173' + url);
+    newWindow.loadURL('http://localhost:5173/#' + route);
   } else {
-    newWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    newWindow.loadFile(path.join(__dirname, '../dist/index.html'), {
+      hash: route,
+    });
   }
-  
-  return { success: true };
+
+  newWindow.on('closed', () => {
+    printWindows.delete(newWindow.id);
+  });
+}
+
+ipcMain.handle('print-receipt', async (event, content) => {
+  try {
+    createPrintWindow(content);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('open-new-window', async (event, route) => {
+  try {
+    createNewWindow(route || '/');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-current-route', async () => {
+  return { route: '/' };
 });
 
 app.whenReady().then(() => {

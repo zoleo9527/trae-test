@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
@@ -7,9 +8,12 @@ import {
   Clock,
   ChevronDown,
   FileText,
-  Download
+  Download,
+  Check,
+  AlertCircle
 } from 'lucide-react';
-import { feeRecords, statusMap, typeMap } from '../data/mockData';
+import { statusMap, typeMap } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 import { cn } from '../utils/cn';
 
 function StatusBadge({ status }) {
@@ -29,9 +33,11 @@ function StatusBadge({ status }) {
 }
 
 export default function FeeTracking({ currentUser }) {
+  const { feeRecords, confirmFee, markFeePaid } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterDropdown, setFilterDropdown] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(null);
 
   const filteredRecords = feeRecords.filter(record => {
     const matchSearch = record.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -48,6 +54,16 @@ export default function FeeTracking({ currentUser }) {
   const totalPaid = filteredRecords
     .filter(r => r.status === 'paid')
     .reduce((sum, r) => sum + r.amount, 0);
+
+  const handleConfirmFee = (feeId) => {
+    confirmFee(feeId, currentUser.id);
+    setShowConfirmModal(null);
+  };
+
+  const handleMarkPaid = (feeId) => {
+    markFeePaid(feeId, currentUser.id);
+    setShowConfirmModal(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -183,9 +199,12 @@ export default function FeeTracking({ currentUser }) {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="text-sm text-primary-600 cursor-pointer hover:underline">
+                  <Link 
+                    to={`/change-orders/${record.relatedId}`} 
+                    className="text-sm text-primary-600 cursor-pointer hover:underline"
+                  >
                     {record.relatedId}
-                  </span>
+                  </Link>
                 </td>
                 <td className="px-6 py-4">
                   <span className="text-sm font-semibold text-gray-900">
@@ -201,19 +220,25 @@ export default function FeeTracking({ currentUser }) {
                 <td className="px-6 py-4">
                   <div className="flex space-x-2">
                     {record.status === 'pending_confirm' && currentUser.role === 'manager' && (
-                      <button className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors">
+                      <button 
+                        onClick={() => setShowConfirmModal({ type: 'confirm', id: record.id })}
+                        className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
+                      >
                         确认
                       </button>
                     )}
                     {record.status === 'pending_pay' && currentUser.role === 'service' && (
-                      <button className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors">
+                      <button 
+                        onClick={() => setShowConfirmModal({ type: 'paid', id: record.id, amount: record.amount })}
+                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                      >
                         标记已付
                       </button>
                     )}
                     {record.status === 'paid' && (
-                      <button className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors">
-                        收据
-                      </button>
+                      <span className="px-3 py-1.5 text-sm text-gray-500">
+                        {record.paidAt}
+                      </span>
                     )}
                   </div>
                 </td>
@@ -229,10 +254,10 @@ export default function FeeTracking({ currentUser }) {
         )}
       </div>
 
-      {currentUser.role === 'service' && (
+      {currentUser.role === 'service' && filteredRecords.filter(r => r.status === 'pending_pay').length > 0 && (
         <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-6">
           <h3 className="font-medium text-yellow-700 mb-3 flex items-center">
-            <DollarSign className="w-5 h-5 mr-2" />
+            <AlertCircle className="w-5 h-5 mr-2" />
             客服收款提醒
           </h3>
           <p className="text-sm text-yellow-600 mb-4">
@@ -246,11 +271,68 @@ export default function FeeTracking({ currentUser }) {
                   <span className="text-lg font-bold text-gray-900">¥{record.amount.toLocaleString()}</span>
                 </div>
                 <div className="text-xs text-gray-500">{record.projectName}</div>
-                <button className="mt-3 w-full py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors">
-                  发送收款提醒
-                </button>
+                <div className="mt-3 flex space-x-2">
+                  <button className="flex-1 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors">
+                    发送收款提醒
+                  </button>
+                  <button 
+                    onClick={() => setShowConfirmModal({ type: 'paid', id: record.id, amount: record.amount })}
+                    className="flex-1 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    标记已付
+                  </button>
+                </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowConfirmModal(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {showConfirmModal.type === 'confirm' ? '确认费用' : '标记已支付'}
+            </h3>
+            {showConfirmModal.type === 'paid' && (
+              <div className="mb-4 p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-green-700">
+                  确认已收到业主支付的 ¥{showConfirmModal.amount?.toLocaleString()} 费用。
+                </p>
+              </div>
+            )}
+            {showConfirmModal.type === 'confirm' && (
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  确认该费用记录无误后，将进入待支付状态。
+                </p>
+              </div>
+            )}
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowConfirmModal(null)}
+                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => 
+                  showConfirmModal.type === 'confirm' 
+                    ? handleConfirmFee(showConfirmModal.id)
+                    : handleMarkPaid(showConfirmModal.id)
+                }
+                className={cn(
+                  'flex-1 py-2 rounded-lg text-white transition-colors flex items-center justify-center',
+                  showConfirmModal.type === 'confirm' 
+                    ? 'bg-primary-600 hover:bg-primary-700' 
+                    : 'bg-green-600 hover:bg-green-700'
+                )}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                确认
+              </button>
+            </div>
           </div>
         </div>
       )}

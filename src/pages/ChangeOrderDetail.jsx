@@ -1,19 +1,19 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Check, 
   X, 
   Clock, 
   User, 
-  MessageSquare, 
   Printer, 
-  Image as ImageIcon,
-  ChevronRight,
   Edit3,
-  Send
+  Send,
+  RefreshCw,
+  CheckCircle
 } from 'lucide-react';
-import { changeOrders, statusMap, typeMap, roleMap } from '../data/mockData';
+import { statusMap, typeMap, roleMap } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 import { cn } from '../utils/cn';
 
 function StatusBadge({ status }) {
@@ -33,6 +33,9 @@ function StatusBadge({ status }) {
 }
 
 function ApprovalStep({ title, role, approval, isCurrent, isPending }) {
+  const status = approval?.approved === true ? 'approved' : 
+                 approval?.approved === false ? 'rejected' : 'pending';
+
   const statusColors = {
     approved: 'border-green-500 bg-green-50',
     rejected: 'border-red-500 bg-red-50',
@@ -44,9 +47,6 @@ function ApprovalStep({ title, role, approval, isCurrent, isPending }) {
     rejected: 'text-red-500',
     pending: 'text-gray-400',
   };
-
-  const status = approval?.approved === true ? 'approved' : 
-                 approval?.approved === false ? 'rejected' : 'pending';
 
   return (
     <div className={cn(
@@ -93,9 +93,13 @@ function ApprovalStep({ title, role, approval, isCurrent, isPending }) {
 
 export default function ChangeOrderDetail({ currentUser }) {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { changeOrders, managerApprove, managerReject, supervisorResubmit, sendOwnerConfirmation, ownerApprove } = useApp();
   const order = changeOrders.find(o => o.id === id);
+  
   const [comment, setComment] = useState('');
   const [showActionModal, setShowActionModal] = useState(null);
+  const [isResubmitting, setIsResubmitting] = useState(false);
 
   if (!order) {
     return (
@@ -109,7 +113,6 @@ export default function ChangeOrderDetail({ currentUser }) {
   }
 
   const isMyTurn = order.currentHandler === currentUser.role;
-  const canEdit = currentUser.role === 'supervisor' && (order.status === 'rejected' || order.status === 'pending_approval');
 
   const handlePrint = async () => {
     const printContent = `
@@ -122,9 +125,11 @@ export default function ChangeOrderDetail({ currentUser }) {
         <tr><td class="label">变更类型</td><td>${typeMap[order.type]?.label}</td></tr>
         <tr><td class="label">变更内容</td><td>${order.title}</td></tr>
         <tr><td class="label">变更原因</td><td>${order.reason}</td></tr>
+        <tr><td class="label">版本</td><td>v${order.version}</td></tr>
         <tr><td class="label">原费用</td><td>¥${order.costChange.original.toLocaleString()}</td></tr>
         <tr><td class="label">变更后费用</td><td>¥${order.costChange.new.toLocaleString()}</td></tr>
         <tr><td class="label">费用差额</td><td>${order.costChange.difference > 0 ? '+' : ''}¥${order.costChange.difference.toLocaleString()}</td></tr>
+        <tr><td class="label">备注</td><td>${order.costChange.note}</td></tr>
       </table>
       <div class="sign-section">
         <div class="sign-box">
@@ -146,19 +151,59 @@ export default function ChangeOrderDetail({ currentUser }) {
     if (window.electron) {
       await window.electron.invoke('print-receipt', printContent);
     } else {
-      window.print();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>打印回执</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+              .title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+              .subtitle { font-size: 14px; color: #666; }
+              .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .info-table td { padding: 10px; border: 1px solid #ddd; }
+              .info-table .label { background: #f5f5f5; width: 150px; font-weight: 500; }
+              .sign-section { margin-top: 40px; display: flex; justify-content: space-between; }
+              .sign-box { width: 200px; text-align: center; }
+              .sign-line { border-bottom: 1px solid #000; height: 60px; margin-bottom: 10px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #999; }
+            </style>
+          </head>
+          <body>${printContent}</body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
     }
   };
 
   const handleApprove = () => {
-    alert(`已批准变更单：${order.id}`);
+    managerApprove(order.id, currentUser.id, comment);
     setShowActionModal(null);
+    setComment('');
   };
 
   const handleReject = () => {
-    alert(`已驳回变更单：${order.id}，原因：${comment}`);
+    managerReject(order.id, currentUser.id, comment);
     setShowActionModal(null);
     setComment('');
+  };
+
+  const handleResubmit = () => {
+    supervisorResubmit(order.id, currentUser.id);
+    setIsResubmitting(false);
+  };
+
+  const handleSendOwnerConfirmation = () => {
+    sendOwnerConfirmation(order.id, currentUser.id);
+    alert('已发送业主确认通知');
+  };
+
+  const handleOwnerApprove = () => {
+    ownerApprove(order.id);
+    setShowActionModal(null);
+    navigate('/change-orders');
   };
 
   return (
@@ -192,33 +237,48 @@ export default function ChangeOrderDetail({ currentUser }) {
           {isMyTurn && (
             <>
               {currentUser.role === 'supervisor' && order.status === 'rejected' && (
-                <button className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
-                  <Edit3 className="w-4 h-4 mr-2" />
-                  编辑并重新提交
+                <button 
+                  onClick={() => setIsResubmitting(true)}
+                  className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  重新提交
                 </button>
               )}
-              {(currentUser.role === 'supervisor' || currentUser.role === 'manager') && (
-                <button 
-                  onClick={() => setShowActionModal('approve')}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  审核通过
-                </button>
-              )}
-              {(currentUser.role === 'manager' && order.status === 'pending_approval') && (
-                <button 
-                  onClick={() => setShowActionModal('reject')}
-                  className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  驳回
-                </button>
+              {currentUser.role === 'manager' && order.status === 'pending_approval' && (
+                <>
+                  <button 
+                    onClick={() => setShowActionModal('approve')}
+                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    审核通过
+                  </button>
+                  <button 
+                    onClick={() => setShowActionModal('reject')}
+                    className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    驳回
+                  </button>
+                </>
               )}
               {currentUser.role === 'manager' && order.status === 'pending_owner' && (
-                <button className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <button 
+                  onClick={handleSendOwnerConfirmation}
+                  className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
                   <Send className="w-4 h-4 mr-2" />
                   发送业主确认
+                </button>
+              )}
+              {currentUser.role === 'supervisor' && order.status === 'pending_owner' && (
+                <button 
+                  onClick={() => setShowActionModal('owner_approve')}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  模拟业主确认
                 </button>
               )}
             </>
@@ -250,7 +310,7 @@ export default function ChangeOrderDetail({ currentUser }) {
             </div>
           </div>
 
-          {order.images.length > 0 && (
+          {order.images && order.images.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">相关图片</h2>
               <div className="grid grid-cols-4 gap-4">
@@ -379,7 +439,7 @@ export default function ChangeOrderDetail({ currentUser }) {
               </div>
             ) : (
               <div className="text-center text-gray-500 py-4">
-                <Check className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-500" />
                 <div>流程已完成</div>
               </div>
             )}
@@ -392,13 +452,23 @@ export default function ChangeOrderDetail({ currentUser }) {
                 该变更单当前需要您处理，请及时审核并给出意见。
               </p>
               <div className="flex space-x-3">
-                <button 
-                  onClick={() => setShowActionModal('approve')}
-                  className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                >
-                  通过
-                </button>
-                {currentUser.role === 'manager' && (
+                {(currentUser.role === 'supervisor' || currentUser.role === 'manager') && order.status !== 'rejected' && (
+                  <button 
+                    onClick={() => setShowActionModal('approve')}
+                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    通过
+                  </button>
+                )}
+                {order.status === 'rejected' && currentUser.role === 'supervisor' && (
+                  <button 
+                    onClick={() => setIsResubmitting(true)}
+                    className="flex-1 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                  >
+                    重新提交
+                  </button>
+                )}
+                {currentUser.role === 'manager' && order.status === 'pending_approval' && (
                   <button 
                     onClick={() => setShowActionModal('reject')}
                     className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
@@ -433,7 +503,9 @@ export default function ChangeOrderDetail({ currentUser }) {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowActionModal(null)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {showActionModal === 'approve' ? '确认通过' : '驳回变更单'}
+              {showActionModal === 'approve' ? '确认通过' : 
+               showActionModal === 'reject' ? '驳回变更单' :
+               '确认业主已签字'}
             </h3>
             {showActionModal === 'reject' && (
               <div className="mb-4">
@@ -447,6 +519,25 @@ export default function ChangeOrderDetail({ currentUser }) {
                 />
               </div>
             )}
+            {showActionModal === 'approve' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">审核意见（可选）</label>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="请输入审核意见..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  rows={3}
+                />
+              </div>
+            )}
+            {showActionModal === 'owner_approve' && (
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  此操作模拟业主确认签字。确认后，变更单将生效，并自动生成待支付的费用记录。
+                </p>
+              </div>
+            )}
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowActionModal(null)}
@@ -455,13 +546,53 @@ export default function ChangeOrderDetail({ currentUser }) {
                 取消
               </button>
               <button
-                onClick={showActionModal === 'approve' ? handleApprove : handleReject}
+                onClick={
+                  showActionModal === 'approve' ? handleApprove : 
+                  showActionModal === 'owner_approve' ? handleOwnerApprove :
+                  handleReject
+                }
                 className={cn(
                   'flex-1 py-2 rounded-lg text-white transition-colors',
-                  showActionModal === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                  showActionModal === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
                 )}
               >
-                确认{showActionModal === 'approve' ? '通过' : '驳回'}
+                确认{showActionModal === 'approve' ? '通过' : showActionModal === 'reject' ? '驳回' : '生效'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isResubmitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsResubmitting(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">确认重新提交</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              系统将自动升级版本号（v{order.version} → v{order.version + 1}），并重新提交给项目管家审核。
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">更新说明（可选）</label>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="请说明修改内容..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                rows={3}
+              />
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setIsResubmitting(false)}
+                className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleResubmit}
+                className="flex-1 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                确认提交
               </button>
             </div>
           </div>

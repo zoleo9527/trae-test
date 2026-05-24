@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Clock, 
@@ -10,9 +9,11 @@ import {
   DollarSign,
   ChevronRight,
   TrendingUp,
-  Users
+  Users,
+  RotateCcw
 } from 'lucide-react';
-import { changeOrders, rectificationRecords, feeRecords, statusMap, typeMap, roleMap } from '../data/mockData';
+import { rectificationRecords, statusMap, typeMap, roleMap } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 import { cn } from '../utils/cn';
 
 function StatusBadge({ status }) {
@@ -32,6 +33,8 @@ function StatusBadge({ status }) {
 }
 
 export default function Dashboard({ currentUser }) {
+  const { changeOrders, feeRecords, resetData } = useApp();
+
   const pendingOrders = changeOrders.filter(o => 
     o.status === 'pending_approval' || o.status === 'pending_owner'
   );
@@ -315,6 +318,16 @@ export default function Dashboard({ currentUser }) {
           </div>
         </div>
       )}
+
+      <div className="flex justify-center">
+        <button
+          onClick={resetData}
+          className="flex items-center px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <RotateCcw className="w-4 h-4 mr-2" />
+          重置演示数据
+        </button>
+      </div>
     </div>
   );
 }
