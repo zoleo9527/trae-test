@@ -594,6 +594,11 @@ body {
   box-shadow: 0 0 0 2px #607d8b;
 }
 
+.timeline-item.refund::before {
+  background: #e91e63;
+  box-shadow: 0 0 0 2px #e91e63;
+}
+
 .timeline-title {
   font-weight: 600;
   margin-bottom: 8px;

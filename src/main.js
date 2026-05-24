@@ -308,6 +308,7 @@ ipcMain.handle('student:timeline', async (event, studentId) => {
     const documents = db.prepare('SELECT * FROM documents WHERE student_id = ? ORDER BY created_at DESC').all(studentId);
     const essays = db.prepare('SELECT * FROM essays WHERE student_id = ? ORDER BY created_at DESC').all(studentId);
     const visas = db.prepare('SELECT * FROM visa_process WHERE student_id = ? ORDER BY created_at DESC').all(studentId);
+    const refunds = db.prepare('SELECT * FROM refund_requests WHERE student_id = ? ORDER BY created_at DESC').all(studentId);
     const logs = db.prepare('SELECT * FROM operation_logs WHERE student_id = ? ORDER BY created_at DESC').all(studentId);
 
     const timeline = [];
@@ -315,6 +316,7 @@ ipcMain.handle('student:timeline', async (event, studentId) => {
     documents.forEach(d => timeline.push({ type: 'document', date: d.created_at, data: d, title: `材料: ${d.doc_name}` }));
     essays.forEach(e => timeline.push({ type: 'essay', date: e.created_at, data: e, title: `文书: ${e.essay_title}` }));
     visas.forEach(v => timeline.push({ type: 'visa', date: v.created_at, data: v, title: `签证: ${v.visa_type}` }));
+    refunds.forEach(r => timeline.push({ type: 'refund', date: r.created_at, data: r, title: `退款申请: ¥${r.amount}` }));
     logs.forEach(l => timeline.push({ type: 'log', date: l.created_at, data: l, title: `操作: ${l.action}` }));
 
     timeline.sort((a, b) => new Date(b.date) - new Date(a.date));

@@ -125,11 +125,61 @@ function showMainScreen() {
   document.getElementById('user-role').textContent = roleLabels[currentUser.role];
   document.getElementById('user-name').textContent = currentUser.name;
 
-  document.querySelectorAll('.nav-item[data-role]').forEach(item => {
-    item.style.display = currentUser.role === item.dataset.role ? 'flex' : 'none';
-  });
-
+  updateNavigationByRole();
+  updateDashboardByRole();
   loadDashboard();
+}
+
+function updateNavigationByRole() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const requiredRole = item.dataset.role;
+    const viewName = item.dataset.view;
+
+    if (currentUser.role === 'manager') {
+      item.style.display = 'flex';
+    } else if (currentUser.role === 'writer') {
+      const allowedViews = ['dashboard', 'students', 'documents', 'essays'];
+      item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
+    } else if (currentUser.role === 'visa') {
+      const allowedViews = ['dashboard', 'students', 'visa'];
+      item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
+    }
+  });
+}
+
+function updateDashboardByRole() {
+  const statCards = document.querySelectorAll('.stat-card');
+  const sections = document.querySelectorAll('.dashboard-section');
+
+  if (currentUser.role === 'manager') {
+    statCards.forEach(card => card.style.display = 'block');
+    sections.forEach(section => section.style.display = 'block');
+  } else if (currentUser.role === 'writer') {
+    statCards[0].style.display = 'block';
+    statCards[1].style.display = 'block';
+    statCards[2].style.display = 'block';
+    statCards[3].style.display = 'none';
+    sections[0].style.display = 'block';
+    sections[1].style.display = 'block';
+    sections[2].style.display = 'none';
+  } else if (currentUser.role === 'visa') {
+    statCards[0].style.display = 'block';
+    statCards[1].style.display = 'none';
+    statCards[2].style.display = 'block';
+    statCards[3].style.display = 'none';
+    sections[0].style.display = 'block';
+    sections[1].style.display = 'none';
+    sections[2].style.display = 'none';
+  }
+
+  const statsGrid = document.querySelector('.stats-grid');
+  if (currentUser.role === 'writer') {
+    statsGrid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+  } else if (currentUser.role === 'visa') {
+    statsGrid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+  } else {
+    statsGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+  }
 }
 
 function switchView(viewName) {
@@ -399,13 +449,75 @@ async function showStudentDetail(studentId) {
   document.getElementById('detail-country').value = student.target_country || '-';
   document.getElementById('detail-major').value = student.target_major || '-';
   document.getElementById('detail-gpa').value = student.gpa || '-';
+  document.getElementById('detail-consultant').value = student.consultant || '-';
+  document.getElementById('detail-status').value = statusLabels[student.status] || student.status;
+
+  const refundBtn = document.getElementById('add-refund-btn');
+  if (refundBtn) {
+    refundBtn.style.display = currentUser.role === 'manager' ? 'inline-block' : 'none';
+    refundBtn.onclick = showAddRefundForm;
+  }
 
   switchDetailTab('info');
   loadStudentPrograms(studentId);
   loadStudentDocuments(studentId);
+  loadStudentRefunds(studentId);
   loadStudentTimeline(studentId);
 
   document.getElementById('student-detail-modal').classList.remove('hidden');
+}
+
+async function loadStudentRefunds(studentId) {
+  const container = document.getElementById('detail-refunds');
+  const result = await api.db.query('SELECT * FROM refund_requests WHERE student_id = ? ORDER BY created_at DESC', [studentId]);
+
+  if (!result.success || result.data.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无退款记录</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-header" style="grid-template-columns: 1fr 1fr 2fr 1fr 1fr 1fr;">
+      <div>金额</div>
+      <div>申请人</div>
+      <div>原因</div>
+      <div>审批人</div>
+      <div>状态</div>
+      <div>申请时间</div>
+    </div>
+    ${result.data.map(refund => `
+      <div class="table-row" style="grid-template-columns: 1fr 1fr 2fr 1fr 1fr 1fr;">
+        <div><strong style="color: #e91e63;">¥${refund.amount}</strong></div>
+        <div>${refund.requested_by || '-'}</div>
+        <div style="font-size: 12px;">${refund.reason || '-'}</div>
+        <div>${refund.approved_by || '-'}</div>
+        <div><span class="status-badge status-${refund.status === 'pending' ? 'pending' : refund.status}">${statusLabels[refund.status] || refund.status}</span></div>
+        <div style="font-size: 12px; color: #666;">${refund.created_at?.slice(0, 10) || '-'}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function showAddRefundForm() {
+  document.getElementById('form-title').textContent = '申请退款';
+  document.getElementById('form-content').innerHTML = `
+    <div class="form-grid">
+      <div class="form-group">
+        <label>退款金额 *</label>
+        <input type="number" id="form-refund-amount" required placeholder="请输入金额">
+      </div>
+      <div class="form-group">
+        <label>申请人</label>
+        <input type="text" id="form-refund-requester" value="${currentUser.name}" readonly>
+      </div>
+      <div class="form-group" style="grid-column: span 2;">
+        <label>退款原因</label>
+        <textarea id="form-refund-reason" rows="4" placeholder="请详细说明退款原因..."></textarea>
+      </div>
+    </div>
+  `;
+  window.currentFormType = 'refund';
+  document.getElementById('form-modal').classList.remove('hidden');
 }
 
 function switchDetailTab(tabName) {
@@ -507,10 +619,11 @@ async function loadStudentTimeline(studentId) {
       <div class="timeline-title">${item.title}</div>
       <div class="timeline-date">${item.date}</div>
       <div class="timeline-content">
-        ${item.type === 'program' ? `状态: ${statusLabels[item.data.application_status] || item.data.application_status}` : ''}
-        ${item.type === 'document' ? `版本: v${item.data.version} | 状态: ${statusLabels[item.data.status] || item.data.status}` : ''}
+        ${item.type === 'program' ? `状态: ${statusLabels[item.data.application_status] || item.data.application_status}${item.data.notes ? ` | 备注: ${item.data.notes}` : ''}` : ''}
+        ${item.type === 'document' ? `版本: v${item.data.version} | 状态: ${statusLabels[item.data.status] || item.data.status}${item.data.review_notes ? ` | 审核意见: ${item.data.review_notes}` : ''}` : ''}
         ${item.type === 'essay' ? `版本: v${item.data.version} | 状态: ${statusLabels[item.data.status] || item.data.status}` : ''}
-        ${item.type === 'visa' ? `状态: ${statusLabels[item.data.status] || item.data.status}` : ''}
+        ${item.type === 'visa' ? `状态: ${statusLabels[item.data.status] || item.data.status}${item.data.notes ? ` | 备注: ${item.data.notes}` : ''}` : ''}
+        ${item.type === 'refund' ? `金额: ¥${item.data.amount} | 状态: ${statusLabels[item.data.status] || item.data.status}${item.data.reason ? ` | 原因: ${item.data.reason}` : ''} | 申请人: ${item.data.requested_by || '-'}` : ''}
         ${item.type === 'log' ? `操作人: ${item.data.operator} | ${item.data.details || ''}` : ''}
       </div>
     </div>
@@ -853,6 +966,10 @@ function showAddStudentForm() {
         <label>GPA</label>
         <input type="number" step="0.01" id="form-gpa">
       </div>
+      <div class="form-group">
+        <label>顾问 *</label>
+        <input type="text" id="form-consultant" value="${currentUser.name}" required>
+      </div>
     </div>
   `;
   window.currentFormType = 'student';
@@ -984,90 +1101,143 @@ async function loadStudentSelectOptions(selectId) {
 async function handleFormSubmit() {
   let result;
 
-  switch (window.currentFormType) {
-    case 'student':
-      result = await api.db.query(`
-        INSERT INTO students (name, phone, email, target_country, target_major, gpa, consultant, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
-      `, [
-        document.getElementById('form-name').value,
-        document.getElementById('form-phone').value,
-        document.getElementById('form-email').value,
-        document.getElementById('form-country').value,
-        document.getElementById('form-major').value,
-        parseFloat(document.getElementById('form-gpa').value) || null
-      ]);
-      if (result.success) {
-        logOperation(result.data.lastInsertRowid, 'create', 'student', '创建学生档案');
-        loadStudents();
-      }
-      break;
+  try {
+    switch (window.currentFormType) {
+      case 'student':
+        const name = document.getElementById('form-name').value;
+        const consultant = document.getElementById('form-consultant').value;
+        if (!name || !consultant) {
+          alert('请填写必填项：姓名、顾问');
+          return;
+        }
+        result = await api.db.query(`
+          INSERT INTO students (name, phone, email, target_country, target_major, gpa, consultant, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+        `, [
+          name,
+          document.getElementById('form-phone').value || null,
+          document.getElementById('form-email').value || null,
+          document.getElementById('form-country').value || null,
+          document.getElementById('form-major').value || null,
+          parseFloat(document.getElementById('form-gpa').value) || null,
+          consultant
+        ]);
+        if (result.success) {
+          logOperation(result.data.lastInsertRowid, 'create', 'student', '创建学生档案');
+          loadStudents();
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
 
-    case 'program':
-      result = await api.db.query(`
-        INSERT INTO school_programs (student_id, school_name, program_name, deadline, priority, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [
-        currentStudentId,
-        document.getElementById('form-school').value,
-        document.getElementById('form-program').value,
-        document.getElementById('form-deadline').value || null,
-        parseInt(document.getElementById('form-priority').value),
-        document.getElementById('form-notes').value
-      ]);
-      if (result.success) {
-        logOperation(currentStudentId, 'add', 'program', `添加选校: ${document.getElementById('form-school').value}`);
-        loadStudentPrograms(currentStudentId);
-      }
-      break;
+      case 'program':
+        result = await api.db.query(`
+          INSERT INTO school_programs (student_id, school_name, program_name, deadline, priority, notes)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [
+          currentStudentId,
+          document.getElementById('form-school').value,
+          document.getElementById('form-program').value,
+          document.getElementById('form-deadline').value || null,
+          parseInt(document.getElementById('form-priority').value),
+          document.getElementById('form-notes').value
+        ]);
+        if (result.success) {
+          logOperation(currentStudentId, 'add', 'program', `添加选校: ${document.getElementById('form-school').value}`);
+          loadStudentPrograms(currentStudentId);
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
 
-    case 'document':
-      result = await api.db.query(`
-        INSERT INTO documents (student_id, doc_type, doc_name, status, is_latest)
-        VALUES (?, ?, ?, 'pending', 1)
-      `, [
-        currentStudentId,
-        document.getElementById('form-doc-type').value,
-        document.getElementById('form-doc-name').value
-      ]);
-      if (result.success) {
-        logOperation(currentStudentId, 'add', 'document', `添加材料: ${document.getElementById('form-doc-name').value}`);
-        loadStudentDocuments(currentStudentId);
-      }
-      break;
+      case 'document':
+        result = await api.db.query(`
+          INSERT INTO documents (student_id, doc_type, doc_name, status, is_latest)
+          VALUES (?, ?, ?, 'pending', 1)
+        `, [
+          currentStudentId,
+          document.getElementById('form-doc-type').value,
+          document.getElementById('form-doc-name').value
+        ]);
+        if (result.success) {
+          logOperation(currentStudentId, 'add', 'document', `添加材料: ${document.getElementById('form-doc-name').value}`);
+          loadStudentDocuments(currentStudentId);
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
 
-    case 'essay':
-      result = await api.db.query(`
-        INSERT INTO essays (student_id, essay_title, deadline, assigned_to, status)
-        VALUES (?, ?, ?, ?, 'draft')
-      `, [
-        parseInt(document.getElementById('form-essay-student').value),
-        document.getElementById('form-essay-title').value,
-        document.getElementById('form-essay-deadline').value || null,
-        document.getElementById('form-essay-assignee').value
-      ]);
-      if (result.success) {
-        logOperation(parseInt(document.getElementById('form-essay-student').value), 'create', 'essay', `创建文书: ${document.getElementById('form-essay-title').value}`);
-        loadEssays();
-      }
-      break;
+      case 'essay':
+        result = await api.db.query(`
+          INSERT INTO essays (student_id, essay_title, deadline, assigned_to, status)
+          VALUES (?, ?, ?, ?, 'draft')
+        `, [
+          parseInt(document.getElementById('form-essay-student').value),
+          document.getElementById('form-essay-title').value,
+          document.getElementById('form-essay-deadline').value || null,
+          document.getElementById('form-essay-assignee').value
+        ]);
+        if (result.success) {
+          logOperation(parseInt(document.getElementById('form-essay-student').value), 'create', 'essay', `创建文书: ${document.getElementById('form-essay-title').value}`);
+          loadEssays();
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
 
-    case 'visa':
-      result = await api.db.query(`
-        INSERT INTO visa_process (student_id, visa_type, status)
-        VALUES (?, ?, 'not_started')
-      `, [
-        parseInt(document.getElementById('form-visa-student').value),
-        document.getElementById('form-visa-type').value
-      ]);
-      if (result.success) {
-        logOperation(parseInt(document.getElementById('form-visa-student').value), 'create', 'visa', `创建签证流程: ${document.getElementById('form-visa-type').value}`);
-        loadVisa();
-      }
-      break;
+      case 'visa':
+        result = await api.db.query(`
+          INSERT INTO visa_process (student_id, visa_type, status)
+          VALUES (?, ?, 'not_started')
+        `, [
+          parseInt(document.getElementById('form-visa-student').value),
+          document.getElementById('form-visa-type').value
+        ]);
+        if (result.success) {
+          logOperation(parseInt(document.getElementById('form-visa-student').value), 'create', 'visa', `创建签证流程: ${document.getElementById('form-visa-type').value}`);
+          loadVisa();
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
+
+      case 'refund':
+        const refundAmount = parseFloat(document.getElementById('form-refund-amount').value);
+        if (!refundAmount || refundAmount <= 0) {
+          alert('请输入有效的退款金额');
+          return;
+        }
+        result = await api.db.query(`
+          INSERT INTO refund_requests (student_id, amount, reason, status, requested_by)
+          VALUES (?, ?, ?, 'pending', ?)
+        `, [
+          currentStudentId,
+          refundAmount,
+          document.getElementById('form-refund-reason').value || null,
+          document.getElementById('form-refund-requester').value
+        ]);
+        if (result.success) {
+          await api.db.query("UPDATE students SET status = 'refund_pending' WHERE id = ?", [currentStudentId]);
+          logOperation(currentStudentId, 'request', 'refund', `申请退款: ¥${refundAmount}`);
+          loadStudentRefunds(currentStudentId);
+          loadStudents();
+          document.getElementById('form-modal').classList.add('hidden');
+        } else {
+          alert('保存失败：' + (result.error || '未知错误'));
+        }
+        break;
+
+      default:
+        document.getElementById('form-modal').classList.add('hidden');
+    }
+  } catch (error) {
+    alert('操作失败：' + error.message);
   }
-
-  document.getElementById('form-modal').classList.add('hidden');
 }
 
 async function exportReceipt() {
