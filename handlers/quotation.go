@@ -157,6 +157,10 @@ func (h *QuotationHandler) Get(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
 	}
 
+	if userRole == models.RoleAfterSales {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "After-sales staff cannot view quotation details")
+	}
+
 	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view your own quotations")
 	}
@@ -234,7 +238,11 @@ func (h *QuotationHandler) Submit(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
 	}
 
-	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+	if userRole != models.RoleSalesperson {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "Only salesperson can submit quotation for approval")
+	}
+
+	if quotation.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only submit your own quotations")
 	}
 
@@ -350,7 +358,11 @@ func (h *QuotationHandler) Complete(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Quotation not found")
 	}
 
-	if userRole == models.RoleSalesperson && quotation.SalespersonID != userID {
+	if userRole != models.RoleSalesperson {
+		return utils.ErrorResponse(c, fiber.StatusForbidden, "Only salesperson can mark quotation as completed")
+	}
+
+	if quotation.SalespersonID != userID {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only complete your own quotations")
 	}
 
@@ -358,6 +370,7 @@ func (h *QuotationHandler) Complete(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Only approved quotations can be completed")
 	}
 
+	oldQuotation := quotation
 	oldStatus := quotation.Status
 	quotation.Status = models.QuotationStatusCompleted
 
@@ -369,6 +382,13 @@ func (h *QuotationHandler) Complete(c *fiber.Ctx) error {
 		"quotation", quotation.ID,
 		string(oldStatus), string(quotation.Status),
 		userID, userName, "Order completed",
+	)
+
+	h.auditService.LogAction(
+		"complete", "quotation", quotation.ID,
+		userID, userName,
+		oldQuotation, quotation,
+		c.IP(), c.Get("User-Agent"),
 	)
 
 	return utils.SuccessResponse(c, quotation)

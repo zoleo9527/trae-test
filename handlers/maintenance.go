@@ -172,7 +172,7 @@ func (h *MaintenanceHandler) List(c *fiber.Ctx) error {
 
 	if userRole == models.RoleAfterSales {
 		userID, _, _ := middleware.GetCurrentUser(c)
-		query = query.Where("handler_id = ? OR handler_id IS NULL", userID)
+		query = query.Where("handler_id = ?", userID)
 	}
 
 	query.Count(&total)
@@ -197,7 +197,7 @@ func (h *MaintenanceHandler) Get(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view your own maintenance records")
 	}
 
-	if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
+	if userRole == models.RoleAfterSales && (maintenance.HandlerID == nil || *maintenance.HandlerID != userID) {
 		return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only view maintenance assigned to you")
 	}
 
@@ -274,39 +274,37 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	switch req.Status {
-	case models.MaintenanceStatusConfirmed, models.MaintenanceStatusInProgress:
-		if userRole != models.RoleManager && userRole != models.RoleAfterSales {
-			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or after-sales can confirm/process maintenance")
+	case models.MaintenanceStatusConfirmed, models.MaintenanceStatusInProgress, models.MaintenanceStatusCompleted:
+		if userRole != models.RoleAfterSales {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only assigned after-sales handler can process maintenance")
 		}
-		if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
+		if maintenance.HandlerID == nil {
+			return utils.ErrorResponse(c, fiber.StatusBadRequest, "Maintenance has not been assigned to any handler")
+		}
+		if *maintenance.HandlerID != userID {
 			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only process maintenance assigned to you")
 		}
 
-	case models.MaintenanceStatusCompleted:
-		if userRole != models.RoleManager && userRole != models.RoleAfterSales {
-			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or after-sales can complete maintenance")
-		}
-		if userRole == models.RoleAfterSales && maintenance.HandlerID != nil && *maintenance.HandlerID != userID {
-			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only complete maintenance assigned to you")
-		}
-
 	case models.MaintenanceStatusPickedUp:
+		if userRole != models.RoleManager && userRole != models.RoleSalesperson {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or creator salesperson can mark pickup")
+		}
 		if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
 			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only mark pickup for your own maintenance records")
 		}
 
 	case models.MaintenanceStatusCancelled:
+		if userRole != models.RoleManager && userRole != models.RoleSalesperson {
+			return utils.ErrorResponse(c, fiber.StatusForbidden, "Only manager or creator salesperson can cancel maintenance")
+		}
 		if userRole == models.RoleSalesperson && maintenance.SalespersonID != userID {
 			return utils.ErrorResponse(c, fiber.StatusForbidden, "You can only cancel your own maintenance records")
 		}
 	}
 
+	oldMaintenance := maintenance
 	oldStatus := maintenance.Status
 	maintenance.Status = req.Status
-
-	if req.Status == models.MaintenanceStatusInProgress && maintenance.HandlerID == nil {
-		maintenance.HandlerID = &userID
-	}
 
 	if req.Status == models.MaintenanceStatusCompleted {
 		now := time.Now()
@@ -331,7 +329,7 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 	h.auditService.LogAction(
 		"status_change", "maintenance", maintenance.ID,
 		userID, userName,
-		oldStatus, maintenance.Status,
+		oldMaintenance, maintenance,
 		c.IP(), c.Get("User-Agent"),
 	)
 
@@ -361,8 +359,11 @@ func (h *MaintenanceHandler) Assign(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid handler: must be an after-sales staff")
 	}
 
+	oldMaintenance := maintenance
 	oldStatus := maintenance.Status
 	oldHandlerID := maintenance.HandlerID
+	isReassign := oldHandlerID != nil
+
 	maintenance.HandlerID = &req.HandlerID
 
 	if maintenance.Status == models.MaintenanceStatusPending {
@@ -373,25 +374,45 @@ func (h *MaintenanceHandler) Assign(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to assign maintenance")
 	}
 
-	comment := req.Comment
-	if comment == "" {
-		if oldHandlerID == nil {
-			comment = fmt.Sprintf("Assigned to handler: %s", handler.Name)
-		} else {
-			comment = fmt.Sprintf("Reassigned to handler: %s", handler.Name)
+	var oldHandlerName string
+	if oldHandlerID != nil {
+		var oldHandler models.User
+		if err := h.db.First(&oldHandler, *oldHandlerID).Error; err == nil {
+			oldHandlerName = oldHandler.Name
 		}
 	}
 
-	h.auditService.AddStatusHistory(
-		"maintenance", maintenance.ID,
-		string(oldStatus), string(maintenance.Status),
-		userID, userName, comment,
-	)
+	comment := req.Comment
+	if comment == "" {
+		if !isReassign {
+			comment = fmt.Sprintf("Assigned to handler: %s", handler.Name)
+		} else {
+			if oldHandlerName != "" {
+				comment = fmt.Sprintf("Reassigned from %s to %s", oldHandlerName, handler.Name)
+			} else {
+				comment = fmt.Sprintf("Reassigned to handler: %s", handler.Name)
+			}
+		}
+	}
+
+	if isReassign && oldStatus == maintenance.Status {
+		h.auditService.AddStatusHistory(
+			"maintenance", maintenance.ID,
+			string(oldStatus), string(maintenance.Status),
+			userID, userName, comment,
+		)
+	} else {
+		h.auditService.AddStatusHistory(
+			"maintenance", maintenance.ID,
+			string(oldStatus), string(maintenance.Status),
+			userID, userName, comment,
+		)
+	}
 
 	h.auditService.LogAction(
 		"assign", "maintenance", maintenance.ID,
 		userID, userName,
-		oldHandlerID, maintenance.HandlerID,
+		oldMaintenance, maintenance,
 		c.IP(), c.Get("User-Agent"),
 	)
 
