@@ -16,8 +16,12 @@ export class WorkOrderController {
   @ApiOperation({ summary: '创建工单' })
   @ApiResponse({ status: 201, description: '创建成功' })
   create(@Body() createDto: CreateWorkOrderDto) {
+    const data: any = { ...createDto };
+    if (createDto.expectedDeadline) {
+      data.expectedDeadline = new Date(createDto.expectedDeadline);
+    }
     return this.workOrderService.create(
-      createDto,
+      data,
       createDto.operatorId,
       createDto.operatorName,
     );

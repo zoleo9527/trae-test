@@ -1,5 +1,5 @@
 import { WorkOrderStatus } from '../enums/work-order-status.enum';
-import { BusinessError, ErrorCode } from '../errors/business-error';
+import { createError, ErrorCode } from '../errors/business-error';
 
 export class WorkOrderStateMachine {
   private static readonly transitions: Map<WorkOrderStatus, WorkOrderStatus[]> = new Map([
@@ -46,7 +46,7 @@ export class WorkOrderStateMachine {
 
   static transition(from: WorkOrderStatus, to: WorkOrderStatus): void {
     if (!this.canTransition(from, to)) {
-      throw BusinessError(
+      throw createError(
         ErrorCode.INVALID_STATE_TRANSITION,
         `无法将工单状态从 ${from} 转换为 ${to}`,
         { from, to },

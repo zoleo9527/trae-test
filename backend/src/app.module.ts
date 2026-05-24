@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentModule } from './modules/student/student.module';
+import { ConsultantModule } from './modules/consultant/consultant.module';
 import { WorkOrderModule } from './modules/work-order/work-order.module';
 import { RefundModule } from './modules/refund/refund.module';
 import { TransferModule } from './modules/transfer/transfer.module';
 import { MaterialModule } from './modules/material/material.module';
+import { CommentModule } from './modules/comment/comment.module';
+import { DeadlineModule } from './modules/deadline/deadline.module';
 import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
@@ -21,10 +24,13 @@ import { AuditModule } from './modules/audit/audit.module';
       logging: false,
     }),
     StudentModule,
+    ConsultantModule,
     WorkOrderModule,
     RefundModule,
     TransferModule,
     MaterialModule,
+    CommentModule,
+    DeadlineModule,
     AuditModule,
   ],
 })

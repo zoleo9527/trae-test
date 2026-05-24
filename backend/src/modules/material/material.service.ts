@@ -5,7 +5,7 @@ import { Material } from './material.entity';
 import { MaterialVersion } from './material-version.entity';
 import { MaterialStatus } from '../../common/enums/material-status.enum';
 import { MaterialStateMachine } from '../../common/state-machines/material.state-machine';
-import { BusinessError, ErrorCode } from '../../common/errors/business-error';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -89,7 +89,7 @@ export class MaterialService {
     });
 
     if (!material) {
-      throw BusinessError(ErrorCode.MATERIAL_NOT_FOUND, `材料 ${id} 不存在`);
+      throw createError(ErrorCode.MATERIAL_NOT_FOUND, `材料 ${id} 不存在`);
     }
 
     return material;

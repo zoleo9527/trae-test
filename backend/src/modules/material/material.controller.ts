@@ -16,8 +16,12 @@ export class MaterialController {
   @Post()
   @ApiOperation({ summary: '创建材料' })
   create(@Body() createDto: CreateMaterialDto) {
+    const data: any = { ...createDto };
+    if (createDto.deadline) {
+      data.deadline = new Date(createDto.deadline);
+    }
     return this.materialService.create(
-      createDto,
+      data,
       createDto.operatorId,
       createDto.operatorName,
     );

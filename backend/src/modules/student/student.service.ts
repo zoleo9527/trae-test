@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Student } from './student.entity';
-import { BusinessError, ErrorCode } from '../../common/errors/business-error';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 
 @Injectable()
 export class StudentService {
@@ -46,7 +46,7 @@ export class StudentService {
     });
 
     if (!student) {
-      throw BusinessError(ErrorCode.STUDENT_NOT_FOUND, `学生 ${id} 不存在`);
+      throw createError(ErrorCode.STUDENT_NOT_FOUND, `学生 ${id} 不存在`);
     }
 
     return student;

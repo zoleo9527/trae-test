@@ -6,7 +6,7 @@ import { TransferStatus } from '../../common/enums/transfer-status.enum';
 import { TransferStateMachine } from '../../common/state-machines/transfer.state-machine';
 import { WorkOrderService } from '../work-order/work-order.service';
 import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
-import { BusinessError, ErrorCode } from '../../common/errors/business-error';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -100,7 +100,7 @@ export class TransferService {
     });
 
     if (!transfer) {
-      throw BusinessError(ErrorCode.TRANSFER_NOT_FOUND, `交接记录 ${id} 不存在`);
+      throw createError(ErrorCode.TRANSFER_NOT_FOUND, `交接记录 ${id} 不存在`);
     }
 
     return transfer;

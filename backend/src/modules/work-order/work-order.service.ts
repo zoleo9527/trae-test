@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { WorkOrder } from './work-order.entity';
 import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
 import { WorkOrderStateMachine } from '../../common/state-machines/work-order.state-machine';
-import { BusinessError, ErrorCode } from '../../common/errors/business-error';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -81,7 +81,7 @@ export class WorkOrderService {
     });
 
     if (!workOrder) {
-      throw BusinessError(ErrorCode.WORK_ORDER_NOT_FOUND, `工单 ${id} 不存在`);
+      throw createError(ErrorCode.WORK_ORDER_NOT_FOUND, `工单 ${id} 不存在`);
     }
 
     return workOrder;
@@ -171,10 +171,11 @@ export class WorkOrderService {
     const date = new Date();
     const prefix = `WO${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
 
-    const lastOrder = await this.workOrderRepository.findOne({
-      where: { orderNo: () => `orderNo LIKE '${prefix}%'` },
-      order: { orderNo: 'DESC' },
-    });
+    const lastOrder = await this.workOrderRepository
+      .createQueryBuilder('workOrder')
+      .where('workOrder.orderNo LIKE :prefix', { prefix: `${prefix}%` })
+      .orderBy('workOrder.orderNo', 'DESC')
+      .getOne();
 
     let sequence = 1;
     if (lastOrder) {

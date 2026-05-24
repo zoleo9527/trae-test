@@ -6,7 +6,7 @@ import { RefundStatus } from '../../common/enums/refund-status.enum';
 import { RefundStateMachine } from '../../common/state-machines/refund.state-machine';
 import { WorkOrderService } from '../work-order/work-order.service';
 import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
-import { BusinessError, ErrorCode } from '../../common/errors/business-error';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -90,7 +90,7 @@ export class RefundService {
     });
 
     if (!refund) {
-      throw BusinessError(ErrorCode.REFUND_NOT_FOUND, `退款申请 ${id} 不存在`);
+      throw createError(ErrorCode.REFUND_NOT_FOUND, `退款申请 ${id} 不存在`);
     }
 
     return refund;

@@ -1,5 +1,5 @@
 import { MaterialStatus } from '../enums/material-status.enum';
-import { BusinessError, ErrorCode } from '../errors/business-error';
+import { createError, ErrorCode } from '../errors/business-error';
 
 export class MaterialStateMachine {
   private static readonly transitions: Map<MaterialStatus, MaterialStatus[]> = new Map([
@@ -30,7 +30,7 @@ export class MaterialStateMachine {
 
   static transition(from: MaterialStatus, to: MaterialStatus): void {
     if (!this.canTransition(from, to)) {
-      throw BusinessError(
+      throw createError(
         ErrorCode.INVALID_STATE_TRANSITION,
         `无法将材料状态从 ${from} 转换为 ${to}`,
         { from, to },

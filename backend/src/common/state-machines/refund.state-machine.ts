@@ -1,5 +1,5 @@
 import { RefundStatus } from '../enums/refund-status.enum';
-import { BusinessError, ErrorCode } from '../errors/business-error';
+import { createError, ErrorCode } from '../errors/business-error';
 
 export class RefundStateMachine {
   private static readonly transitions: Map<RefundStatus, RefundStatus[]> = new Map([
@@ -37,7 +37,7 @@ export class RefundStateMachine {
 
   static transition(from: RefundStatus, to: RefundStatus): void {
     if (!this.canTransition(from, to)) {
-      throw BusinessError(
+      throw createError(
         ErrorCode.INVALID_STATE_TRANSITION,
         `无法将退款状态从 ${from} 转换为 ${to}`,
         { from, to },

@@ -1,0 +1,32 @@
+import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
+import { Student } from '../student/student.entity';
+import { Consultant } from '../consultant/consultant.entity';
+import { Refund } from '../refund/refund.entity';
+import { Transfer } from '../transfer/transfer.entity';
+import { Material } from '../material/material.entity';
+import { Comment } from '../comment/comment.entity';
+import { Deadline } from '../deadline/deadline.entity';
+export declare class WorkOrder {
+    id: string;
+    orderNo: string;
+    title: string;
+    description: string;
+    status: WorkOrderStatus;
+    studentId: string;
+    student: Student;
+    currentConsultantId: string;
+    currentConsultant: Consultant;
+    previousConsultantId: string;
+    previousConsultant: Consultant;
+    expectedDeadline: Date;
+    serviceContent: string;
+    refunds: Refund[];
+    transfers: Transfer[];
+    materials: Material[];
+    comments: Comment[];
+    deadlines: Deadline[];
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: string;
+    updatedBy: string;
+}

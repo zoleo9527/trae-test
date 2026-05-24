@@ -1,5 +1,5 @@
 import { TransferStatus } from '../enums/transfer-status.enum';
-import { BusinessError, ErrorCode } from '../errors/business-error';
+import { createError, ErrorCode } from '../errors/business-error';
 
 export class TransferStateMachine {
   private static readonly transitions: Map<TransferStatus, TransferStatus[]> = new Map([
@@ -33,7 +33,7 @@ export class TransferStateMachine {
 
   static transition(from: TransferStatus, to: TransferStatus): void {
     if (!this.canTransition(from, to)) {
-      throw BusinessError(
+      throw createError(
         ErrorCode.INVALID_STATE_TRANSITION,
         `无法将交接状态从 ${from} 转换为 ${to}`,
         { from, to },
