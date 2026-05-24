@@ -823,8 +823,8 @@ const WorkOrderDetail: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="是否保修" name="isWarranty" valuePropName="checked">
-                <Select defaultValue={false}>
+              <Form.Item label="是否保修" name="isWarranty" initialValue={false}>
+                <Select placeholder="请选择">
                   <Option value={true}>是</Option>
                   <Option value={false}>否</Option>
                 </Select>

@@ -168,6 +168,18 @@ let RepairService = class RepairService {
         const repair = await this.findOne(id);
         return this.stateMachine.getAvailableTransitions(repair.status, userRole);
     }
+    validateStepStatusTransition(oldStatus, newStatus) {
+        const validTransitions = {
+            [entities_1.StepStatus.PENDING]: [entities_1.StepStatus.IN_PROGRESS, entities_1.StepStatus.SKIPPED],
+            [entities_1.StepStatus.IN_PROGRESS]: [entities_1.StepStatus.PENDING, entities_1.StepStatus.COMPLETED, entities_1.StepStatus.SKIPPED],
+            [entities_1.StepStatus.COMPLETED]: [entities_1.StepStatus.IN_PROGRESS, entities_1.StepStatus.PENDING],
+            [entities_1.StepStatus.SKIPPED]: [entities_1.StepStatus.PENDING, entities_1.StepStatus.IN_PROGRESS],
+        };
+        const allowedTransitions = validTransitions[oldStatus] || [];
+        if (!allowedTransitions.includes(newStatus)) {
+            throw new common_1.BadRequestException(`不允许从 ${oldStatus} 状态变更为 ${newStatus}`);
+        }
+    }
     async updateStep(stepId, dto, operator) {
         const step = await this.repairStepRepository.findOne({
             where: { id: stepId, isDeleted: false },
@@ -175,13 +187,24 @@ let RepairService = class RepairService {
         if (!step) {
             throw new common_1.NotFoundException('维修步骤不存在');
         }
+        const oldStatus = step.status;
         const oldValues = { ...step };
-        if (dto.status === entities_1.StepStatus.IN_PROGRESS && !step.startedAt) {
-            step.startedAt = new Date();
-        }
-        if (dto.status === entities_1.StepStatus.COMPLETED && !step.completedAt) {
-            step.completedAt = new Date();
-            step.operatorId = operator.id;
+        if (dto.status && dto.status !== oldStatus) {
+            this.validateStepStatusTransition(oldStatus, dto.status);
+            if (dto.status === entities_1.StepStatus.IN_PROGRESS && !step.startedAt) {
+                step.startedAt = new Date();
+            }
+            if (dto.status === entities_1.StepStatus.COMPLETED && !step.completedAt) {
+                step.completedAt = new Date();
+                step.operatorId = operator.id;
+            }
+            if (dto.status !== entities_1.StepStatus.COMPLETED && oldStatus === entities_1.StepStatus.COMPLETED) {
+                step.completedAt = null;
+                step.operatorId = null;
+            }
+            if (dto.status === entities_1.StepStatus.PENDING && oldStatus !== entities_1.StepStatus.PENDING) {
+                step.startedAt = null;
+            }
         }
         Object.assign(step, dto);
         step.updatedBy = operator.id;

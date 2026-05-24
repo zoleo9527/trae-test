@@ -272,6 +272,22 @@ export class RepairService {
     return this.stateMachine.getAvailableTransitions(repair.status, userRole as any);
   }
 
+  private validateStepStatusTransition(oldStatus: StepStatus, newStatus: StepStatus): void {
+    const validTransitions: Record<StepStatus, StepStatus[]> = {
+      [StepStatus.PENDING]: [StepStatus.IN_PROGRESS, StepStatus.SKIPPED],
+      [StepStatus.IN_PROGRESS]: [StepStatus.PENDING, StepStatus.COMPLETED, StepStatus.SKIPPED],
+      [StepStatus.COMPLETED]: [StepStatus.IN_PROGRESS, StepStatus.PENDING],
+      [StepStatus.SKIPPED]: [StepStatus.PENDING, StepStatus.IN_PROGRESS],
+    };
+
+    const allowedTransitions = validTransitions[oldStatus] || [];
+    if (!allowedTransitions.includes(newStatus)) {
+      throw new BadRequestException(
+        `不允许从 ${oldStatus} 状态变更为 ${newStatus}`,
+      );
+    }
+  }
+
   async updateStep(stepId: string, dto: UpdateStepDto, operator: User): Promise<RepairStep> {
     const step = await this.repairStepRepository.findOne({
       where: { id: stepId, isDeleted: false },
@@ -281,15 +297,29 @@ export class RepairService {
       throw new NotFoundException('维修步骤不存在');
     }
 
+    const oldStatus = step.status;
     const oldValues = { ...step };
 
-    if (dto.status === StepStatus.IN_PROGRESS && !step.startedAt) {
-      step.startedAt = new Date();
-    }
+    if (dto.status && dto.status !== oldStatus) {
+      this.validateStepStatusTransition(oldStatus, dto.status);
 
-    if (dto.status === StepStatus.COMPLETED && !step.completedAt) {
-      step.completedAt = new Date();
-      step.operatorId = operator.id;
+      if (dto.status === StepStatus.IN_PROGRESS && !step.startedAt) {
+        step.startedAt = new Date();
+      }
+
+      if (dto.status === StepStatus.COMPLETED && !step.completedAt) {
+        step.completedAt = new Date();
+        step.operatorId = operator.id;
+      }
+
+      if (dto.status !== StepStatus.COMPLETED && oldStatus === StepStatus.COMPLETED) {
+        step.completedAt = null as any;
+        step.operatorId = null as any;
+      }
+
+      if (dto.status === StepStatus.PENDING && oldStatus !== StepStatus.PENDING) {
+        step.startedAt = null as any;
+      }
     }
 
     Object.assign(step, dto);

@@ -63,6 +63,7 @@ export declare class RepairService {
     update(id: string, dto: UpdateRepairDto, operator: User): Promise<Repair>;
     changeStatus(id: string, dto: ChangeRepairStatusDto, operator: User): Promise<Repair>;
     getAvailableTransitions(id: string, userRole: string): Promise<any[]>;
+    private validateStepStatusTransition;
     updateStep(stepId: string, dto: UpdateStepDto, operator: User): Promise<RepairStep>;
     addStep(repairId: string, stepDto: any, operator: User): Promise<RepairStep[]>;
 }
