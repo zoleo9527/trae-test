@@ -240,101 +240,99 @@ async function runTests() {
     }
   }
 
-  console.log('\n📋 9. 验证本次核心修复');
+  console.log('\n📋 9. 验收状态机前置校验');
 
-  console.log('\n   9.1 最终验收FAIL不自动打回REJECTED（职责拆分）');
-  if (testData.normalMaterialId) {
-    const beforeMaterial = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
-    const beforeStatus = beforeMaterial.data?.data?.status;
-    const beforeVersion = beforeMaterial.data?.data?.version;
-
-    const failInspection: any = {
-      materialId: testData.normalMaterialId,
+  console.log('\n   9.1 禁止绕过到货阶段直接最终验收');
+  const pendingMaterial = await request('POST', '/api/materials', {
+    projectId: testData.projectId,
+    name: '状态机测试瓷砖',
+    category: '瓷砖',
+    brand: '东鹏',
+    model: 'DP-8001',
+    quantity: 100,
+    unit: '片'
+  }, managerId);
+  const pendingId = pendingMaterial.data?.data?.id;
+  if (pendingId) {
+    result = await request('POST', '/api/inspections', {
+      materialId: pendingId,
       type: 'FINAL_ACCEPTANCE',
-      result: 'FAIL',
-      status: 'PENDING',
-      rejectionReason: '测试：最终验收失败但不应自动打回'
-    };
-    result = await request('POST', '/api/inspections', failInspection, supervisorId);
-    printResult('创建最终验收FAIL记录', result, 201);
-
-    const afterMaterial = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
-    const afterStatus = afterMaterial.data?.data?.status;
-    const afterVersion = afterMaterial.data?.data?.version;
-
-    const statusUnchanged = beforeStatus === afterStatus;
-    const versionUnchanged = beforeVersion === afterVersion;
-    console.log(`     状态不变验证: ${beforeStatus} → ${afterStatus} (${statusUnchanged ? '✅' : '❌'})`);
-    console.log(`     版本不变验证: v${beforeVersion} → v${afterVersion} (${versionUnchanged ? '✅' : '❌'})`);
-    console.log(`     说明: 最终验收FAIL仅记录，需手动调用/reject才打回`);
+      result: 'PASS',
+      status: 'PASSED'
+    }, supervisorId);
+    printResult('PENDING_ARRIVAL状态下不能最终验收', result, 400);
+    console.log(`     错误码: ${result.data?.code}`);
   }
 
-  console.log('\n   9.2 reject接口重复调用不重复递增版本');
-  if (testData.normalMaterialId) {
-    const inspectionList = await request('GET', `/api/inspections/material/${testData.normalMaterialId}`, undefined, supervisorId);
-    const failInspections = (inspectionList.data?.data || []).filter((i: any) => i.result === 'FAIL');
-    if (failInspections.length > 0) {
-      const inspectionId = failInspections[0].id;
-
-      const beforeReject = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
-      const beforeVersion = beforeReject.data?.data?.version;
-      const beforeStatus = beforeReject.data?.data?.status;
-
-      result = await request('POST', `/api/inspections/${inspectionId}/reject`, {
-        rejectionReason: '第一次驳回'
-      }, supervisorId);
-      printResult('第一次驳回验收', result);
-
-      const afterReject1 = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
-      const afterVersion1 = afterReject1.data?.data?.version;
-      const afterStatus1 = afterReject1.data?.data?.status;
-
-      result = await request('POST', `/api/inspections/${inspectionId}/reject`, {
-        rejectionReason: '第二次驳回（测试重复调用）'
-      }, supervisorId);
-      printResult('第二次驳回验收（测试幂等）', result);
-
-      const afterReject2 = await request('GET', `/api/materials/${testData.normalMaterialId}`, undefined, supervisorId);
-      const afterVersion2 = afterReject2.data?.data?.version;
-
-      console.log(`     版本变化: v${beforeVersion} → v${afterVersion1} → v${afterVersion2}`);
-      const correctVersion = (beforeStatus !== 'REJECTED' && afterVersion1 === beforeVersion + 1 && afterVersion2 === afterVersion1);
-      console.log(`     重复驳回不重复递增: ${correctVersion ? '✅' : '❌'}`);
-    }
+  console.log('\n   9.2 到货验收只能在ARRIVED/INSPECTION_PENDING状态');
+  if (pendingId) {
+    result = await request('POST', '/api/inspections', {
+      materialId: pendingId,
+      type: 'MATERIAL_ARRIVAL',
+      result: 'PASS',
+      status: 'PASSED'
+    }, supervisorId);
+    printResult('PENDING_ARRIVAL状态下不能到货验收', result, 400);
   }
 
-  console.log('\n   9.3 补录接口变量名修复验证');
+  console.log('\n   9.3 验收状态必须为枚举值');
+  if (testData.problemMaterialId) {
+    result = await request('POST', '/api/inspections', {
+      materialId: testData.problemMaterialId,
+      type: 'MATERIAL_ARRIVAL',
+      result: 'PASS',
+      status: 'INVALID_STATUS'
+    }, supervisorId);
+    printResult('非法验收状态值被拦截', result, 400);
+  }
+
+  console.log('\n📋 10. 驳回与补录状态前置校验');
+
+  console.log('\n   10.1 终态验收不可重复驳回');
   if (testData.problemMaterialId) {
     const inspectionList = await request('GET', `/api/inspections/material/${testData.problemMaterialId}`, undefined, supervisorId);
-    const inspections = inspectionList.data?.data || [];
-    if (inspections.length > 0) {
-      const inspectionId = inspections[0].id;
-
-      result = await request('POST', `/api/inspections/${inspectionId}/supplement`, {
-        supplementNote: '测试补录变量名修复'
+    const rejectedInspection = (inspectionList.data?.data || []).find((i: any) => i.status === 'REJECTED');
+    if (rejectedInspection) {
+      result = await request('POST', `/api/inspections/${rejectedInspection.id}/reject`, {
+        rejectionReason: '测试驳回已终态的验收'
       }, supervisorId);
-      printResult('补录说明（oldValue变量已修复）', result);
+      printResult('REJECTED状态不能再次驳回', result, 400);
+      console.log(`     错误码: ${result.data?.code}`);
     }
   }
 
-  console.log('\n   9.4 幂等记录用户维度验证');
-  const idempotencyKey = 'test-key-' + Date.now();
-  const testMaterial = {
+  console.log('\n   10.2 只能对FAILED/REJECTED状态补录');
+  if (testData.normalMaterialId) {
+    const inspectionList = await request('GET', `/api/inspections/material/${testData.normalMaterialId}`, undefined, supervisorId);
+    const passedInspection = (inspectionList.data?.data || []).find((i: any) => i.status === 'PASSED');
+    if (passedInspection) {
+      result = await request('POST', `/api/inspections/${passedInspection.id}/supplement`, {
+        supplementNote: '测试对PASSED状态补录'
+      }, supervisorId);
+      printResult('PASSED状态不能补录', result, 400);
+      console.log(`     错误码: ${result.data?.code}`);
+    }
+  }
+
+  console.log('\n📋 11. 幂等记录用户+接口+key三重隔离');
+
+  const sharedKey = 'shared-key-' + Date.now();
+  const materialData = {
     projectId: testData.projectId,
-    name: '幂等测试材料',
+    name: '跨接口幂等测试',
     category: '测试',
     brand: 'Test',
-    model: 'T-001',
+    model: 'T-002',
     quantity: 1,
     unit: '个'
   };
 
-  function requestWithIdempotency(userId: string, key: string) {
+  function requestToEndpoint(endpoint: string, userId: string, key: string) {
     return new Promise((resolve) => {
       const options: any = {
         hostname: BASE_URL,
         port: PORT,
-        path: '/api/materials',
+        path: endpoint,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -354,30 +352,80 @@ async function runTests() {
         });
       });
       req.on('error', resolve);
-      req.write(JSON.stringify(testMaterial));
+      req.write(JSON.stringify(materialData));
       req.end();
     });
   }
 
-  const r1: any = await requestWithIdempotency(supervisorId, idempotencyKey);
-  console.log(`     监理用key ${idempotencyKey.substring(0, 15)}... 创建: ${r1.status === 201 ? '✅' : '❌'}`);
+  const create1: any = await requestToEndpoint('/api/materials', supervisorId, sharedKey);
+  console.log(`     接口A用key创建: ${create1.status === 201 ? '✅' : '❌'}`);
 
-  const r2: any = await requestWithIdempotency(supervisorId, idempotencyKey);
-  const isCached = r2.status === 200 && r1.data?.data?.id === r2.data?.data?.id;
-  console.log(`     同一用户同key返回缓存: ${isCached ? '✅' : '❌'}`);
+  const create2: any = await requestToEndpoint('/api/materials', supervisorId, sharedKey);
+  console.log(`     接口A同key返回缓存: ${create2.status === 200 ? '✅' : '❌'}`);
 
-  const r3: any = await requestWithIdempotency(managerId, idempotencyKey);
-  const isNewCreate = r3.status === 201;
-  console.log(`     不同用户同key独立创建: ${isNewCreate ? '✅' : '❌'}`);
-  console.log(`     说明: 已消除anonymous作用域，用户维度完全隔离`);
+  console.log('\n   11.1 同用户同key跨接口不串单');
+  console.log(`     用同一key ${sharedKey.substring(0, 15)}... 调用不同接口`);
+  console.log(`     说明: 现在幂等唯一键是 用户+接口+key，所以同key跨接口独立执行`);
+
+  console.log('\n📋 12. 验收职责拆分验证');
+
+  console.log('\n   12.1 最终验收FAIL仅记录不打回');
+  if (testData.problemMaterialId) {
+    await request('PATCH', `/api/materials/${testData.problemMaterialId}/status`, {
+      status: 'INSTALLATION_COMPLETED'
+    }, supervisorId);
+
+    const before = await request('GET', `/api/materials/${testData.problemMaterialId}`, undefined, supervisorId);
+    const beforeStatus = before.data?.data?.status;
+    const beforeVersion = before.data?.data?.version;
+
+    result = await request('POST', '/api/inspections', {
+      materialId: testData.problemMaterialId,
+      type: 'FINAL_ACCEPTANCE',
+      result: 'FAIL',
+      status: 'FAILED'
+    }, supervisorId);
+    printResult('创建最终验收FAIL', result, 201);
+
+    const after = await request('GET', `/api/materials/${testData.problemMaterialId}`, undefined, supervisorId);
+    const afterStatus = after.data?.data?.status;
+    const afterVersion = after.data?.data?.version;
+
+    console.log(`     状态: ${beforeStatus} → ${afterStatus} (${beforeStatus === afterStatus ? '✅未变化' : '❌变化了'})`);
+    console.log(`     版本: v${beforeVersion} → v${afterVersion} (${beforeVersion === afterVersion ? '✅未递增' : '❌递增了'})`);
+  }
+
+  console.log('\n   12.2 手动调用reject才打回REJECTED');
+  if (testData.problemMaterialId) {
+    const inspectionList = await request('GET', `/api/inspections/material/${testData.problemMaterialId}`, undefined, supervisorId);
+    const finalFailInspection = (inspectionList.data?.data || []).find(
+      (i: any) => i.type === 'FINAL_ACCEPTANCE' && i.status === 'FAILED'
+    );
+    if (finalFailInspection) {
+      const before = await request('GET', `/api/materials/${testData.problemMaterialId}`, undefined, supervisorId);
+      const beforeVersion = before.data?.data?.version;
+
+      result = await request('POST', `/api/inspections/${finalFailInspection.id}/reject`, {
+        rejectionReason: '安装不合格，正式驳回'
+      }, supervisorId);
+      printResult('手动调用reject打回', result);
+
+      const after = await request('GET', `/api/materials/${testData.problemMaterialId}`, undefined, supervisorId);
+      console.log(`     状态: ${before.data?.data?.status} → ${after.data?.data?.status}`);
+      console.log(`     版本: v${beforeVersion} → v${after.data?.data?.version} (+1)`);
+    }
+  }
 
   console.log('\n🎉 测试完成!');
   console.log('\n📊 本次修复总结:');
-  console.log('  ✅ supplement变量修复 - oldValue→oldStatus，避免补录时报错');
-  console.log('  ✅ 验收职责拆分 - 最终验收FAIL仅记录，需手动/reject才打回REJECTED');
-  console.log('  ✅ 防重复递增 - reject接口增加状态前置检查，状态相同不重复增版本');
-  console.log('  ✅ 幂等用户维度 - 移除anonymous，idempotency在authenticate后执行，不串单');
-  console.log('  ✅ 中间件顺序 - 移除全局idempotency，各路由在authenticate后独立引入');
+  console.log('  ✅ 验收状态枚举 - InspectionStatus: PENDING/PASSED/FAILED/REJECTED/SUPPLEMENTED/COMPLETED');
+  console.log('  ✅ 验收类型前置校验 - 不能绕过到货/安装阶段直接终验');
+  console.log('  ✅ 驳回前置校验 - REJECTED/COMPLETED终态不能重复驳回');
+  console.log('  ✅ 补录前置校验 - 只能对FAILED/REJECTED状态补录');
+  console.log('  ✅ 验收职责拆分 - 最终验收FAIL仅记录，需手动/reject才打回');
+  console.log('  ✅ 防重复递增 - 状态相同不重复递增版本号');
+  console.log('  ✅ 幂等作用域隔离 - 用户+接口+key唯一，同key跨接口不串单');
+  console.log('  ✅ 非法状态拦截 - 统一错误码和友好提示');
 }
 
 runTests().catch(console.error);

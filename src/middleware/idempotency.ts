@@ -14,13 +14,15 @@ export const idempotency = async (req: AuthRequest, res: Response, next: NextFun
   }
 
   const userId = req.user.id;
+  const endpoint = req.path;
 
   try {
     const existing = await prisma.idempotencyRecord.findUnique({
       where: {
-        id_userId: {
+        id_userId_endpoint: {
           id: idempotencyKey,
-          userId
+          userId,
+          endpoint
         }
       }
     });
@@ -36,7 +38,7 @@ export const idempotency = async (req: AuthRequest, res: Response, next: NextFun
           data: {
             id: idempotencyKey,
             userId,
-            endpoint: req.path,
+            endpoint,
             response: JSON.stringify(body),
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
           }

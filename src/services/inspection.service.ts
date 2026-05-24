@@ -1,14 +1,49 @@
-import { InspectionType, MaterialStatus, EvidenceType } from '@prisma/client';
+import { InspectionType, MaterialStatus, EvidenceType, InspectionStatus } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
 
 export const inspectionService = {
+  getAllowedMaterialStatusesForInspection(inspectionType: InspectionType): MaterialStatus[] {
+    const mapping: Record<InspectionType, MaterialStatus[]> = {
+      [InspectionType.MATERIAL_ARRIVAL]: [
+        MaterialStatus.ARRIVED,
+        MaterialStatus.INSPECTION_PENDING,
+        MaterialStatus.INSPECTION_FAILED
+      ],
+      [InspectionType.INSTALLATION_QUALITY]: [
+        MaterialStatus.INSTALLING,
+        MaterialStatus.INSTALLATION_COMPLETED
+      ],
+      [InspectionType.FINAL_ACCEPTANCE]: [
+        MaterialStatus.INSTALLATION_COMPLETED,
+        MaterialStatus.REJECTED
+      ]
+    };
+    return mapping[inspectionType] || [];
+  },
+
+  validateInspectionTypeForMaterialStatus(
+    inspectionType: InspectionType,
+    materialStatus: MaterialStatus
+  ): { valid: boolean; message?: string } {
+    const allowedStatuses = this.getAllowedMaterialStatusesForInspection(inspectionType);
+
+    if (!allowedStatuses.includes(materialStatus)) {
+      return {
+        valid: false,
+        message: `验收类型 ${inspectionType} 不能在主材状态 ${materialStatus} 下执行，允许的状态: ${allowedStatuses.join(', ')}`
+      };
+    }
+
+    return { valid: true };
+  },
+
   async create(data: {
     materialId: string;
     type: InspectionType;
-    result: string;
-    status: string;
+    result: 'PASS' | 'FAIL';
+    status?: InspectionStatus;
     rejectionReason?: string;
     supplementNote?: string;
     evidences?: Array<{ type: EvidenceType; url: string; description?: string }>;
@@ -18,13 +53,32 @@ export const inspectionService = {
       throw new AppError('主材不存在', 'MATERIAL_NOT_FOUND', 404);
     }
 
+    const validation = this.validateInspectionTypeForMaterialStatus(data.type, material.status);
+    if (!validation.valid) {
+      throw new AppError(validation.message!, 'INVALID_INSPECTION_TYPE_FOR_STATUS', 400, {
+        inspectionType: data.type,
+        currentMaterialStatus: material.status,
+        allowedStatuses: this.getAllowedMaterialStatusesForInspection(data.type)
+      });
+    }
+
+    const inspectionStatus: InspectionStatus = data.status ||
+      (data.result === 'PASS' ? InspectionStatus.PASSED : InspectionStatus.FAILED);
+
+    const validStatuses = Object.values(InspectionStatus);
+    if (!validStatuses.includes(inspectionStatus)) {
+      throw new AppError(`无效的验收状态: ${inspectionStatus}`, 'INVALID_INSPECTION_STATUS', 400, {
+        allowedStatuses: validStatuses
+      });
+    }
+
     const inspection = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.create({
         data: {
           materialId: data.materialId,
           type: data.type,
           result: data.result,
-          status: data.status,
+          status: inspectionStatus,
           rejectionReason: data.rejectionReason,
           supplementNote: data.supplementNote,
           inspectorId,
@@ -59,25 +113,21 @@ export const inspectionService = {
         }
       }
 
-      if (data.type === InspectionType.INSTALLATION_QUALITY) {
-        if (data.result === 'PASS') {
-          newMaterialStatus = MaterialStatus.INSTALLATION_COMPLETED;
-          changeReason = '安装质量验收通过';
-        }
+      if (data.type === InspectionType.INSTALLATION_QUALITY && data.result === 'PASS') {
+        newMaterialStatus = MaterialStatus.INSTALLATION_COMPLETED;
+        changeReason = '安装质量验收通过';
       }
 
-      if (data.type === InspectionType.FINAL_ACCEPTANCE) {
-        if (data.result === 'PASS') {
-          newMaterialStatus = MaterialStatus.ACCEPTED;
-          changeReason = '最终验收通过';
-        }
+      if (data.type === InspectionType.FINAL_ACCEPTANCE && data.result === 'PASS') {
+        newMaterialStatus = MaterialStatus.ACCEPTED;
+        changeReason = '最终验收通过';
       }
 
       if (newMaterialStatus && material.status !== newMaterialStatus) {
         await tx.material.update({
           where: { id: data.materialId },
-          data: { 
-            status: newMaterialStatus, 
+          data: {
+            status: newMaterialStatus,
             version: { increment: 1 },
             actualArrivalDate: data.type === InspectionType.MATERIAL_ARRIVAL && material.actualArrivalDate === null
               ? new Date()
@@ -139,11 +189,19 @@ export const inspectionService = {
       throw new AppError('验收记录不存在', 'INSPECTION_NOT_FOUND', 404);
     }
 
+    const terminalStatuses = [InspectionStatus.REJECTED, InspectionStatus.COMPLETED];
+    if (terminalStatuses.includes(inspection.status)) {
+      throw new AppError(`验收状态 ${inspection.status} 为终态，不可驳回`, 'INSPECTION_TERMINAL_STATUS', 400, {
+        currentStatus: inspection.status,
+        allowedStatuses: [InspectionStatus.PENDING, InspectionStatus.FAILED, InspectionStatus.SUPPLEMENTED]
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.update({
         where: { id },
         data: {
-          status: 'REJECTED',
+          status: InspectionStatus.REJECTED,
           rejectionReason
         }
       });
@@ -196,12 +254,20 @@ export const inspectionService = {
       throw new AppError('验收记录不存在', 'INSPECTION_NOT_FOUND', 404);
     }
 
+    const supplementableStatuses = [InspectionStatus.REJECTED, InspectionStatus.FAILED];
+    if (!supplementableStatuses.includes(inspection.status)) {
+      throw new AppError(`验收状态 ${inspection.status} 不可补录`, 'INSPECTION_NOT_SUPPLEMENTABLE', 400, {
+        currentStatus: inspection.status,
+        allowedStatuses: supplementableStatuses
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.update({
         where: { id },
         data: {
           supplementNote: data.supplementNote,
-          status: 'SUPPLEMENTED'
+          status: InspectionStatus.SUPPLEMENTED
         }
       });
 

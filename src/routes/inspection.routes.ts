@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Joi from 'joi';
-import { InspectionType, EvidenceType, UserRole } from '@prisma/client';
+import { InspectionType, EvidenceType, UserRole, InspectionStatus } from '@prisma/client';
 import { inspectionService } from '../services/inspection.service';
 import { authenticate, requireRoles, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
@@ -12,7 +12,7 @@ const createBodySchema = Joi.object({
   materialId: Joi.string().uuid().required(),
   type: Joi.string().valid(...Object.values(InspectionType)).required(),
   result: Joi.string().valid('PASS', 'FAIL').required(),
-  status: Joi.string().required(),
+  status: Joi.string().valid(...Object.values(InspectionStatus)).optional(),
   rejectionReason: Joi.string().optional(),
   supplementNote: Joi.string().optional(),
   evidences: Joi.array().items(Joi.object({
