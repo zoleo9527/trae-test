@@ -172,35 +172,36 @@ async function main() {
       materialId: problemMaterial.id,
       type: InspectionType.MATERIAL_ARRIVAL,
       result: 'FAIL',
-      status: InspectionStatus.REJECTED,
+      status: InspectionStatus.FAILED,
       rejectionReason: '门板有划痕，尺寸偏差3mm',
       inspectorId: users[0].id,
       inspectedAt: new Date('2024-01-21')
     }
+  });
 
-    const problemInspection2 = await prisma.inspection.create({
-      data: {
-        id: uuidv4(),
-        materialId: problemMaterial.id,
-        type: InspectionType.MATERIAL_ARRIVAL,
-        result: 'PASS',
-        status: InspectionStatus.SUPPLEMENTED,
-        supplementNote: '已更换门板，尺寸复测合格',
-        inspectorId: users[0].id,
-        inspectedAt: new Date('2024-01-23')
-      }
-    });
+  const problemInspection2 = await prisma.inspection.create({
+    data: {
+      id: uuidv4(),
+      materialId: problemMaterial.id,
+      type: InspectionType.MATERIAL_ARRIVAL,
+      result: 'PASS',
+      status: InspectionStatus.SUPPLEMENTED,
+      supplementNote: '已更换门板，尺寸复测合格',
+      inspectorId: users[0].id,
+      inspectedAt: new Date('2024-01-23')
+    }
+  });
 
-    const problemInspection3 = await prisma.inspection.create({
-      data: {
-        id: uuidv4(),
-        materialId: problemMaterial.id,
-        type: InspectionType.FINAL_ACCEPTANCE,
-        result: 'FAIL',
-        status: InspectionStatus.REJECTED,
-        rejectionReason: '台面拼接缝隙过大，拉手安装位置偏差',
-        inspectorId: users[0].id,
-        inspectedAt: new Date('2024-01-26')
+  const problemInspection3 = await prisma.inspection.create({
+    data: {
+      id: uuidv4(),
+      materialId: problemMaterial.id,
+      type: InspectionType.FINAL_ACCEPTANCE,
+      result: 'FAIL',
+      status: InspectionStatus.REJECTED,
+      rejectionReason: '台面拼接缝隙过大，拉手安装位置偏差',
+      inspectorId: users[0].id,
+      inspectedAt: new Date('2024-01-26')
     }
   });
 

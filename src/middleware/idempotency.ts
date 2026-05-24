@@ -19,8 +19,8 @@ export const idempotency = async (req: AuthRequest, res: Response, next: NextFun
   try {
     const existing = await prisma.idempotencyRecord.findUnique({
       where: {
-        id_userId_endpoint: {
-          id: idempotencyKey,
+        idempotencyKey_userId_endpoint: {
+          idempotencyKey,
           userId,
           endpoint
         }
@@ -36,7 +36,7 @@ export const idempotency = async (req: AuthRequest, res: Response, next: NextFun
       if (res.statusCode >= 200 && res.statusCode < 300) {
         prisma.idempotencyRecord.create({
           data: {
-            id: idempotencyKey,
+            idempotencyKey,
             userId,
             endpoint,
             response: JSON.stringify(body),

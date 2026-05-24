@@ -186,12 +186,12 @@ model AuditLog {
 }
 
 model IdempotencyRecord {
-  id          String   @id
-  userId      String
-  endpoint    String
-  response    String
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
+  idempotencyKey String
+  userId         String
+  endpoint       String
+  response       String
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
 
-  @@unique([id, userId, endpoint])
+  @@id([idempotencyKey, userId, endpoint])
 }

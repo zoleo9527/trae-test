@@ -23,6 +23,17 @@ export const inspectionService = {
     return mapping[inspectionType] || [];
   },
 
+  getValidStatusResultCombinations(): Array<{ result: string; status: InspectionStatus }> {
+    return [
+      { result: 'PASS', status: InspectionStatus.PENDING },
+      { result: 'PASS', status: InspectionStatus.PASSED },
+      { result: 'PASS', status: InspectionStatus.COMPLETED },
+      { result: 'FAIL', status: InspectionStatus.PENDING },
+      { result: 'FAIL', status: InspectionStatus.FAILED },
+      { result: 'FAIL', status: InspectionStatus.REJECTED }
+    ];
+  },
+
   validateInspectionTypeForMaterialStatus(
     inspectionType: InspectionType,
     materialStatus: MaterialStatus
@@ -34,6 +45,95 @@ export const inspectionService = {
         valid: false,
         message: `验收类型 ${inspectionType} 不能在主材状态 ${materialStatus} 下执行，允许的状态: ${allowedStatuses.join(', ')}`
       };
+    }
+
+    return { valid: true };
+  },
+
+  validateResultStatusCombination(
+    result: string,
+    status: InspectionStatus
+  ): { valid: boolean; message?: string } {
+    const combinations = this.getValidStatusResultCombinations();
+    const isValid = combinations.some(c => c.result === result && c.status === status);
+
+    if (!isValid) {
+      return {
+        valid: false,
+        message: `result=${result} 与 status=${status} 不是合法组合`,
+        allowedCombinations: combinations
+      };
+    }
+
+    return { valid: true };
+  },
+
+  getAllowedRejectTypes(): InspectionType[] {
+    return [InspectionType.INSTALLATION_QUALITY, InspectionType.FINAL_ACCEPTANCE];
+  },
+
+  validateRejectForInspectionType(
+    inspectionType: InspectionType,
+    materialStatus: MaterialStatus
+  ): { valid: boolean; message?: string } {
+    const allowedTypes = this.getAllowedRejectTypes();
+
+    if (!allowedTypes.includes(inspectionType)) {
+      return {
+        valid: false,
+        message: `验收类型 ${inspectionType} 不支持手动驳回，仅 ${allowedTypes.join(', ')} 可手动驳回`
+      };
+    }
+
+    const allowedMaterialStatuses = [
+      MaterialStatus.INSTALLING,
+      MaterialStatus.INSTALLATION_COMPLETED,
+      MaterialStatus.PENDING_ARRIVAL,
+      MaterialStatus.ARRIVED,
+      MaterialStatus.INSPECTION_PENDING,
+      MaterialStatus.INSPECTION_PASSED,
+      MaterialStatus.INSTALLATION_PENDING
+    ];
+
+    if (materialStatus === MaterialStatus.REJECTED) {
+      return {
+        valid: false,
+        message: `主材已处于 REJECTED 状态，无需重复驳回`
+      };
+    }
+
+    if (!allowedMaterialStatuses.includes(materialStatus)) {
+      return {
+        valid: false,
+        message: `主材状态 ${materialStatus} 下不能执行驳回操作`
+      };
+    }
+
+    return { valid: true };
+  },
+
+  validateSupplementForInspectionType(
+    inspectionType: InspectionType,
+    materialStatus: MaterialStatus
+  ): { valid: boolean; message?: string } {
+    if (inspectionType === InspectionType.MATERIAL_ARRIVAL) {
+      const allowedStatuses = [MaterialStatus.INSPECTION_FAILED, MaterialStatus.REJECTED];
+      if (!allowedStatuses.includes(materialStatus)) {
+        return {
+          valid: false,
+          message: `到场验收补录需要主材处于 INSPECTION_FAILED 或 REJECTED 状态，当前: ${materialStatus}`
+        };
+      }
+    }
+
+    if (inspectionType === InspectionType.INSTALLATION_QUALITY || inspectionType === InspectionType.FINAL_ACCEPTANCE) {
+      const allowedStatuses = [MaterialStatus.REJECTED, MaterialStatus.INSTALLATION_COMPLETED];
+      if (!allowedStatuses.includes(materialStatus)) {
+        return {
+          valid: false,
+          message: `安装验收补录需要主材处于 REJECTED 或 INSTALLATION_COMPLETED 状态，当前: ${materialStatus}`
+        };
+      }
     }
 
     return { valid: true };
@@ -53,9 +153,9 @@ export const inspectionService = {
       throw new AppError('主材不存在', 'MATERIAL_NOT_FOUND', 404);
     }
 
-    const validation = this.validateInspectionTypeForMaterialStatus(data.type, material.status);
-    if (!validation.valid) {
-      throw new AppError(validation.message!, 'INVALID_INSPECTION_TYPE_FOR_STATUS', 400, {
+    const typeValidation = this.validateInspectionTypeForMaterialStatus(data.type, material.status);
+    if (!typeValidation.valid) {
+      throw new AppError(typeValidation.message!, 'INVALID_INSPECTION_TYPE_FOR_STATUS', 400, {
         inspectionType: data.type,
         currentMaterialStatus: material.status,
         allowedStatuses: this.getAllowedMaterialStatusesForInspection(data.type)
@@ -65,10 +165,12 @@ export const inspectionService = {
     const inspectionStatus: InspectionStatus = data.status ||
       (data.result === 'PASS' ? InspectionStatus.PASSED : InspectionStatus.FAILED);
 
-    const validStatuses = Object.values(InspectionStatus);
-    if (!validStatuses.includes(inspectionStatus)) {
-      throw new AppError(`无效的验收状态: ${inspectionStatus}`, 'INVALID_INSPECTION_STATUS', 400, {
-        allowedStatuses: validStatuses
+    const combinationValidation = this.validateResultStatusCombination(data.result, inspectionStatus);
+    if (!combinationValidation.valid) {
+      throw new AppError(combinationValidation.message!, 'INVALID_RESULT_STATUS_COMBINATION', 400, {
+        result: data.result,
+        status: inspectionStatus,
+        allowedCombinations: combinationValidation.allowedCombinations
       });
     }
 
@@ -197,6 +299,14 @@ export const inspectionService = {
       });
     }
 
+    const rejectValidation = this.validateRejectForInspectionType(inspection.type, inspection.material.status);
+    if (!rejectValidation.valid) {
+      throw new AppError(rejectValidation.message!, 'INVALID_REJECT_FOR_INSPECTION_TYPE', 400, {
+        inspectionType: inspection.type,
+        currentMaterialStatus: inspection.material.status
+      });
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.update({
         where: { id },
@@ -259,6 +369,14 @@ export const inspectionService = {
       throw new AppError(`验收状态 ${inspection.status} 不可补录`, 'INSPECTION_NOT_SUPPLEMENTABLE', 400, {
         currentStatus: inspection.status,
         allowedStatuses: supplementableStatuses
+      });
+    }
+
+    const supplementValidation = this.validateSupplementForInspectionType(inspection.type, inspection.material.status);
+    if (!supplementValidation.valid) {
+      throw new AppError(supplementValidation.message!, 'INVALID_SUPPLEMENT_FOR_INSPECTION_TYPE', 400, {
+        inspectionType: inspection.type,
+        currentMaterialStatus: inspection.material.status
       });
     }
 
