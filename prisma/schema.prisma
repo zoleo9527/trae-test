@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum UserRole {
+  SUPERVISOR
+  PROJECT_MANAGER
+  CUSTOMER_SERVICE
+  OWNER
+}
+
+enum MaterialStatus {
+  PENDING_ARRIVAL
+  ARRIVED
+  INSPECTION_PENDING
+  INSPECTION_PASSED
+  INSPECTION_FAILED
+  INSTALLATION_PENDING
+  INSTALLING
+  INSTALLATION_COMPLETED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum InspectionType {
+  MATERIAL_ARRIVAL
+  INSTALLATION_QUALITY
+  FINAL_ACCEPTANCE
+}
+
+enum EvidenceType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  SIGNATURE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdMaterials  Material[]        @relation("MaterialCreator")
+  handledMaterials Material[]        @relation("MaterialHandler")
+  inspections     Inspection[]
+  comments        Comment[]
+  auditLogs       AuditLog[]
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  ownerName   String
+  ownerPhone  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  materials Material[]
+}
+
+model Material {
+  id              String         @id @default(uuid())
+  projectId       String
+  name            String
+  category        String
+  brand           String
+  model           String
+  quantity        Int
+  unit            String
+  estimatedPrice  Decimal?
+  actualPrice     Decimal?
+  status          MaterialStatus @default(PENDING_ARRIVAL)
+  idempotencyKey String       @unique
+  version         Int           @default(1)
+
+  project         Project        @relation(fields: [projectId], references: [id])
+  creator         User           @relation("MaterialCreator", fields: [creatorId], references: [id])
+  creatorId       String
+  handler         User?          @relation("MaterialHandler", fields: [handlerId], references: [id])
+  handlerId       String?
+  expectedArrivalDate DateTime?
+  actualArrivalDate   DateTime?
+  installationStartDate DateTime?
+  installationEndDate   DateTime?
+
+  inspections     Inspection[]
+  evidences   Evidence[]
+  comments    Comment[]
+  auditLogs   AuditLog[]
+  changeLogs  ChangeLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Inspection {
+  id             String         @id @default(uuid())
+  materialId     String
+  type           InspectionType
+  status         String
+  result         String
+  rejectionReason String?
+  supplementNote   String?
+
+  material       Material       @relation(fields: [materialId], references: [id])
+  inspector      User           @relation(fields: [inspectorId], references: [id])
+  inspectorId    String
+
+  evidences      Evidence[]
+  comments       Comment[]
+
+  inspectedAt    DateTime
+  createdAt      DateTime @default(now())
+}
+
+model Evidence {
+  id          String       @id @default(uuid())
+  materialId  String?
+  inspectionId String?
+  type        EvidenceType
+  url         String
+  description String?
+  uploadedBy   String
+  uploadedAt  DateTime     @default(now())
+
+  material    Material?    @relation(fields: [materialId], references: [id])
+  inspection Inspection?  @relation(fields: [inspectionId], references: [id])
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  materialId  String?
+  inspectionId String?
+  content     String
+  authorId     String
+  createdAt   DateTime @default(now())
+
+  material    Material?   @relation(fields: [materialId], references: [id])
+  inspection  Inspection? @relation(fields: [inspectionId], references: [id])
+  author      User       @relation(fields: [authorId], references: [id])
+}
+
+model ChangeLog {
+  id          String   @id @default(uuid())
+  materialId  String
+  fieldName    String
+  oldValue    String?
+  newValue    String?
+  changedBy   String
+  changeReason String?
+  changedAt   DateTime @default(now())
+
+  material    Material @relation(fields: [materialId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  materialId  String?
+  userId      String
+  action      String
+  details     String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  material    Material? @relation(fields: [materialId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model IdempotencyRecord {
+  id          String   @id
+  userId      String
+  endpoint    String
+  response    String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([id, userId])
+}
