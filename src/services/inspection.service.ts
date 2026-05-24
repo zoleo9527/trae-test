@@ -46,13 +46,46 @@ export const inspectionService = {
         });
       }
 
+      let newMaterialStatus: MaterialStatus | null = null;
+      let changeReason = '';
+
       if (data.type === InspectionType.MATERIAL_ARRIVAL) {
-        const newStatus = data.result === 'PASS'
-          ? MaterialStatus.INSPECTION_PASSED
-          : MaterialStatus.INSPECTION_FAILED;
+        if (data.result === 'PASS') {
+          newMaterialStatus = MaterialStatus.INSPECTION_PASSED;
+          changeReason = '到场验收通过';
+        } else {
+          newMaterialStatus = MaterialStatus.INSPECTION_FAILED;
+          changeReason = '到场验收不通过';
+        }
+      }
+
+      if (data.type === InspectionType.INSTALLATION_QUALITY) {
+        if (data.result === 'PASS') {
+          newMaterialStatus = MaterialStatus.INSTALLATION_COMPLETED;
+          changeReason = '安装质量验收通过';
+        }
+      }
+
+      if (data.type === InspectionType.FINAL_ACCEPTANCE) {
+        if (data.result === 'PASS') {
+          newMaterialStatus = MaterialStatus.ACCEPTED;
+          changeReason = '最终验收通过';
+        } else {
+          newMaterialStatus = MaterialStatus.REJECTED;
+          changeReason = '最终验收不通过';
+        }
+      }
+
+      if (newMaterialStatus && material.status !== newMaterialStatus) {
         await tx.material.update({
           where: { id: data.materialId },
-          data: { status: newStatus, version: { increment: 1 } }
+          data: { 
+            status: newMaterialStatus, 
+            version: { increment: 1 },
+            actualArrivalDate: data.type === InspectionType.MATERIAL_ARRIVAL && material.actualArrivalDate === null
+              ? new Date()
+              : undefined
+          }
         });
 
         await tx.changeLog.create({
@@ -60,17 +93,10 @@ export const inspectionService = {
             materialId: data.materialId,
             fieldName: 'status',
             oldValue: material.status,
-            newValue: newStatus,
+            newValue: newMaterialStatus,
             changedBy: inspectorId,
-            changeReason: `到场验收${data.result === 'PASS' ? '通过' : '不通过'}`
+            changeReason
           }
-        });
-      }
-
-      if (data.type === InspectionType.FINAL_ACCEPTANCE && data.result === 'PASS') {
-        await tx.material.update({
-          where: { id: data.materialId },
-          data: { status: MaterialStatus.ACCEPTED, version: { increment: 1 } }
         });
       }
 
@@ -87,6 +113,11 @@ export const inspectionService = {
   },
 
   async getByMaterial(materialId: string) {
+    const material = await prisma.material.findUnique({ where: { id: materialId } });
+    if (!material) {
+      throw new AppError('主材不存在', 'MATERIAL_NOT_FOUND', 404);
+    }
+
     return prisma.inspection.findMany({
       where: { materialId },
       include: {
@@ -111,7 +142,7 @@ export const inspectionService = {
       throw new AppError('验收记录不存在', 'INSPECTION_NOT_FOUND', 404);
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.update({
         where: { id },
         data: {
@@ -120,11 +151,25 @@ export const inspectionService = {
         }
       });
 
+      const oldStatus = inspection.material.status;
+      const newStatus = MaterialStatus.REJECTED;
+
       await tx.material.update({
         where: { id: inspection.materialId },
         data: {
-          status: MaterialStatus.REJECTED,
+          status: newStatus,
           version: { increment: 1 }
+        }
+      });
+
+      await tx.changeLog.create({
+        data: {
+          materialId: inspection.materialId,
+          fieldName: 'status',
+          oldValue: oldStatus,
+          newValue: newStatus,
+          changedBy: userId,
+          changeReason: `验收驳回: ${rejectionReason}`
         }
       });
 
@@ -136,19 +181,23 @@ export const inspectionService = {
       rejectionReason
     }, ipAddress);
 
-    return updated;
+    return result;
   },
 
   async supplement(id: string, data: {
     supplementNote: string;
     evidences?: Array<{ type: EvidenceType; url: string; description?: string }>;
   }, userId: string, ipAddress?: string) {
-    const inspection = await prisma.inspection.findUnique({ where: { id } });
+    const inspection = await prisma.inspection.findUnique({
+      where: { id },
+      include: { material: true }
+    });
+
     if (!inspection) {
       throw new AppError('验收记录不存在', 'INSPECTION_NOT_FOUND', 404);
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const insp = await tx.inspection.update({
         where: { id },
         data: {
@@ -167,6 +216,39 @@ export const inspectionService = {
         });
       }
 
+      const oldStatus = inspection.material.status;
+      let newStatus = oldStatus;
+      let changeReason = '';
+
+      if (inspection.type === InspectionType.MATERIAL_ARRIVAL) {
+        newStatus = MaterialStatus.INSPECTION_PENDING;
+        changeReason = '补录完成，待重新到场验收';
+      } else if (inspection.type === InspectionType.INSTALLATION_QUALITY || inspection.type === InspectionType.FINAL_ACCEPTANCE) {
+        newStatus = MaterialStatus.INSTALLING;
+        changeReason = '补录完成，待重新安装验收';
+      }
+
+      if (oldStatus !== newStatus) {
+        await tx.material.update({
+          where: { id: inspection.materialId },
+          data: {
+            status: newStatus,
+            version: { increment: 1 }
+          }
+        });
+
+        await tx.changeLog.create({
+          data: {
+            materialId: inspection.materialId,
+            fieldName: 'status',
+            oldValue,
+            newValue: newStatus,
+            changedBy: userId,
+            changeReason: `${changeReason} - ${data.supplementNote}`
+          }
+        });
+      }
+
       return insp;
     });
 
@@ -175,11 +257,16 @@ export const inspectionService = {
       supplementNote: data.supplementNote
     }, ipAddress);
 
-    return updated;
+    return result;
   },
 
   async addComment(inspectionId: string, content: string, authorId: string) {
-    return prisma.comment.create({
+    const inspection = await prisma.inspection.findUnique({ where: { id: inspectionId } });
+    if (!inspection) {
+      throw new AppError('验收记录不存在', 'INSPECTION_NOT_FOUND', 404);
+    }
+
+    const comment = await prisma.comment.create({
       data: {
         inspectionId,
         content,
@@ -189,5 +276,12 @@ export const inspectionService = {
         author: { select: { id: true, name: true, role: true } }
       }
     });
+
+    await auditService.log(authorId, 'ADD_COMMENT', inspection.materialId, {
+      inspectionId,
+      content
+    });
+
+    return comment;
   }
 };

@@ -1,4 +1,4 @@
-import { MaterialStatus, UserRole } from '@prisma/client';
+import { MaterialStatus } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { auditService } from './audit.service';
@@ -16,6 +16,11 @@ export const materialService = {
     estimatedPrice?: number;
     expectedArrivalDate?: Date;
   }, creatorId: string, ipAddress?: string) {
+    const project = await prisma.project.findUnique({ where: { id: data.projectId } });
+    if (!project) {
+      throw new AppError('项目不存在', 'PROJECT_NOT_FOUND', 404);
+    }
+
     const idempotencyKey = uuidv4();
 
     const material = await prisma.material.create({
@@ -27,13 +32,17 @@ export const materialService = {
         estimatedPrice: data.estimatedPrice ? data.estimatedPrice.toString() : undefined
       },
       include: {
-        project: true,
+        project: { select: { id: true, name: true, address: true } },
         creator: { select: { id: true, name: true, role: true } },
         handler: { select: { id: true, name: true, role: true } }
       }
     });
 
-    await auditService.log(creatorId, 'CREATE_MATERIAL', material.id, data, ipAddress);
+    await auditService.log(creatorId, 'CREATE_MATERIAL', material.id, {
+      name: data.name,
+      category: data.category,
+      brand: data.brand
+    }, ipAddress);
 
     return material;
   },
@@ -77,7 +86,13 @@ export const materialService = {
       })
     ]);
 
-    return { total, page, pageSize, totalPages: Math.ceil(total / pageSize), data };
+    return {
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+      data
+    };
   },
 
   async getDetail(id: string) {
@@ -91,7 +106,9 @@ export const materialService = {
           include: {
             inspector: { select: { id: true, name: true, role: true } },
             evidences: true,
-            comments: { include: { author: { select: { id: true, name: true, role: true } } } }
+            comments: {
+              include: { author: { select: { id: true, name: true, role: true } } }
+            }
           },
           orderBy: { createdAt: 'desc' }
         },
@@ -101,7 +118,6 @@ export const materialService = {
           orderBy: { createdAt: 'desc' }
         },
         changeLogs: {
-          include: { material: false },
           orderBy: { changedAt: 'desc' }
         }
       }
@@ -121,42 +137,62 @@ export const materialService = {
     }
 
     if (!this.canTransitionStatus(material.status, status)) {
-      throw new AppError(`无法从 ${material.status} 转换到 ${status}`, 'INVALID_STATUS_TRANSITION', 400);
+      throw new AppError(
+        `无法从 ${material.status} 转换到 ${status}`,
+        'INVALID_STATUS_TRANSITION',
+        400,
+        {
+          currentStatus: material.status,
+          targetStatus: status,
+          allowedTransitions: this.getAllowedTransitions(material.status)
+        }
+      );
     }
 
-    const updated = await prisma.material.update({
-      where: { id },
-      data: {
-        status,
-        version: { increment: 1 },
-        actualArrivalDate: status === MaterialStatus.ARRIVED ? new Date() : undefined,
-        installationStartDate: status === MaterialStatus.INSTALLING ? new Date() : undefined,
-        installationEndDate: status === MaterialStatus.INSTALLATION_COMPLETED ? new Date() : undefined
-      },
-      include: {
-        project: { select: { id: true, name: true } },
-        creator: { select: { id: true, name: true, role: true } },
-        handler: { select: { id: true, name: true, role: true } }
-      }
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.material.update({
+        where: { id },
+        data: {
+          status,
+          version: { increment: 1 },
+          actualArrivalDate: status === MaterialStatus.ARRIVED ? new Date() : undefined,
+          installationStartDate: status === MaterialStatus.INSTALLING ? new Date() : undefined,
+          installationEndDate: status === MaterialStatus.INSTALLATION_COMPLETED ? new Date() : undefined
+        },
+        include: {
+          project: { select: { id: true, name: true } },
+          creator: { select: { id: true, name: true, role: true } },
+          handler: { select: { id: true, name: true, role: true } }
+        }
+      });
+
+      await tx.changeLog.create({
+        data: {
+          materialId: id,
+          fieldName: 'status',
+          oldValue: material.status,
+          newValue: status,
+          changedBy: userId,
+          changeReason: '状态流转'
+        }
+      });
+
+      return result;
     });
 
-    await prisma.changeLog.create({
-      data: {
-        materialId: id,
-        fieldName: 'status',
-        oldValue: material.status,
-        newValue: status,
-        changedBy: userId,
-        changeReason: '状态流转'
-      }
-    });
-
-    await auditService.log(userId, 'STATUS_CHANGE', id, { oldStatus: material.status, newStatus: status }, ipAddress);
+    await auditService.log(userId, 'STATUS_CHANGE', id, {
+      oldStatus: material.status,
+      newStatus: status
+    }, ipAddress);
 
     return updated;
   },
 
   canTransitionStatus(current: MaterialStatus, next: MaterialStatus): boolean {
+    return this.getAllowedTransitions(current).includes(next);
+  },
+
+  getAllowedTransitions(status: MaterialStatus): MaterialStatus[] {
     const transitions: Record<MaterialStatus, MaterialStatus[]> = {
       [MaterialStatus.PENDING_ARRIVAL]: [MaterialStatus.ARRIVED, MaterialStatus.CANCELLED],
       [MaterialStatus.ARRIVED]: [MaterialStatus.INSPECTION_PENDING, MaterialStatus.CANCELLED],
@@ -167,10 +203,10 @@ export const materialService = {
       [MaterialStatus.INSTALLING]: [MaterialStatus.INSTALLATION_COMPLETED],
       [MaterialStatus.INSTALLATION_COMPLETED]: [MaterialStatus.ACCEPTED, MaterialStatus.REJECTED],
       [MaterialStatus.ACCEPTED]: [],
-      [MaterialStatus.REJECTED]: [MaterialStatus.INSTALLING, MaterialStatus.CANCELLED],
+      [MaterialStatus.REJECTED]: [MaterialStatus.INSTALLING, MaterialStatus.INSPECTION_PENDING, MaterialStatus.CANCELLED],
       [MaterialStatus.CANCELLED]: []
     };
-    return transitions[current]?.includes(next) || false;
+    return transitions[status] || [];
   },
 
   async assignHandler(id: string, handlerId: string, assigneeId: string, ipAddress?: string) {
@@ -184,23 +220,35 @@ export const materialService = {
       throw new AppError('处理人不存在', 'USER_NOT_FOUND', 404);
     }
 
-    const updated = await prisma.material.update({
-      where: { id },
-      data: { handlerId, version: { increment: 1 } }
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.material.update({
+        where: { id },
+        data: { handlerId, version: { increment: 1 } },
+        include: {
+          project: { select: { id: true, name: true } },
+          creator: { select: { id: true, name: true, role: true } },
+          handler: { select: { id: true, name: true, role: true } }
+        }
+      });
+
+      await tx.changeLog.create({
+        data: {
+          materialId: id,
+          fieldName: 'handlerId',
+          oldValue: material.handlerId || '',
+          newValue: handlerId,
+          changedBy: assigneeId,
+          changeReason: '分配处理人'
+        }
+      });
+
+      return result;
     });
 
-    await prisma.changeLog.create({
-      data: {
-        materialId: id,
-        fieldName: 'handlerId',
-        oldValue: material.handlerId,
-        newValue: handlerId,
-        changedBy: assigneeId,
-        changeReason: '分配处理人'
-      }
-    });
-
-    await auditService.log(assigneeId, 'ASSIGN_HANDLER', id, { handlerId, handlerName: handler.name }, ipAddress);
+    await auditService.log(assigneeId, 'ASSIGN_HANDLER', id, {
+      handlerId,
+      handlerName: handler.name
+    }, ipAddress);
 
     return updated;
   },
