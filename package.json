@@ -1,0 +1,23 @@
+{
+  "name": "home-supervision-system",
+  "version": "1.0.0",
+  "description": "家装监理系统 - 客诉登记与节点提醒",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "init": "node scripts/init-db.js",
+    "seed": "node scripts/seed-data.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.2.2",
+    "uuid": "^9.0.1",
+    "express-validator": "^7.0.1"
+  }
+}
