@@ -75,40 +75,99 @@
       </aside>
 
       <main class="content">
-        <div id="view-dashboard" class="view active">
-          <h2>工作台</h2>
+        <div id="view-dashboard-manager" class="view">
+          <h2>主管工作台</h2>
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-title">总学生数</div>
-              <div class="stat-value" id="stat-total-students">0</div>
+              <div class="stat-value" id="mgr-stat-students">0</div>
             </div>
             <div class="stat-card alert">
               <div class="stat-title">待处理材料</div>
-              <div class="stat-value" id="stat-pending-docs">0</div>
+              <div class="stat-value" id="mgr-stat-pending">0</div>
             </div>
             <div class="stat-card warning">
               <div class="stat-title">7天内截止</div>
-              <div class="stat-value" id="stat-upcoming-deadlines">0</div>
+              <div class="stat-value" id="mgr-stat-deadlines">0</div>
             </div>
             <div class="stat-card danger">
               <div class="stat-title">异常状态</div>
-              <div class="stat-value" id="stat-warnings">0</div>
+              <div class="stat-value" id="mgr-stat-warnings">0</div>
             </div>
           </div>
 
           <div class="dashboard-section">
             <h3>截止日提醒</h3>
-            <div id="deadline-list" class="list-container"></div>
+            <div id="mgr-deadline-list" class="list-container"></div>
           </div>
 
           <div class="dashboard-section">
             <h3>待审核材料</h3>
-            <div id="pending-docs-list" class="list-container"></div>
+            <div id="mgr-pending-list" class="list-container"></div>
           </div>
 
           <div class="dashboard-section">
             <h3>异常提醒</h3>
-            <div id="alert-list" class="list-container"></div>
+            <div id="mgr-alert-list" class="list-container"></div>
+          </div>
+        </div>
+
+        <div id="view-dashboard-writer" class="view">
+          <h2>文案工作台</h2>
+          <div class="stats-grid">
+            <div class="stat-card alert">
+              <div class="stat-title">待审核材料</div>
+              <div class="stat-value" id="writer-stat-pending-docs">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-title">进行中文书</div>
+              <div class="stat-value" id="writer-stat-essays">0</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-title">文书7天截止</div>
+              <div class="stat-value" id="writer-stat-essay-deadlines">0</div>
+            </div>
+            <div class="stat-card danger">
+              <div class="stat-title">被退回材料</div>
+              <div class="stat-value" id="writer-stat-rejected">0</div>
+            </div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>待审核材料清单</h3>
+            <div id="writer-docs-list" class="list-container"></div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>进行中文书进度</h3>
+            <div id="writer-essays-list" class="list-container"></div>
+          </div>
+        </div>
+
+        <div id="view-dashboard-visa" class="view">
+          <h2>签证工作台</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-title">待处理签证</div>
+              <div class="stat-value" id="visa-stat-pending">0</div>
+            </div>
+            <div class="stat-card warning">
+              <div class="stat-title">本周预约</div>
+              <div class="stat-value" id="visa-stat-week-appt">0</div>
+            </div>
+            <div class="stat-card alert">
+              <div class="stat-title">待面试</div>
+              <div class="stat-value" id="visa-stat-interview">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-title">7天内结果</div>
+              <div class="stat-value" id="visa-stat-results">0</div>
+            </div>
+          </div>
+
+          <div class="dashboard-section">
+            <h3>签证待办清单</h3>
+            <div id="visa-todo-list" class="list-container"></div>
           </div>
         </div>
 

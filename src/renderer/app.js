@@ -58,7 +58,11 @@ function bindEvents() {
         alert('您没有权限访问此功能');
         return;
       }
-      switchView(item.dataset.view);
+      let viewName = item.dataset.view;
+      if (viewName === 'dashboard') {
+        viewName = getDefaultViewByRole(currentUser.role);
+      }
+      switchView(viewName);
     });
   });
 
@@ -117,19 +121,15 @@ async function handleLogout() {
   document.getElementById('username').value = '';
   document.getElementById('password').value = '';
 
-  document.querySelectorAll('.dashboard-section').forEach(section => {
-    section.style.display = 'block';
-  });
-
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.remove('active');
+    item.style.display = 'flex';
   });
   document.querySelector('.nav-item[data-view="dashboard"]').classList.add('active');
 
   document.querySelectorAll('.view').forEach(view => {
     view.classList.remove('active');
   });
-  document.getElementById('view-dashboard').classList.add('active');
 }
 
 function showMainScreen() {
@@ -140,7 +140,6 @@ function showMainScreen() {
   document.getElementById('user-name').textContent = currentUser.name;
 
   updateNavigationByRole();
-  updateDashboardByRole();
 
   const defaultView = getDefaultViewByRole(currentUser.role);
   switchView(defaultView);
@@ -149,101 +148,42 @@ function showMainScreen() {
 function getDefaultViewByRole(role) {
   switch (role) {
     case 'writer':
-      return 'documents';
+      return 'dashboard-writer';
     case 'visa':
-      return 'visa';
+      return 'dashboard-visa';
     case 'manager':
     default:
-      return 'dashboard';
+      return 'dashboard-manager';
   }
 }
 
 function updateNavigationByRole() {
   document.querySelectorAll('.nav-item').forEach(item => {
-    const requiredRole = item.dataset.role;
     const viewName = item.dataset.view;
 
     if (currentUser.role === 'manager') {
       item.style.display = 'flex';
     } else if (currentUser.role === 'writer') {
-      const allowedViews = ['dashboard', 'students', 'documents', 'essays'];
+      const allowedViews = ['dashboard-writer', 'students', 'documents', 'essays'];
       item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
     } else if (currentUser.role === 'visa') {
-      const allowedViews = ['dashboard', 'students', 'visa'];
+      const allowedViews = ['dashboard-visa', 'students', 'visa'];
       item.style.display = allowedViews.includes(viewName) ? 'flex' : 'none';
     }
   });
 }
 
-function updateDashboardByRole() {
-  const statCards = document.querySelectorAll('.stat-card');
-  const sections = document.querySelectorAll('.dashboard-section');
-
-  if (currentUser.role === 'manager') {
-    statCards.forEach(card => card.style.display = 'block');
-    sections.forEach(section => section.style.display = 'block');
-    updateManagerDashboard();
-  } else if (currentUser.role === 'writer') {
-    updateWriterDashboard();
-  } else if (currentUser.role === 'visa') {
-    updateVisaDashboard();
-  }
-}
-
-function updateManagerDashboard() {
-  const statTitles = document.querySelectorAll('.stat-title');
-  const statValues = document.querySelectorAll('.stat-value');
-  if (statTitles[0]) statTitles[0].textContent = '总学生数';
-  if (statTitles[1]) statTitles[1].textContent = '待处理材料';
-  if (statTitles[2]) statTitles[2].textContent = '7天内截止';
-  if (statTitles[3]) statTitles[3].textContent = '异常状态';
-
-  const sectionTitles = document.querySelectorAll('.dashboard-section h3');
-  if (sectionTitles[0]) sectionTitles[0].textContent = '截止日提醒';
-  if (sectionTitles[1]) sectionTitles[1].textContent = '待审核材料';
-  if (sectionTitles[2]) sectionTitles[2].textContent = '异常提醒';
-
-  const statsGrid = document.querySelector('.stats-grid');
-  statsGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
-}
-
-function updateWriterDashboard() {
-  const statTitles = document.querySelectorAll('.stat-title');
-  const statValues = document.querySelectorAll('.stat-value');
-  if (statTitles[0]) statTitles[0].textContent = '待审核材料';
-  if (statTitles[1]) statTitles[1].textContent = '进行中文书';
-  if (statTitles[2]) statTitles[2].textContent = '文书7天截止';
-  if (statTitles[3]) statTitles[3].textContent = '被退回材料';
-
-  const sectionTitles = document.querySelectorAll('.dashboard-section h3');
-  if (sectionTitles[0]) sectionTitles[0].textContent = '待审核材料清单';
-  if (sectionTitles[1]) sectionTitles[1].textContent = '进行中文书进度';
-  if (sectionTitles[2]) sectionTitles[2].style.display = 'none';
-
-  const statsGrid = document.querySelector('.stats-grid');
-  statsGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
-}
-
-function updateVisaDashboard() {
-  const statTitles = document.querySelectorAll('.stat-title');
-  const statValues = document.querySelectorAll('.stat-value');
-  if (statTitles[0]) statTitles[0].textContent = '待处理签证';
-  if (statTitles[1]) statTitles[1].textContent = '本周预约';
-  if (statTitles[2]) statTitles[2].textContent = '待面试';
-  if (statTitles[3]) statTitles[3].textContent = '7天内结果';
-
-  const sectionTitles = document.querySelectorAll('.dashboard-section h3');
-  if (sectionTitles[0]) sectionTitles[0].textContent = '签证待办清单';
-  if (sectionTitles[1]) sectionTitles[1].style.display = 'none';
-  if (sectionTitles[2]) sectionTitles[2].style.display = 'none';
-
-  const statsGrid = document.querySelector('.stats-grid');
-  statsGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
-}
-
 function switchView(viewName) {
   document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.view === viewName);
+    const itemView = item.dataset.view;
+    let isActive = false;
+    if (itemView === viewName) {
+      isActive = true;
+    } else if (itemView === 'dashboard' && 
+               ['dashboard-manager', 'dashboard-writer', 'dashboard-visa'].includes(viewName)) {
+      isActive = true;
+    }
+    item.classList.toggle('active', isActive);
   });
 
   document.querySelectorAll('.view').forEach(view => {
@@ -251,8 +191,14 @@ function switchView(viewName) {
   });
 
   switch (viewName) {
-    case 'dashboard':
-      loadDashboard();
+    case 'dashboard-manager':
+      loadManagerDashboard();
+      break;
+    case 'dashboard-writer':
+      loadWriterDashboard();
+      break;
+    case 'dashboard-visa':
+      loadVisaDashboard();
       break;
     case 'students':
       loadStudents();
@@ -275,25 +221,7 @@ function switchView(viewName) {
   }
 }
 
-async function loadDashboard() {
-  const statValues = document.querySelectorAll('.stat-value');
-
-  if (currentUser.role === 'manager') {
-    await loadManagerDashboardStats(statValues);
-    loadDeadlineList();
-    loadPendingDocsList();
-    loadAlertsList();
-  } else if (currentUser.role === 'writer') {
-    await loadWriterDashboardStats(statValues);
-    loadWriterDocsList();
-    loadWriterEssaysList();
-  } else if (currentUser.role === 'visa') {
-    await loadVisaDashboardStats(statValues);
-    loadVisaTodoList();
-  }
-}
-
-async function loadManagerDashboardStats(statValues) {
+async function loadManagerDashboard() {
   const [studentsResult, pendingDocsResult, deadlinesResult, warningsResult] = await Promise.all([
     api.db.query('SELECT COUNT(*) as count FROM students'),
     api.db.query("SELECT COUNT(*) as count FROM documents WHERE status = 'pending' AND is_latest = 1"),
@@ -305,143 +233,23 @@ async function loadManagerDashboardStats(statValues) {
     api.db.query("SELECT COUNT(*) as count FROM students WHERE status IN ('warning', 'refund_pending')")
   ]);
 
-  if (statValues[0] && studentsResult.success) statValues[0].textContent = studentsResult.data[0].count;
-  if (statValues[1] && pendingDocsResult.success) statValues[1].textContent = pendingDocsResult.data[0].count;
-  if (statValues[2] && deadlinesResult.success) statValues[2].textContent = deadlinesResult.data[0].count;
-  if (statValues[3] && warningsResult.success) statValues[3].textContent = warningsResult.data[0].count;
+  const statStudents = document.getElementById('mgr-stat-students');
+  const statPending = document.getElementById('mgr-stat-pending');
+  const statDeadlines = document.getElementById('mgr-stat-deadlines');
+  const statWarnings = document.getElementById('mgr-stat-warnings');
+
+  if (statStudents && studentsResult.success) statStudents.textContent = studentsResult.data[0].count;
+  if (statPending && pendingDocsResult.success) statPending.textContent = pendingDocsResult.data[0].count;
+  if (statDeadlines && deadlinesResult.success) statDeadlines.textContent = deadlinesResult.data[0].count;
+  if (statWarnings && warningsResult.success) statWarnings.textContent = warningsResult.data[0].count;
+
+  loadMgrDeadlineList();
+  loadMgrPendingDocsList();
+  loadMgrAlertsList();
 }
 
-async function loadWriterDashboardStats(statValues) {
-  const [pendingDocsResult, activeEssaysResult, essayDeadlinesResult, rejectedDocsResult] = await Promise.all([
-    api.db.query("SELECT COUNT(*) as count FROM documents WHERE status = 'pending' AND is_latest = 1"),
-    api.db.query("SELECT COUNT(*) as count FROM essays WHERE status IN ('draft', 'reviewing')"),
-    api.db.query(`
-      SELECT COUNT(*) as count FROM essays 
-      WHERE deadline >= date('now') 
-      AND deadline <= date('now', '+7 days')
-    `),
-    api.db.query("SELECT COUNT(*) as count FROM documents WHERE status = 'rejected' AND is_latest = 1")
-  ]);
-
-  if (statValues[0] && pendingDocsResult.success) statValues[0].textContent = pendingDocsResult.data[0].count;
-  if (statValues[1] && activeEssaysResult.success) statValues[1].textContent = activeEssaysResult.data[0].count;
-  if (statValues[2] && essayDeadlinesResult.success) statValues[2].textContent = essayDeadlinesResult.data[0].count;
-  if (statValues[3] && rejectedDocsResult.success) statValues[3].textContent = rejectedDocsResult.data[0].count;
-}
-
-async function loadVisaDashboardStats(statValues) {
-  const [pendingVisaResult, weekAppointmentsResult, pendingInterviewResult, weekResultResult] = await Promise.all([
-    api.db.query("SELECT COUNT(*) as count FROM visa_process WHERE status IN ('not_started', 'in_progress')"),
-    api.db.query(`
-      SELECT COUNT(*) as count FROM visa_process 
-      WHERE appointment_date >= date('now') 
-      AND appointment_date <= date('now', '+7 days')
-    `),
-    api.db.query("SELECT COUNT(*) as count FROM visa_process WHERE status = 'interview_scheduled'"),
-    api.db.query(`
-      SELECT COUNT(*) as count FROM visa_process 
-      WHERE result_date >= date('now') 
-      AND result_date <= date('now', '+7 days')
-    `)
-  ]);
-
-  if (statValues[0] && pendingVisaResult.success) statValues[0].textContent = pendingVisaResult.data[0].count;
-  if (statValues[1] && weekAppointmentsResult.success) statValues[1].textContent = weekAppointmentsResult.data[0].count;
-  if (statValues[2] && pendingInterviewResult.success) statValues[2].textContent = pendingInterviewResult.data[0].count;
-  if (statValues[3] && weekResultResult.success) statValues[3].textContent = weekResultResult.data[0].count;
-}
-
-async function loadWriterDocsList() {
-  const container = document.getElementById('deadline-list');
-  const result = await api.db.query(`
-    SELECT d.*, s.name as student_name 
-    FROM documents d 
-    JOIN students s ON d.student_id = s.id
-    WHERE d.status = 'pending' AND d.is_latest = 1
-    ORDER BY d.created_at DESC
-    LIMIT 5
-  `);
-
-  if (!result.success || result.data.length === 0) {
-    container.innerHTML = '<div class="empty-state">暂无待审核材料</div>';
-    return;
-  }
-
-  container.innerHTML = result.data.map(item => `
-    <div class="list-item info">
-      <div>
-        <strong>${item.student_name}</strong> - ${docTypeLabels[item.doc_type] || item.doc_type}
-      </div>
-      <div style="color: #666;">
-        v${item.version}
-      </div>
-    </div>
-  `).join('');
-}
-
-async function loadWriterEssaysList() {
-  const container = document.getElementById('pending-docs-list');
-  const result = await api.db.query(`
-    SELECT e.*, s.name as student_name 
-    FROM essays e 
-    JOIN students s ON e.student_id = s.id
-    WHERE e.status IN ('draft', 'reviewing')
-    ORDER BY e.created_at DESC
-    LIMIT 5
-  `);
-
-  if (!result.success || result.data.length === 0) {
-    container.innerHTML = '<div class="empty-state">暂无进行中文书</div>';
-    return;
-  }
-
-  container.innerHTML = result.data.map(item => `
-    <div class="list-item info">
-      <div>
-        <strong>${item.student_name}</strong> - ${item.essay_title}
-      </div>
-      <div>
-        <span class="status-badge status-${item.status}">${statusLabels[item.status] || item.status}</span>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function loadVisaTodoList() {
-  const container = document.getElementById('deadline-list');
-  const result = await api.db.query(`
-    SELECT v.*, s.name as student_name 
-    FROM visa_process v 
-    JOIN students s ON v.student_id = s.id
-    WHERE v.status IN ('not_started', 'in_progress', 'interview_scheduled')
-    ORDER BY v.created_at DESC
-    LIMIT 10
-  `);
-
-  if (!result.success || result.data.length === 0) {
-    container.innerHTML = '<div class="empty-state">暂无签证待办</div>';
-    return;
-  }
-
-  const today = new Date();
-  container.innerHTML = result.data.map(item => {
-    const hasAppointment = item.appointment_date && new Date(item.appointment_date) >= today;
-    return `
-      <div class="list-item ${hasAppointment ? 'warning' : 'info'}">
-        <div>
-          <strong>${item.student_name}</strong> - ${item.visa_type}
-          ${item.appointment_date ? `<br><small>预约: ${item.appointment_date}</small>` : ''}
-        </div>
-        <div>
-          <span class="status-badge status-${item.status === 'not_started' ? 'pending' : item.status}">${statusLabels[item.status] || item.status}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-async function loadDeadlineList() {
-  const container = document.getElementById('deadline-list');
+async function loadMgrDeadlineList() {
+  const container = document.getElementById('mgr-deadline-list');
   const result = await api.db.query(`
     SELECT sp.*, s.name as student_name 
     FROM school_programs sp 
@@ -475,8 +283,8 @@ async function loadDeadlineList() {
   }).join('');
 }
 
-async function loadPendingDocsList() {
-  const container = document.getElementById('pending-docs-list');
+async function loadMgrPendingDocsList() {
+  const container = document.getElementById('mgr-pending-list');
   const result = await api.db.query(`
     SELECT d.*, s.name as student_name 
     FROM documents d 
@@ -503,8 +311,8 @@ async function loadPendingDocsList() {
   `).join('');
 }
 
-async function loadAlertsList() {
-  const container = document.getElementById('alert-list');
+async function loadMgrAlertsList() {
+  const container = document.getElementById('mgr-alert-list');
   const html = [];
 
   const missedResult = await api.db.query(`
@@ -559,6 +367,150 @@ async function loadAlertsList() {
   }
 
   container.innerHTML = html.length > 0 ? html.join('') : '<div class="empty-state">暂无异常提醒</div>';
+}
+
+async function loadWriterDashboard() {
+  const [pendingDocsResult, activeEssaysResult, essayDeadlinesResult, rejectedDocsResult] = await Promise.all([
+    api.db.query("SELECT COUNT(*) as count FROM documents WHERE status = 'pending' AND is_latest = 1"),
+    api.db.query("SELECT COUNT(*) as count FROM essays WHERE status IN ('draft', 'reviewing')"),
+    api.db.query(`
+      SELECT COUNT(*) as count FROM essays 
+      WHERE deadline >= date('now') 
+      AND deadline <= date('now', '+7 days')
+    `),
+    api.db.query("SELECT COUNT(*) as count FROM documents WHERE status = 'rejected' AND is_latest = 1")
+  ]);
+
+  const statPending = document.getElementById('writer-stat-pending-docs');
+  const statEssays = document.getElementById('writer-stat-essays');
+  const statDeadlines = document.getElementById('writer-stat-essay-deadlines');
+  const statRejected = document.getElementById('writer-stat-rejected');
+
+  if (statPending && pendingDocsResult.success) statPending.textContent = pendingDocsResult.data[0].count;
+  if (statEssays && activeEssaysResult.success) statEssays.textContent = activeEssaysResult.data[0].count;
+  if (statDeadlines && essayDeadlinesResult.success) statDeadlines.textContent = essayDeadlinesResult.data[0].count;
+  if (statRejected && rejectedDocsResult.success) statRejected.textContent = rejectedDocsResult.data[0].count;
+
+  loadWriterDocsList();
+  loadWriterEssaysList();
+}
+
+async function loadWriterDocsList() {
+  const container = document.getElementById('writer-docs-list');
+  const result = await api.db.query(`
+    SELECT d.*, s.name as student_name 
+    FROM documents d 
+    JOIN students s ON d.student_id = s.id
+    WHERE d.status = 'pending' AND d.is_latest = 1
+    ORDER BY d.created_at DESC
+    LIMIT 5
+  `);
+
+  if (!result.success || result.data.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无待审核材料</div>';
+    return;
+  }
+
+  container.innerHTML = result.data.map(item => `
+    <div class="list-item info">
+      <div>
+        <strong>${item.student_name}</strong> - ${docTypeLabels[item.doc_type] || item.doc_type}
+      </div>
+      <div style="color: #666;">
+        v${item.version}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadWriterEssaysList() {
+  const container = document.getElementById('writer-essays-list');
+  const result = await api.db.query(`
+    SELECT e.*, s.name as student_name 
+    FROM essays e 
+    JOIN students s ON e.student_id = s.id
+    WHERE e.status IN ('draft', 'reviewing')
+    ORDER BY e.created_at DESC
+    LIMIT 5
+  `);
+
+  if (!result.success || result.data.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无进行中文书</div>';
+    return;
+  }
+
+  container.innerHTML = result.data.map(item => `
+    <div class="list-item info">
+      <div>
+        <strong>${item.student_name}</strong> - ${item.essay_title}
+      </div>
+      <div>
+        <span class="status-badge status-${item.status}">${statusLabels[item.status] || item.status}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadVisaDashboard() {
+  const [pendingVisaResult, weekAppointmentsResult, pendingInterviewResult, weekResultResult] = await Promise.all([
+    api.db.query("SELECT COUNT(*) as count FROM visa_process WHERE status IN ('not_started', 'in_progress')"),
+    api.db.query(`
+      SELECT COUNT(*) as count FROM visa_process 
+      WHERE appointment_date >= date('now') 
+      AND appointment_date <= date('now', '+7 days')
+    `),
+    api.db.query("SELECT COUNT(*) as count FROM visa_process WHERE status = 'interview_scheduled'"),
+    api.db.query(`
+      SELECT COUNT(*) as count FROM visa_process 
+      WHERE result_date >= date('now') 
+      AND result_date <= date('now', '+7 days')
+    `)
+  ]);
+
+  const statPending = document.getElementById('visa-stat-pending');
+  const statWeekAppt = document.getElementById('visa-stat-week-appt');
+  const statInterview = document.getElementById('visa-stat-interview');
+  const statResults = document.getElementById('visa-stat-results');
+
+  if (statPending && pendingVisaResult.success) statPending.textContent = pendingVisaResult.data[0].count;
+  if (statWeekAppt && weekAppointmentsResult.success) statWeekAppt.textContent = weekAppointmentsResult.data[0].count;
+  if (statInterview && pendingInterviewResult.success) statInterview.textContent = pendingInterviewResult.data[0].count;
+  if (statResults && weekResultResult.success) statResults.textContent = weekResultResult.data[0].count;
+
+  loadVisaTodoList();
+}
+
+async function loadVisaTodoList() {
+  const container = document.getElementById('visa-todo-list');
+  const result = await api.db.query(`
+    SELECT v.*, s.name as student_name 
+    FROM visa_process v 
+    JOIN students s ON v.student_id = s.id
+    WHERE v.status IN ('not_started', 'in_progress', 'interview_scheduled')
+    ORDER BY v.created_at DESC
+    LIMIT 10
+  `);
+
+  if (!result.success || result.data.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无签证待办</div>';
+    return;
+  }
+
+  const today = new Date();
+  container.innerHTML = result.data.map(item => {
+    const hasAppointment = item.appointment_date && new Date(item.appointment_date) >= today;
+    return `
+      <div class="list-item ${hasAppointment ? 'warning' : 'info'}">
+        <div>
+          <strong>${item.student_name}</strong> - ${item.visa_type}
+          ${item.appointment_date ? `<br><small>预约: ${item.appointment_date}</small>` : ''}
+        </div>
+        <div>
+          <span class="status-badge status-${item.status === 'not_started' ? 'pending' : item.status}">${statusLabels[item.status] || item.status}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function loadStudents() {
