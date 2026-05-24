@@ -223,5 +223,6 @@ class CostConfirm(BaseModel):
 class ReviewRectification(BaseModel):
     status: str
     review_comment: Optional[str] = None
+    dispute_reason: Optional[str] = None
     operator_id: int
     item_results: Optional[dict] = None

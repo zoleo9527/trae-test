@@ -384,11 +384,17 @@ def review_rectification(rectification_id: int, data: schemas.ReviewRectificatio
                 if result.get("status") == "passed":
                     item.actual_finish_date = datetime.now()
 
+    review_comment = data.review_comment
+    if data.status == "disputed" and data.dispute_reason:
+        review_comment = f"异议原因：{data.dispute_reason}"
+        if data.review_comment:
+            review_comment = f"{data.review_comment} | {review_comment}"
+
     rect_history = models.StatusHistory(
         rectification_id=rectification.id,
         from_status=old_rect_status,
         to_status=data.status,
-        comment=data.review_comment,
+        comment=review_comment,
         operator_id=data.operator_id
     )
     db.add(rect_history)
@@ -415,6 +421,17 @@ def review_rectification(rectification_id: int, data: schemas.ReviewRectificatio
                 from_status=inspection_old_status,
                 to_status="rectifying",
                 comment="整改复查不通过，需重新整改",
+                operator_id=data.operator_id
+            )
+            db.add(inspection_history)
+        elif data.status == "disputed":
+            inspection.status = "disputed"
+            inspection.version += 1
+            inspection_history = models.StatusHistory(
+                inspection_id=inspection.id,
+                from_status=inspection_old_status,
+                to_status="disputed",
+                comment=f"整改复查存在异议：{data.dispute_reason or '未说明原因'}",
                 operator_id=data.operator_id
             )
             db.add(inspection_history)

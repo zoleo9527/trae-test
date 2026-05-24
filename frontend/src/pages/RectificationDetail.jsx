@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { 
   ArrowLeft, Calendar, User, Clock, History, 
-  CheckCircle2, XCircle, DollarSign, MessageSquare, AlertTriangle, Wrench
+  CheckCircle2, XCircle, DollarSign, MessageSquare, AlertTriangle, Wrench, AlertOctagon
 } from 'lucide-react'
 import axios from 'axios'
 import { statusConfig, formatDate, formatDateSimple, isOverdue } from '../utils/format'
@@ -19,6 +19,7 @@ export default function RectificationDetail() {
   const [itemResults, setItemResults] = useState({})
   const [nextStatus, setNextStatus] = useState('')
   const [statusComment, setStatusComment] = useState('')
+  const [disputeReason, setDisputeReason] = useState('')
 
   useEffect(() => {
     fetchRectification()
@@ -39,12 +40,14 @@ export default function RectificationDetail() {
       await axios.post(`/api/rectifications/${id}/review`, {
         status: reviewResult,
         review_comment: reviewComment,
+        dispute_reason: disputeReason,
         operator_id: currentUser.id,
         item_results: itemResults
       })
       setShowReviewModal(false)
       setReviewResult('')
       setReviewComment('')
+      setDisputeReason('')
       setItemResults({})
       fetchRectification()
     } catch (error) {
@@ -346,20 +349,27 @@ export default function RectificationDetail() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   复查结果
                 </label>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     onClick={() => setReviewResult('passed')}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium ${reviewResult === 'passed' ? 'border-green-500 bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                    className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2.5 text-xs font-medium ${reviewResult === 'passed' ? 'border-green-500 bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-50'}`}
                   >
-                    <CheckCircle2 size={18} />
+                    <CheckCircle2 size={16} />
                     通过
                   </button>
                   <button
                     onClick={() => setReviewResult('failed')}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg border py-3 text-sm font-medium ${reviewResult === 'failed' ? 'border-red-500 bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                    className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2.5 text-xs font-medium ${reviewResult === 'failed' ? 'border-red-500 bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-50'}`}
                   >
-                    <XCircle size={18} />
+                    <XCircle size={16} />
                     不通过
+                  </button>
+                  <button
+                    onClick={() => setReviewResult('disputed')}
+                    className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2.5 text-xs font-medium ${reviewResult === 'disputed' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    <AlertOctagon size={16} />
+                    有异议
                   </button>
                 </div>
               </div>
@@ -398,22 +408,40 @@ export default function RectificationDetail() {
                 <textarea
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="请输入复查意见..."
                   className="w-full rounded-lg border px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+
+              {reviewResult === 'disputed' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    异议说明 <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={disputeReason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    rows={3}
+                    placeholder="请详细说明异议原因，如业主反馈内容、争议点等..."
+                    className="w-full rounded-lg border px-4 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  />
+                </div>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => setShowReviewModal(false)}
+                onClick={() => {
+                  setShowReviewModal(false)
+                  setDisputeReason('')
+                }}
                 className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 取消
               </button>
               <button
                 onClick={handleReview}
-                disabled={!reviewResult}
+                disabled={!reviewResult || (reviewResult === 'disputed' && !disputeReason.trim())}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 确认提交
