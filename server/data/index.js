@@ -152,25 +152,56 @@ class DataStore {
     return this.issues.find(i => i.id === id);
   }
 
-  updateIssue(id, updates, userId) {
+  updateIssue(id, updates, userId, comment = null) {
     const issue = this.issues.find(i => i.id === id);
     if (issue) {
       const oldStatus = issue.status;
       Object.assign(issue, updates, { updatedAt: new Date().toISOString() });
+      
+      const user = this.findUserById(userId);
       
       if (updates.status && updates.status !== oldStatus) {
         issue.history.push({
           id: `h_${Date.now()}`,
           action: 'status_change',
           userId,
-          userName: this.findUserById(userId)?.name || '系统',
+          userName: user?.name || '系统',
           timestamp: new Date().toISOString(),
           oldValue: oldStatus,
-          newValue: updates.status
+          newValue: updates.status,
+          comment
+        });
+      } else if (comment) {
+        issue.history.push({
+          id: `h_${Date.now()}`,
+          action: 'comment',
+          userId,
+          userName: user?.name || '系统',
+          timestamp: new Date().toISOString(),
+          comment
         });
       }
       
       return issue;
+    }
+    return null;
+  }
+
+  addIssueComment(id, comment, userId) {
+    const issue = this.issues.find(i => i.id === id);
+    if (issue) {
+      const user = this.findUserById(userId);
+      const historyItem = {
+        id: `h_${Date.now()}`,
+        action: 'comment',
+        userId,
+        userName: user?.name || '系统',
+        timestamp: new Date().toISOString(),
+        comment
+      };
+      issue.history.push(historyItem);
+      issue.updatedAt = new Date().toISOString();
+      return historyItem;
     }
     return null;
   }

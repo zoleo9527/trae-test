@@ -4,7 +4,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { formatDate, statusLabels, issueCategoryLabels, priorityLabels, formatRelativeTime } from '../utils/format';
-import { Filter, AlertTriangle, Clock, User, MessageSquare } from 'lucide-react';
+import { Filter, AlertTriangle, Clock, User, MessageSquare, Send, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 
 export default function Issues() {
   const { user, loading } = useAuth();
@@ -13,6 +13,11 @@ export default function Issues() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
+  const [newComment, setNewComment] = useState('');
+  const [addingComment, setAddingComment] = useState(false);
+  const [statusChangeComment, setStatusChangeComment] = useState('');
+  const [showStatusCommentInput, setShowStatusCommentInput] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,16 +40,61 @@ export default function Issues() {
     }
   }
 
-  async function updateIssueStatus(issueId: string, status: string) {
+  async function loadIssueDetail(issueId: string) {
     try {
-      await api.issues.update(issueId, { status });
+      const res = await api.issues.get(issueId);
+      setSelectedIssue(res.issue);
+    } catch (err) {
+      console.error('Failed to load issue detail', err);
+    }
+  }
+
+  async function updateIssueStatus(issueId: string, status: string, comment: string = '') {
+    try {
+      await api.issues.update(issueId, { status, comment });
       loadIssues();
       if (selectedIssue?.id === issueId) {
-        const res = await api.issues.get(issueId);
-        setSelectedIssue(res.issue);
+        await loadIssueDetail(issueId);
       }
+      setShowStatusCommentInput(false);
+      setStatusChangeComment('');
+      setPendingStatus(null);
     } catch (err) {
       console.error('Failed to update issue status', err);
+    }
+  }
+
+  function handleStatusClick(status: string) {
+    if (selectedIssue.status === status) return;
+    setPendingStatus(status);
+    setShowStatusCommentInput(true);
+  }
+
+  async function confirmStatusChange() {
+    if (pendingStatus) {
+      await updateIssueStatus(selectedIssue.id, pendingStatus, statusChangeComment);
+    }
+  }
+
+  function cancelStatusChange() {
+    setShowStatusCommentInput(false);
+    setStatusChangeComment('');
+    setPendingStatus(null);
+  }
+
+  async function handleAddComment() {
+    if (!newComment.trim() || !selectedIssue) return;
+    
+    setAddingComment(true);
+    try {
+      await api.issues.addComment(selectedIssue.id, newComment.trim());
+      setNewComment('');
+      await loadIssueDetail(selectedIssue.id);
+      loadIssues();
+    } catch (err) {
+      console.error('Failed to add comment', err);
+    } finally {
+      setAddingComment(false);
     }
   }
 
@@ -117,7 +167,7 @@ export default function Issues() {
             {issues.map(issue => (
               <div
                 key={issue.id}
-                onClick={() => setSelectedIssue(issue)}
+                onClick={() => loadIssueDetail(issue.id)}
                 className={`card p-4 cursor-pointer transition-all ${
                   selectedIssue?.id === issue.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'
                 }`}
@@ -156,7 +206,7 @@ export default function Issues() {
 
           <div>
             {selectedIssue ? (
-              <div className="card p-6">
+              <div className="card p-6 max-h-[calc(100vh-180px)] overflow-y-auto">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">{selectedIssue.title}</h2>
@@ -202,28 +252,85 @@ export default function Issues() {
 
                 <div className="mb-6">
                   <h3 className="font-medium text-gray-900 mb-3">状态更新</h3>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mb-3">
                     {['open', 'in_progress', 'resolved', 'closed'].map(status => (
                       <button
                         key={status}
-                        onClick={() => updateIssueStatus(selectedIssue.id, status)}
+                        onClick={() => handleStatusClick(status)}
                         disabled={selectedIssue.status === status}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                           selectedIssue.status === status
                             ? 'bg-primary-100 text-primary-700 font-medium'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
+                        } ${pendingStatus === status ? 'ring-2 ring-primary-500' : ''}`}
                       >
                         {statusLabels[status]}
                       </button>
                     ))}
+                  </div>
+                  
+                  {showStatusCommentInput && (
+                    <div className="p-4 bg-primary-50 rounded-lg border border-primary-200">
+                      <p className="text-sm text-primary-800 mb-2 font-medium">
+                        状态将变更为：{statusLabels[pendingStatus || '']}
+                      </p>
+                      <textarea
+                        value={statusChangeComment}
+                        onChange={(e) => setStatusChangeComment(e.target.value)}
+                        placeholder="添加处理备注（可选）..."
+                        className="input mb-3 min-h-[80px]"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={confirmStatusChange}
+                          className="btn-primary text-sm flex items-center gap-2"
+                        >
+                          <CheckCircle size={16} />
+                          确认变更
+                        </button>
+                        <button
+                          onClick={cancelStatusChange}
+                          className="btn-secondary text-sm flex items-center gap-2"
+                        >
+                          <XCircle size={16} />
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="font-medium text-gray-900 mb-3">追加协商记录</h3>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="输入处理备注或协商记录..."
+                      className="input flex-1 min-h-[80px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleAddComment();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <button
+                      onClick={handleAddComment}
+                      disabled={!newComment.trim() || addingComment}
+                      className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Send size={16} />
+                      {addingComment ? '发送中...' : '添加记录'}
+                    </button>
                   </div>
                 </div>
 
                 <div>
                   <h3 className="font-medium text-gray-900 mb-3">处理历史</h3>
                   <div className="space-y-3">
-                    {selectedIssue.history?.map((h: any) => (
+                    {selectedIssue.history?.slice().reverse().map((h: any) => (
                       <div key={h.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                         <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-medium shrink-0">
                           {h.userName?.charAt(0) || '?'}
@@ -234,6 +341,16 @@ export default function Issues() {
                             <span className="text-xs text-gray-500">
                               {formatDate(h.timestamp, 'yyyy-MM-dd HH:mm')}
                             </span>
+                            {h.action === 'status_change' && (
+                              <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full">
+                                状态变更
+                              </span>
+                            )}
+                            {h.action === 'comment' && (
+                              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                                协商记录
+                              </span>
+                            )}
                           </div>
                           {h.action === 'status_change' && (
                             <p className="text-sm text-gray-600 mt-1">
@@ -242,7 +359,9 @@ export default function Issues() {
                             </p>
                           )}
                           {h.comment && (
-                            <p className="text-sm text-gray-600 mt-1">{h.comment}</p>
+                            <div className="mt-2 p-2 bg-white rounded border border-gray-200">
+                              <p className="text-sm text-gray-700">{h.comment}</p>
+                            </div>
                           )}
                         </div>
                       </div>

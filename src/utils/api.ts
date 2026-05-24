@@ -86,6 +86,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+    addComment: (id: string, comment: string) => request<{ historyItem: any }>(`/issues/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    }),
   },
   messages: {
     listByStudent: (studentId: string) => request<{ messages: any[] }>(`/messages/student/${studentId}`),
