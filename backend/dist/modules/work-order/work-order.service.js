@@ -21,10 +21,20 @@ const work_order_state_machine_1 = require("../../common/state-machines/work-ord
 const business_error_1 = require("../../common/errors/business-error");
 const audit_service_1 = require("../audit/audit.service");
 const audit_log_entity_1 = require("../audit/audit-log.entity");
+const refund_entity_1 = require("../refund/refund.entity");
+const transfer_entity_1 = require("../transfer/transfer.entity");
+const material_entity_1 = require("../material/material.entity");
+const comment_entity_1 = require("../comment/comment.entity");
+const deadline_entity_1 = require("../deadline/deadline.entity");
 let WorkOrderService = class WorkOrderService {
-    constructor(workOrderRepository, auditLogRepository, auditService) {
+    constructor(workOrderRepository, auditLogRepository, refundRepository, transferRepository, materialRepository, commentRepository, deadlineRepository, auditService) {
         this.workOrderRepository = workOrderRepository;
         this.auditLogRepository = auditLogRepository;
+        this.refundRepository = refundRepository;
+        this.transferRepository = transferRepository;
+        this.materialRepository = materialRepository;
+        this.commentRepository = commentRepository;
+        this.deadlineRepository = deadlineRepository;
         this.auditService = auditService;
     }
     async create(data, operatorId, operatorName) {
@@ -99,16 +109,36 @@ let WorkOrderService = class WorkOrderService {
             order: { createdAt: 'DESC' },
         });
         allLogs.push(...workOrderLogs);
-        const relatedEntityTypes = ['Refund', 'Transfer', 'Material', 'Comment', 'Deadline'];
-        for (const entityType of relatedEntityTypes) {
-            const logs = await this.auditLogRepository
-                .createQueryBuilder('log')
-                .where('log.entityType = :entityType', { entityType })
-                .andWhere(`(log.newValue->>'workOrderId' = :workOrderId OR log.oldValue->>'workOrderId' = :workOrderId)`, { workOrderId })
-                .orderBy('log.createdAt', 'DESC')
-                .getMany();
-            allLogs.push(...logs);
-        }
+        const [refunds, transfers, materials, comments, deadlines] = await Promise.all([
+            this.refundRepository.find({ where: { workOrderId }, select: ['id'] }),
+            this.transferRepository.find({ where: { workOrderId }, select: ['id'] }),
+            this.materialRepository.find({ where: { workOrderId }, select: ['id'] }),
+            this.commentRepository.find({ where: { workOrderId }, select: ['id'] }),
+            this.deadlineRepository.find({ where: { workOrderId }, select: ['id'] }),
+        ]);
+        const refundIds = refunds.map(r => r.id);
+        const transferIds = transfers.map(t => t.id);
+        const materialIds = materials.map(m => m.id);
+        const commentIds = comments.map(c => c.id);
+        const deadlineIds = deadlines.map(d => d.id);
+        const [refundLogs, transferLogs, materialLogs, commentLogs, deadlineLogs] = await Promise.all([
+            refundIds.length > 0
+                ? this.auditLogRepository.find({ where: { entityType: 'Refund', entityId: (0, typeorm_2.In)(refundIds) } })
+                : [],
+            transferIds.length > 0
+                ? this.auditLogRepository.find({ where: { entityType: 'Transfer', entityId: (0, typeorm_2.In)(transferIds) } })
+                : [],
+            materialIds.length > 0
+                ? this.auditLogRepository.find({ where: { entityType: 'Material', entityId: (0, typeorm_2.In)(materialIds) } })
+                : [],
+            commentIds.length > 0
+                ? this.auditLogRepository.find({ where: { entityType: 'Comment', entityId: (0, typeorm_2.In)(commentIds) } })
+                : [],
+            deadlineIds.length > 0
+                ? this.auditLogRepository.find({ where: { entityType: 'Deadline', entityId: (0, typeorm_2.In)(deadlineIds) } })
+                : [],
+        ]);
+        allLogs.push(...refundLogs, ...transferLogs, ...materialLogs, ...commentLogs, ...deadlineLogs);
         return allLogs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     }
     async updateStatus(id, newStatus, operatorId, operatorName, remark) {
@@ -171,7 +201,17 @@ exports.WorkOrderService = WorkOrderService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(work_order_entity_1.WorkOrder)),
     __param(1, (0, typeorm_1.InjectRepository)(audit_log_entity_1.AuditLog)),
+    __param(2, (0, typeorm_1.InjectRepository)(refund_entity_1.Refund)),
+    __param(3, (0, typeorm_1.InjectRepository)(transfer_entity_1.Transfer)),
+    __param(4, (0, typeorm_1.InjectRepository)(material_entity_1.Material)),
+    __param(5, (0, typeorm_1.InjectRepository)(comment_entity_1.Comment)),
+    __param(6, (0, typeorm_1.InjectRepository)(deadline_entity_1.Deadline)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         audit_service_1.AuditService])
 ], WorkOrderService);

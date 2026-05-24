@@ -67,11 +67,11 @@ npm run start:prod
 
 | 姓名 | 角色 | operatorId |
 |------|------|------------|
-| 张主管 | 顾问主管 | `consultant-001` |
-| 李顾问 | 顾问 | `consultant-002` |
-| 王顾问 | 顾问 | `consultant-003` |
-| 陈文案 | 文案老师 | `consultant-004` |
-| 刘签证 | 签证助理 | `consultant-005` |
+| 张主管 | 顾问主管 | `11111111-1111-1111-1111-111111111111` |
+| 李顾问 | 顾问 | `22222222-2222-2222-2222-222222222222` |
+| 王顾问 | 顾问 | `33333333-3333-3333-3333-333333333333` |
+| 陈文案 | 文案老师 | `44444444-4444-4444-4444-444444444444` |
+| 刘签证 | 签证助理 | `55555555-5555-5555-5555-555555555555` |
 
 ## 🎯 核心业务场景
 
@@ -135,9 +135,16 @@ DRAFT(草稿) → SUBMITTED(已提交) → UNDER_REVIEW(审核中)
 
 ### 1. 获取工单详情（全链路视角）
 ```http
-GET /work-orders/:id
+GET /work-orders/dddddddd-dddd-dddd-dddd-dddddddddddd
 ```
-返回内容包含：学生信息、当前顾问、退款记录、交接历史、材料列表、历史备注、截止日提醒
+返回内容包含：
+- 学生信息、当前顾问、历史顾问
+- 退款协商记录（含审批人、备注）
+- 顾问交接记录（含交接双方、交接清单、评论）
+- 材料列表（含版本历史、责任人、备注）
+- 截止日提醒（含责任人、状态）
+- 工单备注
+- **全链路审计时间线**（工单+退款+交接+材料+备注+截止日的所有操作记录）
 
 ### 2. 创建退款申请
 ```http
@@ -145,24 +152,24 @@ POST /refunds
 Content-Type: application/json
 
 {
-  "workOrderId": "workorder-002",
+  "workOrderId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
   "requestedAmount": 15000,
   "reason": "学生决定放弃留学",
-  "operatorId": "consultant-003",
+  "operatorId": "33333333-3333-3333-3333-333333333333",
   "operatorName": "王顾问"
 }
 ```
 
 ### 3. 审批退款
 ```http
-PUT /refunds/:id/status
+PUT /refunds/10101010-1010-1010-1010-101010101010/status
 Content-Type: application/json
 
 {
   "status": "approved",
   "approvedAmount": 12000,
-  "reviewerId": "consultant-001",
-  "operatorId": "consultant-001",
+  "reviewerId": "11111111-1111-1111-1111-111111111111",
+  "operatorId": "11111111-1111-1111-1111-111111111111",
   "operatorName": "张主管"
 }
 ```
@@ -173,25 +180,25 @@ POST /transfers
 Content-Type: application/json
 
 {
-  "workOrderId": "workorder-003",
-  "fromConsultantId": "consultant-003",
-  "toConsultantId": "consultant-002",
+  "workOrderId": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+  "fromConsultantId": "33333333-3333-3333-3333-333333333333",
+  "toConsultantId": "22222222-2222-2222-2222-222222222222",
   "handoverContent": "详细交接内容...",
   "keyNotes": "注意事项...",
-  "operatorId": "consultant-001",
+  "operatorId": "11111111-1111-1111-1111-111111111111",
   "operatorName": "张主管"
 }
 ```
 
 ### 5. 上传材料新版本
 ```http
-POST /materials/:id/versions
+POST /materials/30303030-3030-3030-3030-303030303030/versions
 Content-Type: application/json
 
 {
   "fileUrl": "/files/ps-v3.pdf",
   "changeLog": "修改了职业规划部分",
-  "operatorId": "consultant-004",
+  "operatorId": "44444444-4444-4444-4444-444444444444",
   "operatorName": "陈文案"
 }
 ```

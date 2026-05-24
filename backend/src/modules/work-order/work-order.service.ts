@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { WorkOrder } from './work-order.entity';
 import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
 import { WorkOrderStateMachine } from '../../common/state-machines/work-order.state-machine';
 import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
 import { AuditLog } from '../audit/audit-log.entity';
+import { Refund } from '../refund/refund.entity';
+import { Transfer } from '../transfer/transfer.entity';
+import { Material } from '../material/material.entity';
+import { Comment } from '../comment/comment.entity';
+import { Deadline } from '../deadline/deadline.entity';
 
 @Injectable()
 export class WorkOrderService {
@@ -15,6 +20,16 @@ export class WorkOrderService {
     private readonly workOrderRepository: Repository<WorkOrder>,
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
+    @InjectRepository(Refund)
+    private readonly refundRepository: Repository<Refund>,
+    @InjectRepository(Transfer)
+    private readonly transferRepository: Repository<Transfer>,
+    @InjectRepository(Material)
+    private readonly materialRepository: Repository<Material>,
+    @InjectRepository(Comment)
+    private readonly commentRepository: Repository<Comment>,
+    @InjectRepository(Deadline)
+    private readonly deadlineRepository: Repository<Deadline>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -116,19 +131,39 @@ export class WorkOrderService {
     });
     allLogs.push(...workOrderLogs);
 
-    const relatedEntityTypes = ['Refund', 'Transfer', 'Material', 'Comment', 'Deadline'];
-    for (const entityType of relatedEntityTypes) {
-      const logs = await this.auditLogRepository
-        .createQueryBuilder('log')
-        .where('log.entityType = :entityType', { entityType })
-        .andWhere(
-          `(log.newValue->>'workOrderId' = :workOrderId OR log.oldValue->>'workOrderId' = :workOrderId)`,
-          { workOrderId },
-        )
-        .orderBy('log.createdAt', 'DESC')
-        .getMany();
-      allLogs.push(...logs);
-    }
+    const [refunds, transfers, materials, comments, deadlines] = await Promise.all([
+      this.refundRepository.find({ where: { workOrderId }, select: ['id'] }),
+      this.transferRepository.find({ where: { workOrderId }, select: ['id'] }),
+      this.materialRepository.find({ where: { workOrderId }, select: ['id'] }),
+      this.commentRepository.find({ where: { workOrderId }, select: ['id'] }),
+      this.deadlineRepository.find({ where: { workOrderId }, select: ['id'] }),
+    ]);
+
+    const refundIds = refunds.map(r => r.id);
+    const transferIds = transfers.map(t => t.id);
+    const materialIds = materials.map(m => m.id);
+    const commentIds = comments.map(c => c.id);
+    const deadlineIds = deadlines.map(d => d.id);
+
+    const [refundLogs, transferLogs, materialLogs, commentLogs, deadlineLogs] = await Promise.all([
+      refundIds.length > 0
+        ? this.auditLogRepository.find({ where: { entityType: 'Refund', entityId: In(refundIds) } })
+        : [],
+      transferIds.length > 0
+        ? this.auditLogRepository.find({ where: { entityType: 'Transfer', entityId: In(transferIds) } })
+        : [],
+      materialIds.length > 0
+        ? this.auditLogRepository.find({ where: { entityType: 'Material', entityId: In(materialIds) } })
+        : [],
+      commentIds.length > 0
+        ? this.auditLogRepository.find({ where: { entityType: 'Comment', entityId: In(commentIds) } })
+        : [],
+      deadlineIds.length > 0
+        ? this.auditLogRepository.find({ where: { entityType: 'Deadline', entityId: In(deadlineIds) } })
+        : [],
+    ]);
+
+    allLogs.push(...refundLogs, ...transferLogs, ...materialLogs, ...commentLogs, ...deadlineLogs);
 
     return allLogs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
