@@ -50,6 +50,17 @@ router.get('/:id',
   }
 );
 
+router.get('/:id/detail',
+  canAccessMilestone,
+  (req, res) => {
+    const detail = milestoneService.getMilestoneDetail(req.params.id);
+    if (!detail) {
+      return res.status(404).json({ error: '节点不存在' });
+    }
+    res.json({ data: detail });
+  }
+);
+
 router.put('/:id',
   requirePermission('milestone:update'),
   canAccessMilestone,
