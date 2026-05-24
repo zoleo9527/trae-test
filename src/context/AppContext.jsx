@@ -206,6 +206,12 @@ const appReducer = (state, action) => {
               user: '系统',
               role: 'system',
             },
+            {
+              time: getCurrentTime(),
+              action: '生成费用待确认',
+              user: '系统',
+              role: 'system',
+            },
           ];
           
           return {
@@ -226,7 +232,7 @@ const appReducer = (state, action) => {
         }),
         feeRecords: state.feeRecords.some(f => f.relatedId === orderId) 
           ? state.feeRecords.map(f => 
-              f.relatedId === orderId ? { ...f, status: 'pending_pay' } : f
+              f.relatedId === orderId ? { ...f, status: 'pending_confirm' } : f
             )
           : [
               ...state.feeRecords,
@@ -238,7 +244,7 @@ const appReducer = (state, action) => {
                 relatedId: orderId,
                 title: state.changeOrders.find(o => o.id === orderId)?.title,
                 amount: Math.abs(state.changeOrders.find(o => o.id === orderId)?.costChange?.difference || 0),
-                status: 'pending_pay',
+                status: 'pending_confirm',
                 createdAt: getCurrentTime(),
               },
             ],

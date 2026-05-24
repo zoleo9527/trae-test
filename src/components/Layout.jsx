@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { 
   Home, 
   FileText, 
@@ -10,9 +10,10 @@ import {
   ChevronDown,
   User
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '../utils/cn';
-import { users, roleMap } from '../data/mockData';
+import { users, roleMap, typeMap } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 
 const menuItems = [
   { path: '/', icon: Home, label: '首页仪表盘' },
@@ -21,22 +22,125 @@ const menuItems = [
   { path: '/fee-tracking', icon: DollarSign, label: '费用确认' },
 ];
 
+function RouteParams({ children }) {
+  const params = useParams();
+  return children(params);
+}
+
 export default function Layout({ children, currentUser, onUserChange, onOpenScan }) {
   const location = useLocation();
+  const { changeOrders } = useApp();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState(null);
+
+  useEffect(() => {
+    const match = location.pathname.match(/^\/change-orders\/(.+)$/);
+    if (match) {
+      const orderId = match[1];
+      const order = changeOrders.find(o => o.id === orderId);
+      setCurrentOrder(order);
+    } else {
+      setCurrentOrder(null);
+    }
+  }, [location.pathname, changeOrders]);
+
+  const generatePrintContent = (order) => {
+    if (!order) {
+      return `
+        <div class="header">
+          <div class="title">家装监理系统</div>
+          <div class="subtitle">操作回执</div>
+        </div>
+        <table class="info-table">
+          <tr><td class="label">打印时间</td><td>${new Date().toLocaleString()}</td></tr>
+          <tr><td class="label">当前页面</td><td>${location.pathname}</td></tr>
+          <tr><td class="label">操作人</td><td>${currentUser.name}</td></tr>
+        </table>
+        <div class="footer">家装监理系统 - 变更签认与费用追踪</div>
+      `;
+    }
+
+    return `
+      <div class="header">
+        <div class="title">工程变更单回执</div>
+        <div class="subtitle">${order.id}</div>
+      </div>
+      <table class="info-table">
+        <tr><td class="label">项目名称</td><td>${order.projectName}</td></tr>
+        <tr><td class="label">变更类型</td><td>${typeMap[order.type]?.label || order.type}</td></tr>
+        <tr><td class="label">变更内容</td><td>${order.title}</td></tr>
+        <tr><td class="label">变更原因</td><td>${order.reason}</td></tr>
+        <tr><td class="label">版本</td><td>v${order.version}</td></tr>
+        <tr><td class="label">详细描述</td><td>${order.description}</td></tr>
+        <tr><td class="label">原费用</td><td>¥${order.costChange.original.toLocaleString()}</td></tr>
+        <tr><td class="label">变更后费用</td><td>¥${order.costChange.new.toLocaleString()}</td></tr>
+        <tr><td class="label">费用差额</td><td>${order.costChange.difference > 0 ? '+' : ''}¥${order.costChange.difference.toLocaleString()}</td></tr>
+        <tr><td class="label">备注</td><td>${order.costChange.note}</td></tr>
+      </table>
+      <div style="margin-top: 20px;">
+        <div style="font-weight: bold; margin-bottom: 10px;">审批记录：</div>
+        <table class="info-table">
+          <tr><td class="label">监理审核</td><td>${order.approvals.supervisor?.approved ? '通过 - ' + order.approvals.supervisor.user : '待审核'}</td></tr>
+          <tr><td class="label">管家审核</td><td>${order.approvals.manager?.approved === true ? '通过 - ' + order.approvals.manager.user : order.approvals.manager?.approved === false ? '驳回 - ' + order.approvals.manager.user : '待审核'}</td></tr>
+          <tr><td class="label">业主确认</td><td>${order.approvals.owner?.approved ? '已确认 - 业主' : '待确认'}</td></tr>
+        </table>
+      </div>
+      <div class="sign-section">
+        <div class="sign-box">
+          <div class="sign-line"></div>
+          <div>监理负责人签字</div>
+        </div>
+        <div class="sign-box">
+          <div class="sign-line"></div>
+          <div>项目管家签字</div>
+        </div>
+        <div class="sign-box">
+          <div class="sign-line"></div>
+          <div>业主签字</div>
+        </div>
+      </div>
+      <div class="footer">打印时间：${new Date().toLocaleString()}</div>
+    `;
+  };
 
   const handlePrint = async () => {
+    const content = generatePrintContent(currentOrder);
+    
     if (window.electron) {
-      const content = document.getElementById('print-content')?.innerHTML || '<h1>暂无打印内容</h1>';
       await window.electron.invoke('print-receipt', content);
     } else {
-      window.print();
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>打印回执</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; }
+              .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
+              .title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+              .subtitle { font-size: 14px; color: #666; }
+              .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .info-table td { padding: 10px; border: 1px solid #ddd; }
+              .info-table .label { background: #f5f5f5; width: 150px; font-weight: 500; }
+              .sign-section { margin-top: 40px; display: flex; justify-content: space-between; }
+              .sign-box { width: 200px; text-align: center; }
+              .sign-line { border-bottom: 1px solid #000; height: 60px; margin-bottom: 10px; }
+              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #999; }
+            </style>
+          </head>
+          <body>${content}</body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
     }
   };
 
   const handleOpenNewWindow = async (url) => {
     if (window.electron) {
       await window.electron.invoke('open-new-window', url);
+    } else {
+      window.open('/#' + url, '_blank');
     }
   };
 
@@ -82,10 +186,15 @@ export default function Layout({ children, currentUser, onUserChange, onOpenScan
           </button>
           <button
             onClick={handlePrint}
-            className="w-full flex items-center px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+            className={cn(
+              'w-full flex items-center px-4 py-2.5 text-sm rounded-lg transition-colors',
+              currentOrder 
+                ? 'bg-primary-50 text-primary-600 hover:bg-primary-100' 
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
           >
-            <Printer className="w-5 h-5 mr-3 text-gray-400" />
-            打印回执
+            <Printer className={cn('w-5 h-5 mr-3', currentOrder ? 'text-primary-500' : 'text-gray-400')} />
+            {currentOrder ? '打印当前变更单' : '打印回执'}
           </button>
           <button
             onClick={() => handleOpenNewWindow(location.pathname)}
@@ -94,6 +203,14 @@ export default function Layout({ children, currentUser, onUserChange, onOpenScan
             <ExternalLink className="w-5 h-5 mr-3 text-gray-400" />
             新开窗口
           </button>
+          
+          {currentOrder && (
+            <div className="mt-2 p-3 bg-primary-50 rounded-lg border border-primary-100">
+              <div className="text-xs text-primary-600 font-medium mb-1">当前变更单</div>
+              <div className="text-sm font-medium text-gray-900">{currentOrder.id}</div>
+              <div className="text-xs text-gray-500 truncate">{currentOrder.title}</div>
+            </div>
+          )}
         </div>
       </aside>
 

@@ -234,36 +234,39 @@ export default function ChangeOrderDetail({ currentUser }) {
               打印回执
             </button>
           )}
-          {isMyTurn && (
+          
+          {currentUser.role === 'supervisor' && order.status === 'rejected' && (
+            <button 
+              onClick={() => setIsResubmitting(true)}
+              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              重新提交
+            </button>
+          )}
+          
+          {currentUser.role === 'manager' && order.status === 'pending_approval' && (
             <>
-              {currentUser.role === 'supervisor' && order.status === 'rejected' && (
-                <button 
-                  onClick={() => setIsResubmitting(true)}
-                  className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  重新提交
-                </button>
-              )}
-              {currentUser.role === 'manager' && order.status === 'pending_approval' && (
-                <>
-                  <button 
-                    onClick={() => setShowActionModal('approve')}
-                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    审核通过
-                  </button>
-                  <button 
-                    onClick={() => setShowActionModal('reject')}
-                    className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    驳回
-                  </button>
-                </>
-              )}
-              {currentUser.role === 'manager' && order.status === 'pending_owner' && (
+              <button 
+                onClick={() => setShowActionModal('approve')}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                审核通过
+              </button>
+              <button 
+                onClick={() => setShowActionModal('reject')}
+                className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <X className="w-4 h-4 mr-2" />
+                驳回
+              </button>
+            </>
+          )}
+          
+          {order.status === 'pending_owner' && (
+            <>
+              {currentUser.role === 'manager' && (
                 <button 
                   onClick={handleSendOwnerConfirmation}
                   className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -272,7 +275,7 @@ export default function ChangeOrderDetail({ currentUser }) {
                   发送业主确认
                 </button>
               )}
-              {currentUser.role === 'supervisor' && order.status === 'pending_owner' && (
+              {(currentUser.role === 'supervisor' || currentUser.role === 'manager') && (
                 <button 
                   onClick={() => setShowActionModal('owner_approve')}
                   className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
