@@ -328,18 +328,34 @@ def update_rectification_status(rectification_id: int, data: schemas.StatusUpdat
     if not rectification:
         raise HTTPException(status_code=404, detail="Rectification not found")
 
-    old_status = rectification.status
+    old_rect_status = rectification.status
     rectification.status = data.status
     rectification.version += 1
 
-    history = models.StatusHistory(
+    rect_history = models.StatusHistory(
         rectification_id=rectification.id,
-        from_status=old_status,
+        from_status=old_rect_status,
         to_status=data.status,
         comment=data.comment,
         operator_id=data.operator_id
     )
-    db.add(history)
+    db.add(rect_history)
+
+    if data.status == "rechecking":
+        inspection = db.query(models.Inspection).filter(models.Inspection.id == rectification.inspection_id).first()
+        if inspection:
+            inspection_old_status = inspection.status
+            inspection.status = "rechecking"
+            inspection.version += 1
+
+            inspection_history = models.StatusHistory(
+                inspection_id=inspection.id,
+                from_status=inspection_old_status,
+                to_status="rechecking",
+                comment=f"整改单 #{rectification.id} 已提交复查",
+                operator_id=data.operator_id
+            )
+            db.add(inspection_history)
 
     db.commit()
     db.refresh(rectification)

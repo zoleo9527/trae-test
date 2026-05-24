@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { 
   ArrowLeft, Calendar, User, Clock, History, 
-  CheckCircle2, XCircle, DollarSign, MessageSquare, AlertTriangle
+  CheckCircle2, XCircle, DollarSign, MessageSquare, AlertTriangle, Wrench
 } from 'lucide-react'
 import axios from 'axios'
 import { statusConfig, formatDate, formatDateSimple, isOverdue } from '../utils/format'
@@ -13,9 +13,12 @@ export default function RectificationDetail() {
   const { id } = useParams()
   const [rectification, setRectification] = useState(null)
   const [showReviewModal, setShowReviewModal] = useState(false)
+  const [showStatusModal, setShowStatusModal] = useState(false)
   const [reviewResult, setReviewResult] = useState('')
   const [reviewComment, setReviewComment] = useState('')
   const [itemResults, setItemResults] = useState({})
+  const [nextStatus, setNextStatus] = useState('')
+  const [statusComment, setStatusComment] = useState('')
 
   useEffect(() => {
     fetchRectification()
@@ -46,6 +49,7 @@ export default function RectificationDetail() {
       fetchRectification()
     } catch (error) {
       console.error('Failed to review:', error)
+      alert('复查提交失败，请重试')
     }
   }
 
@@ -58,7 +62,46 @@ export default function RectificationDetail() {
       fetchRectification()
     } catch (error) {
       console.error('Failed to confirm cost:', error)
+      alert('确认费用失败，请重试')
     }
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!nextStatus) return
+    try {
+      await axios.patch(`/api/rectifications/${id}/status`, {
+        status: nextStatus,
+        comment: statusComment,
+        operator_id: currentUser.id
+      })
+      setShowStatusModal(false)
+      setNextStatus('')
+      setStatusComment('')
+      fetchRectification()
+    } catch (error) {
+      console.error('Failed to update status:', error)
+      alert('更新状态失败，请重试')
+    }
+  }
+
+  const getNextStatusOptions = () => {
+    if (!rectification) return []
+    const current = rectification.status
+    const options = []
+    
+    if (current === 'created') {
+      options.push({ value: 'in_progress', label: '开始整改' })
+    }
+    if (current === 'in_progress') {
+      options.push({ value: 'rechecking', label: '提交复查' })
+    }
+    if (current === 'rechecking') {
+    }
+    if (current === 'failed' || current === 'disputed') {
+      options.push({ value: 'in_progress', label: '重新整改' })
+    }
+    
+    return options
   }
 
   if (!rectification) {
@@ -100,6 +143,20 @@ export default function RectificationDetail() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {getNextStatusOptions().length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setNextStatus(getNextStatusOptions()[0].value)
+                  setShowStatusModal(true)
+                }}
+                className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+              >
+                <Wrench size={16} />
+                {getNextStatusOptions()[0].label}
+              </button>
+            </div>
+          )}
           {rectification.status === 'rechecking' && (
             <button
               onClick={() => setShowReviewModal(true)}
@@ -360,6 +417,57 @@ export default function RectificationDetail() {
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 确认提交
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">更新状态</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  目标状态
+                </label>
+                <select
+                  value={nextStatus}
+                  onChange={(e) => setNextStatus(e.target.value)}
+                  className="w-full rounded-lg border px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {getNextStatusOptions().map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  备注说明
+                </label>
+                <textarea
+                  value={statusComment}
+                  onChange={(e) => setStatusComment(e.target.value)}
+                  rows={3}
+                  placeholder="请输入状态变更说明..."
+                  className="w-full rounded-lg border px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleUpdateStatus}
+                disabled={!nextStatus}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                确认更新
               </button>
             </div>
           </div>

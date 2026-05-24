@@ -61,11 +61,13 @@ export default function InspectionDetail() {
         status: 'created',
         description: inspection.description,
         assigned_to: 4,
+        operator_id: currentUser.id,
         items
       })
       fetchInspection()
     } catch (error) {
       console.error('Failed to create rectification:', error)
+      alert('创建整改单失败，请重试')
     }
   }
 
