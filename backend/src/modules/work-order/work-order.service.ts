@@ -131,19 +131,34 @@ export class WorkOrderService {
     });
     allLogs.push(...workOrderLogs);
 
-    const [refunds, transfers, materials, comments, deadlines] = await Promise.all([
+    const [refunds, transfers, materials, deadlines] = await Promise.all([
       this.refundRepository.find({ where: { workOrderId }, select: ['id'] }),
       this.transferRepository.find({ where: { workOrderId }, select: ['id'] }),
       this.materialRepository.find({ where: { workOrderId }, select: ['id'] }),
-      this.commentRepository.find({ where: { workOrderId }, select: ['id'] }),
       this.deadlineRepository.find({ where: { workOrderId }, select: ['id'] }),
     ]);
 
     const refundIds = refunds.map(r => r.id);
     const transferIds = transfers.map(t => t.id);
     const materialIds = materials.map(m => m.id);
-    const commentIds = comments.map(c => c.id);
     const deadlineIds = deadlines.map(d => d.id);
+
+    const commentQueryBuilder = this.commentRepository
+      .createQueryBuilder('comment')
+      .where('comment.workOrderId = :workOrderId', { workOrderId });
+
+    if (refundIds.length > 0) {
+      commentQueryBuilder.orWhere('comment.refundId IN (:...refundIds)', { refundIds });
+    }
+    if (transferIds.length > 0) {
+      commentQueryBuilder.orWhere('comment.transferId IN (:...transferIds)', { transferIds });
+    }
+    if (materialIds.length > 0) {
+      commentQueryBuilder.orWhere('comment.materialId IN (:...materialIds)', { materialIds });
+    }
+
+    const allRelatedComments = await commentQueryBuilder.select(['comment.id']).getMany();
+    const commentIds = allRelatedComments.map(c => c.id);
 
     const [refundLogs, transferLogs, materialLogs, commentLogs, deadlineLogs] = await Promise.all([
       refundIds.length > 0
