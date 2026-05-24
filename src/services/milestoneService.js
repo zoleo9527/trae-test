@@ -23,13 +23,17 @@ function getMilestoneRecipients(projectId) {
 }
 
 function upsertMilestoneReminder(milestone, creatorId, req = null) {
+  const existingReminders = db.prepare(`
+    SELECT id, recipient_id, is_sent, remind_at, title, content
+    FROM reminders 
+    WHERE milestone_id = ? AND type = 'milestone'
+  `).all(milestone.id);
+
   if (!milestone.planned_date || ['completed'].includes(milestone.status)) {
-    const existing = db.prepare(`
-      SELECT id FROM reminders 
-      WHERE milestone_id = ? AND type = 'milestone' AND is_sent = 0
-    `).all(milestone.id);
-    for (const r of existing) {
-      reminderService.deleteReminder(r.id, creatorId, req);
+    for (const r of existingReminders) {
+      if (r.is_sent === 0) {
+        reminderService.deleteReminder(r.id, creatorId, req);
+      }
     }
     return null;
   }
@@ -37,47 +41,63 @@ function upsertMilestoneReminder(milestone, creatorId, req = null) {
   const project = getProjectById(milestone.project_id);
   const recipients = getMilestoneRecipients(milestone.project_id);
   
-  if (recipients.length === 0) return null;
-
   const plannedDate = new Date(milestone.planned_date);
   const remindAt = new Date(plannedDate);
   remindAt.setDate(remindAt.getDate() - 3);
 
   const statusText = milestone.status === 'delayed' ? '【已逾期】' : '';
+  const title = `${statusText}节点提醒：${milestone.name}`;
   const content = `项目【${milestone.project_name}】的节点【${milestone.name}】计划于 ${milestone.planned_date} 完成${statusText}，请提前准备验收。\n当前状态：${milestone.status}`;
 
-  const results = [];
-  for (const recipientId of recipients) {
-    const existing = db.prepare(`
-      SELECT id FROM reminders 
-      WHERE milestone_id = ? AND type = 'milestone' AND recipient_id = ?
-    `).get(milestone.id, recipientId);
+  const processedRecipients = new Set();
 
-    if (existing) {
-      db.prepare(`
-        UPDATE reminders 
-        SET remind_at = ?, title = ?, content = ?
-        WHERE id = ?
-      `).run(
-        remindAt.toISOString(),
-        `${statusText}节点提醒：${milestone.name}`,
-        content,
-        existing.id
-      );
-      results.push(reminderService.getReminderById(existing.id));
+  for (const reminder of existingReminders) {
+    if (recipients.includes(reminder.recipient_id)) {
+      processedRecipients.add(reminder.recipient_id);
+      
+      const needsUpdate = reminder.remind_at !== remindAt.toISOString() ||
+                         reminder.title !== title ||
+                         reminder.content !== content;
+
+      if (reminder.is_sent === 0 && needsUpdate) {
+        const oldValue = { remind_at: reminder.remind_at, title: reminder.title, content: reminder.content };
+        db.prepare(`
+          UPDATE reminders 
+          SET remind_at = ?, title = ?, content = ?
+          WHERE id = ?
+        `).run(remindAt.toISOString(), title, content, reminder.id);
+        audit.log('update', 'reminder', reminder.id, creatorId, oldValue, {
+          remind_at: remindAt.toISOString(), title, content
+        }, req);
+      } else if (reminder.is_sent === 1 && needsUpdate) {
+        reminderService.createReminder({
+          milestone_id: milestone.id,
+          type: 'milestone',
+          title, content,
+          remind_at: remindAt.toISOString(),
+          recipient_id: reminder.recipient_id
+        }, creatorId, req);
+      }
     } else {
-      results.push(reminderService.createReminder({
-        milestone_id: milestone.id,
-        type: 'milestone',
-        title: `${statusText}节点提醒：${milestone.name}`,
-        content,
-        remind_at: remindAt.toISOString(),
-        recipient_id: recipientId
-      }, creatorId, req));
+      if (reminder.is_sent === 0) {
+        reminderService.deleteReminder(reminder.id, creatorId, req);
+      }
     }
   }
 
-  return results;
+  for (const recipientId of recipients) {
+    if (!processedRecipients.has(recipientId)) {
+      reminderService.createReminder({
+        milestone_id: milestone.id,
+        type: 'milestone',
+        title, content,
+        remind_at: remindAt.toISOString(),
+        recipient_id: recipientId
+      }, creatorId, req);
+    }
+  }
+
+  return true;
 }
 
 export function createMilestone(data, creatorId, req = null) {
@@ -226,9 +246,7 @@ export function updateMilestone(id, updates, updaterId, req = null) {
   const newMilestone = getMilestoneById(id);
   audit.log('update', 'milestone', id, updaterId, oldMilestone, newMilestone, req);
 
-  if (updates.planned_date !== undefined || updates.status !== undefined) {
-    upsertMilestoneReminder(newMilestone, updaterId, req);
-  }
+  upsertMilestoneReminder(newMilestone, updaterId, req);
 
   return newMilestone;
 }
@@ -319,12 +337,29 @@ export function getMilestoneDetail(id) {
     ORDER BY r.created_at DESC
   `).all(id);
 
-  const auditLogs = audit.getLogsByRef('milestone', id);
+  const milestoneLogs = audit.getLogsByRef('milestone', id);
+  
+  const reminderIds = reminders.map(r => r.id);
+  let reminderLogs = [];
+  if (reminderIds.length > 0) {
+    const placeholders = reminderIds.map(() => '?').join(',');
+    reminderLogs = db.prepare(`
+      SELECT a.*, u.name as user_name, u.role as user_role
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.module = 'reminder' AND a.ref_id IN (${placeholders})
+      ORDER BY a.created_at DESC
+    `).all(...reminderIds);
+  }
+
+  const allLogs = [...milestoneLogs, ...reminderLogs].sort((a, b) => 
+    new Date(b.created_at) - new Date(a.created_at)
+  );
 
   return {
     milestone,
     reminders,
-    auditLogs
+    auditLogs: allLogs
   };
 }
 
