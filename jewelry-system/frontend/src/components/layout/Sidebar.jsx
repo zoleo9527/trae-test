@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileCheck,
@@ -12,11 +12,17 @@ import {
   Briefcase,
   Bell,
   Settings,
-  User
+  User,
+  AlertTriangle,
+  Clock,
+  Info,
+  CheckCircle,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { StatusBadge } from '../common/StatusBadge';
-import { notifications } from '../../data/mockData';
+import { api } from '../../utils/api';
+import { useToast } from '../../context/ToastContext';
 
 const menuItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: '工作台', path: '/' },
@@ -28,13 +34,74 @@ const menuItems = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const { currentRole, currentUser, ROLE_NAMES, hasPermission } = useAuth();
   const location = useLocation();
+  const notificationRef = useRef(null);
 
   const visibleMenuItems = menuItems.filter(item => hasPermission(item.id));
-  const urgentCount = notifications.filter(n => n.type === 'urgent').length;
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const loadNotifications = async () => {
+    if (loadingNotifications) return;
+    setLoadingNotifications(true);
+    try {
+      const res = await api.getNotifications();
+      setNotifications(res.data || []);
+    } catch (err) {
+      toast.error(`加载通知失败: ${err.message}`);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showNotifications) {
+      loadNotifications();
+    }
+  }, [showNotifications]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'urgent':
+        return <AlertTriangle className="w-4 h-4 text-red-500" />;
+      case 'warning':
+        return <Clock className="w-4 h-4 text-amber-500" />;
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      default:
+        return <Info className="w-4 h-4 text-blue-500" />;
+    }
+  };
+
+  const getNotificationBg = (type) => {
+    switch (type) {
+      case 'urgent':
+        return 'bg-red-50 hover:bg-red-100';
+      case 'warning':
+        return 'bg-amber-50 hover:bg-amber-100';
+      case 'success':
+        return 'bg-green-50 hover:bg-green-100';
+      default:
+        return 'bg-blue-50 hover:bg-blue-100';
+    }
+  };
 
   return (
     <div className={`relative h-screen bg-slate-900 text-white transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
@@ -95,7 +162,7 @@ export function Sidebar() {
       </nav>
 
       {!collapsed && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700" ref={notificationRef}>
           <div className="space-y-2">
             <div className="relative">
               <button
@@ -104,9 +171,9 @@ export function Sidebar() {
               >
                 <div className="relative">
                   <Bell className="w-5 h-5" />
-                  {urgentCount > 0 && (
+                  {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                      {urgentCount}
+                      {unreadCount}
                     </span>
                   )}
                 </div>
@@ -115,30 +182,52 @@ export function Sidebar() {
 
               {showNotifications && (
                 <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
-                  <div className="p-3 border-b border-gray-100">
+                  <div className="p-3 border-b border-gray-100 flex items-center justify-between">
                     <h4 className="font-semibold text-gray-900">最新通知</h4>
+                    <button
+                      onClick={() => setShowNotifications(false)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
                   </div>
                   <div className="max-h-64 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${
-                          notification.type === 'urgent' ? 'bg-red-50' : ''
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
-                            notification.type === 'urgent' ? 'bg-red-500' :
-                            notification.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
-                          }`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{notification.message}</p>
-                            <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
-                          </div>
-                        </div>
+                    {loadingNotifications ? (
+                      <div className="p-4 text-center text-gray-500">
+                        <div className="w-5 h-5 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin mx-auto mb-2" />
+                        加载中...
                       </div>
-                    ))}
+                    ) : notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                        暂无新通知
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => {
+                            if (notification.caseId) {
+                              navigate(`/cases/${notification.caseId}`);
+                            }
+                            setShowNotifications(false);
+                          }}
+                          className={`w-full p-3 text-left border-b border-gray-50 last:border-b-0 transition-colors ${getNotificationBg(notification.type)}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {getNotificationIcon(notification.type)}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notification.message}</p>
+                              <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                            </div>
+                            {!notification.read && (
+                              <div className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0 mt-1" />
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

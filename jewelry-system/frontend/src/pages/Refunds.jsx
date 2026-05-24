@@ -25,6 +25,7 @@ export default function Refunds() {
   const { toast } = useToast();
   const [refunds, setRefunds] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [selectedDetail, setSelectedDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [messageInput, setMessageInput] = useState('');
@@ -45,11 +46,30 @@ export default function Refunds() {
     }
   };
 
+  const loadRefundDetail = async (refundId) => {
+    if (!refundId) return;
+    setLoadingDetail(true);
+    try {
+      const res = await api.getRefundById(refundId);
+      setSelectedDetail(res.data);
+    } catch (err) {
+      toast.error(`加载退款详情失败: ${err.message}`);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
   useEffect(() => {
     loadRefunds();
   }, []);
 
-  const selectedCaseData = refunds.find(r => r.id === selectedCase);
+  useEffect(() => {
+    if (selectedCase) {
+      loadRefundDetail(selectedCase);
+    }
+  }, [selectedCase]);
+
+  const selectedCaseData = selectedDetail;
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedCase) return;
@@ -60,6 +80,7 @@ export default function Refunds() {
       toast.success('消息发送成功');
       setMessageInput('');
       
+      await loadRefundDetail(selectedCase);
       const res = await api.getRefunds();
       setRefunds(res.data || []);
     } catch (err) {
@@ -159,7 +180,11 @@ export default function Refunds() {
         </div>
 
         <div className="lg:col-span-2">
-          {selectedCaseData ? (
+          {loadingDetail ? (
+            <div className="card h-full flex items-center justify-center">
+              <LoadingState text="正在加载退款详情..." />
+            </div>
+          ) : selectedCaseData ? (
             <div className="card h-full flex flex-col">
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div>

@@ -682,7 +682,7 @@ app.get('/api/reports/stats', (req, res) => {
     ['processing', 'under_review', 'pending_supplement', 'in_progress'].includes(c.status)
   ).length;
   const overdueCases = visaCases.filter(c => c.status === 'overdue').length;
-  const approvalRate = Math.round((approvedCases / totalCases) * 100);
+  const approvalRate = totalCases > 0 ? Math.round((approvedCases / totalCases) * 100) : 0;
 
   const countryMap = {};
   visaCases.forEach(c => {
@@ -692,11 +692,47 @@ app.get('/api/reports/stats', (req, res) => {
   const countryStats = Object.entries(countryMap).map(([country, count]) => ({
     country,
     count,
-    percentage: Math.round((count / totalCases) * 100)
+    percentage: totalCases > 0 ? Math.round((count / totalCases) * 100) : 0
   })).sort((a, b) => b.count - a.count);
 
-  const avgProcessDays = 5.2;
-  const avgSupplementDays = 3.8;
+  const completedCases = visaCases.filter(c => c.status === 'approved' || c.status === 'rejected');
+  let totalProcessDays = 0;
+  let completedCount = 0;
+  completedCases.forEach(c => {
+    if (c.createdAt && c.updatedAt) {
+      const created = new Date(c.createdAt);
+      const updated = new Date(c.updatedAt);
+      const diffTime = Math.abs(updated - created);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        totalProcessDays += diffDays;
+        completedCount++;
+      }
+    }
+  });
+  const avgProcessDays = completedCount > 0 ? (totalProcessDays / completedCount).toFixed(1) : 0;
+
+  const casesWithSupplements = visaCases.filter(c => 
+    c.supplements && c.supplements.length > 0 && c.supplements.some(s => s.uploads && s.uploads.length > 0)
+  );
+  let totalSupplementDays = 0;
+  let supplementCount = 0;
+  casesWithSupplements.forEach(c => {
+    c.supplements.forEach(s => {
+      if (s.requiredDate && s.uploads && s.uploads.length > 0) {
+        const latestUpload = s.uploads[s.uploads.length - 1];
+        if (latestUpload.uploadDate) {
+          const required = new Date(s.requiredDate);
+          const uploaded = new Date(latestUpload.uploadDate);
+          const diffTime = Math.abs(required - uploaded);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          totalSupplementDays += diffDays;
+          supplementCount++;
+        }
+      }
+    });
+  });
+  const avgSupplementDays = supplementCount > 0 ? (totalSupplementDays / supplementCount).toFixed(1) : 0;
 
   const stats = [
     { label: '总案件数', value: totalCases, change: '+12%', trend: 'up' },
@@ -717,8 +753,8 @@ app.get('/api/reports/stats', (req, res) => {
       overdueCases,
       approvalRate,
       countryStats,
-      avgProcessDays,
-      avgSupplementDays
+      avgProcessDays: parseFloat(avgProcessDays),
+      avgSupplementDays: parseFloat(avgSupplementDays)
     }
   });
 });
