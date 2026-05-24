@@ -221,6 +221,21 @@ function generateMockData() {
       notes: [],
       createdAt: '2026-01-15T10:00:00Z',
       updatedAt: '2026-01-15T10:00:00Z'
+    },
+    {
+      id: 'visa3',
+      studentId: 's4',
+      status: 'refund_in_progress',
+      country: '加拿大',
+      refundAmount: 15000,
+      refundDate: '2026-05-08',
+      notes: [
+        { id: 'n4', content: '学生提出转申澳洲，申请退款', createdBy: 'u3', createdAt: '2026-05-08T10:00:00Z', type: 'refund' },
+        { id: 'n5', content: '已发送合同条款说明，扣除30%服务费', createdBy: 'u1', createdAt: '2026-05-12T14:00:00Z', type: 'refund' },
+        { id: 'n6', content: '家长希望全额退款，预约5月25日面谈', createdBy: 'u1', createdAt: '2026-05-18T11:00:00Z', type: 'issue' }
+      ],
+      createdAt: '2026-03-15T10:00:00Z',
+      updatedAt: '2026-05-20T15:00:00Z'
     }
   ];
 

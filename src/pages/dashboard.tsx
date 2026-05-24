@@ -37,7 +37,7 @@ export default function Dashboard() {
     );
   }
 
-  const { stats, roleSpecificData, recentDeadlines, recentIssues } = data;
+  const { stats, roleSpecificData, recentDeadlines, recentIssues, recentDocsForCopywriter } = data;
 
   const getStatCards = () => {
     const baseCards = [
@@ -53,10 +53,18 @@ export default function Dashboard() {
         { label: '已逾期截点', value: stats.overdueCount, icon: <XCircle size={24} />, color: 'bg-red-100 text-red-700' },
       ];
     }
+    if (user.role === 'copywriter') {
+      return [
+        ...baseCards.slice(0, 2),
+        { label: '待审核文档', value: roleSpecificData.docsByStatus?.review || 0, icon: <FileText size={24} />, color: 'bg-purple-50 text-purple-600' },
+        { label: '已逾期', value: roleSpecificData.docsByStatus?.overdue || 0, icon: <XCircle size={24} />, color: 'bg-red-50 text-red-600' },
+      ];
+    }
     if (user.role === 'visa_assistant') {
       return [
         ...baseCards.slice(0, 3),
         { label: '即将面签', value: roleSpecificData.upcomingAppointments, icon: <Clock size={24} />, color: 'bg-green-50 text-green-600' },
+        { label: '退款中', value: roleSpecificData.visaByStatus?.refund_in_progress || 0, icon: <AlertTriangle size={24} />, color: 'bg-orange-50 text-orange-600' },
       ];
     }
     return baseCards;
@@ -193,42 +201,101 @@ export default function Dashboard() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                {user.role === 'copywriter' ? '待审核文书' : '待处理问题'}
+                {user.role === 'copywriter' ? '待审核文书' : 
+                 user.role === 'visa_assistant' ? '退款处理中' : '待处理问题'}
               </h2>
-              <button onClick={() => router.push(user.role === 'copywriter' ? '/students' : '/issues')} className="text-sm text-primary-600 hover:text-primary-700">
+              <button onClick={() => router.push(
+                user.role === 'copywriter' ? '/students' : 
+                user.role === 'visa_assistant' ? '/students' : '/issues'
+              )} className="text-sm text-primary-600 hover:text-primary-700">
                 查看全部
               </button>
             </div>
             <div className="space-y-3">
-              {recentIssues.map((issue: any) => (
-                <div 
-                  key={issue.id} 
-                  className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                  onClick={() => router.push(`/issues`)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-sm">{issue.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">{issue.studentName}</p>
+              {user.role === 'copywriter' && recentDocsForCopywriter && recentDocsForCopywriter.length > 0 ? (
+                recentDocsForCopywriter.map((doc: any) => (
+                  <div 
+                    key={doc.id} 
+                    className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                    onClick={() => router.push(`/students/${doc.studentId}`)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{doc.name}</p>
+                        <p className="text-xs text-gray-500 mt-1">{doc.studentName}</p>
+                      </div>
+                      <span className="status-badge status-review">待审核</span>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      issue.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                      issue.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                      issue.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {priorityLabels[issue.priority]}
-                    </span>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-gray-500">版本 v{doc.currentVersion}</span>
+                      {doc.deadline && (
+                        <>
+                          <span className="text-xs text-gray-300">·</span>
+                          <span className={`text-xs ${getDeadlineStatus(doc.deadline) === 'overdue' ? 'text-red-600' : 'text-gray-500'}`}>
+                            截止 {formatDate(doc.deadline)}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-gray-500">{issueCategoryLabels[issue.category]}</span>
-                    <span className="text-xs text-gray-300">·</span>
-                    <span className="text-xs text-gray-500">{statusLabels[issue.status]}</span>
+                ))
+              ) : user.role === 'visa_assistant' && roleSpecificData.refundInProgressList && roleSpecificData.refundInProgressList.length > 0 ? (
+                roleSpecificData.refundInProgressList.map((visa: any) => (
+                  <div 
+                    key={visa.id} 
+                    className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 border-l-4 border-orange-400"
+                    onClick={() => router.push(`/students/${visa.studentId}?tab=visa`)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{visa.studentName}</p>
+                        <p className="text-xs text-gray-500 mt-1">{visa.country}学生签证</p>
+                      </div>
+                      <span className="status-badge status-rejected">退款中</span>
+                    </div>
+                    <div className="mt-2">
+                      {visa.refundAmount && (
+                        <p className="text-xs text-orange-700 font-medium">退款金额: ¥{visa.refundAmount.toLocaleString()}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-              {recentIssues.length === 0 && (
-                <p className="text-center text-gray-500 py-8">暂无待处理问题</p>
+                ))
+              ) : (
+                recentIssues.map((issue: any) => (
+                  <div 
+                    key={issue.id} 
+                    className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                    onClick={() => router.push(`/issues`)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{issue.title}</p>
+                        <p className="text-xs text-gray-500 mt-1">{issue.studentName}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        issue.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                        issue.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                        issue.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {priorityLabels[issue.priority]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-gray-500">{issueCategoryLabels[issue.category]}</span>
+                      <span className="text-xs text-gray-300">·</span>
+                      <span className="text-xs text-gray-500">{statusLabels[issue.status]}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+              {((user.role === 'copywriter' && (!recentDocsForCopywriter || recentDocsForCopywriter.length === 0)) ||
+                (user.role === 'visa_assistant' && (!roleSpecificData.refundInProgressList || roleSpecificData.refundInProgressList.length === 0)) ||
+                (user.role !== 'copywriter' && user.role !== 'visa_assistant' && recentIssues.length === 0)) && (
+                <p className="text-center text-gray-500 py-8">
+                  {user.role === 'copywriter' ? '暂无待审核文书' : 
+                   user.role === 'visa_assistant' ? '暂无退款中签证' : '暂无待处理问题'}
+                </p>
               )}
             </div>
           </div>

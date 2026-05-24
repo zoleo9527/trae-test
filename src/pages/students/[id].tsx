@@ -44,6 +44,9 @@ export default function StudentDetail() {
     }
     if (user && id) {
       loadStudentData();
+      if (router.query.tab) {
+        setActiveTab(router.query.tab as string);
+      }
     }
   }, [user, loading, id, router]);
   

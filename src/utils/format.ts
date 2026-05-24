@@ -42,6 +42,7 @@ export const statusLabels: Record<string, string> = {
   documents_preparing: '材料准备中',
   submitted: '已提交',
   interview_scheduled: '面试已预约',
+  refund_in_progress: '退款中',
   open: '待处理',
   resolved: '已解决',
   closed: '已关闭',

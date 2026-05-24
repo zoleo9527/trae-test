@@ -62,6 +62,24 @@ router.get('/stats', (req, res) => {
       }
     };
   } else if (role === 'copywriter') {
+    const reviewDocs = documents
+      .filter(d => d.status === 'review')
+      .sort((a, b) => new Date(a.deadline || '9999-12-31').getTime() - new Date(b.deadline || '9999-12-31').getTime())
+      .slice(0, 5)
+      .map(d => ({
+        ...d,
+        studentName: students.find(s => s.id === d.studentId)?.name
+      }));
+    
+    const myPendingDocs = documents
+      .filter(d => ['pending', 'in_progress', 'overdue'].includes(d.status))
+      .sort((a, b) => new Date(a.deadline || '9999-12-31').getTime() - new Date(b.deadline || '9999-12-31').getTime())
+      .slice(0, 5)
+      .map(d => ({
+        ...d,
+        studentName: students.find(s => s.id === d.studentId)?.name
+      }));
+    
     roleSpecificData = {
       docsByStatus: {
         pending: documents.filter(d => d.status === 'pending').length,
@@ -70,12 +88,17 @@ router.get('/stats', (req, res) => {
         approved: documents.filter(d => d.status === 'approved').length,
         overdue: documents.filter(d => d.status === 'overdue').length,
       },
-      myStudents: students.length
+      myStudents: students.length,
+      reviewDocs,
+      myPendingDocs
     };
   } else if (role === 'visa_assistant') {
     const visaRecords = store.visaRecords.filter(v => 
       studentIds.includes(v.studentId)
     );
+    
+    const refundInProgress = visaRecords.filter(v => v.status === 'refund_in_progress');
+    
     roleSpecificData = {
       visaByStatus: {
         not_started: visaRecords.filter(v => v.status === 'not_started').length,
@@ -84,11 +107,30 @@ router.get('/stats', (req, res) => {
         interview_scheduled: visaRecords.filter(v => v.status === 'interview_scheduled').length,
         approved: visaRecords.filter(v => v.status === 'approved').length,
         rejected: visaRecords.filter(v => v.status === 'rejected').length,
+        refund_in_progress: refundInProgress.length,
       },
       upcomingAppointments: visaRecords.filter(v => 
         v.appointmentDate && new Date(v.appointmentDate) <= sevenDaysLater
-      ).length
+      ).length,
+      refundInProgressList: refundInProgress
+        .slice(0, 5)
+        .map(v => ({
+          ...v,
+          studentName: students.find(s => s.id === v.studentId)?.name
+        }))
     };
+  }
+  
+  let recentDocsForCopywriter = [];
+  if (role === 'copywriter') {
+    recentDocsForCopywriter = documents
+      .filter(d => d.status === 'review')
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5)
+      .map(d => ({
+        ...d,
+        studentName: students.find(s => s.id === d.studentId)?.name
+      }));
   }
   
   res.json({
@@ -104,7 +146,8 @@ router.get('/stats', (req, res) => {
     recentIssues: issues
       .filter(i => i.status !== 'resolved' && i.status !== 'closed')
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 5)
+      .slice(0, 5),
+    recentDocsForCopywriter
   });
 });
 
