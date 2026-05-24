@@ -26,16 +26,26 @@ router.get('/', (req, res) => {
 });
 
 router.get('/student/:studentId', (req, res) => {
+  if (!store.canAccessStudent(req.params.studentId, req.user.id, req.user.role)) {
+    return res.status(403).json({ error: '无权访问此学生数据' });
+  }
   const deadlines = store.getDeadlinesByStudent(req.params.studentId);
   res.json({ deadlines });
 });
 
 router.put('/:id', (req, res) => {
-  const deadline = store.updateDeadline(req.params.id, req.body);
+  const deadline = store.deadlines.find(d => d.id === req.params.id);
   if (!deadline) {
     return res.status(404).json({ error: '截点不存在' });
   }
-  res.json({ deadline });
+  if (!store.canAccessStudent(deadline.studentId, req.user.id, req.user.role)) {
+    return res.status(403).json({ error: '无权操作此截点' });
+  }
+  if (req.user.role !== 'consultant_manager') {
+    return res.status(403).json({ error: '只有顾问主管可以更新截点' });
+  }
+  const updated = store.updateDeadline(req.params.id, req.body);
+  res.json({ deadline: updated });
 });
 
 module.exports = router;

@@ -338,13 +338,15 @@ export default function StudentDetail() {
                 )}
                 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button 
-                    onClick={() => openUploadModal(doc)}
-                    className="btn-secondary text-sm flex items-center gap-2"
-                  >
-                    <Upload size={16} />
-                    上传新版本
-                  </button>
+                  {(user?.role === 'copywriter' || user?.role === 'consultant_manager') && (
+                    <button 
+                      onClick={() => openUploadModal(doc)}
+                      className="btn-secondary text-sm flex items-center gap-2"
+                    >
+                      <Upload size={16} />
+                      上传新版本
+                    </button>
+                  )}
                   {doc.status === 'review' && user?.role === 'consultant_manager' && (
                     <>
                       <button 
@@ -433,21 +435,23 @@ export default function StudentDetail() {
                   </span>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={openVisaNoteModal}
-                  className="btn-secondary text-sm flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  添加记录
-                </button>
-                <button 
-                  onClick={() => openVisaStatusModal(visa.status)}
-                  className="btn-primary text-sm flex items-center gap-2"
-                >
-                  更新状态
-                </button>
-              </div>
+              {(user?.role === 'visa_assistant' || user?.role === 'consultant_manager') && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={openVisaNoteModal}
+                    className="btn-secondary text-sm flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    添加记录
+                  </button>
+                  <button 
+                    onClick={() => openVisaStatusModal(visa.status)}
+                    className="btn-primary text-sm flex items-center gap-2"
+                  >
+                    更新状态
+                  </button>
+                </div>
+              )}
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">

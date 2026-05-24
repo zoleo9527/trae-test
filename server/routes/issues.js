@@ -28,15 +28,22 @@ router.get('/:id', (req, res) => {
   if (!issue) {
     return res.status(404).json({ error: '问题不存在' });
   }
+  if (!store.canAccessStudent(issue.studentId, req.user.id, req.user.role)) {
+    return res.status(403).json({ error: '无权访问此问题' });
+  }
   res.json({ issue });
 });
 
 router.put('/:id', (req, res) => {
-  const issue = store.updateIssue(req.params.id, req.body, req.user.id);
+  const issue = store.getIssueById(req.params.id);
   if (!issue) {
     return res.status(404).json({ error: '问题不存在' });
   }
-  res.json({ issue });
+  if (!store.canAccessStudent(issue.studentId, req.user.id, req.user.role)) {
+    return res.status(403).json({ error: '无权操作此问题' });
+  }
+  const updated = store.updateIssue(req.params.id, req.body, req.user.id);
+  res.json({ issue: updated });
 });
 
 module.exports = router;

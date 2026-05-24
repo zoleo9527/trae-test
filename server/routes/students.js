@@ -54,6 +54,12 @@ router.get('/:id', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
+  if (!store.canAccessStudent(req.params.id, req.user.id, req.user.role)) {
+    return res.status(403).json({ error: '无权访问此学生数据' });
+  }
+  if (req.user.role !== 'consultant_manager') {
+    return res.status(403).json({ error: '只有顾问主管可以更新学生信息' });
+  }
   const student = store.updateStudent(req.params.id, req.body);
   if (!student) {
     return res.status(404).json({ error: '学生不存在' });

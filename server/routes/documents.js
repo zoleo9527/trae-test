@@ -33,10 +33,20 @@ router.put('/:id/status', (req, res) => {
   if (!store.canAccessStudent(document.studentId, req.user.id, req.user.role)) {
     return res.status(403).json({ error: '无权操作此文档' });
   }
-  if (['approved', 'rejected'].includes(req.body.status) && req.user.role !== 'consultant_manager') {
-    return res.status(403).json({ error: '只有顾问主管可以审核文档' });
-  }
   const { status, feedback } = req.body;
+  if (['approved', 'rejected'].includes(status)) {
+    if (req.user.role !== 'consultant_manager') {
+      return res.status(403).json({ error: '只有顾问主管可以审核文档' });
+    }
+  } else if (['in_progress', 'review'].includes(status)) {
+    if (req.user.role !== 'copywriter' && req.user.role !== 'consultant_manager') {
+      return res.status(403).json({ error: '只有文案老师和顾问主管可以更新文档状态' });
+    }
+  } else {
+    if (req.user.role !== 'consultant_manager') {
+      return res.status(403).json({ error: '只有顾问主管可以执行此操作' });
+    }
+  }
   const updated = store.updateDocumentStatus(req.params.id, status, feedback, req.user.id);
   res.json({ document: updated });
 });
@@ -48,6 +58,9 @@ router.post('/:id/versions', (req, res) => {
   }
   if (!store.canAccessStudent(document.studentId, req.user.id, req.user.role)) {
     return res.status(403).json({ error: '无权操作此文档' });
+  }
+  if (req.user.role !== 'copywriter' && req.user.role !== 'consultant_manager') {
+    return res.status(403).json({ error: '只有文案老师和顾问主管可以上传文档版本' });
   }
   const version = store.addDocumentVersion(req.params.id, req.body, req.user.id);
   res.json({ version });
