@@ -19,6 +19,8 @@ let BusinessExceptionFilter = class BusinessExceptionFilter {
             [business_error_1.ErrorCode.REFUND_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
             [business_error_1.ErrorCode.TRANSFER_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
             [business_error_1.ErrorCode.MATERIAL_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
+            [business_error_1.ErrorCode.DEADLINE_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
+            [business_error_1.ErrorCode.COMMENT_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
             [business_error_1.ErrorCode.AUDIT_LOG_NOT_FOUND]: common_1.HttpStatus.NOT_FOUND,
             [business_error_1.ErrorCode.INVALID_STATE_TRANSITION]: common_1.HttpStatus.BAD_REQUEST,
             [business_error_1.ErrorCode.INVALID_ROLE]: common_1.HttpStatus.BAD_REQUEST,

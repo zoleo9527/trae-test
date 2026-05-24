@@ -14,6 +14,8 @@ export class BusinessExceptionFilter implements ExceptionFilter {
       [ErrorCode.REFUND_NOT_FOUND]: HttpStatus.NOT_FOUND,
       [ErrorCode.TRANSFER_NOT_FOUND]: HttpStatus.NOT_FOUND,
       [ErrorCode.MATERIAL_NOT_FOUND]: HttpStatus.NOT_FOUND,
+      [ErrorCode.DEADLINE_NOT_FOUND]: HttpStatus.NOT_FOUND,
+      [ErrorCode.COMMENT_NOT_FOUND]: HttpStatus.NOT_FOUND,
       [ErrorCode.AUDIT_LOG_NOT_FOUND]: HttpStatus.NOT_FOUND,
       [ErrorCode.INVALID_STATE_TRANSITION]: HttpStatus.BAD_REQUEST,
       [ErrorCode.INVALID_ROLE]: HttpStatus.BAD_REQUEST,

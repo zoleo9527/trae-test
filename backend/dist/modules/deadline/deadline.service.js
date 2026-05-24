@@ -18,6 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const deadline_entity_1 = require("./deadline.entity");
 const audit_service_1 = require("../audit/audit.service");
+const business_error_1 = require("../../common/errors/business-error");
 let DeadlineService = class DeadlineService {
     constructor(deadlineRepository, auditService) {
         this.deadlineRepository = deadlineRepository;
@@ -42,12 +43,14 @@ let DeadlineService = class DeadlineService {
         });
     }
     async findUpcoming(days = 7) {
+        const now = new Date();
         const futureDate = new Date();
         futureDate.setDate(futureDate.getDate() + days);
         return this.deadlineRepository.find({
             where: {
                 isCompleted: false,
-                dueDate: (0, typeorm_2.LessThan)(futureDate),
+                isOverdue: false,
+                dueDate: (0, typeorm_2.Between)(now, futureDate),
             },
             relations: ['assignee', 'workOrder', 'workOrder.student'],
             order: { dueDate: 'ASC' },
@@ -55,8 +58,9 @@ let DeadlineService = class DeadlineService {
     }
     async markComplete(id, operatorId, operatorName) {
         const deadline = await this.deadlineRepository.findOne({ where: { id } });
-        if (!deadline)
-            return null;
+        if (!deadline) {
+            throw (0, business_error_1.createError)(business_error_1.ErrorCode.DEADLINE_NOT_FOUND, `截止日 ${id} 不存在`);
+        }
         const oldValue = { ...deadline };
         deadline.isCompleted = true;
         deadline.completedAt = new Date();
@@ -82,8 +86,9 @@ let DeadlineService = class DeadlineService {
     }
     async incrementReminder(id) {
         const deadline = await this.deadlineRepository.findOne({ where: { id } });
-        if (!deadline)
-            return null;
+        if (!deadline) {
+            throw (0, business_error_1.createError)(business_error_1.ErrorCode.DEADLINE_NOT_FOUND, `截止日 ${id} 不存在`);
+        }
         deadline.reminderCount += 1;
         deadline.lastReminderAt = new Date();
         return this.deadlineRepository.save(deadline);

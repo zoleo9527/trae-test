@@ -6,12 +6,15 @@ import { WorkOrderStatus } from '../../common/enums/work-order-status.enum';
 import { WorkOrderStateMachine } from '../../common/state-machines/work-order.state-machine';
 import { createError, ErrorCode } from '../../common/errors/business-error';
 import { AuditService } from '../audit/audit.service';
+import { AuditLog } from '../audit/audit-log.entity';
 
 @Injectable()
 export class WorkOrderService {
   constructor(
     @InjectRepository(WorkOrder)
     private readonly workOrderRepository: Repository<WorkOrder>,
+    @InjectRepository(AuditLog)
+    private readonly auditLogRepository: Repository<AuditLog>,
     private readonly auditService: AuditService,
   ) {}
 
@@ -72,11 +75,25 @@ export class WorkOrderService {
         'currentConsultant',
         'previousConsultant',
         'refunds',
+        'refunds.initiator',
+        'refunds.reviewer',
+        'refunds.comments',
+        'refunds.comments.author',
         'transfers',
+        'transfers.fromConsultant',
+        'transfers.toConsultant',
+        'transfers.comments',
+        'transfers.comments.author',
         'materials',
+        'materials.owner',
+        'materials.versions',
+        'materials.versions.uploader',
+        'materials.comments',
+        'materials.comments.author',
         'comments',
         'comments.author',
         'deadlines',
+        'deadlines.assignee',
       ],
     });
 
@@ -84,7 +101,36 @@ export class WorkOrderService {
       throw createError(ErrorCode.WORK_ORDER_NOT_FOUND, `工单 ${id} 不存在`);
     }
 
+    const auditTimeline = await this.getAuditTimeline(id);
+    (workOrder as any).auditTimeline = auditTimeline;
+
     return workOrder;
+  }
+
+  private async getAuditTimeline(workOrderId: string): Promise<AuditLog[]> {
+    const allLogs: AuditLog[] = [];
+
+    const workOrderLogs = await this.auditLogRepository.find({
+      where: { entityType: 'WorkOrder', entityId: workOrderId },
+      order: { createdAt: 'DESC' },
+    });
+    allLogs.push(...workOrderLogs);
+
+    const relatedEntityTypes = ['Refund', 'Transfer', 'Material', 'Comment', 'Deadline'];
+    for (const entityType of relatedEntityTypes) {
+      const logs = await this.auditLogRepository
+        .createQueryBuilder('log')
+        .where('log.entityType = :entityType', { entityType })
+        .andWhere(
+          `(log.newValue->>'workOrderId' = :workOrderId OR log.oldValue->>'workOrderId' = :workOrderId)`,
+          { workOrderId },
+        )
+        .orderBy('log.createdAt', 'DESC')
+        .getMany();
+      allLogs.push(...logs);
+    }
+
+    return allLogs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async updateStatus(

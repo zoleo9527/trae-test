@@ -12,12 +12,13 @@ const typeorm_1 = require("@nestjs/typeorm");
 const work_order_entity_1 = require("./work-order.entity");
 const work_order_service_1 = require("./work-order.service");
 const work_order_controller_1 = require("./work-order.controller");
+const audit_log_entity_1 = require("../audit/audit-log.entity");
 let WorkOrderModule = class WorkOrderModule {
 };
 exports.WorkOrderModule = WorkOrderModule;
 exports.WorkOrderModule = WorkOrderModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([work_order_entity_1.WorkOrder])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([work_order_entity_1.WorkOrder, audit_log_entity_1.AuditLog])],
         controllers: [work_order_controller_1.WorkOrderController],
         providers: [work_order_service_1.WorkOrderService],
         exports: [work_order_service_1.WorkOrderService],

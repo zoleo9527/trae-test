@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThanOrEqual, Between } from 'typeorm';
 import { Deadline } from './deadline.entity';
 import { AuditService } from '../audit/audit.service';
+import { createError, ErrorCode } from '../../common/errors/business-error';
 
 @Injectable()
 export class DeadlineService {
@@ -45,13 +46,15 @@ export class DeadlineService {
   }
 
   async findUpcoming(days: number = 7): Promise<Deadline[]> {
+    const now = new Date();
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
     return this.deadlineRepository.find({
       where: {
         isCompleted: false,
-        dueDate: LessThan(futureDate),
+        isOverdue: false,
+        dueDate: Between(now, futureDate),
       },
       relations: ['assignee', 'workOrder', 'workOrder.student'],
       order: { dueDate: 'ASC' },
@@ -60,7 +63,9 @@ export class DeadlineService {
 
   async markComplete(id: string, operatorId: string, operatorName: string): Promise<Deadline> {
     const deadline = await this.deadlineRepository.findOne({ where: { id } });
-    if (!deadline) return null;
+    if (!deadline) {
+      throw createError(ErrorCode.DEADLINE_NOT_FOUND, `截止日 ${id} 不存在`);
+    }
 
     const oldValue = { ...deadline };
     deadline.isCompleted = true;
@@ -103,7 +108,9 @@ export class DeadlineService {
 
   async incrementReminder(id: string): Promise<Deadline> {
     const deadline = await this.deadlineRepository.findOne({ where: { id } });
-    if (!deadline) return null;
+    if (!deadline) {
+      throw createError(ErrorCode.DEADLINE_NOT_FOUND, `截止日 ${id} 不存在`);
+    }
 
     deadline.reminderCount += 1;
     deadline.lastReminderAt = new Date();
