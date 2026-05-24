@@ -264,27 +264,24 @@ export default function ChangeOrderDetail({ currentUser }) {
             </>
           )}
           
+          {order.status === 'pending_owner_send' && currentUser.role === 'manager' && (
+            <button 
+              onClick={handleSendOwnerConfirmation}
+              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              发送业主确认
+            </button>
+          )}
+          
           {order.status === 'pending_owner' && (
-            <>
-              {currentUser.role === 'manager' && (
-                <button 
-                  onClick={handleSendOwnerConfirmation}
-                  className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  发送业主确认
-                </button>
-              )}
-              {(currentUser.role === 'supervisor' || currentUser.role === 'manager') && (
-                <button 
-                  onClick={() => setShowActionModal('owner_approve')}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  模拟业主确认
-                </button>
-              )}
-            </>
+            <button 
+              onClick={() => setShowActionModal('owner_approve')}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              模拟业主签字确认
+            </button>
           )}
         </div>
       </div>
@@ -348,7 +345,7 @@ export default function ChangeOrderDetail({ currentUser }) {
                 role="owner" 
                 approval={order.approvals.owner}
                 isCurrent={order.currentHandler === 'owner'}
-                isPending={order.status === 'pending_owner'}
+                isPending={order.status === 'pending_owner_send' || order.status === 'pending_owner'}
               />
             </div>
           </div>
@@ -451,35 +448,71 @@ export default function ChangeOrderDetail({ currentUser }) {
           {isMyTurn && (
             <div className="bg-primary-50 rounded-xl border border-primary-200 p-6">
               <h3 className="font-medium text-primary-700 mb-3">您的待办</h3>
-              <p className="text-sm text-primary-600 mb-4">
-                该变更单当前需要您处理，请及时审核并给出意见。
-              </p>
-              <div className="flex space-x-3">
-                {(currentUser.role === 'supervisor' || currentUser.role === 'manager') && order.status !== 'rejected' && (
+              
+              {order.status === 'pending_approval' && currentUser.role === 'manager' && (
+                <>
+                  <p className="text-sm text-primary-600 mb-4">
+                    该变更单需要您审核，请确认费用和内容无误。
+                  </p>
+                  <div className="flex space-x-3">
+                    <button 
+                      onClick={() => setShowActionModal('approve')}
+                      className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    >
+                      通过
+                    </button>
+                    <button 
+                      onClick={() => setShowActionModal('reject')}
+                      className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                    >
+                      驳回
+                    </button>
+                  </div>
+                </>
+              )}
+              
+              {order.status === 'pending_owner_send' && currentUser.role === 'manager' && (
+                <>
+                  <p className="text-sm text-primary-600 mb-4">
+                    请发送业主确认通知，待业主签字确认后变更生效。
+                  </p>
                   <button 
-                    onClick={() => setShowActionModal('approve')}
-                    className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    onClick={handleSendOwnerConfirmation}
+                    className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
                   >
-                    通过
+                    发送业主确认
                   </button>
-                )}
-                {order.status === 'rejected' && currentUser.role === 'supervisor' && (
+                </>
+              )}
+              
+              {order.status === 'rejected' && currentUser.role === 'supervisor' && (
+                <>
+                  <p className="text-sm text-primary-600 mb-4">
+                    该变更单已被驳回，请修改后重新提交。
+                  </p>
                   <button 
                     onClick={() => setIsResubmitting(true)}
-                    className="flex-1 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                    className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
                   >
-                    重新提交
+                    编辑并重新提交
                   </button>
-                )}
-                {currentUser.role === 'manager' && order.status === 'pending_approval' && (
-                  <button 
-                    onClick={() => setShowActionModal('reject')}
-                    className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    驳回
-                  </button>
-                )}
-              </div>
+                </>
+              )}
+            </div>
+          )}
+          
+          {order.status === 'pending_owner' && (
+            <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-6">
+              <h3 className="font-medium text-yellow-700 mb-3">待业主确认</h3>
+              <p className="text-sm text-yellow-600 mb-4">
+                已发送业主确认通知，等待业主签字确认。
+              </p>
+              <button 
+                onClick={() => setShowActionModal('owner_approve')}
+                className="w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                模拟业主签字确认
+              </button>
             </div>
           )}
 
@@ -506,9 +539,9 @@ export default function ChangeOrderDetail({ currentUser }) {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowActionModal(null)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {showActionModal === 'approve' ? '确认通过' : 
+              {showActionModal === 'approve' ? '确认审核通过' : 
                showActionModal === 'reject' ? '驳回变更单' :
-               '确认业主已签字'}
+               '确认业主已签字确认'}
             </h3>
             {showActionModal === 'reject' && (
               <div className="mb-4">
@@ -537,7 +570,7 @@ export default function ChangeOrderDetail({ currentUser }) {
             {showActionModal === 'owner_approve' && (
               <div className="mb-4 p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-700">
-                  此操作模拟业主确认签字。确认后，变更单将生效，并自动生成待支付的费用记录。
+                  此操作模拟业主签字确认。确认后，变更单将生效，并自动生成【待费用确认】的费用记录。
                 </p>
               </div>
             )}

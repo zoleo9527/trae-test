@@ -89,7 +89,7 @@ export default function ChangeOrders({ currentUser }) {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setFilterDropdown(null)} />
                 <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
-                  {['all', 'pending_approval', 'pending_owner', 'rejected', 'completed'].map(status => (
+                  {['all', 'pending_approval', 'pending_owner_send', 'pending_owner', 'rejected', 'completed'].map(status => (
                     <button
                       key={status}
                       onClick={() => {

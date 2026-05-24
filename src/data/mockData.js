@@ -86,8 +86,8 @@ export const changeOrders = [
     title: '增加防水处理区域',
     description: '业主希望在阳台区域增加防水处理，防止漏水问题。',
     reason: '业主要求增加施工内容',
-    status: 'pending_owner',
-    currentHandler: 'owner',
+    status: 'pending_owner_send',
+    currentHandler: 'manager',
     createdAt: '2024-05-18 09:15:00',
     createdBy: '张监理',
     version: 1,
@@ -104,7 +104,6 @@ export const changeOrders = [
       { time: '2024-05-18 09:15:00', action: '创建变更单', user: '张监理', role: 'supervisor' },
       { time: '2024-05-18 10:00:00', action: '监理审核通过', user: '张监理', role: 'supervisor' },
       { time: '2024-05-18 11:30:00', action: '管家审核通过', user: '李管家', role: 'manager' },
-      { time: '2024-05-18 14:00:00', action: '待业主确认', user: '李管家', role: 'manager' },
     ],
     approvals: {
       supervisor: { approved: true, time: '2024-05-18 10:00:00', comment: '施工方案合理', user: '张监理' },
@@ -207,40 +206,19 @@ export const feeRecords = [
     paidAt: '2024-05-12 10:00:00',
     createdAt: '2024-05-11 11:00:00',
   },
-  {
-    id: 'FY202405002',
-    projectId: 1,
-    projectName: '万科城市花园 3栋201',
-    type: 'change_order',
-    relatedId: 'CG20240501001',
-    title: '瓷砖品牌变更费用',
-    amount: 3800,
-    status: 'pending_confirm',
-    createdAt: '2024-05-20 11:00:00',
-  },
-  {
-    id: 'FY202405003',
-    projectId: 2,
-    projectName: '碧桂园天玺 5栋1502',
-    type: 'change_order',
-    relatedId: 'CG20240501003',
-    title: '阳台防水施工费用',
-    amount: 2500,
-    status: 'pending_pay',
-    createdAt: '2024-05-18 14:00:00',
-  },
 ];
 
 export const statusMap = {
-  pending_approval: { label: '待审核', color: 'warning' },
+  pending_approval: { label: '待管家审核', color: 'warning' },
+  pending_owner_send: { label: '待发送业主确认', color: 'warning' },
   pending_owner: { label: '待业主确认', color: 'warning' },
   rejected: { label: '已驳回', color: 'danger' },
   completed: { label: '已完成', color: 'success' },
   in_progress: { label: '进行中', color: 'primary' },
   pending: { label: '待处理', color: 'warning' },
   paid: { label: '已支付', color: 'success' },
-  pending_pay: { label: '待支付', color: 'warning' },
-  pending_confirm: { label: '待确认', color: 'warning' },
+  pending_pay: { label: '待业主支付', color: 'warning' },
+  pending_confirm: { label: '待费用确认', color: 'warning' },
 };
 
 export const typeMap = {

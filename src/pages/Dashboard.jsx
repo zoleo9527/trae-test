@@ -36,10 +36,12 @@ export default function Dashboard({ currentUser }) {
   const { changeOrders, feeRecords, resetData } = useApp();
 
   const pendingOrders = changeOrders.filter(o => 
-    o.status === 'pending_approval' || o.status === 'pending_owner'
+    o.status === 'pending_approval' || o.status === 'pending_owner_send' || o.status === 'pending_owner'
   );
   const rejectedOrders = changeOrders.filter(o => o.status === 'rejected');
-  const needReviewOrders = changeOrders.filter(o => o.status === 'pending_owner');
+  const needReviewOrders = changeOrders.filter(o => 
+    o.status === 'pending_owner_send' || o.status === 'pending_owner'
+  );
   const completedOrders = changeOrders.filter(o => o.status === 'completed');
 
   const pendingRectification = rectificationRecords.filter(r => 

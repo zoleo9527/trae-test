@@ -305,7 +305,7 @@ export default function FeeTracking({ currentUser }) {
             {showConfirmModal.type === 'confirm' && (
               <div className="mb-4 p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-700">
-                  确认该费用记录无误后，将进入待支付状态。
+                  确认该费用记录无误后，将进入【待业主支付】状态。
                 </p>
               </div>
             )}

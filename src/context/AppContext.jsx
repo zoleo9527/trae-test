@@ -94,7 +94,7 @@ const appReducer = (state, action) => {
             },
             {
               time: getCurrentTime(),
-              action: '待业主确认',
+              action: '待发送业主确认',
               user: user?.name || '未知',
               role: 'manager',
             },
@@ -102,8 +102,8 @@ const appReducer = (state, action) => {
           
           return {
             ...order,
-            status: 'pending_owner',
-            currentHandler: 'owner',
+            status: 'pending_owner_send',
+            currentHandler: 'manager',
             timeline: newTimeline,
             approvals: {
               ...order.approvals,
@@ -174,10 +174,18 @@ const appReducer = (state, action) => {
               user: user?.name || '未知',
               role: 'manager',
             },
+            {
+              time: getCurrentTime(),
+              action: '待业主签字确认',
+              user: '系统',
+              role: 'system',
+            },
           ];
           
           return {
             ...order,
+            status: 'pending_owner',
+            currentHandler: 'owner',
             timeline: newTimeline,
           };
         }),
@@ -196,7 +204,7 @@ const appReducer = (state, action) => {
             ...order.timeline,
             {
               time: getCurrentTime(),
-              action: '业主确认签字',
+              action: '业主签字确认',
               user: '业主',
               role: 'owner',
             },
@@ -208,7 +216,7 @@ const appReducer = (state, action) => {
             },
             {
               time: getCurrentTime(),
-              action: '生成费用待确认',
+              action: '生成费用记录（待费用确认）',
               user: '系统',
               role: 'system',
             },
