@@ -10,71 +10,40 @@ import {
   User,
   ChevronRight,
   FileWarning,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 import { visaCases, refundCases } from '../data/mockData';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { LoadingState } from '../components/common/LoadingState';
+import { ErrorState } from '../components/common/ErrorState';
+import { api } from '../utils/api';
 import { format, differenceInDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 const today = new Date('2024-01-26');
 
 export default function Dashboard() {
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.getDashboardStats();
+      setStats(result.data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
+    loadData();
   }, []);
-
-  if (loading) {
-    return <LoadingState text="正在加载工作台数据..." />;
-  }
-
-  const pendingCases = visaCases.filter(c => 
-    ['pending_supplement', 'processing', 'under_review', 'in_progress', 'overdue'].includes(c.status)
-  );
-  const rejectedCases = visaCases.filter(c => c.status === 'rejected');
-  const supplementCases = visaCases.filter(c => 
-    c.supplements && c.supplements.some(s => ['required', 'rejected', 'under_review'].includes(s.status))
-  );
-  const urgentCases = visaCases.filter(c => {
-    const deadline = new Date(c.deadline);
-    const daysLeft = differenceInDays(deadline, today);
-    return daysLeft <= 7 && c.status !== 'approved';
-  });
-
-  const stats = [
-    { 
-      label: '待处理案件', 
-      value: pendingCases.length, 
-      icon: Clock, 
-      color: 'bg-blue-500',
-      link: '/cases?filter=pending'
-    },
-    { 
-      label: '已驳回案件', 
-      value: rejectedCases.length, 
-      icon: AlertTriangle, 
-      color: 'bg-red-500',
-      link: '/cases?filter=rejected'
-    },
-    { 
-      label: '需回查补件', 
-      value: supplementCases.length, 
-      icon: RefreshCcw, 
-      color: 'bg-orange-500',
-      link: '/supplements'
-    },
-    { 
-      label: '本周将到期', 
-      value: urgentCases.length, 
-      icon: Calendar, 
-      color: 'bg-amber-500',
-      link: '/cases?filter=urgent'
-    }
-  ];
 
   const myTasks = visaCases
     .filter(c => c.status !== 'approved')
@@ -86,10 +55,72 @@ export default function Dashboard() {
     })
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
+  const supplementCases = visaCases.filter(c => 
+    c.supplements && c.supplements.some(s => ['required', 'rejected', 'under_review'].includes(s.status))
+  );
+
+  if (loading) {
+    return <LoadingState text="正在加载工作台数据..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorState
+          title="加载失败"
+          message={error}
+          onRetry={loadData}
+        />
+      </div>
+    );
+  }
+
+  const statCards = [
+    { 
+      label: '待处理案件', 
+      value: stats?.pendingCases || 0, 
+      icon: Clock, 
+      color: 'bg-blue-500',
+      link: '/cases?filter=pending'
+    },
+    { 
+      label: '已驳回案件', 
+      value: stats?.rejectedCases || 0, 
+      icon: AlertTriangle, 
+      color: 'bg-red-500',
+      link: '/cases?filter=rejected'
+    },
+    { 
+      label: '需回查补件', 
+      value: stats?.supplementCases || 0, 
+      icon: RefreshCcw, 
+      color: 'bg-orange-500',
+      link: '/supplements'
+    },
+    { 
+      label: '本周将到期', 
+      value: stats?.urgentCases || 0, 
+      icon: Calendar, 
+      color: 'bg-amber-500',
+      link: '/cases?filter=urgent'
+    }
+  ];
+
   return (
     <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">工作台</h2>
+        <button
+          onClick={loadData}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          刷新
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {stats.map((stat, index) => {
+        {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <Link
@@ -244,19 +275,19 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">已完成</span>
                   <span className="font-semibold text-green-600">
-                    {visaCases.filter(c => c.status === 'approved').length} 件
+                    {stats?.approvedCases || 0} 件
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">进行中</span>
                   <span className="font-semibold text-blue-600">
-                    {visaCases.filter(c => ['processing', 'under_review'].includes(c.status)).length} 件
+                    {stats?.pendingCases || 0} 件
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">成功率</span>
                   <span className="font-semibold text-gray-900">
-                    {Math.round((visaCases.filter(c => c.status === 'approved').length / visaCases.length) * 100)}%
+                    {stats?.approvalRate || 0}%
                   </span>
                 </div>
               </div>

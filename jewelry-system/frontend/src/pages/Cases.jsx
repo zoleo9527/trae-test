@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Search,
   Filter,
@@ -9,11 +9,15 @@ import {
   Edit,
   MoreHorizontal,
   Flag,
-  MapPin
+  MapPin,
+  RefreshCw
 } from 'lucide-react';
-import { visaCases } from '../data/mockData';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
+import { LoadingState } from '../components/common/LoadingState';
+import { ErrorState } from '../components/common/ErrorState';
+import { api } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 import { format, differenceInDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -33,27 +37,73 @@ const statusFilters = [
 
 export default function Cases() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'all');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
-  const filteredCases = visaCases.filter(c => {
-    const matchesSearch = c.studentName.includes(searchTerm) || 
-                          c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          c.university.includes(searchTerm);
-    
-    let matchesStatus = true;
-    if (statusFilter === 'pending') {
-      matchesStatus = ['pending_supplement', 'processing', 'in_progress', 'under_review'].includes(c.status);
-    } else if (statusFilter === 'urgent') {
-      const deadline = new Date(c.deadline);
-      matchesStatus = differenceInDays(deadline, today) <= 7 && c.status !== 'approved';
-    } else if (statusFilter !== 'all') {
-      matchesStatus = c.status === statusFilter;
+  const loadCases = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (statusFilter !== 'all' && statusFilter !== 'pending' && statusFilter !== 'urgent') {
+        params.status = statusFilter;
+      }
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+      
+      const result = await api.getCases(params);
+      let filtered = result.data || [];
+      
+      if (statusFilter === 'pending') {
+        filtered = filtered.filter(c => 
+          ['pending_supplement', 'processing', 'in_progress', 'under_review'].includes(c.status)
+        );
+      } else if (statusFilter === 'urgent') {
+        filtered = filtered.filter(c => {
+          const deadline = new Date(c.deadline);
+          const daysLeft = differenceInDays(deadline, today);
+          return daysLeft <= 7 && c.status !== 'approved';
+        });
+      }
+      
+      setCases(filtered);
+    } catch (err) {
+      setError(err.message);
+      toast.error('加载案件列表失败');
+    } finally {
+      setLoading(false);
     }
-    
-    return matchesSearch && matchesStatus;
-  });
+  };
+
+  useEffect(() => {
+    loadCases();
+  }, [statusFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCases();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleStatusChange = (value) => {
+    setStatusFilter(value);
+    setShowStatusDropdown(false);
+    if (value === 'all') {
+      navigate('/cases');
+    } else {
+      navigate(`/cases?filter=${value}`);
+    }
+  };
 
   const priorityColors = {
     low: 'text-gray-400',
@@ -61,6 +111,26 @@ export default function Cases() {
     high: 'text-orange-500',
     urgent: 'text-red-500'
   };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <LoadingState text="正在加载案件列表..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <ErrorState
+          title="加载失败"
+          message={error}
+          onRetry={loadCases}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -92,10 +162,7 @@ export default function Cases() {
                 {statusFilters.map(option => (
                   <button
                     key={option.value}
-                    onClick={() => {
-                      setStatusFilter(option.value);
-                      setShowStatusDropdown(false);
-                    }}
+                    onClick={() => handleStatusChange(option.value)}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
                       statusFilter === option.value ? 'bg-primary-50 text-primary-700 font-medium' : ''
                     }`}
@@ -106,6 +173,14 @@ export default function Cases() {
               </div>
             )}
           </div>
+
+          <button
+            onClick={loadCases}
+            className="p-2 btn-secondary"
+            title="刷新"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
         
         <button className="btn-primary flex items-center gap-2">
@@ -115,11 +190,22 @@ export default function Cases() {
       </div>
 
       <div className="card overflow-hidden">
-        {filteredCases.length === 0 ? (
+        {cases.length === 0 ? (
           <EmptyState
             icon="search"
             title="未找到匹配的案件"
             description="尝试调整搜索条件或筛选器"
+            action={
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                }}
+                className="btn-primary"
+              >
+                重置筛选
+              </button>
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -137,7 +223,7 @@ export default function Cases() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredCases.map((c) => {
+                {cases.map((c) => {
                   const daysLeft = differenceInDays(new Date(c.deadline), today);
                   const isOverdue = daysLeft < 0;
                   
