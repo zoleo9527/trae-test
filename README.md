@@ -116,11 +116,12 @@ npm run dev
 
 | 页面 | 地址 | 说明 |
 |------|------|------|
-| 仪表盘首页 | http://localhost:3000 | 待处理事项、统计数据概览 |
-| 演出场次管理 | http://localhost:3000/performances | 演出排期管理 |
+| 仪表盘首页 | http://localhost:3000 | 待处理事项、已驳回、需回查数据概览 |
+| 演出场次管理 | http://localhost:3000/performances | 演出排期管理（新建时自动创建接待和结算记录） |
 | 演职接待管理 | http://localhost:3000/receptions | 接待安排与状态流转 |
 | 费用结算管理 | http://localhost:3000/settlements | 费用结算与审批 |
-| 状态时间轴 | http://localhost:3000/timeline | 所有状态变更历史记录 |
+| 票务团单管理 | http://localhost:3000/tickets | 票务订单及退改审批 |
+| 状态时间轴 | http://localhost:3000/timeline | 所有状态变更历史记录（场次、接待、结算、票务） |
 | 后端 API 文档 | http://localhost:8000/docs | Swagger API 文档 |
 
 ## 初始化方式
@@ -156,6 +157,20 @@ curl -X POST http://localhost:8000/api/init-sample-data
 2. 提交审核（状态：pending → reviewing）
 3. 审批通过（状态：reviewing → approved）或驳回（reviewing → rejected）
 4. 所有状态变更均记录到时间轴
+
+### 票务退改流程
+
+1. 创建票务订单（状态：confirmed）
+2. 申请退票（状态：confirmed → refund_pending）
+3. 审批通过（状态：refund_pending → refunded）或驳回（refund_pending → confirmed）
+4. 退票通过后自动回退演出已售票数
+5. 每步操作均记录到时间轴
+
+### 状态时间轴
+
+- 所有模块的状态变更都会自动写入时间轴
+- 包括：演出场次变更、接待状态变更、结算状态变更、票务退改审批
+- 可按演出筛选查看完整历史
 
 ## 开发说明
 

@@ -37,6 +37,13 @@
                 费用结算
               </NuxtLink>
               <NuxtLink 
+                to="/tickets" 
+                class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
+                :class="$route.path === '/tickets' ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+              >
+                票务团单
+              </NuxtLink>
+              <NuxtLink 
                 to="/timeline" 
                 class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
                 :class="$route.path === '/timeline' ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"

@@ -194,6 +194,9 @@ class TicketOrderCreate(TicketOrderBase):
 class TicketOrderUpdate(BaseModel):
     status: Optional[str] = None
     refund_reason: Optional[str] = None
+    refund_applicant: Optional[str] = None
+    refund_approver: Optional[str] = None
+    refund_approval_notes: Optional[str] = None
 
 
 class TicketOrder(TicketOrderBase):
@@ -201,7 +204,12 @@ class TicketOrder(TicketOrderBase):
     order_no: str
     status: str
     refund_reason: Optional[str]
+    refund_applicant: Optional[str]
+    refund_approver: Optional[str]
+    refund_approval_time: Optional[datetime]
+    refund_approval_notes: Optional[str]
     created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -214,6 +222,8 @@ class DashboardStats(BaseModel):
     need_review: int
     today_performances: int
     this_month_revenue: float
+    pending_refunds: int
+    rejected_refunds: int
 
 
 class TimelineItem(BaseModel):

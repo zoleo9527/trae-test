@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -131,7 +131,9 @@ def get_timeline(performance_id: Optional[int] = None, db: Session = Depends(get
         elif h.entity_type == "settlement":
             title = "结算状态变更"
         elif h.entity_type == "performance":
-            title = "演出状态变更"
+            title = "演出场次变更"
+        elif h.entity_type == "ticket":
+            title = "票务退改审批"
         timeline_items.append(schemas.TimelineItem(
             id=h.id,
             entity_type=h.entity_type,
@@ -147,8 +149,22 @@ def get_timeline(performance_id: Optional[int] = None, db: Session = Depends(get
 
 
 @app.get("/api/ticket-orders", response_model=List[schemas.TicketOrder])
-def read_ticket_orders(performance_id: Optional[int] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_ticket_orders(db, performance_id=performance_id, skip=skip, limit=limit)
+def read_ticket_orders(
+    performance_id: Optional[int] = None,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    return crud.get_ticket_orders(db, performance_id=performance_id, status=status, skip=skip, limit=limit)
+
+
+@app.get("/api/ticket-orders/{order_id}", response_model=schemas.TicketOrder)
+def read_ticket_order(order_id: int, db: Session = Depends(get_db)):
+    db_order = crud.get_ticket_order(db, order_id=order_id)
+    if db_order is None:
+        raise HTTPException(status_code=404, detail="票务订单不存在")
+    return db_order
 
 
 @app.post("/api/ticket-orders", response_model=schemas.TicketOrder)
@@ -161,10 +177,55 @@ def update_ticket_order(order_id: int, order: schemas.TicketOrderUpdate, db: Ses
     return crud.update_ticket_order(db=db, order_id=order_id, order=order)
 
 
+@app.post("/api/ticket-orders/{order_id}/refund-request")
+def request_refund(
+    order_id: int,
+    refund_reason: str = Query(..., description="退票原因"),
+    refund_applicant: str = Query("customer", description="申请人"),
+    db: Session = Depends(get_db)
+):
+    order = schemas.TicketOrderUpdate(
+        status="refund_pending",
+        refund_reason=refund_reason,
+        refund_applicant=refund_applicant
+    )
+    return crud.update_ticket_order(db=db, order_id=order_id, order=order)
+
+
+@app.post("/api/ticket-orders/{order_id}/refund-approve")
+def approve_refund(
+    order_id: int,
+    approval_notes: str = Query("", description="审批备注"),
+    approver: str = Query("system", description="审批人"),
+    db: Session = Depends(get_db)
+):
+    order = schemas.TicketOrderUpdate(
+        status="refunded",
+        refund_approver=approver,
+        refund_approval_notes=approval_notes
+    )
+    return crud.update_ticket_order(db=db, order_id=order_id, order=order)
+
+
+@app.post("/api/ticket-orders/{order_id}/refund-reject")
+def reject_refund(
+    order_id: int,
+    approval_notes: str = Query("退票申请被驳回", description="驳回原因"),
+    approver: str = Query("system", description="审批人"),
+    db: Session = Depends(get_db)
+):
+    order = schemas.TicketOrderUpdate(
+        status="confirmed",
+        refund_approver=approver,
+        refund_approval_notes=approval_notes
+    )
+    return crud.update_ticket_order(db=db, order_id=order_id, order=order)
+
+
 @app.post("/api/init-sample-data")
 def init_sample_data(db: Session = Depends(get_db)):
     if crud.get_performances(db, limit=1):
-        return {"message": "数据已存在，跳过初始化"}
+        return {"message": "数据已存在，跳过初始化。如需重置请删除 theater.db 文件后重启服务。"}
     
     base_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
@@ -196,16 +257,7 @@ def init_sample_data(db: Session = Depends(get_db)):
     ]
     
     for p in performances:
-        db_p = crud.create_performance(db, p)
-        
-        crud.create_reception(db, schemas.ReceptionCreate(
-            performance_id=db_p.id,
-            hotel="剧院合作酒店",
-            room_count=10,
-            meal_count=25,
-            transportation="大巴接送",
-            notes="主演安排单间"
-        ))
+        crud.create_performance(db, p)
     
     artists = [
         schemas.ArtistCreate(name="李明", role="主演", troupe="北京人民艺术剧院", phone="13800138001"),
@@ -217,15 +269,22 @@ def init_sample_data(db: Session = Depends(get_db)):
     for a in artists:
         crud.create_artist(db, a)
     
-    db_p3 = crud.get_performances(db)[2]
-    crud.create_settlement(db, schemas.SettlementCreate(
-        performance_id=db_p3.id,
-        performance_fee=50000,
-        hotel_expense=8000,
-        meal_expense=3000,
-        transportation_expense=2000,
-        other_expense=1000,
-        ticket_revenue=120000
-    ))
+    all_performances = crud.get_performances(db)
     
-    return {"message": "示例数据初始化成功"}
+    if len(all_performances) >= 2:
+        crud.create_ticket_order(db, schemas.TicketOrderCreate(
+            performance_id=all_performances[0].id,
+            customer_name="张三",
+            customer_phone="13900139001",
+            ticket_count=2,
+            total_price=360
+        ))
+        crud.create_ticket_order(db, schemas.TicketOrderCreate(
+            performance_id=all_performances[1].id,
+            customer_name="李四",
+            customer_phone="13900139002",
+            ticket_count=3,
+            total_price=540
+        ))
+    
+    return {"message": "示例数据初始化成功，已创建演出、接待、结算记录及票务订单"}

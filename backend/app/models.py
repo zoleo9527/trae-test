@@ -22,6 +22,7 @@ class Performance(Base):
     receptions = relationship("Reception", back_populates="performance")
     settlements = relationship("Settlement", back_populates="performance")
     history = relationship("StatusHistory", back_populates="performance")
+    ticket_orders = relationship("TicketOrder", back_populates="performance")
 
 
 class Artist(Base):
@@ -123,4 +124,11 @@ class TicketOrder(Base):
     total_price = Column(Float, default=0)
     status = Column(String(50), default="confirmed")
     refund_reason = Column(Text)
+    refund_applicant = Column(String(100))
+    refund_approver = Column(String(100))
+    refund_approval_time = Column(DateTime)
+    refund_approval_notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    performance = relationship("Performance", back_populates="ticket_orders")

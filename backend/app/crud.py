@@ -16,6 +16,44 @@ def get_performance(db: Session, performance_id: int):
 def create_performance(db: Session, performance: schemas.PerformanceCreate):
     db_performance = models.Performance(**performance.model_dump())
     db.add(db_performance)
+    db.flush()
+
+    db_reception = models.Reception(
+        performance_id=db_performance.id,
+        hotel="待安排",
+        room_count=0,
+        meal_count=0,
+        transportation="待安排",
+        notes="演出创建时自动生成，需要补充接待详情",
+        status="pending",
+        created_by="system"
+    )
+    db.add(db_reception)
+
+    db_settlement = models.Settlement(
+        performance_id=db_performance.id,
+        performance_fee=0,
+        hotel_expense=0,
+        meal_expense=0,
+        transportation_expense=0,
+        other_expense=0,
+        total_amount=0,
+        ticket_revenue=0,
+        status="pending",
+        created_by="system"
+    )
+    db.add(db_settlement)
+
+    create_status_history(db, schemas.StatusHistoryCreate(
+        performance_id=db_performance.id,
+        entity_type="performance",
+        entity_id=db_performance.id,
+        old_status="none",
+        new_status="scheduled",
+        changed_by="system",
+        change_reason=f"新建演出: {db_performance.name}"
+    ))
+
     db.commit()
     db.refresh(db_performance)
     return db_performance
@@ -24,8 +62,46 @@ def create_performance(db: Session, performance: schemas.PerformanceCreate):
 def update_performance(db: Session, performance_id: int, performance: schemas.PerformanceUpdate):
     db_performance = get_performance(db, performance_id)
     if db_performance:
+        old_status = db_performance.status
+        old_start_time = db_performance.start_time
+        old_venue = db_performance.venue
+        
         for key, value in performance.model_dump(exclude_unset=True).items():
             setattr(db_performance, key, value)
+        
+        if performance.status and performance.status != old_status:
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=performance_id,
+                entity_type="performance",
+                entity_id=performance_id,
+                old_status=old_status,
+                new_status=performance.status,
+                changed_by="system",
+                change_reason=f"演出状态变更"
+            ))
+
+        if performance.start_time and performance.start_time != old_start_time:
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=performance_id,
+                entity_type="performance",
+                entity_id=performance_id,
+                old_status=old_start_time.strftime("%Y-%m-%d %H:%M"),
+                new_status=performance.start_time.strftime("%Y-%m-%d %H:%M"),
+                changed_by="system",
+                change_reason="演出时间变更"
+            ))
+
+        if performance.venue and performance.venue != old_venue:
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=performance_id,
+                entity_type="performance",
+                entity_id=performance_id,
+                old_status=old_venue,
+                new_status=performance.venue,
+                changed_by="system",
+                change_reason="演出场地变更"
+            ))
+
         db.commit()
         db.refresh(db_performance)
     return db_performance
@@ -34,6 +110,15 @@ def update_performance(db: Session, performance_id: int, performance: schemas.Pe
 def delete_performance(db: Session, performance_id: int):
     db_performance = get_performance(db, performance_id)
     if db_performance:
+        create_status_history(db, schemas.StatusHistoryCreate(
+            performance_id=performance_id,
+            entity_type="performance",
+            entity_id=performance_id,
+            old_status=db_performance.status,
+            new_status="deleted",
+            changed_by="system",
+            change_reason=f"删除演出: {db_performance.name}"
+        ))
         db.delete(db_performance)
         db.commit()
     return db_performance
@@ -188,11 +273,17 @@ def get_status_history(db: Session, performance_id: int = None, skip: int = 0, l
     return query.order_by(models.StatusHistory.created_at.desc()).offset(skip).limit(limit).all()
 
 
-def get_ticket_orders(db: Session, performance_id: int = None, skip: int = 0, limit: int = 100):
+def get_ticket_orders(db: Session, performance_id: int = None, skip: int = 0, limit: int = 100, status: str = None):
     query = db.query(models.TicketOrder)
     if performance_id:
         query = query.filter(models.TicketOrder.performance_id == performance_id)
+    if status:
+        query = query.filter(models.TicketOrder.status == status)
     return query.order_by(models.TicketOrder.created_at.desc()).offset(skip).limit(limit).all()
+
+
+def get_ticket_order(db: Session, order_id: int):
+    return db.query(models.TicketOrder).filter(models.TicketOrder.id == order_id).first()
 
 
 def create_ticket_order(db: Session, order: schemas.TicketOrderCreate):
@@ -210,14 +301,59 @@ def create_ticket_order(db: Session, order: schemas.TicketOrderCreate):
 
 
 def update_ticket_order(db: Session, order_id: int, order: schemas.TicketOrderUpdate):
-    db_order = db.query(models.TicketOrder).filter(models.TicketOrder.id == order_id).first()
+    db_order = get_ticket_order(db, order_id)
     if db_order:
-        if order.status == "refunded" and db_order.status != "refunded":
+        old_status = db_order.status
+        
+        if order.status == "refund_pending" and old_status == "confirmed":
+            db_order.refund_applicant = order.refund_applicant or "customer"
+            db_order.refund_reason = order.refund_reason or ""
+            db_order.status = "refund_pending"
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=db_order.performance_id,
+                entity_type="ticket",
+                entity_id=order_id,
+                old_status=old_status,
+                new_status="refund_pending",
+                changed_by=order.refund_applicant or "customer",
+                change_reason=f"申请退票: {order.refund_reason or ''}"
+            ))
+        
+        elif order.status == "refunded" and old_status == "refund_pending":
+            db_order.refund_approver = order.refund_approver or "system"
+            db_order.refund_approval_time = datetime.now()
+            db_order.refund_approval_notes = order.refund_approval_notes or ""
+            db_order.status = "refunded"
+            
             performance = get_performance(db, db_order.performance_id)
             if performance:
                 performance.sold_tickets -= db_order.ticket_count
-        for key, value in order.model_dump(exclude_unset=True).items():
-            setattr(db_order, key, value)
+            
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=db_order.performance_id,
+                entity_type="ticket",
+                entity_id=order_id,
+                old_status=old_status,
+                new_status="refunded",
+                changed_by=order.refund_approver or "system",
+                change_reason=f"退票通过: {order.refund_approval_notes or ''}"
+            ))
+        
+        elif order.status == "confirmed" and old_status == "refund_pending":
+            db_order.refund_approver = order.refund_approver or "system"
+            db_order.refund_approval_notes = order.refund_approval_notes or "退票申请被驳回"
+            db_order.status = "confirmed"
+            
+            create_status_history(db, schemas.StatusHistoryCreate(
+                performance_id=db_order.performance_id,
+                entity_type="ticket",
+                entity_id=order_id,
+                old_status=old_status,
+                new_status="confirmed",
+                changed_by=order.refund_approver or "system",
+                change_reason=f"退票驳回: {order.refund_approval_notes or ''}"
+            ))
+        
         db.commit()
         db.refresh(db_order)
     return db_order
@@ -231,6 +367,9 @@ def get_dashboard_stats(db: Session):
     pending_settlements = db.query(models.Settlement).filter(models.Settlement.status == "pending").count()
     rejected_settlements = db.query(models.Settlement).filter(models.Settlement.status == "rejected").count()
     need_review = db.query(models.Settlement).filter(models.Settlement.status == "reviewing").count()
+    
+    pending_refunds = db.query(models.TicketOrder).filter(models.TicketOrder.status == "refund_pending").count()
+    rejected_refunds = 0
     
     today_performances = db.query(models.Performance).filter(
         func.date(models.Performance.start_time) == today
@@ -247,5 +386,7 @@ def get_dashboard_stats(db: Session):
         rejected_settlements=rejected_settlements,
         need_review=need_review,
         today_performances=today_performances,
-        this_month_revenue=float(this_month_revenue)
+        this_month_revenue=float(this_month_revenue),
+        pending_refunds=pending_refunds,
+        rejected_refunds=rejected_refunds
     )
