@@ -114,7 +114,6 @@ export default function DistributionPage() {
     if (!selectedId) return
     try {
       await distributionAPI.updateDistribution(selectedId, {
-        status: 'completed',
         receipt_status: 'confirmed',
         receipt_date: new Date().toISOString().split('T')[0],
       })
@@ -129,6 +128,7 @@ export default function DistributionPage() {
     if (!selectedId) return
     try {
       await distributionAPI.updateDistribution(selectedId, {
+        status: 'exception',
         receipt_status: 'lost',
       })
       loadData()
@@ -253,6 +253,9 @@ export default function DistributionPage() {
         description: exceptionForm.description,
         handler_id: 2,
       })
+      await distributionAPI.updateDistribution(selectedId, {
+        status: 'exception',
+      })
       setShowExceptionModal(false)
       setExceptionForm({ exception_type: 'receipt_lost', description: '' })
       loadData()
@@ -340,6 +343,7 @@ export default function DistributionPage() {
             <option value="shipped">已发货</option>
             <option value="completed">已完成</option>
             <option value="returned">已退货</option>
+            <option value="exception">异常中</option>
           </select>
         </div>
       </div>
@@ -435,38 +439,67 @@ export default function DistributionPage() {
           )}
         </div>
 
+        {selectedDetail.status === 'exception' && selectedDetail.exceptions && selectedDetail.exceptions.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium text-red-700 mb-2">当前存在未处理异常</h3>
+                {selectedDetail.exceptions.filter(e => e.status !== 'resolved').slice(0, 2).map((exc) => (
+                  <div key={exc.id} className="mb-2 last:mb-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <StatusBadge type="exception" status={exc.exception_type} />
+                      <StatusBadge type="exception_status" status={exc.status} />
+                    </div>
+                    <p className="text-sm text-red-600">{exc.description}</p>
+                  </div>
+                ))}
+                <p className="text-xs text-red-500 mt-2">请先前往「异常处理」页面处理，完成后再继续其他操作</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg p-4 shadow-sm">
           <h3 className="font-medium text-gray-700 mb-3">可执行操作</h3>
           <div className="flex flex-wrap gap-2">
-            {selectedDetail.receipt_status === 'pending' && (
+            {selectedDetail.status === 'exception' ? (
+              <div className="text-sm text-gray-500 py-2">
+                存在未处理异常，当前仅支持异常相关操作。请前往「异常处理」页面处理。
+              </div>
+            ) : (
               <>
-                <ActionButton variant="success" onClick={handleConfirmReceipt}>
-                  <CheckCircle className="w-4 h-4 inline mr-1" /> 确认收货回执
-                </ActionButton>
-                <ActionButton variant="warning" onClick={handleMarkLost}>
-                  <XCircle className="w-4 h-4 inline mr-1" /> 回执丢失
-                </ActionButton>
-              </>
-            )}
-            {selectedDetail.receipt_status === 'confirmed' && (
-              <>
-                {selectedDetail.status !== 'returned' && (
-                  <ActionButton variant="secondary" onClick={() => setShowReturnModal(true)}>
-                    <RefreshCw className="w-4 h-4 inline mr-1" /> 登记退货
+                {selectedDetail.receipt_status === 'pending' && (
+                  <>
+                    <ActionButton variant="success" onClick={handleConfirmReceipt}>
+                      <CheckCircle className="w-4 h-4 inline mr-1" /> 确认收货回执
+                    </ActionButton>
+                    <ActionButton variant="warning" onClick={handleMarkLost}>
+                      <XCircle className="w-4 h-4 inline mr-1" /> 回执丢失
+                    </ActionButton>
+                  </>
+                )}
+                {selectedDetail.receipt_status === 'confirmed' && (
+                  <>
+                    {selectedDetail.status !== 'returned' && (
+                      <ActionButton variant="secondary" onClick={() => setShowReturnModal(true)}>
+                        <RefreshCw className="w-4 h-4 inline mr-1" /> 登记退货
+                      </ActionButton>
+                    )}
+                    <ActionButton variant="secondary" onClick={() => setShowPaymentModal(true)}>
+                      <DollarSign className="w-4 h-4 inline mr-1" /> 登记回款
+                    </ActionButton>
+                    <ActionButton variant="secondary" onClick={() => setShowFeedbackModal(true)}>
+                      <MessageSquare className="w-4 h-4 inline mr-1" /> 记录反馈
+                    </ActionButton>
+                  </>
+                )}
+                {selectedDetail.receipt_status === 'lost' && (
+                  <ActionButton variant="danger" onClick={() => setShowExceptionModal(true)}>
+                    <AlertCircle className="w-4 h-4 inline mr-1" /> 发起异常处理
                   </ActionButton>
                 )}
-                <ActionButton variant="secondary" onClick={() => setShowPaymentModal(true)}>
-                  <DollarSign className="w-4 h-4 inline mr-1" /> 登记回款
-                </ActionButton>
-                <ActionButton variant="secondary" onClick={() => setShowFeedbackModal(true)}>
-                  <MessageSquare className="w-4 h-4 inline mr-1" /> 记录反馈
-                </ActionButton>
               </>
-            )}
-            {selectedDetail.receipt_status === 'lost' && (
-              <ActionButton variant="danger" onClick={() => setShowExceptionModal(true)}>
-                <AlertCircle className="w-4 h-4 inline mr-1" /> 发起异常处理
-              </ActionButton>
             )}
           </div>
         </div>

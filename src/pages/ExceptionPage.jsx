@@ -3,7 +3,7 @@ import { Search, AlertTriangle, CheckCircle, Clock, User } from 'lucide-react'
 import TwoPanelLayout from '../components/TwoPanelLayout'
 import StatusBadge from '../components/StatusBadge'
 import ActionButton from '../components/ActionButton'
-import { exceptionAPI } from '../api'
+import { exceptionAPI, distributionAPI } from '../api'
 
 export default function ExceptionPage() {
   const [exceptions, setExceptions] = useState([])
@@ -66,6 +66,32 @@ export default function ExceptionPage() {
         status: 'resolved',
         resolution: resolution,
       })
+      if (selectedDetail.related_type === 'distribution' && selectedDetail.related_id) {
+        if (selectedDetail.exception_type === 'receipt_lost') {
+          await distributionAPI.updateDistribution(selectedDetail.related_id, {
+            status: 'shipped',
+            receipt_status: 'pending',
+          })
+        } else {
+          const pendingExceptions = await exceptionAPI.getExceptions('open')
+          const relatedPending = pendingExceptions.data.filter(
+            e => e.related_type === 'distribution' && 
+                 e.related_id === selectedDetail.related_id &&
+                 e.id !== selectedId
+          )
+          if (relatedPending.length === 0) {
+            if (selectedDetail.exception_type === 'quantity_discrepancy') {
+              await distributionAPI.updateDistribution(selectedDetail.related_id, {
+                status: 'returned',
+              })
+            } else if (selectedDetail.exception_type === 'payment_mismatch') {
+              await distributionAPI.updateDistribution(selectedDetail.related_id, {
+                status: 'completed',
+              })
+            }
+          }
+        }
+      }
       loadData()
       loadDetail(selectedId)
     } catch (error) {
