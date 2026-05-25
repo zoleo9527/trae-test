@@ -182,7 +182,23 @@ def update_reception(db: Session, reception_id: int, reception: schemas.Receptio
     db_reception = get_reception(db, reception_id)
     if db_reception:
         old_status = db_reception.status
-        for key, value in reception.model_dump(exclude_unset=True).items():
+        
+        field_labels = {
+            "hotel": "酒店",
+            "room_count": "房间数",
+            "meal_count": "用餐人数",
+            "transportation": "交通安排",
+            "notes": "备注",
+            "check_in_time": "入住时间",
+            "check_out_time": "退房时间"
+        }
+        
+        old_values = {}
+        for field in field_labels.keys():
+            old_values[field] = getattr(db_reception, field)
+        
+        update_data = reception.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
             setattr(db_reception, key, value)
         
         if reception.status and reception.status != old_status:
@@ -195,6 +211,23 @@ def update_reception(db: Session, reception_id: int, reception: schemas.Receptio
                 changed_by="system",
                 change_reason="接待状态更新"
             ))
+        
+        for field, label in field_labels.items():
+            if field in update_data:
+                old_val = old_values[field]
+                new_val = update_data[field]
+                if old_val != new_val:
+                    old_str = str(old_val) if old_val is not None else "未设置"
+                    new_str = str(new_val) if new_val is not None else "未设置"
+                    create_status_history(db, schemas.StatusHistoryCreate(
+                        performance_id=db_reception.performance_id,
+                        entity_type="reception_field",
+                        entity_id=reception_id,
+                        old_status=old_str,
+                        new_status=new_str,
+                        changed_by="system",
+                        change_reason=f"接待{label}变更"
+                    ))
         
         db.commit()
         db.refresh(db_reception)
@@ -231,7 +264,22 @@ def update_settlement(db: Session, settlement_id: int, settlement: schemas.Settl
     db_settlement = get_settlement(db, settlement_id)
     if db_settlement:
         old_status = db_settlement.status
-        for key, value in settlement.model_dump(exclude_unset=True).items():
+        
+        field_labels = {
+            "performance_fee": "演出费",
+            "hotel_expense": "酒店费",
+            "meal_expense": "餐费",
+            "transportation_expense": "交通费",
+            "other_expense": "其他费用",
+            "ticket_revenue": "票房收入"
+        }
+        
+        old_values = {}
+        for field in field_labels.keys():
+            old_values[field] = getattr(db_settlement, field)
+        
+        update_data = settlement.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
             setattr(db_settlement, key, value)
         
         db_settlement.total_amount = (
@@ -252,6 +300,23 @@ def update_settlement(db: Session, settlement_id: int, settlement: schemas.Settl
                 changed_by=settlement.approver or "system",
                 change_reason=settlement.approval_notes or "结算状态更新"
             ))
+        
+        for field, label in field_labels.items():
+            if field in update_data:
+                old_val = old_values[field]
+                new_val = update_data[field]
+                if old_val != new_val:
+                    old_str = f"¥{old_val:,.2f}" if isinstance(old_val, (int, float)) else str(old_val)
+                    new_str = f"¥{new_val:,.2f}" if isinstance(new_val, (int, float)) else str(new_val)
+                    create_status_history(db, schemas.StatusHistoryCreate(
+                        performance_id=db_settlement.performance_id,
+                        entity_type="settlement_field",
+                        entity_id=settlement_id,
+                        old_status=old_str,
+                        new_status=new_str,
+                        changed_by="system",
+                        change_reason=f"结算{label}变更"
+                    ))
         
         db.commit()
         db.refresh(db_settlement)

@@ -128,8 +128,12 @@ def get_timeline(performance_id: Optional[int] = None, db: Session = Depends(get
         title = ""
         if h.entity_type == "reception":
             title = "接待状态变更"
+        elif h.entity_type == "reception_field":
+            title = h.change_reason or "接待信息变更"
         elif h.entity_type == "settlement":
             title = "结算状态变更"
+        elif h.entity_type == "settlement_field":
+            title = h.change_reason or "结算信息变更"
         elif h.entity_type == "performance":
             if "时间变更" in (h.change_reason or ""):
                 title = "演出时间变更"

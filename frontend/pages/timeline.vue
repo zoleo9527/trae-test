@@ -15,7 +15,7 @@
         
         <div v-for="(item, index) in timeline" :key="item.id" class="relative pl-16 pb-8 last:pb-0">
           <div class="absolute left-6 w-5 h-5 rounded-full border-4 border-white"
-            :class="getTimelineColor(item.new_status)">
+            :class="getTimelineColor(item.new_status, item.entity_type)">
           </div>
           
           <div class="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
@@ -29,6 +29,12 @@
             
             <div v-if="item.entity_type === 'performance' && (item.title === '演出时间变更' || item.title === '演出场地变更')" class="flex items-center space-x-2 mb-2">
               <span class="text-sm text-gray-600">{{ item.title === '演出时间变更' ? '原时间' : '原场地' }}:</span>
+              <span class="text-sm font-medium text-gray-900 bg-gray-200 px-2 py-1 rounded">{{ item.old_status }}</span>
+              <span class="text-gray-400">→</span>
+              <span class="text-sm font-medium text-gray-900 bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{{ item.new_status }}</span>
+            </div>
+            <div v-else-if="item.entity_type === 'reception_field' || item.entity_type === 'settlement_field'" class="flex items-center space-x-2 mb-2">
+              <span class="text-sm text-gray-600">原值:</span>
               <span class="text-sm font-medium text-gray-900 bg-gray-200 px-2 py-1 rounded">{{ item.old_status }}</span>
               <span class="text-gray-400">→</span>
               <span class="text-sm font-medium text-gray-900 bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{{ item.new_status }}</span>
@@ -71,7 +77,10 @@ const loadTimeline = async () => {
   timeline.value = await get<TimelineItem[]>('/timeline')
 }
 
-const getTimelineColor = (status: string) => {
+const getTimelineColor = (status: string, entity_type?: string) => {
+  if (entity_type === 'reception_field' || entity_type === 'settlement_field') {
+    return 'bg-indigo-500'
+  }
   const map: Record<string, string> = {
     pending: 'bg-yellow-500',
     reviewing: 'bg-blue-500',
@@ -91,7 +100,9 @@ const getTimelineColor = (status: string) => {
 const getEntityIcon = (type: string) => {
   const map: Record<string, string> = {
     reception: '📋',
+    reception_field: '✏️',
     settlement: '💰',
+    settlement_field: '✏️',
     performance: '🎭',
     ticket: '🎫'
   }
