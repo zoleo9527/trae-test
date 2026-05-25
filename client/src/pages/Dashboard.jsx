@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { dashboardApi, shipmentApi } from '../api';
 import Timeline from '../components/Timeline';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [channelStats, setChannelStats] = useState([]);
@@ -118,7 +120,11 @@ const Dashboard = () => {
           <div className="card-body">
             <div className="quick-actions">
               {pendingTasks.map((task, index) => (
-                <button key={index} className="btn btn-warning btn-sm">
+                <button 
+                  key={index} 
+                  className="btn btn-warning btn-sm"
+                  onClick={() => navigate(task.link)}
+                >
                   {task.type} ({task.count})
                 </button>
               ))}

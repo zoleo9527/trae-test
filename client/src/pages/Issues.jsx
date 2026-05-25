@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dashboardApi } from '../api';
+import { dashboardApi, returnApi } from '../api';
 
 const Issues = () => {
   const navigate = useNavigate();
   const [issues, setIssues] = useState({ receiptLost: [], caliberDisputes: [], pendingReturns: [] });
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => {
     loadIssues();
@@ -19,6 +20,40 @@ const Issues = () => {
       console.error('Load issues error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveReturn = async (returnId) => {
+    if (!confirm('确定批准此退货申请吗？')) return;
+    
+    setActionLoading(returnId);
+    try {
+      await returnApi.approve(returnId, { 
+        approvedQuantity: issues.pendingReturns.find(r => r.id === returnId)?.requestedQuantity,
+        caliberType: 'original',
+        caliberNotes: '问题追踪页快速审批'
+      });
+      await loadIssues();
+      alert('退货已批准');
+    } catch (error) {
+      alert('审批失败: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectReturn = async (returnId) => {
+    if (!confirm('确定拒绝此退货申请吗？')) return;
+    
+    setActionLoading(returnId);
+    try {
+      await returnApi.reject(returnId);
+      await loadIssues();
+      alert('退货已拒绝');
+    } catch (error) {
+      alert('操作失败: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -50,12 +85,20 @@ const Issues = () => {
                   </p>
                   <p style={{ color: '#dc2626' }}>{item.notes}</p>
                 </div>
-                <button 
-                  className="btn btn-primary btn-sm"
-                  onClick={() => navigate(`/shipments/${item.id}`)}
-                >
-                  查看详情
-                </button>
+                <div className="action-buttons">
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => navigate(`/shipments/${item.id}`)}
+                  >
+                    查看详情
+                  </button>
+                  <button 
+                    className="btn btn-success btn-sm"
+                    onClick={() => navigate('/issues')}
+                  >
+                    跟进处理
+                  </button>
+                </div>
               </div>
             ))
           ) : (
@@ -84,7 +127,12 @@ const Issues = () => {
                     <br />{item.caliberNotes}
                   </p>
                 </div>
-                <button className="btn btn-warning btn-sm">处理口径</button>
+                <button 
+                  className="btn btn-warning btn-sm"
+                  onClick={() => navigate(`/shipments/${item.SampleShipment?.id}`)}
+                >
+                  处理口径
+                </button>
               </div>
             ))
           ) : (
@@ -111,8 +159,26 @@ const Issues = () => {
                   <p>{item.returnReasonDetail}</p>
                 </div>
                 <div className="action-buttons">
-                  <button className="btn btn-success btn-sm">批准</button>
-                  <button className="btn btn-danger btn-sm">拒绝</button>
+                  <button 
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleApproveReturn(item.id)}
+                    disabled={actionLoading === item.id}
+                  >
+                    {actionLoading === item.id ? '处理中...' : '批准'}
+                  </button>
+                  <button 
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleRejectReturn(item.id)}
+                    disabled={actionLoading === item.id}
+                  >
+                    {actionLoading === item.id ? '处理中...' : '拒绝'}
+                  </button>
+                  <button 
+                    className="btn btn-outline btn-sm"
+                    onClick={() => navigate(`/shipments/${item.SampleShipment?.id}`)}
+                  >
+                    查看详情
+                  </button>
                 </div>
               </div>
             ))

@@ -48,6 +48,18 @@ const Reconciliation = sequelize.define('Reconciliation', {
     type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0
   },
+  totalReceiptLost: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  totalReceiptLostAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  totalCaliberDiscrepancy: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
   balanceQuantity: {
     type: DataTypes.INTEGER,
     defaultValue: 0

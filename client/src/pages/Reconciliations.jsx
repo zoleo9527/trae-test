@@ -100,9 +100,11 @@ const Reconciliations = () => {
                 <th>对账单号</th>
                 <th>期间</th>
                 <th>渠道</th>
-                <th>寄送数量</th>
-                <th>确认数量</th>
-                <th>退货数量</th>
+                <th>寄送</th>
+                <th>确认</th>
+                <th>退货</th>
+                <th>回执丢失</th>
+                <th>口径差异</th>
                 <th>结余</th>
                 <th>状态</th>
                 <th>操作</th>
@@ -117,6 +119,12 @@ const Reconciliations = () => {
                   <td>{recon.totalShipped}</td>
                   <td>{recon.totalConfirmed}</td>
                   <td>{recon.totalReturned}</td>
+                  <td style={{ color: recon.totalReceiptLost > 0 ? '#dc2626' : '' }}>
+                    {recon.totalReceiptLost || 0}
+                  </td>
+                  <td style={{ color: recon.totalCaliberDiscrepancy > 0 ? '#f59e0b' : '' }}>
+                    {recon.totalCaliberDiscrepancy || 0}
+                  </td>
                   <td style={{ color: recon.balanceQuantity < 0 ? '#dc2626' : '#065f46', fontWeight: '600' }}>
                     {recon.balanceQuantity}
                   </td>
