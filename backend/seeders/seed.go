@@ -1,30 +1,34 @@
 package seeders
 
 import (
+	"errors"
+	"fmt"
 	"gallery-system/database"
 	"gallery-system/models"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 func Seed() error {
 	if err := seedUsers(); err != nil {
-		return err
+		return fmt.Errorf("seedUsers failed: %w", err)
 	}
 
 	if err := seedExhibits(); err != nil {
-		return err
+		return fmt.Errorf("seedExhibits failed: %w", err)
 	}
 
 	if err := seedActivities(); err != nil {
-		return err
+		return fmt.Errorf("seedActivities failed: %w", err)
 	}
 
 	if err := seedTickets(); err != nil {
-		return err
+		return fmt.Errorf("seedTickets failed: %w", err)
 	}
 
 	if err := seedRegistrations(); err != nil {
-		return err
+		return fmt.Errorf("seedRegistrations failed: %w", err)
 	}
 
 	return nil
@@ -144,8 +148,31 @@ func seedUsers() error {
 		var existing models.User
 		result := database.DB.Where("username = ?", item.username).First(&existing)
 		if result.Error != nil {
+			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("query user %s failed: %w", item.username, result.Error)
+			}
 			item.user.HashPassword("123456")
-			database.DB.Create(&item.user)
+			if err := database.DB.Create(&item.user).Error; err != nil {
+				return fmt.Errorf("create user %s failed: %w", item.username, err)
+			}
+		} else {
+			updates := map[string]interface{}{
+				"name":       item.user.Name,
+				"email":      item.user.Email,
+				"phone":      item.user.Phone,
+				"role":       item.user.Role,
+				"status":     item.user.Status,
+				"is_member":  item.user.IsMember,
+				"member_no":  item.user.MemberNo,
+			}
+			if item.user.IsMember {
+				updates["member_level"] = item.user.MemberLevel
+				updates["member_since"] = item.user.MemberSince
+				updates["member_expire"] = item.user.MemberExpire
+			}
+			if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update user %s failed: %w", item.username, err)
+			}
 		}
 	}
 
@@ -243,7 +270,26 @@ func seedExhibits() error {
 		var existing models.Exhibit
 		result := database.DB.Where("exhibit_no = ?", item.exhibitNo).First(&existing)
 		if result.Error != nil {
-			database.DB.Create(&item.exhibit)
+			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("query exhibit %s failed: %w", item.exhibitNo, result.Error)
+			}
+			if err := database.DB.Create(&item.exhibit).Error; err != nil {
+				return fmt.Errorf("create exhibit %s failed: %w", item.exhibitNo, err)
+			}
+		} else {
+			if err := database.DB.Model(&existing).Updates(models.Exhibit{
+				Name:        item.exhibit.Name,
+				Category:    item.exhibit.Category,
+				Artist:      item.exhibit.Artist,
+				Year:        item.exhibit.Year,
+				Material:    item.exhibit.Material,
+				Dimensions:  item.exhibit.Dimensions,
+				Location:    item.exhibit.Location,
+				Status:      item.exhibit.Status,
+				Description: item.exhibit.Description,
+			}).Error; err != nil {
+				return fmt.Errorf("update exhibit %s failed: %w", item.exhibitNo, err)
+			}
 		}
 	}
 
@@ -401,35 +447,70 @@ func seedActivities() error {
 		var existing models.Activity
 		result := database.DB.Where("activity_no = ?", item.activityNo).First(&existing)
 		if result.Error != nil {
-			database.DB.Create(&item.activity)
+			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("query activity %s failed: %w", item.activityNo, result.Error)
+			}
+			if err := database.DB.Create(&item.activity).Error; err != nil {
+				return fmt.Errorf("create activity %s failed: %w", item.activityNo, err)
+			}
+		} else {
+			if err := database.DB.Model(&existing).Updates(models.Activity{
+				Title:             item.activity.Title,
+				Type:              item.activity.Type,
+				Description:       item.activity.Description,
+				Location:          item.activity.Location,
+				StartDate:         item.activity.StartDate,
+				EndDate:           item.activity.EndDate,
+				RegistrationStart: item.activity.RegistrationStart,
+				RegistrationEnd:   item.activity.RegistrationEnd,
+				MaxParticipants:   item.activity.MaxParticipants,
+				MinParticipants:   item.activity.MinParticipants,
+				IsMemberOnly:      item.activity.IsMemberOnly,
+				RequiresTicket:    item.activity.RequiresTicket,
+				TicketPrice:       item.activity.TicketPrice,
+				Status:            item.activity.Status,
+				CheckinStatus:     item.activity.CheckinStatus,
+				ManagedBy:         item.activity.ManagedBy,
+			}).Error; err != nil {
+				return fmt.Errorf("update activity %s failed: %w", item.activityNo, err)
+			}
 		}
 	}
 
 	return nil
 }
 
-func getUserIDByUsername(username string) *uint {
+func getUserIDByUsername(username string) (uint, error) {
 	var user models.User
 	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("user %s not found", username)
+		}
+		return 0, fmt.Errorf("query user %s failed: %w", username, err)
 	}
-	return &user.ID
+	return user.ID, nil
 }
 
-func getActivityIDByNo(activityNo string) *uint {
+func getActivityIDByNo(activityNo string) (uint, error) {
 	var activity models.Activity
 	if err := database.DB.Where("activity_no = ?", activityNo).First(&activity).Error; err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("activity %s not found", activityNo)
+		}
+		return 0, fmt.Errorf("query activity %s failed: %w", activityNo, err)
 	}
-	return &activity.ID
+	return activity.ID, nil
 }
 
-func getTicketIDByNo(ticketNo string) *uint {
+func getTicketIDByNo(ticketNo string) (uint, error) {
 	var ticket models.Ticket
 	if err := database.DB.Where("ticket_no = ?", ticketNo).First(&ticket).Error; err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("ticket %s not found", ticketNo)
+		}
+		return 0, fmt.Errorf("query ticket %s failed: %w", ticketNo, err)
 	}
-	return &ticket.ID
+	return ticket.ID, nil
 }
 
 func seedTickets() error {
@@ -437,12 +518,30 @@ func seedTickets() error {
 	today := now.Format("2006-01-02")
 	todayTime, _ := time.ParseInLocation("2006-01-02", today, time.Local)
 
-	member1ID := getUserIDByUsername("member001")
-	member2ID := getUserIDByUsername("member002")
-	member3ID := getUserIDByUsername("member003")
-	activity1ID := getActivityIDByNo("ACT2024001")
-	activity5ID := getActivityIDByNo("ACT2024005")
-	activity6ID := getActivityIDByNo("ACT2024006")
+	member1ID, err := getUserIDByUsername("member001")
+	if err != nil {
+		return err
+	}
+	member2ID, err := getUserIDByUsername("member002")
+	if err != nil {
+		return err
+	}
+	member3ID, err := getUserIDByUsername("member003")
+	if err != nil {
+		return err
+	}
+	activity1ID, err := getActivityIDByNo("ACT2024001")
+	if err != nil {
+		return err
+	}
+	activity5ID, err := getActivityIDByNo("ACT2024005")
+	if err != nil {
+		return err
+	}
+	activity6ID, err := getActivityIDByNo("ACT2024006")
+	if err != nil {
+		return err
+	}
 
 	tickets := []struct {
 		ticketNo string
@@ -546,7 +645,7 @@ func seedTickets() error {
 				ValidTo:       todayTime.Add(24 * time.Hour),
 				Status:        models.TicketStatusIssued,
 				Channel:       "member",
-				MemberID:      member1ID,
+				MemberID:      &member1ID,
 				IssuedBy:      2,
 				IssuedAt:      now,
 			},
@@ -589,7 +688,7 @@ func seedTickets() error {
 				ValidTo:       now.AddDate(0, 0, 7).Add(24 * time.Hour),
 				Status:        models.TicketStatusIssued,
 				Channel:       "activity",
-				ActivityID:    activity1ID,
+				ActivityID:    &activity1ID,
 				IssuedBy:      2,
 				IssuedAt:      now,
 			},
@@ -609,8 +708,8 @@ func seedTickets() error {
 				ValidTo:       now.AddDate(0, 0, 10).Add(24 * time.Hour),
 				Status:        models.TicketStatusIssued,
 				Channel:       "member-vip",
-				MemberID:      member1ID,
-				ActivityID:    activity5ID,
+				MemberID:      &member1ID,
+				ActivityID:    &activity5ID,
 				IssuedBy:      2,
 				IssuedAt:      now,
 			},
@@ -630,8 +729,8 @@ func seedTickets() error {
 				ValidTo:       now.AddDate(0, 0, 10).Add(24 * time.Hour),
 				Status:        models.TicketStatusVerified,
 				Channel:       "member-vip",
-				MemberID:      member2ID,
-				ActivityID:    activity5ID,
+				MemberID:      &member2ID,
+				ActivityID:    &activity5ID,
 				IssuedBy:      2,
 				IssuedAt:      now.Add(-1 * time.Hour),
 				VerifiedBy:    &([]uint{3}[0]),
@@ -654,8 +753,8 @@ func seedTickets() error {
 				ValidTo:       now.AddDate(0, 0, 17).Add(24 * time.Hour),
 				Status:        models.TicketStatusVerified,
 				Channel:       "member-workshop",
-				MemberID:      member3ID,
-				ActivityID:    activity6ID,
+				MemberID:      &member3ID,
+				ActivityID:    &activity6ID,
 				IssuedBy:      2,
 				IssuedAt:      now.Add(-2 * time.Hour),
 				VerifiedBy:    &([]uint{3}[0]),
@@ -669,7 +768,41 @@ func seedTickets() error {
 		var existing models.Ticket
 		result := database.DB.Where("ticket_no = ?", item.ticketNo).First(&existing)
 		if result.Error != nil {
-			database.DB.Create(&item.ticket)
+			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("query ticket %s failed: %w", item.ticketNo, result.Error)
+			}
+			if err := database.DB.Create(&item.ticket).Error; err != nil {
+				return fmt.Errorf("create ticket %s failed: %w", item.ticketNo, err)
+			}
+		} else {
+			updates := map[string]interface{}{
+				"type":           item.ticket.Type,
+				"price":          item.ticket.Price,
+				"original_price": item.ticket.OriginalPrice,
+				"visitor_name":   item.ticket.VisitorName,
+				"visitor_phone":  item.ticket.VisitorPhone,
+				"visit_date":     item.ticket.VisitDate,
+				"valid_from":     item.ticket.ValidFrom,
+				"valid_to":       item.ticket.ValidTo,
+				"status":         item.ticket.Status,
+				"channel":        item.ticket.Channel,
+				"qr_code":        item.ticket.QrCode,
+			}
+			if item.ticket.MemberID != nil {
+				updates["member_id"] = item.ticket.MemberID
+			}
+			if item.ticket.ActivityID != nil {
+				updates["activity_id"] = item.ticket.ActivityID
+			}
+			if item.ticket.VisitorIDCard != "" {
+				updates["visitor_id_card"] = item.ticket.VisitorIDCard
+			}
+			if item.ticket.OrderNo != "" {
+				updates["order_no"] = item.ticket.OrderNo
+			}
+			if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update ticket %s failed: %w", item.ticketNo, err)
+			}
 		}
 	}
 
@@ -679,17 +812,50 @@ func seedTickets() error {
 func seedRegistrations() error {
 	now := time.Now()
 
-	member1ID := getUserIDByUsername("member001")
-	member2ID := getUserIDByUsername("member002")
-	member3ID := getUserIDByUsername("member003")
-	activity1ID := getActivityIDByNo("ACT2024001")
-	activity2ID := getActivityIDByNo("ACT2024002")
-	activity4ID := getActivityIDByNo("ACT2024004")
-	activity5ID := getActivityIDByNo("ACT2024005")
-	activity6ID := getActivityIDByNo("ACT2024006")
-	ticket8ID := getTicketIDByNo("TK-SEED-0008")
-	ticket9ID := getTicketIDByNo("TK-SEED-0009")
-	ticket10ID := getTicketIDByNo("TK-SEED-0010")
+	member1ID, err := getUserIDByUsername("member001")
+	if err != nil {
+		return err
+	}
+	member2ID, err := getUserIDByUsername("member002")
+	if err != nil {
+		return err
+	}
+	member3ID, err := getUserIDByUsername("member003")
+	if err != nil {
+		return err
+	}
+	activity1ID, err := getActivityIDByNo("ACT2024001")
+	if err != nil {
+		return err
+	}
+	activity2ID, err := getActivityIDByNo("ACT2024002")
+	if err != nil {
+		return err
+	}
+	activity4ID, err := getActivityIDByNo("ACT2024004")
+	if err != nil {
+		return err
+	}
+	activity5ID, err := getActivityIDByNo("ACT2024005")
+	if err != nil {
+		return err
+	}
+	activity6ID, err := getActivityIDByNo("ACT2024006")
+	if err != nil {
+		return err
+	}
+	ticket8ID, err := getTicketIDByNo("TK-SEED-0008")
+	if err != nil {
+		return err
+	}
+	ticket9ID, err := getTicketIDByNo("TK-SEED-0009")
+	if err != nil {
+		return err
+	}
+	ticket10ID, err := getTicketIDByNo("TK-SEED-0010")
+	if err != nil {
+		return err
+	}
 
 	registrations := []struct {
 		registrationNo string
@@ -699,7 +865,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-001",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-001",
-				ActivityID:     derefUint(activity1ID, 1),
+				ActivityID:     activity1ID,
 				MemberName:     "张三",
 				MemberPhone:    "13900002222",
 				MemberEmail:    "zhangsan@example.com",
@@ -715,7 +881,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-002",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-002",
-				ActivityID:     derefUint(activity1ID, 1),
+				ActivityID:     activity1ID,
 				MemberName:     "李四",
 				MemberPhone:    "13900003333",
 				MemberEmail:    "lisi@example.com",
@@ -729,7 +895,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-003",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-003",
-				ActivityID:     derefUint(activity1ID, 1),
+				ActivityID:     activity1ID,
 				MemberName:     "王五",
 				MemberPhone:    "13900004444",
 				MemberEmail:    "wangwu@example.com",
@@ -743,7 +909,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-004",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-004",
-				ActivityID:     derefUint(activity2ID, 2),
+				ActivityID:     activity2ID,
 				MemberName:     "赵六家庭",
 				MemberPhone:    "13900005555",
 				MemberEmail:    "zhaoliu@example.com",
@@ -759,7 +925,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-005",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-005",
-				ActivityID:     derefUint(activity4ID, 4),
+				ActivityID:     activity4ID,
 				MemberName:     "孙七",
 				MemberPhone:    "13900006666",
 				MemberEmail:    "sunqi@example.com",
@@ -777,7 +943,7 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-006",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-006",
-				ActivityID:     derefUint(activity4ID, 4),
+				ActivityID:     activity4ID,
 				MemberName:     "周八",
 				MemberPhone:    "13900007777",
 				MemberEmail:    "zhouba@example.com",
@@ -793,14 +959,14 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-007",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-007",
-				ActivityID:     derefUint(activity5ID, 5),
-				MemberID:       member1ID,
+				ActivityID:     activity5ID,
+				MemberID:       &member1ID,
 				MemberName:     "会员张三",
 				MemberPhone:    "13900001111",
 				MemberEmail:    "zhangsan@email.com",
 				Participants:   1,
 				Status:         models.RegistrationPending,
-				TicketID:       ticket8ID,
+				TicketID:       &ticket8ID,
 				RegisteredBy:   3,
 				RegisteredAt:   now,
 			},
@@ -809,14 +975,14 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-008",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-008",
-				ActivityID:     derefUint(activity5ID, 5),
-				MemberID:       member2ID,
+				ActivityID:     activity5ID,
+				MemberID:       &member2ID,
 				MemberName:     "会员李四",
 				MemberPhone:    "13900002222",
 				MemberEmail:    "lisi@email.com",
 				Participants:   1,
 				Status:         models.RegistrationConfirmed,
-				TicketID:       ticket9ID,
+				TicketID:       &ticket9ID,
 				RegisteredBy:   3,
 				RegisteredAt:   now.Add(-1 * time.Hour),
 				ConfirmedBy:    &([]uint{3}[0]),
@@ -827,14 +993,14 @@ func seedRegistrations() error {
 			registrationNo: "REG-SEED-009",
 			registration: models.ActivityRegistration{
 				RegistrationNo: "REG-SEED-009",
-				ActivityID:     derefUint(activity6ID, 6),
-				MemberID:       member3ID,
+				ActivityID:     activity6ID,
+				MemberID:       &member3ID,
 				MemberName:     "会员王五",
 				MemberPhone:    "13900003333",
 				MemberEmail:    "wangwu@email.com",
 				Participants:   1,
 				Status:         models.RegistrationConfirmed,
-				TicketID:       ticket10ID,
+				TicketID:       &ticket10ID,
 				RegisteredBy:   3,
 				RegisteredAt:   now.Add(-2 * time.Hour),
 				ConfirmedBy:    &([]uint{3}[0]),
@@ -849,16 +1015,40 @@ func seedRegistrations() error {
 		var existing models.ActivityRegistration
 		result := database.DB.Where("registration_no = ?", item.registrationNo).First(&existing)
 		if result.Error != nil {
-			database.DB.Create(&item.registration)
+			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("query registration %s failed: %w", item.registrationNo, result.Error)
+			}
+			if err := database.DB.Create(&item.registration).Error; err != nil {
+				return fmt.Errorf("create registration %s failed: %w", item.registrationNo, err)
+			}
+		} else {
+			updates := map[string]interface{}{
+				"activity_id":  item.registration.ActivityID,
+				"member_name":  item.registration.MemberName,
+				"member_phone": item.registration.MemberPhone,
+				"member_email": item.registration.MemberEmail,
+				"participants": item.registration.Participants,
+				"status":       item.registration.Status,
+			}
+			if item.registration.MemberID != nil {
+				updates["member_id"] = item.registration.MemberID
+			}
+			if item.registration.TicketID != nil {
+				updates["ticket_id"] = item.registration.TicketID
+			}
+			if item.registration.ConfirmedBy != nil {
+				updates["confirmed_by"] = item.registration.ConfirmedBy
+				updates["confirmed_at"] = item.registration.ConfirmedAt
+			}
+			if item.registration.CheckinBy != nil {
+				updates["checkin_by"] = item.registration.CheckinBy
+				updates["checkin_time"] = item.registration.CheckinTime
+			}
+			if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update registration %s failed: %w", item.registrationNo, err)
+			}
 		}
 	}
 
 	return nil
-}
-
-func derefUint(ptr *uint, fallback uint) uint {
-	if ptr != nil {
-		return *ptr
-	}
-	return fallback
 }
