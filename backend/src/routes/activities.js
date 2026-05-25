@@ -17,6 +17,26 @@ function enrich(activity) {
   }
 }
 
+function visibleActivities(user) {
+  if (user.role === 'admin' || user.role === 'channel_manager' || user.role === 'finance') {
+    return authorActivities
+  }
+  if (user.role === 'distribution_specialist') {
+    return authorActivities.filter(a => a.ownerId === user.id)
+  }
+  return authorActivities
+}
+
+function canEditActivity(user, activity) {
+  if (user.role === 'admin' || user.role === 'channel_manager') return true
+  if (user.role === 'distribution_specialist') return activity.ownerId === user.id
+  return false
+}
+
+function canCreateActivity(user) {
+  return user.role === 'admin' || user.role === 'channel_manager' || user.role === 'distribution_specialist'
+}
+
 router.get('/', authRequired, (req, res) => {
   const {
     keyword,
@@ -29,7 +49,7 @@ router.get('/', authRequired, (req, res) => {
     dateTo
   } = req.query
 
-  let list = authorActivities.map(enrich)
+  let list = visibleActivities(req.user).map(enrich)
   if (keyword) {
     const kw = keyword.trim()
     list = list.filter(a =>
@@ -51,12 +71,15 @@ router.get('/', authRequired, (req, res) => {
 })
 
 router.get('/:id', authRequired, (req, res) => {
-  const a = authorActivities.find(x => x.id === req.params.id)
-  if (!a) return res.status(404).json({ error: '活动不存在' })
+  const a = visibleActivities(req.user).find(x => x.id === req.params.id)
+  if (!a) return res.status(404).json({ error: '活动不存在或无权查看' })
   res.json(enrich(a))
 })
 
 router.post('/', authRequired, (req, res) => {
+  if (!canCreateActivity(req.user)) {
+    return res.status(403).json({ error: '当前角色无权新建活动' })
+  }
   const body = req.body || {}
   const id = 'act' + (authorActivities.length + 1)
   const activity = {
@@ -69,7 +92,7 @@ router.post('/', authRequired, (req, res) => {
     location: body.location || '',
     expectedQty: Number(body.expectedQty) || 0,
     status: body.status || '待确认',
-    ownerId: req.user.id,
+    ownerId: body.ownerId || req.user.id,
     timeline: [
       {
         time: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -85,8 +108,11 @@ router.post('/', authRequired, (req, res) => {
 })
 
 router.post('/:id/timeline', authRequired, (req, res) => {
-  const a = authorActivities.find(x => x.id === req.params.id)
-  if (!a) return res.status(404).json({ error: '活动不存在' })
+  const a = visibleActivities(req.user).find(x => x.id === req.params.id)
+  if (!a) return res.status(404).json({ error: '活动不存在或无权查看' })
+  if (!canEditActivity(req.user, a) && req.user.role !== 'finance') {
+    return res.status(403).json({ error: '无权追加跟进' })
+  }
   const { action, note } = req.body || {}
   a.timeline.push({
     time: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -98,8 +124,11 @@ router.post('/:id/timeline', authRequired, (req, res) => {
 })
 
 router.patch('/:id', authRequired, (req, res) => {
-  const a = authorActivities.find(x => x.id === req.params.id)
-  if (!a) return res.status(404).json({ error: '活动不存在' })
+  const a = visibleActivities(req.user).find(x => x.id === req.params.id)
+  if (!a) return res.status(404).json({ error: '活动不存在或无权查看' })
+  if (!canEditActivity(req.user, a)) {
+    return res.status(403).json({ error: '无权修改活动' })
+  }
   const body = req.body || {}
   const prevStatus = a.status
   Object.assign(a, body)

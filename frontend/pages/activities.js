@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import withAuth from '../components/hoc/withAuth'
-import { fetcher } from '../lib/auth'
+import { fetcher, useAuth } from '../lib/auth'
 
 function statusTag(s) {
   if (s === '已完成') return <span className="tag ok">{s}</span>
@@ -9,7 +9,18 @@ function statusTag(s) {
   return <span className="tag">{s}</span>
 }
 
+function canCreate(role) {
+  return role === 'admin' || role === 'channel_manager' || role === 'distribution_specialist'
+}
+
+function canEdit(role, ownerId, userId) {
+  if (role === 'admin' || role === 'channel_manager') return true
+  if (role === 'distribution_specialist') return ownerId === userId
+  return false
+}
+
 function ActivitiesPage() {
+  const { auth } = useAuth()
   const [list, setList] = useState([])
   const [authors, setAuthors] = useState([])
   const [channels, setChannels] = useState([])
@@ -72,6 +83,7 @@ function ActivitiesPage() {
       location: e.target.location.value,
       expectedQty: e.target.expectedQty.value,
       status: e.target.status.value,
+      ownerId: e.target.ownerId.value || auth.user.id,
       remarks: e.target.remarks.value
     }
     await fetcher('/api/activities', { method: 'POST', body: JSON.stringify(body) })
@@ -105,14 +117,19 @@ function ActivitiesPage() {
     setSelected(null)
   }
 
+  const role = auth?.user?.role
+  const userId = auth?.user?.id
+
   return (
     <div>
       <div className="page-title">
         <h1>作者活动</h1>
         <div className="desc">多条件筛选 · 过程留痕 · 责任人可见</div>
-        <div>
-          <button className="btn primary" onClick={() => setShowNew(true)}>新建活动</button>
-        </div>
+        {canCreate(role) && (
+          <div>
+            <button className="btn primary" onClick={() => setShowNew(true)}>新建活动</button>
+          </div>
+        )}
       </div>
 
       <div className="filter-bar">
@@ -261,10 +278,12 @@ function ActivitiesPage() {
             </div>
 
             <div className="form-actions">
-              <select onChange={(e) => changeStatus(e.target.value)} defaultValue="">
-                <option value="">变更状态…</option>
-                {meta.activityStatuses.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              {canEdit(role, selected.ownerId, userId) && (
+                <select onChange={(e) => changeStatus(e.target.value)} defaultValue="">
+                  <option value="">变更状态…</option>
+                  {meta.activityStatuses.map((s) => <option key={s}>{s}</option>)}
+                </select>
+              )}
               <button className="btn" onClick={() => setSelected(null)}>关闭</button>
             </div>
           </div>
@@ -302,6 +321,14 @@ function ActivitiesPage() {
                 {meta.activityStatuses.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
+            {(role === 'admin' || role === 'channel_manager') && (
+              <div className="form-row"><label>责任人</label>
+                <select name="ownerId" defaultValue={auth?.user?.id}>
+                  <option value="">请选择</option>
+                  {owners.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roleName}</option>)}
+                </select>
+              </div>
+            )}
             <div className="form-row"><label>备注</label><textarea name="remarks" rows={3} /></div>
             <div className="form-actions">
               <button type="button" className="btn" onClick={() => setShowNew(false)}>取消</button>

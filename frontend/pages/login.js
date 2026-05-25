@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    if (auth) router.replace('/')
+    if (auth) router.replace(auth.user?.defaultRoute || '/')
   }, [auth, router])
 
   async function handleSubmit(e) {
@@ -19,8 +19,8 @@ export default function LoginPage() {
     setLoading(true)
     setErr('')
     try {
-      await login(username, password)
-      const redirect = router.query.redirect || '/'
+      const data = await login(username, password)
+      const redirect = router.query.redirect || data.user?.defaultRoute || '/'
       router.replace(redirect)
     } catch (e) {
       setErr(e.message)

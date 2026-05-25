@@ -1,3 +1,4 @@
+import Router from 'next/router'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 const AuthContext = createContext(null)
@@ -50,10 +51,15 @@ export function AuthProvider({ children }) {
     }
     const data = await res.json()
     setAuth(data)
+    const route = data.user?.defaultRoute || '/'
+    Router.replace(route)
     return data
   }, [])
 
-  const logout = useCallback(() => setAuth(null), [])
+  const logout = useCallback(() => {
+    setAuth(null)
+    Router.replace('/login')
+  }, [])
 
   return (
     <AuthContext.Provider value={{ auth, login, switchRole, logout }}>

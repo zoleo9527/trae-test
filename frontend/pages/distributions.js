@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import withAuth from '../components/hoc/withAuth'
-import { fetcher } from '../lib/auth'
+import { fetcher, useAuth } from '../lib/auth'
 
 function statusTag(s) {
   if (s === '已回款') return <span className="tag ok">{s}</span>
@@ -14,13 +14,29 @@ function money(n) {
   return '¥' + Number(n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function canCreate(role) {
+  return role === 'admin' || role === 'channel_manager' || role === 'distribution_specialist'
+}
+
+function canEdit(role, ownerId, userId) {
+  if (role === 'admin' || role === 'channel_manager') return true
+  if (role === 'distribution_specialist') return ownerId === userId
+  return false
+}
+
+function canSettle(role) {
+  return role === 'admin' || role === 'finance' || role === 'channel_manager'
+}
+
 function DistributionsPage() {
+  const { auth } = useAuth()
   const [list, setList] = useState([])
   const [books, setBooks] = useState([])
   const [channels, setChannels] = useState([])
   const [owners, setOwners] = useState([])
   const [meta, setMeta] = useState({ distributionStatuses: [], channelTypes: [] })
   const [selected, setSelected] = useState(null)
+  const [showNew, setShowNew] = useState(false)
   const [noteDraft, setNoteDraft] = useState({ action: '跟进', note: '' })
   const [form, setForm] = useState({
     keyword: '',
@@ -106,11 +122,36 @@ function DistributionsPage() {
     load()
   }
 
+  async function handleCreate(e) {
+    e.preventDefault()
+    const body = {
+      bookId: e.target.bookId.value,
+      channelId: e.target.channelId.value,
+      qty: Number(e.target.qty.value) || 0,
+      shippedAt: e.target.shippedAt.value || new Date().toISOString().slice(0, 10),
+      sampleExpress: e.target.sampleExpress.value,
+      sampleQty: Number(e.target.sampleQty.value) || 0,
+      ownerId: e.target.ownerId.value || auth.user.id,
+      note: e.target.note.value
+    }
+    await fetcher('/api/distributions', { method: 'POST', body: JSON.stringify(body) })
+    setShowNew(false)
+    load()
+  }
+
+  const role = auth?.user?.role
+  const userId = auth?.user?.id
+
   return (
     <div>
       <div className="page-title">
         <h1>渠道对接</h1>
         <div className="desc">铺货 · 样书回执 · 退货 · 对账回款，链路过程在同一处留痕</div>
+        {canCreate(role) && (
+          <div>
+            <button className="btn primary" onClick={() => setShowNew(true)}>新建铺货单</button>
+          </div>
+        )}
       </div>
 
       <div className="filter-bar">
@@ -305,7 +346,7 @@ function DistributionsPage() {
             <div className="form-row">
               <label>快速处理</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {!selected.sampleReceived && (
+                {canEdit(role, selected.ownerId, userId) && !selected.sampleReceived && (
                   <button
                     className="btn"
                     onClick={() => {
@@ -322,7 +363,7 @@ function DistributionsPage() {
                     确认样书回执
                   </button>
                 )}
-                {selected.returnedQty === 0 && (
+                {canEdit(role, selected.ownerId, userId) && selected.returnedQty === 0 && (
                   <button
                     className="btn"
                     onClick={() => {
@@ -342,7 +383,7 @@ function DistributionsPage() {
                     登记退货
                   </button>
                 )}
-                {selected.status !== '已回款' && (
+                {canSettle(role) && selected.status !== '已回款' && (
                   <button
                     className="btn"
                     onClick={() => {
@@ -357,16 +398,18 @@ function DistributionsPage() {
                     登记回款
                   </button>
                 )}
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) changeStatus(e.target.value)
-                    e.target.value = ''
-                  }}
-                  defaultValue=""
-                >
-                  <option value="">变更状态…</option>
-                  {meta.distributionStatuses.map((s) => <option key={s}>{s}</option>)}
-                </select>
+                {canEdit(role, selected.ownerId, userId) && (
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) changeStatus(e.target.value)
+                      e.target.value = ''
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="">变更状态…</option>
+                    {meta.distributionStatuses.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -374,6 +417,42 @@ function DistributionsPage() {
               <button className="btn" onClick={() => setSelected(null)}>关闭</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showNew && (
+        <div className="modal-mask" onClick={() => setShowNew(false)}>
+          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleCreate}>
+            <button type="button" className="close" onClick={() => setShowNew(false)}>×</button>
+            <h2>新建铺货单</h2>
+            <div className="form-row"><label>图书</label>
+              <select required name="bookId">
+                <option value="">请选择</option>
+                {books.map((b) => <option key={b.id} value={b.id}>{b.title} · {b.isbn}</option>)}
+              </select>
+            </div>
+            <div className="form-row"><label>渠道</label>
+              <select required name="channelId">
+                <option value="">请选择</option>
+                {channels.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.type}</option>)}
+              </select>
+            </div>
+            <div className="form-row"><label>铺货数量</label><input type="number" name="qty" defaultValue={1000} required min="1" /></div>
+            <div className="form-row"><label>发货日期</label><input type="date" name="shippedAt" defaultValue={new Date().toISOString().slice(0, 10)} /></div>
+            <div className="form-row"><label>样书快递单号</label><input name="sampleExpress" placeholder="如 SF123456" /></div>
+            <div className="form-row"><label>样书数量</label><input type="number" name="sampleQty" defaultValue={10} min="0" /></div>
+            <div className="form-row"><label>责任人</label>
+              <select name="ownerId" defaultValue={auth?.user?.id}>
+                <option value="">请选择</option>
+                {owners.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roleName}</option>)}
+              </select>
+            </div>
+            <div className="form-row"><label>备注</label><textarea name="note" rows={3} placeholder="折扣、合同条款等" /></div>
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => setShowNew(false)}>取消</button>
+              <button type="submit" className="btn primary">创建</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

@@ -19,6 +19,30 @@ function enrich(d) {
   }
 }
 
+function visibleDistributions(user) {
+  if (user.role === 'admin' || user.role === 'channel_manager' || user.role === 'finance') {
+    return distributions
+  }
+  if (user.role === 'distribution_specialist') {
+    return distributions.filter(d => d.ownerId === user.id)
+  }
+  return distributions
+}
+
+function canEditDistribution(user, d) {
+  if (user.role === 'admin' || user.role === 'channel_manager') return true
+  if (user.role === 'distribution_specialist') return d.ownerId === user.id
+  return false
+}
+
+function canSettle(user) {
+  return user.role === 'admin' || user.role === 'finance' || user.role === 'channel_manager'
+}
+
+function canCreateDistribution(user) {
+  return user.role === 'admin' || user.role === 'channel_manager' || user.role === 'distribution_specialist'
+}
+
 router.get('/', authRequired, (req, res) => {
   const {
     keyword,
@@ -32,7 +56,7 @@ router.get('/', authRequired, (req, res) => {
     shippedTo
   } = req.query
 
-  let list = distributions.map(enrich)
+  let list = visibleDistributions(req.user).map(enrich)
   if (keyword) {
     const kw = keyword.trim()
     list = list.filter(d =>
@@ -59,14 +83,64 @@ router.get('/', authRequired, (req, res) => {
 })
 
 router.get('/:id', authRequired, (req, res) => {
-  const d = distributions.find(x => x.id === req.params.id)
-  if (!d) return res.status(404).json({ error: '铺货单不存在' })
+  const d = visibleDistributions(req.user).find(x => x.id === req.params.id)
+  if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
+  res.json(enrich(d))
+})
+
+router.post('/', authRequired, (req, res) => {
+  if (!canCreateDistribution(req.user)) {
+    return res.status(403).json({ error: '当前角色无权新建铺货单' })
+  }
+  const body = req.body || {}
+  const maxNum = distributions.reduce((m, d) => {
+    const n = parseInt((d.batch || '').split('-').pop() || '0', 10)
+    return n > m ? n : m
+  }, 0)
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const batchNum = String(maxNum + 1).padStart(3, '0')
+  const batch = body.batch || `P${y}-${m}-${batchNum}`
+
+  const id = 'd' + (distributions.length + 1)
+  const d = {
+    id,
+    bookId: body.bookId,
+    channelId: body.channelId,
+    batch,
+    qty: Number(body.qty) || 0,
+    shippedAt: body.shippedAt || today.toISOString().slice(0, 10),
+    sampleExpress: body.sampleExpress || '',
+    sampleQty: Number(body.sampleQty) || 0,
+    sampleReceived: false,
+    sampleReceivedAt: null,
+    returnedQty: 0,
+    returnedAt: null,
+    returnNote: '',
+    settledAmount: 0,
+    settledAt: null,
+    status: '样书待回执',
+    ownerId: body.ownerId || req.user.id,
+    records: [
+      {
+        time: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        actor: req.user.name,
+        action: '新建铺货单',
+        note: body.note || `${body.qty || 0} 册，折扣待确认`
+      }
+    ]
+  }
+  distributions.unshift(d)
   res.json(enrich(d))
 })
 
 router.post('/:id/records', authRequired, (req, res) => {
-  const d = distributions.find(x => x.id === req.params.id)
-  if (!d) return res.status(404).json({ error: '铺货单不存在' })
+  const d = visibleDistributions(req.user).find(x => x.id === req.params.id)
+  if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
+  if (!canEditDistribution(req.user, d) && req.user.role !== 'finance') {
+    return res.status(403).json({ error: '无权追加跟进' })
+  }
   const { action, note } = req.body || {}
   d.records.push({
     time: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -78,9 +152,19 @@ router.post('/:id/records', authRequired, (req, res) => {
 })
 
 router.patch('/:id', authRequired, (req, res) => {
-  const d = distributions.find(x => x.id === req.params.id)
-  if (!d) return res.status(404).json({ error: '铺货单不存在' })
+  const d = visibleDistributions(req.user).find(x => x.id === req.params.id)
+  if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
   const body = req.body || {}
+
+  const isSettleAction = body.status === '已回款' && d.status !== '已回款'
+  if (isSettleAction && !canSettle(req.user)) {
+    return res.status(403).json({ error: '当前角色无权标记回款' })
+  }
+
+  if (!canEditDistribution(req.user, d) && !isSettleAction) {
+    return res.status(403).json({ error: '无权修改铺货单' })
+  }
+
   const prevStatus = d.status
   Object.assign(d, body)
   if (body.status && body.status !== prevStatus) {
@@ -95,11 +179,12 @@ router.patch('/:id', authRequired, (req, res) => {
 })
 
 router.get('/summary/overview', authRequired, (req, res) => {
-  const total = distributions.length
-  const pendingSample = distributions.filter(d => !d.sampleReceived).length
-  const pendingSettle = distributions.filter(d => d.status === '待对账').length
-  const returnedQty = distributions.reduce((s, d) => s + (d.returnedQty || 0), 0)
-  const settled = distributions
+  const scope = visibleDistributions(req.user)
+  const total = scope.length
+  const pendingSample = scope.filter(d => !d.sampleReceived).length
+  const pendingSettle = scope.filter(d => d.status === '待对账').length
+  const returnedQty = scope.reduce((s, d) => s + (d.returnedQty || 0), 0)
+  const settled = scope
     .filter(d => d.status === '已回款')
     .reduce((s, d) => s + (d.settledAmount || 0), 0)
   res.json({ total, pendingSample, pendingSettle, returnedQty, settled })
