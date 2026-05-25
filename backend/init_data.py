@@ -117,29 +117,51 @@ try:
         "周末纪念品商店排队时间太长，建议增加收银台或实行预约购买。"
     ]
 
+    feedback_status_config = [
+        {"status": "pending", "needs_review": False, "has_schedule": True},
+        {"status": "pending", "needs_review": False, "has_schedule": True},
+        {"status": "pending", "needs_review": False, "has_schedule": False},
+        {"status": "resolved", "needs_review": False, "has_schedule": False},
+        {"status": "rejected", "needs_review": False, "has_schedule": True},
+        {"status": "processing", "needs_review": True, "has_schedule": False},
+    ]
+
+    created_feedbacks = []
     for i in range(6):
-        status = "pending" if i < 3 else "resolved"
-        needs_review = (i == 0)
+        config = feedback_status_config[i]
         feedback = crud.create_feedback(db, schemas.FeedbackCreate(
             feedback_type=feedback_types[i % len(feedback_types)],
             title=feedback_titles[i],
             content=feedback_contents[i],
             visitor_name=f"游客{100 + i}",
             visitor_contact=f"139{1000000 + i}",
-            schedule_id=1 if i < 2 else None
+            schedule_id=1 if config["has_schedule"] else None
         ))
-        if status == "resolved":
+        created_feedbacks.append(feedback)
+        
+        if config["status"] in ["resolved", "rejected", "processing"]:
+            response_text = "感谢您的反馈，我们会尽快改进。" if config["status"] == "resolved" else "抱歉，您的反馈暂时无法处理，如有疑问请联系客服。" if config["status"] == "rejected" else "您的反馈正在处理中，请耐心等待。"
             crud.update_feedback(db, feedback.id, schemas.FeedbackUpdate(
-                status=status,
+                status=config["status"],
                 handler_id=manager.id,
-                response="感谢您的反馈，我们会尽快改进。"
+                response=response_text
             ))
-        if needs_review:
+        
+        if config["needs_review"]:
             crud.update_feedback(db, feedback.id, schemas.FeedbackUpdate(
                 needs_review=True,
-                review_notes="需要物业部门协同处理"
+                review_notes="需要物业部门协同处理展厅温度问题，请尽快落实"
             ))
-        print(f"创建反馈: {feedback.title}")
+            crud.create_review_trace(db, schemas.ReviewTraceCreate(
+                feedback_id=feedback.id,
+                operator_name=manager.name,
+                action="发起回查",
+                remarks="第一次回查：已联系物业部门，预计3个工作日内解决"
+            ))
+        
+        status_label = {"pending": "待处理", "processing": "处理中", "resolved": "已解决", "rejected": "已驳回"}[config["status"]]
+        review_label = " [需回查]" if config["needs_review"] else ""
+        print(f"创建反馈: {feedback.title} - {status_label}{review_label}")
 
     print("\n数据初始化完成！")
     print(f"志愿者: {len(created_volunteers)} 名")
