@@ -206,7 +206,15 @@ const TaskModal = ({ task, onClose, onComplete }) => {
                 <div key={i} className="history-item">
                   <div className="history-time">{dayjs(h.timestamp).format('MM-DD HH:mm')}</div>
                   <div className="history-action">
-                    <div>{h.action === 'created' ? '创建任务' : h.action}</div>
+                    <div>
+                      {h.action === 'created' ? '创建任务' : 
+                       h.action === 'schedule_changed' ? '排期变更' :
+                       h.action === 'status_approved' ? '审批通过' :
+                       h.action === 'status_rejected' ? '审批拒绝' :
+                       h.action === 'status_completed' ? '标记完成' :
+                       h.action === 'status_in_progress' ? '开始处理' :
+                       h.action === 'assigned' ? '任务分配' : h.action}
+                    </div>
                     {h.remark && <div className="history-remark">{h.remark}</div>}
                   </div>
                 </div>

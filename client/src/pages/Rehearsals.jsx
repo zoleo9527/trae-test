@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
-import { rehearsalApi } from '../services/api';
+import { rehearsalApi, performanceApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
 const Rehearsals = () => {
   const { user } = useAuth();
   const [rehearsals, setRehearsals] = useState([]);
+  const [performances, setPerformances] = useState([]);
   const [filter, setFilter] = useState({ status: '' });
   const [loading, setLoading] = useState(true);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [showArrangementModal, setShowArrangementModal] = useState(false);
+  const [selectedRehearsal, setSelectedRehearsal] = useState(null);
+  const [issueForm, setIssueForm] = useState({ content: '' });
+  const [arrangementForm, setArrangementForm] = useState({ performanceId: '', description: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadRehearsals();
+    loadPerformances();
   }, [filter]);
 
   const loadRehearsals = async () => {
@@ -24,6 +32,15 @@ const Rehearsals = () => {
       console.error('加载排练失败:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPerformances = async () => {
+    try {
+      const res = await performanceApi.getAll();
+      setPerformances(res.data);
+    } catch (err) {
+      console.error('加载演出失败:', err);
     }
   };
 
@@ -41,13 +58,85 @@ const Rehearsals = () => {
     walkthrough: '走台'
   };
 
+  const canReportIssue = user?.role === 'theater_manager' || user?.role === 'backend_coordinator';
+  const canRequestArrangement = user?.role === 'theater_manager' || user?.role === 'ticket_supervisor';
+  const isBackendCoordinator = user?.role === 'backend_coordinator';
+
+  const openIssueModal = (rehearsal) => {
+    setSelectedRehearsal(rehearsal);
+    setIssueForm({ content: '' });
+    setShowIssueModal(true);
+  };
+
+  const handleSubmitIssue = async (e) => {
+    e.preventDefault();
+    if (!selectedRehearsal) return;
+    
+    if (!issueForm.content.trim()) {
+      alert('请填写问题描述');
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      await rehearsalApi.reportIssue(selectedRehearsal.id, issueForm.content);
+      setShowIssueModal(false);
+      loadRehearsals();
+      alert('问题已上报，后台统筹将尽快处理');
+    } catch (err) {
+      alert('提交失败: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openArrangementModal = () => {
+    setArrangementForm({ performanceId: performances[0]?.id || '', description: '' });
+    setShowArrangementModal(true);
+  };
+
+  const handleSubmitArrangement = async (e) => {
+    e.preventDefault();
+    
+    if (!arrangementForm.performanceId) {
+      alert('请选择演出');
+      return;
+    }
+    if (!arrangementForm.description.trim()) {
+      alert('请填写联排安排说明');
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      await rehearsalApi.requestArrangement(
+        arrangementForm.performanceId, 
+        arrangementForm.description
+      );
+      setShowArrangementModal(false);
+      alert('联排安排申请已提交，后台统筹将尽快安排');
+    } catch (err) {
+      alert('提交失败: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>🎬 联排管理</h2>
-        {user?.role === 'backend_coordinator' && (
-          <button className="btn btn-primary btn-sm">+ 安排联排</button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canRequestArrangement && (
+            <button 
+              className="btn btn-secondary btn-sm"
+              onClick={openArrangementModal}
+            >申请联排</button>
+          )}
+          {isBackendCoordinator && (
+            <button className="btn btn-primary btn-sm">+ 安排联排</button>
+          )}
+        </div>
       </div>
 
       <div className="filter-bar">
@@ -119,8 +208,11 @@ const Rehearsals = () => {
                   <td>
                     <div className="action-buttons">
                       <button className="btn btn-secondary btn-sm">查看</button>
-                      {user?.role === 'backend_coordinator' && (
-                        <button className="btn btn-secondary btn-sm">编辑</button>
+                      {canReportIssue && rehearsal.status !== 'completed' && rehearsal.status !== 'cancelled' && (
+                        <button 
+                          className="btn btn-warning btn-sm"
+                          onClick={() => openIssueModal(rehearsal)}
+                        >上报问题</button>
                       )}
                     </div>
                   </td>
@@ -130,6 +222,108 @@ const Rehearsals = () => {
           </tbody>
         </table>
       </div>
+
+      {showIssueModal && selectedRehearsal && (
+        <div className="modal-overlay" onClick={() => setShowIssueModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>上报问题 - {selectedRehearsal.title}</h3>
+              <button className="close-btn" onClick={() => setShowIssueModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSubmitIssue}>
+              <div className="modal-body">
+                <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span>联排时间:</span>
+                    <span>{dayjs(selectedRehearsal.startTime).format('MM-DD HH:mm')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>联排场地:</span>
+                    <span>{selectedRehearsal.venue}</span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>问题描述</label>
+                  <textarea 
+                    className="form-control"
+                    value={issueForm.content}
+                    onChange={e => setIssueForm({...issueForm, content: e.target.value})}
+                    rows="4"
+                    placeholder="请详细描述遇到的问题，例如：灯光故障、音响问题、演员缺席等"
+                    required
+                  />
+                </div>
+
+                <div style={{ background: '#fffbeb', padding: 12, borderRadius: 8, fontSize: 13 }}>
+                  <strong>⚠️ 注意：</strong>
+                  <div>• 问题将同步给后台统筹处理</div>
+                  <div>• 处理结果将通过系统通知告知</div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowIssueModal(false)}>取消</button>
+                <button type="submit" className="btn btn-warning" disabled={submitting}>
+                  {submitting ? '提交中...' : '提交问题'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showArrangementModal && (
+        <div className="modal-overlay" onClick={() => setShowArrangementModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>申请联排安排</h3>
+              <button className="close-btn" onClick={() => setShowArrangementModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSubmitArrangement}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>关联演出</label>
+                  <select 
+                    className="form-control"
+                    value={arrangementForm.performanceId}
+                    onChange={e => setArrangementForm({...arrangementForm, performanceId: e.target.value})}
+                    required
+                  >
+                    <option value="">请选择演出</option>
+                    {performances.map(p => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>安排说明</label>
+                  <textarea 
+                    className="form-control"
+                    value={arrangementForm.description}
+                    onChange={e => setArrangementForm({...arrangementForm, description: e.target.value})}
+                    rows="4"
+                    placeholder="请说明联排需求，例如：需要技术联排、预计2小时、需要灯光音响支持等"
+                    required
+                  />
+                </div>
+
+                <div style={{ background: '#f0f9ff', padding: 12, borderRadius: 8, fontSize: 13 }}>
+                  <strong>ℹ️ 说明：</strong>
+                  <div>• 申请将由后台统筹审核并安排具体时间</div>
+                  <div>• 安排结果将通过系统通知告知</div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowArrangementModal(false)}>取消</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? '提交中...' : '提交申请'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
