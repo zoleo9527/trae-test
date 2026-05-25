@@ -380,8 +380,8 @@ const getInitReconciliations = () => [
     totalReceiptLost: 100,
     totalReceiptLostAmount: 3800.00,
     totalCaliberDiscrepancy: 0,
-    balanceQuantity: 0,
-    balanceAmount: 0,
+    balanceQuantity: 100,
+    balanceAmount: 3800.00,
     discrepancies: null,
     status: 'draft',
     createdBy: 'user-003',
@@ -450,8 +450,8 @@ const getInitReconciliationItems = () => [
     confirmedAmount: 0,
     returnedQuantity: 0,
     returnedAmount: 0,
-    difference: 0,
-    differenceAmount: 0,
+    difference: 100,
+    differenceAmount: 3800.00,
     status: 'discrepancy',
     notes: '回执丢失，待跟进确认'
   }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { dashboardApi, returnApi } from '../api';
 
 const Issues = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [issues, setIssues] = useState({ receiptLost: [], caliberDisputes: [], pendingReturns: [] });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
@@ -23,7 +25,13 @@ const Issues = () => {
     }
   };
 
+  const canApproveReturn = user?.role === 'distribution_specialist' || user?.role === 'finance';
+
   const handleApproveReturn = async (returnId) => {
+    if (!canApproveReturn) {
+      alert('您没有权限进行此操作');
+      return;
+    }
     if (!confirm('确定批准此退货申请吗？')) return;
     
     setActionLoading(returnId);
@@ -43,6 +51,10 @@ const Issues = () => {
   };
 
   const handleRejectReturn = async (returnId) => {
+    if (!canApproveReturn) {
+      alert('您没有权限进行此操作');
+      return;
+    }
     if (!confirm('确定拒绝此退货申请吗？')) return;
     
     setActionLoading(returnId);
@@ -94,9 +106,9 @@ const Issues = () => {
                   </button>
                   <button 
                     className="btn btn-success btn-sm"
-                    onClick={() => navigate('/issues')}
+                    onClick={() => navigate(`/shipments/${item.id}?action=confirm`)}
                   >
-                    跟进处理
+                    确认回执
                   </button>
                 </div>
               </div>
@@ -127,12 +139,22 @@ const Issues = () => {
                     <br />{item.caliberNotes}
                   </p>
                 </div>
-                <button 
-                  className="btn btn-warning btn-sm"
-                  onClick={() => navigate(`/shipments/${item.SampleShipment?.id}`)}
-                >
-                  处理口径
-                </button>
+                <div className="action-buttons">
+                  <button 
+                    className="btn btn-warning btn-sm"
+                    onClick={() => navigate('/returns')}
+                  >
+                    去退货处理
+                  </button>
+                  {user?.role === 'finance' && (
+                    <button 
+                      className="btn btn-outline btn-sm"
+                      onClick={() => navigate(`/reconciliations`)}
+                    >
+                      对账调整
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           ) : (
@@ -159,20 +181,26 @@ const Issues = () => {
                   <p>{item.returnReasonDetail}</p>
                 </div>
                 <div className="action-buttons">
-                  <button 
-                    className="btn btn-success btn-sm"
-                    onClick={() => handleApproveReturn(item.id)}
-                    disabled={actionLoading === item.id}
-                  >
-                    {actionLoading === item.id ? '处理中...' : '批准'}
-                  </button>
-                  <button 
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleRejectReturn(item.id)}
-                    disabled={actionLoading === item.id}
-                  >
-                    {actionLoading === item.id ? '处理中...' : '拒绝'}
-                  </button>
+                  {canApproveReturn ? (
+                    <>
+                      <button 
+                        className="btn btn-success btn-sm"
+                        onClick={() => handleApproveReturn(item.id)}
+                        disabled={actionLoading === item.id}
+                      >
+                        {actionLoading === item.id ? '处理中...' : '批准'}
+                      </button>
+                      <button 
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleRejectReturn(item.id)}
+                        disabled={actionLoading === item.id}
+                      >
+                        {actionLoading === item.id ? '处理中...' : '拒绝'}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-muted">待发行专员审批</span>
+                  )}
                   <button 
                     className="btn btn-outline btn-sm"
                     onClick={() => navigate(`/shipments/${item.SampleShipment?.id}`)}

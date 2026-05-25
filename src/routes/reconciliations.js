@@ -134,12 +134,16 @@ router.post('/generate', requireRole([ROLES.FINANCE]), async (req, res) => {
       let confirmedAmt = 0;
       let notes = '';
       let itemStatus = 'pending';
+      let receiptLostQty = 0;
+      let receiptLostAmt = 0;
 
       if (shipment.status === 'confirmed') {
         confirmedQty = shippedQty;
         confirmedAmt = shippedAmt;
         itemStatus = 'matched';
       } else if (shipment.status === 'receipt_lost') {
+        receiptLostQty = shippedQty;
+        receiptLostAmt = shippedAmt;
         totalReceiptLost += shippedQty;
         totalReceiptLostAmount += shippedAmt;
         notes = '回执丢失，待跟进确认';
@@ -177,10 +181,10 @@ router.post('/generate', requireRole([ROLES.FINANCE]), async (req, res) => {
       totalReturned += returnedQty;
       totalReturnedAmount += returnedAmt;
 
-      const difference = confirmedQty - returnedQty;
-      const differenceAmt = confirmedAmt - returnedAmt;
+      const difference = confirmedQty - returnedQty + receiptLostQty;
+      const differenceAmt = confirmedAmt - returnedAmt + receiptLostAmt;
 
-      if (returnedQty > 0 && itemStatus === 'matched') {
+      if (returnedQty > 0 || receiptLostQty > 0 || caliberDiscrepancyQty > 0) {
         itemStatus = difference === 0 ? 'matched' : 'discrepancy';
       }
 
@@ -215,8 +219,8 @@ router.post('/generate', requireRole([ROLES.FINANCE]), async (req, res) => {
       totalReceiptLost,
       totalReceiptLostAmount,
       totalCaliberDiscrepancy,
-      balanceQuantity: totalConfirmed - totalReturned,
-      balanceAmount: totalConfirmedAmount - totalReturnedAmount,
+      balanceQuantity: totalConfirmed - totalReturned + totalReceiptLost,
+      balanceAmount: totalConfirmedAmount - totalReturnedAmount + totalReceiptLostAmount,
       status: 'draft',
       createdBy: req.user.id
     });

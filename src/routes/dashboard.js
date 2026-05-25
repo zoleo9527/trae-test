@@ -89,7 +89,7 @@ router.get('/channel-stats', async (req, res) => {
       dateWhere = { shipmentDate: { [Op.between]: [startDate, endDate] } };
     }
 
-    const channelStats = await SampleShipment.findAll({
+    const results = await SampleShipment.findAll({
       attributes: [
         'channelId',
         [fn('COUNT', col('SampleShipment.id')), 'shipmentCount'],
@@ -102,6 +102,14 @@ router.get('/channel-stats', async (req, res) => {
       order: [[fn('SUM', col('totalAmount')), 'DESC']]
     });
 
+    const channelStats = results.map(item => ({
+      channelId: item.channelId,
+      shipmentCount: item.dataValues.shipmentCount,
+      totalQuantity: item.dataValues.totalQuantity,
+      totalAmount: item.dataValues.totalAmount,
+      Channel: item.Channel
+    }));
+
     res.json(channelStats);
   } catch (error) {
     console.error('Get channel stats error:', error);
@@ -111,7 +119,7 @@ router.get('/channel-stats', async (req, res) => {
 
 router.get('/book-stats', async (req, res) => {
   try {
-    const bookStats = await SampleShipment.findAll({
+    const results = await SampleShipment.findAll({
       attributes: [
         'bookId',
         [fn('COUNT', col('SampleShipment.id')), 'shipmentCount'],
@@ -123,6 +131,14 @@ router.get('/book-stats', async (req, res) => {
       order: [[fn('SUM', col('quantity')), 'DESC']],
       limit: 10
     });
+
+    const bookStats = results.map(item => ({
+      bookId: item.bookId,
+      shipmentCount: item.dataValues.shipmentCount,
+      totalQuantity: item.dataValues.totalQuantity,
+      totalAmount: item.dataValues.totalAmount,
+      Book: item.Book
+    }));
 
     res.json(bookStats);
   } catch (error) {

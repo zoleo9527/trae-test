@@ -75,7 +75,7 @@ const Dashboard = () => {
   };
 
   const pendingTasks = getPendingTasks();
-  const maxQuantity = Math.max(...channelStats.map(s => s.dataValues.totalQuantity), 1);
+  const maxQuantity = channelStats.length > 0 ? Math.max(...channelStats.map(s => s.totalQuantity), 1) : 1;
 
   return (
     <div>
@@ -145,10 +145,10 @@ const Dashboard = () => {
                 <div className="bar-container">
                   <div 
                     className="bar" 
-                    style={{ width: `${(stat.dataValues.totalQuantity / maxQuantity * 100).toFixed(1)}%` }}
+                    style={{ width: `${(stat.totalQuantity / maxQuantity * 100).toFixed(1)}%` }}
                   />
                 </div>
-                <div className="value">{stat.dataValues.totalQuantity}本</div>
+                <div className="value">{stat.totalQuantity}本</div>
               </div>
             ))}
           </div>
@@ -165,10 +165,10 @@ const Dashboard = () => {
                 <div className="bar-container">
                   <div 
                     className="bar" 
-                    style={{ width: `${(stat.dataValues.totalQuantity / (bookStats[0]?.dataValues?.totalQuantity || 1) * 100).toFixed(1)}%` }}
+                    style={{ width: `${(stat.totalQuantity / (bookStats[0]?.totalQuantity || 1) * 100).toFixed(1)}%` }}
                   />
                 </div>
-                <div className="value">{stat.dataValues.totalQuantity}本</div>
+                <div className="value">{stat.totalQuantity}本</div>
               </div>
             ))}
           </div>
