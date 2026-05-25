@@ -131,6 +131,7 @@ export function AppProvider({ children }) {
       status: 'pending',
       assignedTo: order.salesperson || '李销售',
       relatedId: newOrder.id,
+      relatedOrderId: newOrder.id,
       dueDate: order.dueDate
     });
     addNotification({
@@ -148,23 +149,24 @@ export function AppProvider({ children }) {
     };
     setCollectionRecords(prev => [newRecord, ...prev]);
 
-    setTasks(prev => prev.map(t => {
-      if (t.relatedId === record.creditOrderId && t.type === 'collection') {
-        return {
-          ...t,
-          title: `${record.customerName} 回款催办中`,
-          priority: 'high',
-          status: record.status === 'completed' ? 'completed' : 'in_progress',
-          relatedId: newRecord.id,
-          dueDate: record.nextFollowDate || t.dueDate,
-          relatedOrderId: record.creditOrderId
-        };
-      }
-      return t;
-    }));
+    const existingTask = tasks.find(t => t.relatedOrderId === record.creditOrderId && t.type === 'collection');
 
-    const existingTask = tasks.find(t => t.relatedId === record.creditOrderId && t.type === 'collection');
-    if (!existingTask) {
+    if (existingTask) {
+      setTasks(prev => prev.map(t => {
+        if (t.relatedOrderId === record.creditOrderId && t.type === 'collection') {
+          return {
+            ...t,
+            title: `${record.customerName} 回款催办中`,
+            priority: 'high',
+            status: record.status === 'completed' ? 'completed' : 'in_progress',
+            relatedId: newRecord.id,
+            dueDate: record.nextFollowDate || t.dueDate,
+            relatedOrderId: record.creditOrderId
+          };
+        }
+        return t;
+      }));
+    } else {
       addTask({
         title: `${record.customerName} 回款催办`,
         type: 'collection',
@@ -172,8 +174,8 @@ export function AppProvider({ children }) {
         status: record.status === 'completed' ? 'completed' : 'in_progress',
         assignedTo: record.operator || '李销售',
         relatedId: newRecord.id,
-        dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0],
-        relatedOrderId: record.creditOrderId
+        relatedOrderId: record.creditOrderId,
+        dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0]
       });
     }
 
@@ -232,10 +234,7 @@ export function AppProvider({ children }) {
     }
 
     setTasks(prev => prev.map(t => {
-      const isRelated = t.relatedId === recordId || 
-        (t.relatedOrderId === record.creditOrderId && t.type === 'collection') ||
-        (t.relatedId === record.creditOrderId && t.type === 'collection');
-      if (isRelated) {
+      if (t.relatedOrderId === record.creditOrderId && t.type === 'collection') {
         return {
           ...t,
           status: 'completed'
