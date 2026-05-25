@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, User, Phone, Clock, Send, History, Calendar, Save } from 'lucide-react'
 import { feedbackAPI } from '../utils/api'
+import {
+  getFeedbackStatusBadge,
+  getFeedbackTypeLabel,
+  getFeedbackTypeColor,
+  getReviewNotesDisplay,
+} from '../utils/feedbackUtils'
 
 export default function FeedbackDetail() {
   const { id } = useParams()
@@ -89,35 +95,29 @@ export default function FeedbackDetail() {
     }
   }
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      pending: { class: 'status-pending', label: '待处理' },
-      processing: { class: 'status-processing', label: '处理中' },
-      resolved: { class: 'status-resolved', label: '已解决' },
-      rejected: { class: 'status-rejected', label: '已驳回' },
-    }
-    const info = statusMap[status] || statusMap.pending
-    return <span className={'status-badge ' + info.class}>{info.label}</span>
+  const renderFeedbackStatusBadge = (status) => {
+    const { className, label } = getFeedbackStatusBadge(status)
+    return <span className={className}>{label}</span>
   }
 
-  const getTypeLabel = (type) => {
-    const typeMap = {
-      complaint: '投诉',
-      suggestion: '建议',
-      praise: '表扬',
-      question: '咨询',
-    }
-    return typeMap[type] || type
+  const renderFeedbackTypeBadge = (type) => {
+    return (
+      <span className={'px-2 py-1 rounded-full text-xs font-medium ' + getFeedbackTypeColor(type)}>
+        {getFeedbackTypeLabel(type)}
+      </span>
+    )
   }
 
-  const getTypeColor = (type) => {
-    const colorMap = {
-      complaint: 'text-red-600 bg-red-100',
-      suggestion: 'text-blue-600 bg-blue-100',
-      praise: 'text-green-600 bg-green-100',
-      question: 'text-purple-600 bg-purple-100',
-    }
-    return colorMap[type] || 'text-gray-600 bg-gray-100'
+  const renderScheduleBadge = (scheduleId) => {
+    if (!scheduleId) return null
+    return (
+      <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-1 rounded">
+        <Calendar size={12} />
+        <Link to="/schedules" className="hover:underline">
+          关联排班 #{scheduleId}
+        </Link>
+      </span>
+    )
   }
 
   const formatDate = (dateStr) => {
@@ -171,21 +171,12 @@ export default function FeedbackDetail() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h2 className="text-lg font-semibold">反馈内容</h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={'px-2 py-1 rounded-full text-xs font-medium ' + getTypeColor(feedback.feedback_type)}>
-                    {getTypeLabel(feedback.feedback_type)}
-                  </span>
+                  {renderFeedbackTypeBadge(feedback.feedback_type)}
                   {feedback.needs_review && (
                     <span className="status-badge bg-orange-100 text-orange-800">需回查</span>
                   )}
-                  {getStatusBadge(feedback.status)}
-                  {feedback.schedule_id && (
-                    <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-1 rounded">
-                      <Calendar size={12} />
-                      <Link to={'/schedules'} className="hover:underline">
-                        关联排班 #{feedback.schedule_id}
-                      </Link>
-                    </span>
-                  )}
+                  {renderFeedbackStatusBadge(feedback.status)}
+                  {renderScheduleBadge(feedback.schedule_id)}
                 </div>
               </div>
             </div>
@@ -378,11 +369,9 @@ export default function FeedbackDetail() {
                   onClick={() => setIsEditingReviewNotes(true)}
                   className="cursor-pointer"
                 >
-                  {feedback.review_notes ? (
-                    <p className="text-gray-700">{feedback.review_notes}</p>
-                  ) : (
-                    <p className="text-gray-400 italic">点击添加回查说明...</p>
-                  )}
+                  <p className="text-gray-700">
+                    {getReviewNotesDisplay(feedback.review_notes)}
+                  </p>
                 </div>
               )}
             </div>

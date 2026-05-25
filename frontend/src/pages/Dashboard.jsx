@@ -11,6 +11,12 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { dashboardAPI } from '../utils/api'
+import {
+  getFeedbackStatusBadge,
+  getFeedbackTypeLabel,
+  getFeedbackTypeColor,
+  getReviewNotesDisplay,
+} from '../utils/feedbackUtils'
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
@@ -45,17 +51,6 @@ export default function Dashboard() {
     { label: '需回查事项', value: stats.needs_review_count, color: 'orange', icon: AlertCircle, link: '/review' },
   ] : []
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      pending: 'status-pending',
-      processing: 'status-processing',
-      resolved: 'status-resolved',
-      rejected: 'status-rejected',
-      confirmed: 'status-confirmed',
-    }
-    return `status-badge ${statusMap[status] || 'status-pending'}`
-  }
-
   const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('zh-CN', {
       month: 'short',
@@ -63,6 +58,29 @@ export default function Dashboard() {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  const renderFeedbackStatusBadge = (status) => {
+    const { className, label } = getFeedbackStatusBadge(status)
+    return <span className={className}>{label}</span>
+  }
+
+  const renderFeedbackTypeBadge = (type) => {
+    return (
+      <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + getFeedbackTypeColor(type)}>
+        {getFeedbackTypeLabel(type)}
+      </span>
+    )
+  }
+
+  const renderScheduleBadge = (scheduleId) => {
+    if (!scheduleId) return null
+    return (
+      <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-0.5 rounded">
+        <Calendar size={12} />
+        #{scheduleId}
+      </span>
+    )
   }
 
   if (loading) {
@@ -95,8 +113,8 @@ export default function Dashboard() {
                     <p className="text-sm text-gray-500">{card.label}</p>
                     <p className="text-3xl font-bold mt-1">{card.value}</p>
                   </div>
-                  <div className={`p-3 rounded-lg bg-${card.color}-100`}>
-                    <Icon className={`text-${card.color}-600`} size={24} />
+                  <div className={'p-3 rounded-lg bg-' + card.color + '-100'}>
+                    <Icon className={'text-' + card.color + '-600'} size={24} />
                   </div>
                 </div>
               </div>
@@ -122,17 +140,18 @@ export default function Dashboard() {
                 pendingItems.pending_feedbacks.slice(0, 5).map((feedback) => (
                   <Link
                     key={feedback.id}
-                    to={`/feedbacks/${feedback.id}`}
+                    to={'/feedbacks/' + feedback.id}
                     className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{feedback.title}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-gray-900">{feedback.title}</p>
+                          {renderFeedbackTypeBadge(feedback.feedback_type)}
+                        </div>
                         <p className="text-sm text-gray-500 mt-1">{feedback.visitor_name || '匿名'}</p>
                       </div>
-                      <span className={getStatusBadge(feedback.status)}>
-                        {feedback.status === 'pending' ? '待处理' : '处理中'}
-                      </span>
+                      {renderFeedbackStatusBadge(feedback.status)}
                     </div>
                   </Link>
                 ))
@@ -159,12 +178,15 @@ export default function Dashboard() {
                 pendingItems.rejected_feedbacks.slice(0, 5).map((feedback) => (
                   <Link
                     key={feedback.id}
-                    to={`/feedbacks/${feedback.id}`}
+                    to={'/feedbacks/' + feedback.id}
                     className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{feedback.title}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-gray-900">{feedback.title}</p>
+                          {renderFeedbackTypeBadge(feedback.feedback_type)}
+                        </div>
                         <p className="text-sm text-gray-500 mt-1">{formatDate(feedback.created_at)}</p>
                       </div>
                       <span className="status-badge status-rejected">已驳回</span>
@@ -194,15 +216,25 @@ export default function Dashboard() {
                 pendingItems.needs_review.slice(0, 5).map((feedback) => (
                   <Link
                     key={feedback.id}
-                    to={`/feedbacks/${feedback.id}`}
+                    to={'/feedbacks/' + feedback.id}
                     className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{feedback.title}</p>
-                        <p className="text-sm text-orange-600 mt-1">{feedback.review_notes || '需要回查'}</p>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-medium text-gray-900">{feedback.title}</p>
+                          <span className="status-badge bg-orange-100 text-orange-800">需回查</span>
+                          {renderFeedbackStatusBadge(feedback.status)}
+                          {renderScheduleBadge(feedback.schedule_id)}
+                        </div>
+                        <div className="mt-2 p-2 bg-orange-100 bg-opacity-50 rounded">
+                          <p className="text-sm text-orange-700">
+                            <span className="font-medium">回查说明：</span>
+                            {getReviewNotesDisplay(feedback.review_notes)}
+                          </p>
+                        </div>
                       </div>
-                      <AlertCircle className="text-orange-500" size={18} />
+                      <ChevronRight className="text-orange-500 mt-2" size={18} />
                     </div>
                   </Link>
                 ))

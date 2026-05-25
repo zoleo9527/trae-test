@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, AlertCircle, Clock, User, ChevronRight, Filter, Calendar } from 'lucide-react'
 import { feedbackAPI } from '../utils/api'
+import {
+  getFeedbackStatusBadge,
+  getFeedbackTypeLabel,
+  getFeedbackTypeColor,
+  getReviewNotesDisplay,
+} from '../utils/feedbackUtils'
 
 export default function ReviewPage() {
   const [feedbacks, setFeedbacks] = useState([])
@@ -31,36 +37,27 @@ export default function ReviewPage() {
     return matchesSearch && matchesType
   })
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      pending: { class: 'status-pending', label: '待处理' },
-      processing: { class: 'status-processing', label: '处理中' },
-      resolved: { class: 'status-resolved', label: '已解决' },
-      rejected: { class: 'status-rejected', label: '已驳回' },
-      needs_review: { class: 'bg-orange-100 text-orange-800', label: '需回查' },
-    }
-    const info = statusMap[status] || statusMap.pending
-    return <span className={'status-badge ' + info.class}>{info.label}</span>
+  const renderFeedbackStatusBadge = (status) => {
+    const { className, label } = getFeedbackStatusBadge(status)
+    return <span className={className}>{label}</span>
   }
 
-  const getTypeLabel = (type) => {
-    const typeMap = {
-      complaint: '投诉',
-      suggestion: '建议',
-      praise: '表扬',
-      question: '咨询',
-    }
-    return typeMap[type] || type
+  const renderFeedbackTypeBadge = (type) => {
+    return (
+      <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + getFeedbackTypeColor(type)}>
+        {getFeedbackTypeLabel(type)}
+      </span>
+    )
   }
 
-  const getTypeColor = (type) => {
-    const colorMap = {
-      complaint: 'text-red-600 bg-red-100',
-      suggestion: 'text-blue-600 bg-blue-100',
-      praise: 'text-green-600 bg-green-100',
-      question: 'text-purple-600 bg-purple-100',
-    }
-    return colorMap[type] || 'text-gray-600 bg-gray-100'
+  const renderScheduleBadge = (scheduleId) => {
+    if (!scheduleId) return null
+    return (
+      <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-0.5 rounded">
+        <Calendar size={12} />
+        关联排班 #{scheduleId}
+      </span>
+    )
   }
 
   const formatDate = (dateStr) => {
@@ -138,29 +135,20 @@ export default function ReviewPage() {
               <div className="card-body">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
                       <h3 className="text-lg font-semibold">{feedback.title}</h3>
-                      <span className={'px-2 py-1 rounded-full text-xs font-medium ' + getTypeColor(feedback.feedback_type)}>
-                        {getTypeLabel(feedback.feedback_type)}
-                      </span>
+                      {renderFeedbackTypeBadge(feedback.feedback_type)}
                       <span className="status-badge bg-orange-100 text-orange-800">需回查</span>
-                      {getStatusBadge(feedback.status)}
-                      {feedback.schedule_id && (
-                        <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-1 rounded">
-                          <Calendar size={12} />
-                          关联排班 #{feedback.schedule_id}
-                        </span>
-                      )}
+                      {renderFeedbackStatusBadge(feedback.status)}
+                      {renderScheduleBadge(feedback.schedule_id)}
                     </div>
-                    <p className="text-gray-600 mt-2 line-clamp-2">{feedback.content}</p>
-                    {feedback.review_notes && (
-                      <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <p className="text-sm text-orange-700">
-                          <span className="font-medium">回查说明：</span>
-                          {feedback.review_notes}
-                        </p>
-                      </div>
-                    )}
+                    <p className="text-gray-600 line-clamp-2">{feedback.content}</p>
+                    <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <p className="text-sm text-orange-700">
+                        <span className="font-medium">回查说明：</span>
+                        {getReviewNotesDisplay(feedback.review_notes)}
+                      </p>
+                    </div>
                     <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                       <div className="flex items-center gap-1">
                         <User size={14} />
