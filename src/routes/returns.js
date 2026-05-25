@@ -120,7 +120,7 @@ router.post('/', requireRole([ROLES.CHANNEL_MANAGER]), async (req, res) => {
   }
 });
 
-router.put('/:id/approve', requireRole([ROLES.DISTRIBUTION_SPECIALIST]), async (req, res) => {
+router.put('/:id/approve', requireRole([ROLES.DISTRIBUTION_SPECIALIST, ROLES.FINANCE]), async (req, res) => {
   try {
     const returnRecord = await Return.findByPk(req.params.id);
     if (!returnRecord) {
@@ -148,7 +148,7 @@ router.put('/:id/approve', requireRole([ROLES.DISTRIBUTION_SPECIALIST]), async (
   }
 });
 
-router.put('/:id/reject', requireRole([ROLES.DISTRIBUTION_SPECIALIST]), async (req, res) => {
+router.put('/:id/reject', requireRole([ROLES.DISTRIBUTION_SPECIALIST, ROLES.FINANCE]), async (req, res) => {
   try {
     const returnRecord = await Return.findByPk(req.params.id);
     if (!returnRecord) {

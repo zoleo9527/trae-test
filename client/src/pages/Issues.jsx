@@ -26,6 +26,7 @@ const Issues = () => {
   };
 
   const canApproveReturn = user?.role === 'distribution_specialist' || user?.role === 'finance';
+  const canHandleCaliber = user?.role === 'distribution_specialist' || user?.role === 'finance';
 
   const handleApproveReturn = async (returnId) => {
     if (!canApproveReturn) {
@@ -140,19 +141,25 @@ const Issues = () => {
                   </p>
                 </div>
                 <div className="action-buttons">
-                  <button 
-                    className="btn btn-warning btn-sm"
-                    onClick={() => navigate('/returns')}
-                  >
-                    去退货处理
-                  </button>
-                  {user?.role === 'finance' && (
-                    <button 
-                      className="btn btn-outline btn-sm"
-                      onClick={() => navigate(`/reconciliations`)}
-                    >
-                      对账调整
-                    </button>
+                  {canHandleCaliber ? (
+                    <>
+                      <button 
+                        className="btn btn-warning btn-sm"
+                        onClick={() => navigate(`/returns?returnId=${item.id}&action=caliber`)}
+                      >
+                        调整口径
+                      </button>
+                      {user?.role === 'finance' && (
+                        <button 
+                          className="btn btn-outline btn-sm"
+                          onClick={() => navigate(`/reconciliations?returnId=${item.id}`)}
+                        >
+                          对账处置
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted">待发行专员/财务处理</span>
                   )}
                 </div>
               </div>

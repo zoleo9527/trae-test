@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { shipmentApi, feedbackApi, returnApi } from '../api';
 import Timeline from '../components/Timeline';
 import { useAuth } from '../context/AuthContext';
@@ -16,12 +16,15 @@ const STATUS_LABELS = {
 const ShipmentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasRole } = useAuth();
   const [shipment, setShipment] = useState(null);
   const [activeTab, setActiveTab] = useState('basic');
   const [loading, setLoading] = useState(true);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState({
     receivedQuantity: 0,
     damagedQuantity: 0,
@@ -41,6 +44,16 @@ const ShipmentDetail = () => {
     loadDetail();
   }, [id]);
 
+  useEffect(() => {
+    if (shipment && !loading) {
+      const params = new URLSearchParams(location.search);
+      const action = params.get('action');
+      if (action === 'confirm' && (shipment.status === 'delivered' || shipment.status === 'receipt_lost')) {
+        setShowConfirmModal(true);
+      }
+    }
+  }, [shipment, loading, location.search]);
+
   const loadDetail = async () => {
     try {
       const res = await shipmentApi.get(id);
@@ -53,6 +66,26 @@ const ShipmentDetail = () => {
       console.error('Load detail error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (!hasRole('channel_manager')) {
+      alert('只有渠道经理可以确认回执');
+      return;
+    }
+    if (!confirm('确认已收到全部样书，回执无误？')) return;
+    
+    setActionLoading(true);
+    try {
+      await shipmentApi.confirm(id);
+      await loadDetail();
+      setShowConfirmModal(false);
+      alert('回执确认成功');
+    } catch (error) {
+      alert('确认失败: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -124,46 +157,62 @@ const ShipmentDetail = () => {
           </div>
 
           {activeTab === 'basic' && (
-            <div className="grid-2">
-              <div>
-                <div className="detail-item">
-                  <label>图书名称</label>
-                  <div className="value">{shipment.Book?.title}</div>
+            <div>
+              {hasRole('channel_manager') && (shipment.status === 'delivered' || shipment.status === 'receipt_lost') && (
+                <div style={{ marginBottom: '20px', padding: '16px', background: '#fef3c7', borderRadius: '8px' }}>
+                  <p style={{ margin: '0 0 12px 0', color: '#92400e' }}>
+                    <strong>📌 待处理：</strong>
+                    {shipment.status === 'receipt_lost' ? '此单标记为回执丢失，请核实后确认' : '请确认收到样书回执'}
+                  </p>
+                  <button 
+                    className="btn btn-success"
+                    onClick={() => setShowConfirmModal(true)}
+                  >
+                    ✓ 确认回执
+                  </button>
                 </div>
-                <div className="detail-item">
-                  <label>ISBN</label>
-                  <div className="value">{shipment.Book?.isbn}</div>
+              )}
+              <div className="grid-2">
+                <div>
+                  <div className="detail-item">
+                    <label>图书名称</label>
+                    <div className="value">{shipment.Book?.title}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>ISBN</label>
+                    <div className="value">{shipment.Book?.isbn}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>渠道</label>
+                    <div className="value">{shipment.Channel?.name}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>寄送数量</label>
+                    <div className="value">{shipment.quantity}本</div>
+                  </div>
                 </div>
-                <div className="detail-item">
-                  <label>渠道</label>
-                  <div className="value">{shipment.Channel?.name}</div>
+                <div>
+                  <div className="detail-item">
+                    <label>单价</label>
+                    <div className="value">¥{shipment.unitPrice}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>总金额</label>
+                    <div className="value">¥{shipment.totalAmount}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>快递公司</label>
+                    <div className="value">{shipment.expressCompany || '-'}</div>
+                  </div>
+                  <div className="detail-item">
+                    <label>快递单号</label>
+                    <div className="value"><code>{shipment.trackingNo || '-'}</code></div>
+                  </div>
                 </div>
-                <div className="detail-item">
-                  <label>寄送数量</label>
-                  <div className="value">{shipment.quantity}本</div>
+                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                  <label>备注</label>
+                  <div className="value">{shipment.notes || '-'}</div>
                 </div>
-              </div>
-              <div>
-                <div className="detail-item">
-                  <label>单价</label>
-                  <div className="value">¥{shipment.unitPrice}</div>
-                </div>
-                <div className="detail-item">
-                  <label>总金额</label>
-                  <div className="value">¥{shipment.totalAmount}</div>
-                </div>
-                <div className="detail-item">
-                  <label>快递公司</label>
-                  <div className="value">{shipment.expressCompany || '-'}</div>
-                </div>
-                <div className="detail-item">
-                  <label>快递单号</label>
-                  <div className="value"><code>{shipment.trackingNo || '-'}</code></div>
-                </div>
-              </div>
-              <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
-                <label>备注</label>
-                <div className="value">{shipment.notes || '-'}</div>
               </div>
             </div>
           )}
@@ -377,6 +426,48 @@ const ShipmentDetail = () => {
           )}
         </div>
       </div>
+
+      {showConfirmModal && (
+        <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>确认回执</h3>
+              <button className="modal-close" onClick={() => setShowConfirmModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>请确认已收到以下样书：</p>
+              <div style={{ padding: '12px', background: '#f3f4f6', borderRadius: '8px', margin: '12px 0' }}>
+                <p><strong>图书：</strong>{shipment.Book?.title}</p>
+                <p><strong>渠道：</strong>{shipment.Channel?.name}</p>
+                <p><strong>数量：</strong>{shipment.quantity}本</p>
+                <p><strong>快递单号：</strong>{shipment.trackingNo || '-'}</p>
+              </div>
+              {shipment.status === 'receipt_lost' && (
+                <p style={{ color: '#dc2626' }}>
+                  ⚠️ 此单此前标记为回执丢失，确认后将变更为已确认状态。
+                </p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowConfirmModal(false)}
+              >
+                取消
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-success" 
+                onClick={handleConfirmReceipt}
+                disabled={actionLoading}
+              >
+                {actionLoading ? '处理中...' : '确认回执无误'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -175,7 +175,10 @@ router.get('/issues', async (req, res) => {
     });
 
     const caliberDisputes = await Return.findAll({
-      where: { caliberType: { [Op.ne]: 'original' } },
+      where: { 
+        caliberType: { [Op.ne]: 'original' },
+        status: { [Op.ne]: 'reconciled' }
+      },
       include: [
         { model: SampleShipment, include: [Book, Channel] }
       ],

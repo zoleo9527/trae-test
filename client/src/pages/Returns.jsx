@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { returnApi } from '../api';
 
 const STATUS_LABELS = {
@@ -21,13 +22,48 @@ const RETURN_REASONS = {
 
 const Returns = () => {
   const { hasRole } = useAuth();
+  const location = useLocation();
   const [returns, setReturns] = useState([]);
   const [filters, setFilters] = useState({ status: '' });
   const [loading, setLoading] = useState(true);
+  const [showCaliberModal, setShowCaliberModal] = useState(false);
+  const [targetReturn, setTargetReturn] = useState(null);
+  const [caliberForm, setCaliberForm] = useState({
+    approvedQuantity: 0,
+    caliberType: 'channel',
+    caliberNotes: ''
+  });
+  const [actionLoading, setActionLoading] = useState(false);
+  const targetRowRef = useRef(null);
 
   useEffect(() => {
     loadData();
   }, [filters]);
+
+  useEffect(() => {
+    if (returns.length > 0 && !loading) {
+      const params = new URLSearchParams(location.search);
+      const returnId = params.get('returnId');
+      const action = params.get('action');
+      
+      if (returnId) {
+        const target = returns.find(r => r.id === returnId);
+        if (target) {
+          setTargetReturn(target);
+          setCaliberForm(prev => ({
+            ...prev,
+            approvedQuantity: target.approvedQuantity || target.requestedQuantity
+          }));
+          if (action === 'caliber') {
+            setShowCaliberModal(true);
+          }
+          setTimeout(() => {
+            targetRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 100);
+        }
+      }
+    }
+  }, [returns, loading, location.search]);
 
   const loadData = async () => {
     try {
@@ -37,6 +73,27 @@ const Returns = () => {
       console.error('Load returns error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateCaliber = async (e) => {
+    e.preventDefault();
+    if (!targetReturn) return;
+    
+    setActionLoading(true);
+    try {
+      await returnApi.approve(targetReturn.id, {
+        approvedQuantity: parseInt(caliberForm.approvedQuantity),
+        caliberType: caliberForm.caliberType,
+        caliberNotes: caliberForm.caliberNotes
+      });
+      setShowCaliberModal(false);
+      loadData();
+      alert('口径更新成功');
+    } catch (error) {
+      alert('更新失败: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -138,7 +195,14 @@ const Returns = () => {
             </thead>
             <tbody>
               {returns.map(ret => (
-                <tr key={ret.id}>
+                <tr 
+                  key={ret.id} 
+                  ref={targetReturn?.id === ret.id ? targetRowRef : null}
+                  style={{ 
+                    background: targetReturn?.id === ret.id ? '#fef3c7' : 'inherit',
+                    transition: 'background 0.3s'
+                  }}
+                >
                   <td><code>{ret.returnNo}</code></td>
                   <td>{ret.SampleShipment?.Book?.title}</td>
                   <td>{ret.SampleShipment?.Channel?.name}</td>
@@ -158,7 +222,7 @@ const Returns = () => {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      {hasRole('distribution_specialist') && ret.status === 'pending' && (
+                      {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status === 'pending' && (
                         <>
                           <button className="btn btn-success btn-sm" onClick={() => handleApprove(ret.id)}>
                             批准
@@ -167,6 +231,23 @@ const Returns = () => {
                             拒绝
                           </button>
                         </>
+                      )}
+                      {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status !== 'rejected' && ret.status !== 'reconciled' && ret.caliberType !== 'original' && (
+                        <button 
+                          className="btn btn-warning btn-sm" 
+                          onClick={() => {
+                            setTargetReturn(ret);
+                            setCaliberForm(prev => ({
+                              ...prev,
+                              approvedQuantity: ret.approvedQuantity || ret.requestedQuantity,
+                              caliberType: ret.caliberType,
+                              caliberNotes: ret.caliberNotes || ''
+                            }));
+                            setShowCaliberModal(true);
+                          }}
+                        >
+                          调整口径
+                        </button>
                       )}
                       {hasRole('distribution_specialist') && ret.status === 'approved' && (
                         <button className="btn btn-primary btn-sm" onClick={() => handleReceive(ret.id)}>
@@ -186,6 +267,79 @@ const Returns = () => {
           </table>
         </div>
       </div>
+
+      {showCaliberModal && targetReturn && (
+        <div className="modal-overlay" onClick={() => setShowCaliberModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>调整退货口径</h3>
+              <button className="modal-close" onClick={() => setShowCaliberModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleUpdateCaliber}>
+              <div className="modal-body">
+                <div style={{ padding: '12px', background: '#f3f4f6', borderRadius: '8px', marginBottom: '16px' }}>
+                  <p><strong>退货单号：</strong>{targetReturn.returnNo}</p>
+                  <p><strong>图书：</strong>{targetReturn.SampleShipment?.Book?.title}</p>
+                  <p><strong>申请数量：</strong>{targetReturn.requestedQuantity}本</p>
+                  <p><strong>当前口径：</strong>
+                    {targetReturn.caliberType === 'channel' ? '渠道口径' : 
+                     targetReturn.caliberType === 'finance' ? '财务口径' : '原始口径'}
+                  </p>
+                </div>
+                <div className="form-group">
+                  <label>批准数量</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={targetReturn.requestedQuantity}
+                    value={caliberForm.approvedQuantity}
+                    onChange={(e) => setCaliberForm({ ...caliberForm, approvedQuantity: parseInt(e.target.value) })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>口径类型</label>
+                  <select
+                    value={caliberForm.caliberType}
+                    onChange={(e) => setCaliberForm({ ...caliberForm, caliberType: e.target.value })}
+                    required
+                  >
+                    <option value="original">原始口径</option>
+                    <option value="channel">渠道口径</option>
+                    <option value="finance">财务口径</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>口径说明</label>
+                  <textarea
+                    rows="3"
+                    value={caliberForm.caliberNotes}
+                    onChange={(e) => setCaliberForm({ ...caliberForm, caliberNotes: e.target.value })}
+                    required
+                    placeholder="请说明选择此口径的原因..."
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowCaliberModal(false)}
+                >
+                  取消
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? '处理中...' : '确认调整'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
