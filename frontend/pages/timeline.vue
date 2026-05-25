@@ -27,7 +27,13 @@
               <span class="text-sm text-gray-500">{{ formatDate(item.created_at) }}</span>
             </div>
             
-            <div class="flex items-center space-x-2 mb-2">
+            <div v-if="item.entity_type === 'performance' && (item.title === '演出时间变更' || item.title === '演出场地变更')" class="flex items-center space-x-2 mb-2">
+              <span class="text-sm text-gray-600">{{ item.title === '演出时间变更' ? '原时间' : '原场地' }}:</span>
+              <span class="text-sm font-medium text-gray-900 bg-gray-200 px-2 py-1 rounded">{{ item.old_status }}</span>
+              <span class="text-gray-400">→</span>
+              <span class="text-sm font-medium text-gray-900 bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{{ item.new_status }}</span>
+            </div>
+            <div v-else class="flex items-center space-x-2 mb-2">
               <span :class="getStatusClass(item.old_status)" class="status-badge">{{ getStatusText(item.old_status) }}</span>
               <span class="text-gray-400">→</span>
               <span :class="getStatusClass(item.new_status)" class="status-badge">{{ getStatusText(item.new_status) }}</span>
@@ -71,7 +77,13 @@ const getTimelineColor = (status: string) => {
     reviewing: 'bg-blue-500',
     approved: 'bg-green-500',
     completed: 'bg-green-500',
-    rejected: 'bg-red-500'
+    rejected: 'bg-red-500',
+    refund_pending: 'bg-yellow-500',
+    refund_rejected: 'bg-red-500',
+    refunded: 'bg-gray-500',
+    confirmed: 'bg-green-500',
+    scheduled: 'bg-purple-500',
+    deleted: 'bg-gray-500'
   }
   return map[status] || 'bg-gray-500'
 }
@@ -80,7 +92,8 @@ const getEntityIcon = (type: string) => {
   const map: Record<string, string> = {
     reception: '📋',
     settlement: '💰',
-    performance: '🎭'
+    performance: '🎭',
+    ticket: '🎫'
   }
   return map[type] || '📝'
 }
@@ -92,7 +105,13 @@ const getStatusClass = (status: string) => {
     rejected: 'status-rejected',
     reviewing: 'status-reviewing',
     completed: 'status-completed',
-    scheduled: 'status-scheduled'
+    scheduled: 'status-scheduled',
+    refund_pending: 'status-pending',
+    refund_rejected: 'status-rejected',
+    refunded: 'status-completed',
+    confirmed: 'status-approved',
+    none: 'status-completed',
+    deleted: 'status-rejected'
   }
   return `status-badge ${map[status] || 'status-pending'}`
 }
@@ -104,7 +123,13 @@ const getStatusText = (status: string) => {
     rejected: '已驳回',
     reviewing: '审核中',
     completed: '已完成',
-    scheduled: '已排期'
+    scheduled: '已排期',
+    refund_pending: '待退票',
+    refund_rejected: '退票驳回',
+    refunded: '已退票',
+    confirmed: '已确认',
+    none: '无',
+    deleted: '已删除'
   }
   return map[status] || status
 }

@@ -127,6 +127,8 @@ const currentFilter = ref('all')
 const showEditModal = ref(false)
 const editingId = ref<number | null>(null)
 
+const route = useRoute()
+
 const form = ref({
   hotel: '',
   room_count: 0,
@@ -200,6 +202,10 @@ const getStatusText = (status: string) => {
 }
 
 onMounted(() => {
+  const statusParam = route.query.status as string
+  if (statusParam && statusFilters.some(s => s.value === statusParam)) {
+    currentFilter.value = statusParam
+  }
   loadReceptions()
 })
 </script>

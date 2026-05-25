@@ -305,7 +305,7 @@ def update_ticket_order(db: Session, order_id: int, order: schemas.TicketOrderUp
     if db_order:
         old_status = db_order.status
         
-        if order.status == "refund_pending" and old_status == "confirmed":
+        if order.status == "refund_pending" and (old_status == "confirmed" or old_status == "refund_rejected"):
             db_order.refund_applicant = order.refund_applicant or "customer"
             db_order.refund_reason = order.refund_reason or ""
             db_order.status = "refund_pending"
@@ -339,17 +339,17 @@ def update_ticket_order(db: Session, order_id: int, order: schemas.TicketOrderUp
                 change_reason=f"退票通过: {order.refund_approval_notes or ''}"
             ))
         
-        elif order.status == "confirmed" and old_status == "refund_pending":
+        elif order.status == "refund_rejected" and old_status == "refund_pending":
             db_order.refund_approver = order.refund_approver or "system"
             db_order.refund_approval_notes = order.refund_approval_notes or "退票申请被驳回"
-            db_order.status = "confirmed"
+            db_order.status = "refund_rejected"
             
             create_status_history(db, schemas.StatusHistoryCreate(
                 performance_id=db_order.performance_id,
                 entity_type="ticket",
                 entity_id=order_id,
                 old_status=old_status,
-                new_status="confirmed",
+                new_status="refund_rejected",
                 changed_by=order.refund_approver or "system",
                 change_reason=f"退票驳回: {order.refund_approval_notes or ''}"
             ))
@@ -369,7 +369,7 @@ def get_dashboard_stats(db: Session):
     need_review = db.query(models.Settlement).filter(models.Settlement.status == "reviewing").count()
     
     pending_refunds = db.query(models.TicketOrder).filter(models.TicketOrder.status == "refund_pending").count()
-    rejected_refunds = 0
+    rejected_refunds = db.query(models.TicketOrder).filter(models.TicketOrder.status == "refund_rejected").count()
     
     today_performances = db.query(models.Performance).filter(
         func.date(models.Performance.start_time) == today

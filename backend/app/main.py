@@ -131,7 +131,18 @@ def get_timeline(performance_id: Optional[int] = None, db: Session = Depends(get
         elif h.entity_type == "settlement":
             title = "结算状态变更"
         elif h.entity_type == "performance":
-            title = "演出场次变更"
+            if "时间变更" in (h.change_reason or ""):
+                title = "演出时间变更"
+            elif "场地变更" in (h.change_reason or ""):
+                title = "演出场地变更"
+            elif "状态变更" in (h.change_reason or ""):
+                title = "演出状态变更"
+            elif "新建" in (h.change_reason or ""):
+                title = "新建演出"
+            elif "删除" in (h.change_reason or ""):
+                title = "删除演出"
+            else:
+                title = "演出场次变更"
         elif h.entity_type == "ticket":
             title = "票务退改审批"
         timeline_items.append(schemas.TimelineItem(
@@ -215,7 +226,7 @@ def reject_refund(
     db: Session = Depends(get_db)
 ):
     order = schemas.TicketOrderUpdate(
-        status="confirmed",
+        status="refund_rejected",
         refund_approver=approver,
         refund_approval_notes=approval_notes
     )

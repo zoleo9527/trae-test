@@ -84,6 +84,19 @@
       </div>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div class="bg-white rounded-lg shadow p-6 border-l-4 border-rose-500 hover:shadow-md transition-shadow cursor-pointer" @click="navigateTo('/tickets?status=refund_rejected')">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-500">已驳回退票</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{{ stats?.rejected_refunds || 0 }}</p>
+          </div>
+          <div class="text-3xl">🚫</div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">需回查处理</p>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b flex justify-between items-center">
@@ -241,7 +254,8 @@ const getStatusClass = (status: string) => {
     completed: 'status-completed',
     scheduled: 'status-scheduled',
     refund_pending: 'status-pending',
-    refunded: 'status-rejected',
+    refund_rejected: 'status-rejected',
+    refunded: 'status-completed',
     confirmed: 'status-approved',
     none: 'status-completed',
     deleted: 'status-rejected'
@@ -258,6 +272,7 @@ const getStatusText = (status: string) => {
     completed: '已完成',
     scheduled: '已排期',
     refund_pending: '待退票',
+    refund_rejected: '退票驳回',
     refunded: '已退票',
     confirmed: '已确认',
     none: '无',
@@ -274,7 +289,8 @@ const getTimelineColor = (status: string) => {
     completed: 'bg-green-500',
     scheduled: 'bg-purple-500',
     rejected: 'bg-red-500',
-    refunded: 'bg-red-500',
+    refund_rejected: 'bg-red-500',
+    refunded: 'bg-gray-500',
     confirmed: 'bg-green-500',
     deleted: 'bg-gray-500'
   }

@@ -109,11 +109,18 @@
               class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"
             >
               <button
-                v-if="order.status === 'confirmed'"
+                v-if="
+                  order.status === 'confirmed' ||
+                  order.status === 'refund_rejected'
+                "
                 @click="requestRefund(order)"
                 class="text-orange-600 hover:text-orange-900"
               >
-                申请退票
+                {{
+                  order.status === "refund_rejected"
+                    ? "重新申请退票"
+                    : "申请退票"
+                }}
               </button>
               <button
                 v-if="order.status === 'refund_pending'"
@@ -316,6 +323,8 @@ const selectedOrder = ref<TicketOrder | null>(null);
 const refundAction = ref<"request" | "approve" | "reject">("request");
 const refundReason = ref("");
 
+const route = useRoute();
+
 const form = ref({
   performance_id: 0,
   customer_name: "",
@@ -328,6 +337,7 @@ const statusFilters = [
   { label: "全部", value: "all" },
   { label: "已确认", value: "confirmed" },
   { label: "待退票", value: "refund_pending" },
+  { label: "退票驳回", value: "refund_rejected" },
   { label: "已退票", value: "refunded" },
 ];
 
@@ -360,7 +370,8 @@ const getStatusClass = (status: string) => {
   const map: Record<string, string> = {
     confirmed: "status-approved",
     refund_pending: "status-pending",
-    refunded: "status-rejected",
+    refund_rejected: "status-rejected",
+    refunded: "status-completed",
   };
   return map[status] || "status-pending";
 };
@@ -369,6 +380,7 @@ const getStatusText = (status: string) => {
   const map: Record<string, string> = {
     confirmed: "已确认",
     refund_pending: "待退票",
+    refund_rejected: "退票驳回",
     refunded: "已退票",
   };
   return map[status] || status;
@@ -440,6 +452,10 @@ const confirmRefundAction = async () => {
 };
 
 onMounted(() => {
+  const statusParam = route.query.status as string;
+  if (statusParam && statusFilters.some((s) => s.value === statusParam)) {
+    currentFilter.value = statusParam;
+  }
   loadData();
 });
 </script>

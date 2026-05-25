@@ -174,6 +174,8 @@ const editingId = ref<number | null>(null)
 const rejectingId = ref<number | null>(null)
 const rejectReason = ref('')
 
+const route = useRoute()
+
 const form = ref({
   performance_fee: 0,
   hotel_expense: 0,
@@ -282,6 +284,10 @@ const formatDate = (dateStr: string) => {
 }
 
 onMounted(() => {
+  const statusParam = route.query.status as string
+  if (statusParam && statusFilters.some(s => s.value === statusParam)) {
+    currentFilter.value = statusParam
+  }
   loadSettlements()
 })
 </script>
