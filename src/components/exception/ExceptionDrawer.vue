@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useExceptionStore } from '@/stores/exception'
 import { useAppStore } from '@/stores/app'
 import StatusTag from '@/components/common/StatusTag.vue'
 import PriorityTag from '@/components/common/PriorityTag.vue'
 import { X, User, Clock, MessageSquare, CheckCircle, Archive, ExternalLink } from 'lucide-vue-next'
+
+const router = useRouter()
 
 const exceptionStore = useExceptionStore()
 const appStore = useAppStore()
@@ -33,9 +36,12 @@ const canResolve = computed(() => {
   const exception = exceptionStore.currentException
   if (!exception) return false
   if (exception.status !== 'processing') return false
-  if (appStore.currentRole !== 'executor' && appStore.currentRole !== 'manager') return false
-  if (appStore.currentRole === 'executor' && exception.handler && exception.handler !== appStore.roleNames[appStore.currentRole]) return false
-  return true
+  if (appStore.currentRole === 'manager') return true
+  if (appStore.currentRole === 'executor') {
+    if (!exception.handler) return true
+    if (exception.handler.startsWith(appStore.roleNames[appStore.currentRole])) return true
+  }
+  return false
 })
 
 const canAddRemark = computed(() => {
@@ -99,6 +105,19 @@ const closeException = () => {
 const cancelResolve = () => {
   resolveRemark.value = ''
   showResolveForm.value = false
+}
+
+const goToRelatedOrder = () => {
+  const exception = exceptionStore.currentException
+  if (!exception) return
+  
+  exceptionStore.closeDrawer()
+  
+  if (exception.relatedOrderType === 'borrow') {
+    router.push('/borrow')
+  } else if (exception.relatedOrderType === 'ticket') {
+    router.push('/ticket')
+  }
 }
 </script>
 
@@ -179,6 +198,7 @@ const cancelResolve = () => {
                 <div>
                   <label class="text-sm font-medium text-museum-gray-500 mb-2 block">关联单据</label>
                   <button 
+                    @click="goToRelatedOrder"
                     class="inline-flex items-center gap-1 text-museum-gold hover:underline text-sm"
                   >
                     {{ exceptionStore.currentException.relatedOrderNo }}

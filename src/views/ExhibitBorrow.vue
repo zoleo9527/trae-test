@@ -59,6 +59,30 @@ const getProgressPercent = (progress: { status: string }[]) => {
   return Math.round((completed / progress.length) * 100)
 }
 
+const getNodeStatus = (progress: { name: string; status: string }[], nodeName: string) => {
+  const node = progress.find(p => p.name === nodeName)
+  return node?.status || 'pending'
+}
+
+const canConfirmReceipt = (order: { status: string; progress: { name: string; status: string }[] }) => {
+  if (order.status === 'transferring') return true
+  if (order.status === 'exception') {
+    const receiptStatus = getNodeStatus(order.progress, '本馆签收')
+    return receiptStatus !== 'completed'
+  }
+  return false
+}
+
+const canCompleteInstall = (order: { status: string; progress: { name: string; status: string }[] }) => {
+  if (order.status === 'installing') return true
+  if (order.status === 'exception') {
+    const receiptStatus = getNodeStatus(order.progress, '本馆签收')
+    const installStatus = getNodeStatus(order.progress, '布展完成')
+    return receiptStatus === 'completed' && installStatus !== 'completed'
+  }
+  return false
+}
+
 const openReceiptConfirm = (orderId: string) => {
   confirmOrderId.value = orderId
   confirmRemark.value = ''
@@ -274,22 +298,26 @@ const cancelConfirm = () => {
                     </div>
                   </div>
                   
-                  <div v-if="canOperate && (order.status === 'transferring' || order.status === 'installing')" class="mt-4 flex gap-3">
+                  <div v-if="canOperate && (canConfirmReceipt(order) || canCompleteInstall(order))" class="mt-4 flex gap-3">
                     <button
-                      v-if="order.status === 'transferring'"
+                      v-if="canConfirmReceipt(order)"
                       @click="openReceiptConfirm(order.id)"
                       class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-museum-dark text-white rounded-lg hover:bg-museum-darker transition-colors text-sm font-medium"
+                      :class="{ 'ring-2 ring-museum-coral': order.status === 'exception' }"
                     >
                       <PackageCheck class="w-4 h-4" />
                       确认签收
+                      <span v-if="order.status === 'exception'" class="text-xs bg-museum-coral/20 text-museum-coral px-2 py-0.5 rounded">异常处理中</span>
                     </button>
                     <button
-                      v-if="order.status === 'installing'"
+                      v-if="canCompleteInstall(order)"
                       @click="openInstallConfirm(order.id)"
                       class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-museum-green text-white rounded-lg hover:bg-museum-green/90 transition-colors text-sm font-medium"
+                      :class="{ 'ring-2 ring-museum-coral': order.status === 'exception' }"
                     >
                       <Settings class="w-4 h-4" />
                       完成布展
+                      <span v-if="order.status === 'exception'" class="text-xs bg-museum-coral/20 text-museum-coral px-2 py-0.5 rounded">异常处理中</span>
                     </button>
                   </div>
                 </div>

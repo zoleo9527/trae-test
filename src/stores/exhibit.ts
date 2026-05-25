@@ -56,65 +56,81 @@ export const useExhibitStore = defineStore('exhibit', () => {
     }
   }
 
+  const getProgressNodeByName = (order: ExhibitBorrow, name: string) => {
+    return order.progress.find(p => p.name === name)
+  }
+
   const confirmReceipt = (orderId: string, operator: string, remark?: string) => {
     const order = getOrderById(orderId)
-    if (order && order.status === 'transferring') {
-      const oldStatus = order.status
-      
-      updateProgressNode(orderId, 'p4', 'completed', operator, '运输完成，展品到达')
-      updateProgressNode(orderId, 'p5', 'completed', operator, remark || '签收确认')
-      
-      order.status = 'installing'
-      
-      order.items.forEach(item => {
-        item.status = 'installing'
-        item.location = order.destination
-      })
-      
-      const traceStore = useTraceStore()
-      traceStore.addLog({
-        operator,
-        operateTime: new Date().toLocaleString('zh-CN'),
-        module: '展品借调',
-        action: '展品签收',
-        targetId: order.orderNo,
-        targetType: 'borrow',
-        beforeChange: `状态: ${oldStatus}`,
-        afterChange: `状态: installing`,
-        remark: remark || '展品已签收，进入布展阶段'
-      })
+    if (!order) return
+    if (order.status !== 'transferring' && order.status !== 'exception') return
+    
+    const oldStatus = order.status
+    
+    const transportNode = getProgressNodeByName(order, '运输中')
+    if (transportNode && transportNode.status !== 'completed') {
+      updateProgressNode(orderId, transportNode.id, 'completed', operator, '运输完成，展品到达')
     }
+    
+    const receiptNode = getProgressNodeByName(order, '本馆签收')
+    if (receiptNode) {
+      updateProgressNode(orderId, receiptNode.id, 'completed', operator, remark || '签收确认')
+    }
+    
+    order.status = 'installing'
+    
+    order.items.forEach(item => {
+      item.status = 'installing'
+      item.location = order.destination
+    })
+    
+    const traceStore = useTraceStore()
+    traceStore.addLog({
+      operator,
+      operateTime: new Date().toLocaleString('zh-CN'),
+      module: '展品借调',
+      action: '展品签收',
+      targetId: order.id,
+      targetType: 'borrow',
+      beforeChange: `状态: ${oldStatus}`,
+      afterChange: `状态: installing`,
+      remark: remark || '展品已签收，进入布展阶段'
+    })
   }
 
   const completeInstall = (orderId: string, operator: string, remark?: string) => {
     const order = getOrderById(orderId)
-    if (order && order.status === 'installing') {
-      const oldStatus = order.status
-      
-      updateProgressNode(orderId, 'p6', 'completed', operator, remark || '布展完成')
-      
-      order.status = 'completed'
-      order.actualCompleteTime = new Date().toLocaleString('zh-CN')
-      
-      order.items.forEach(item => {
-        item.status = 'borrowed'
-      })
-      
-      order.hasException = false
-      
-      const traceStore = useTraceStore()
-      traceStore.addLog({
-        operator,
-        operateTime: new Date().toLocaleString('zh-CN'),
-        module: '展品借调',
-        action: '布展完成',
-        targetId: order.orderNo,
-        targetType: 'borrow',
-        beforeChange: `状态: ${oldStatus}`,
-        afterChange: `状态: completed`,
-        remark: remark || '布展完成，借调流程结束'
-      })
+    if (!order) return
+    if (order.status !== 'installing' && order.status !== 'exception') return
+    
+    const oldStatus = order.status
+    
+    const installNode = getProgressNodeByName(order, '布展完成')
+    if (installNode) {
+      updateProgressNode(orderId, installNode.id, 'completed', operator, remark || '布展完成')
     }
+    
+    order.status = 'completed'
+    order.actualCompleteTime = new Date().toLocaleString('zh-CN')
+    
+    order.items.forEach(item => {
+      item.status = 'borrowed'
+    })
+    
+    order.hasException = false
+    
+    const traceStore = useTraceStore()
+    traceStore.addLog({
+      operator,
+      operateTime: new Date().toLocaleString('zh-CN'),
+      module: '展品借调',
+      action: '布展完成',
+      targetId: order.id,
+      targetType: 'borrow',
+      beforeChange: `状态: ${oldStatus}`,
+      afterChange: `状态: completed`,
+      remark: remark || '布展完成，借调流程结束'
+    })
   }
 
   return {
