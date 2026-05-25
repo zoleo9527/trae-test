@@ -238,10 +238,10 @@ export default function UnifiedWorkspace() {
 
   const handleSelectAll = () => {
     if (activeTab === 'orders') {
-      const pendingOrders = orders.filter((o) => o.status === 'PENDING').map((o) => o.id);
+      const pendingOrders = filteredOrders.filter((o) => o.status === 'PENDING').map((o) => o.id);
       setSelectedItems(selectedItems.length === pendingOrders.length ? [] : pendingOrders);
     } else if (activeTab === 'refunds') {
-      const pendingRefunds = refundRequests
+      const pendingRefunds = filteredRefunds
         .filter((r) => 
           user?.role === 'TICKET_SUPERVISOR' 
             ? r.status === 'PENDING' 
@@ -250,7 +250,7 @@ export default function UnifiedWorkspace() {
         .map((r) => r.id);
       setSelectedItems(selectedItems.length === pendingRefunds.length ? [] : pendingRefunds);
     } else if (activeTab === 'rehearsals') {
-      const pendingIds = pendingRehearsals.map((r) => `${r.showId}-${r.slot.id}`);
+      const pendingIds = filteredRehearsals.filter((r) => !r.slot.confirmedBy).map((r) => `${r.showId}-${r.slot.id}`);
       setSelectedItems(selectedItems.length === pendingIds.length ? [] : pendingIds);
     }
   };
@@ -961,8 +961,8 @@ export default function UnifiedWorkspace() {
                         <input
                           type="checkbox"
                           checked={
-                            selectedItems.length === pendingRehearsals.filter((r) => !selectedShow || r.showId === selectedShow).length &&
-                            pendingRehearsals.filter((r) => !selectedShow || r.showId === selectedShow).length > 0
+                            selectedItems.length === filteredRehearsals.filter((r) => !r.slot.confirmedBy).length &&
+                            filteredRehearsals.filter((r) => !r.slot.confirmedBy).length > 0
                           }
                           onChange={handleSelectAll}
                           className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
