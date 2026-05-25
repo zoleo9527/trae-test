@@ -76,7 +76,7 @@ def read_distributions(skip: int = 0, limit: int = 100, status: str = None, db: 
     return distributions
 
 
-@app.get("/api/distributions/{distribution_id}", response_model=schemas.DistributionDetail)
+@app.get("/api/distributions/{distribution_id}")
 def read_distribution(distribution_id: int, db: Session = Depends(get_db)):
     db_distribution = crud.get_distribution(db, distribution_id=distribution_id)
     if db_distribution is None:
@@ -99,12 +99,30 @@ def read_distribution(distribution_id: int, db: Session = Depends(get_db)):
         models.ExceptionRecord.related_id == distribution_id
     ).all()
     
-    result = db_distribution.__dict__
-    result['returns'] = returns
-    result['payments'] = payments
-    result['feedbacks'] = feedbacks
-    result['exceptions'] = exceptions
-    return result
+    def model_to_dict(obj):
+        data = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+        return data
+    
+    distribution_data = model_to_dict(db_distribution)
+    distribution_data['book'] = model_to_dict(db_distribution.book)
+    distribution_data['channel'] = model_to_dict(db_distribution.channel)
+    distribution_data['handler'] = model_to_dict(db_distribution.handler)
+    distribution_data['channel_manager'] = model_to_dict(db_distribution.channel_manager)
+    distribution_data['returns'] = [
+        {**model_to_dict(r), 'distribution': None, 'handler': model_to_dict(r.handler)}
+        for r in returns
+    ]
+    distribution_data['payments'] = [
+        {**model_to_dict(p), 'distribution': None, 'channel': model_to_dict(p.channel), 'finance_confirm': model_to_dict(p.finance_confirm) if p.finance_confirm else None}
+        for p in payments
+    ]
+    distribution_data['feedbacks'] = [model_to_dict(f) for f in feedbacks]
+    distribution_data['exceptions'] = [
+        {**model_to_dict(e), 'handler': model_to_dict(e.handler)}
+        for e in exceptions
+    ]
+    
+    return distribution_data
 
 
 @app.put("/api/distributions/{distribution_id}", response_model=schemas.Distribution)
@@ -169,6 +187,14 @@ def create_exception(exception: schemas.ExceptionRecordCreate, db: Session = Dep
 def read_exceptions(skip: int = 0, limit: int = 100, status: str = None, db: Session = Depends(get_db)):
     exceptions = crud.get_exceptions(db, skip=skip, limit=limit, status=status)
     return exceptions
+
+
+@app.get("/api/exceptions/{exception_id}", response_model=schemas.ExceptionRecord)
+def read_exception(exception_id: int, db: Session = Depends(get_db)):
+    db_exception = crud.get_exception(db, exception_id=exception_id)
+    if db_exception is None:
+        raise HTTPException(status_code=404, detail="异常记录不存在")
+    return db_exception
 
 
 @app.put("/api/exceptions/{exception_id}", response_model=schemas.ExceptionRecord)

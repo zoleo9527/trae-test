@@ -49,6 +49,7 @@ export const paymentAPI = {
 
 export const exceptionAPI = {
   getExceptions: (status) => api.get('/exceptions', { params: { status } }),
+  getException: (id) => api.get(`/exceptions/${id}`),
   createException: (data) => api.post('/exceptions', data),
   updateException: (id, data) => api.put(`/exceptions/${id}`, data),
 }

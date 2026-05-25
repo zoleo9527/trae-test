@@ -18,7 +18,7 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_user(db: Session, user: schemas.UserCreate):
-    db_user = models.User(**user.dict())
+    db_user = models.User(**user.model_dump())
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -30,7 +30,7 @@ def get_books(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_book(db: Session, book: schemas.BookCreate):
-    db_book = models.Book(**book.dict())
+    db_book = models.Book(**book.model_dump())
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
@@ -42,7 +42,7 @@ def get_channels(db: Session, skip: int = 0, limit: int = 100):
 
 
 def create_channel(db: Session, channel: schemas.ChannelCreate):
-    db_channel = models.Channel(**channel.dict())
+    db_channel = models.Channel(**channel.model_dump())
     db.add(db_channel)
     db.commit()
     db.refresh(db_channel)
@@ -76,7 +76,7 @@ def get_distribution(db: Session, distribution_id: int):
 def create_distribution(db: Session, distribution: schemas.DistributionCreate):
     distribution_no = generate_distribution_no(db)
     db_distribution = models.Distribution(
-        **distribution.dict(),
+        **distribution.model_dump(),
         distribution_no=distribution_no,
         status="pending",
         receipt_status="pending"
@@ -90,7 +90,7 @@ def create_distribution(db: Session, distribution: schemas.DistributionCreate):
 def update_distribution(db: Session, distribution_id: int, distribution_update: schemas.DistributionUpdate):
     db_distribution = get_distribution(db, distribution_id)
     if db_distribution:
-        for key, value in distribution_update.dict(exclude_unset=True).items():
+        for key, value in distribution_update.model_dump(exclude_unset=True).items():
             setattr(db_distribution, key, value)
         db.commit()
         db.refresh(db_distribution)
@@ -124,7 +124,7 @@ def get_return(db: Session, return_id: int):
 def create_return(db: Session, return_data: schemas.ReturnCreate):
     return_no = generate_return_no(db)
     db_return = models.Return(
-        **return_data.dict(),
+        **return_data.model_dump(),
         return_no=return_no,
         status="pending",
         receive_status="pending"
@@ -145,7 +145,7 @@ def create_return(db: Session, return_data: schemas.ReturnCreate):
 def update_return(db: Session, return_id: int, return_update: schemas.ReturnUpdate):
     db_return = get_return(db, return_id)
     if db_return:
-        for key, value in return_update.dict(exclude_unset=True).items():
+        for key, value in return_update.model_dump(exclude_unset=True).items():
             setattr(db_return, key, value)
         db.commit()
         db.refresh(db_return)
@@ -179,7 +179,7 @@ def get_payment(db: Session, payment_id: int):
 def create_payment(db: Session, payment: schemas.PaymentCreate):
     payment_no = generate_payment_no(db)
     db_payment = models.Payment(
-        **payment.dict(),
+        **payment.model_dump(),
         payment_no=payment_no,
         status="pending"
     )
@@ -192,7 +192,7 @@ def create_payment(db: Session, payment: schemas.PaymentCreate):
 def update_payment(db: Session, payment_id: int, payment_update: schemas.PaymentUpdate):
     db_payment = get_payment(db, payment_id)
     if db_payment:
-        for key, value in payment_update.dict(exclude_unset=True).items():
+        for key, value in payment_update.model_dump(exclude_unset=True).items():
             setattr(db_payment, key, value)
         db.commit()
         db.refresh(db_payment)
@@ -211,7 +211,7 @@ def get_exception(db: Session, exception_id: int):
 
 
 def create_exception(db: Session, exception: schemas.ExceptionRecordCreate):
-    db_exception = models.ExceptionRecord(**exception.dict())
+    db_exception = models.ExceptionRecord(**exception.model_dump())
     db.add(db_exception)
     db.commit()
     db.refresh(db_exception)
@@ -221,7 +221,7 @@ def create_exception(db: Session, exception: schemas.ExceptionRecordCreate):
 def update_exception(db: Session, exception_id: int, exception_update: schemas.ExceptionRecordUpdate):
     db_exception = get_exception(db, exception_id)
     if db_exception:
-        for key, value in exception_update.dict(exclude_unset=True).items():
+        for key, value in exception_update.model_dump(exclude_unset=True).items():
             setattr(db_exception, key, value)
         if exception_update.status == "resolved":
             db_exception.resolved_at = datetime.now()
@@ -237,7 +237,7 @@ def get_feedbacks_by_distribution(db: Session, distribution_id: int):
 
 
 def create_feedback(db: Session, feedback: schemas.ChannelFeedbackCreate):
-    db_feedback = models.ChannelFeedback(**feedback.dict())
+    db_feedback = models.ChannelFeedback(**feedback.model_dump())
     db.add(db_feedback)
     db.commit()
     db.refresh(db_feedback)

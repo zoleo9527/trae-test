@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Truck, CheckCircle, XCircle, AlertCircle, RefreshCw, DollarSign, MessageSquare } from 'lucide-react'
+import { Plus, Search, Truck, CheckCircle, XCircle, AlertCircle, RefreshCw, DollarSign, MessageSquare, X } from 'lucide-react'
 import TwoPanelLayout from '../components/TwoPanelLayout'
 import StatusBadge from '../components/StatusBadge'
 import ActionButton from '../components/ActionButton'
@@ -14,6 +14,40 @@ export default function DistributionPage() {
   const [users, setUsers] = useState([])
   const [books, setBooks] = useState([])
   const [channels, setChannels] = useState([])
+
+  const [showReturnModal, setShowReturnModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [showExceptionModal, setShowExceptionModal] = useState(false)
+
+  const [returnForm, setReturnForm] = useState({
+    quantity: '',
+    return_reason: '',
+    return_type: 'normal',
+    remarks: '',
+  })
+
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method: '银行转账',
+    remarks: '',
+  })
+
+  const [feedbackForm, setFeedbackForm] = useState({
+    feedback_type: 'sales',
+    feedback_date: new Date().toISOString().split('T')[0],
+    sales_quantity: '',
+    feedback_content: '',
+    feedback_by: '',
+  })
+
+  const [exceptionForm, setExceptionForm] = useState({
+    exception_type: 'receipt_lost',
+    description: '',
+  })
+
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -86,6 +120,128 @@ export default function DistributionPage() {
       loadDetail(selectedId)
     } catch (error) {
       console.error('标记失败:', error)
+    }
+  }
+
+  const handleCreateReturn = async () => {
+    if (!selectedId || !selectedDetail || submitting) return
+    if (!returnForm.quantity || !returnForm.return_reason) {
+      alert('请填写完整退货信息')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await returnAPI.createReturn({
+        distribution_id: selectedId,
+        quantity: parseInt(returnForm.quantity),
+        return_date: new Date().toISOString().split('T')[0],
+        return_reason: returnForm.return_reason,
+        return_type: returnForm.return_type,
+        remarks: returnForm.remarks,
+        handler_id: 3,
+      })
+      setShowReturnModal(false)
+      setReturnForm({ quantity: '', return_reason: '', return_type: 'normal', remarks: '' })
+      loadData()
+      loadDetail(selectedId)
+    } catch (error) {
+      console.error('登记退货失败:', error)
+      alert('登记退货失败，请重试')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreatePayment = async () => {
+    if (!selectedId || !selectedDetail || submitting) return
+    if (!paymentForm.amount) {
+      alert('请填写回款金额')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await paymentAPI.createPayment({
+        distribution_id: selectedId,
+        channel_id: selectedDetail.channel_id,
+        amount: parseFloat(paymentForm.amount),
+        payment_date: paymentForm.payment_date,
+        payment_method: paymentForm.payment_method,
+        remarks: paymentForm.remarks,
+      })
+      setShowPaymentModal(false)
+      setPaymentForm({
+        amount: '',
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: '银行转账',
+        remarks: '',
+      })
+      loadData()
+      loadDetail(selectedId)
+    } catch (error) {
+      console.error('登记回款失败:', error)
+      alert('登记回款失败，请重试')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateFeedback = async () => {
+    if (!selectedId || !selectedDetail || submitting) return
+    if (!feedbackForm.feedback_content) {
+      alert('请填写反馈内容')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await feedbackAPI.createFeedback({
+        distribution_id: selectedId,
+        feedback_type: feedbackForm.feedback_type,
+        feedback_date: feedbackForm.feedback_date,
+        sales_quantity: parseInt(feedbackForm.sales_quantity) || 0,
+        feedback_content: feedbackForm.feedback_content,
+        feedback_by: feedbackForm.feedback_by,
+      })
+      setShowFeedbackModal(false)
+      setFeedbackForm({
+        feedback_type: 'sales',
+        feedback_date: new Date().toISOString().split('T')[0],
+        sales_quantity: '',
+        feedback_content: '',
+        feedback_by: '',
+      })
+      loadDetail(selectedId)
+    } catch (error) {
+      console.error('记录反馈失败:', error)
+      alert('记录反馈失败，请重试')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreateException = async () => {
+    if (!selectedId || !selectedDetail || submitting) return
+    if (!exceptionForm.description) {
+      alert('请填写异常描述')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await exceptionAPI.createException({
+        related_type: 'distribution',
+        related_id: selectedId,
+        exception_type: exceptionForm.exception_type,
+        description: exceptionForm.description,
+        handler_id: 2,
+      })
+      setShowExceptionModal(false)
+      setExceptionForm({ exception_type: 'receipt_lost', description: '' })
+      loadData()
+      loadDetail(selectedId)
+    } catch (error) {
+      console.error('发起异常处理失败:', error)
+      alert('发起异常处理失败，请重试')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -229,19 +385,19 @@ export default function DistributionPage() {
             )}
             {selectedDetail.receipt_status === 'confirmed' && (
               <>
-                <ActionButton variant="secondary">
+                <ActionButton variant="secondary" onClick={() => setShowReturnModal(true)}>
                   <RefreshCw className="w-4 h-4 inline mr-1" /> 登记退货
                 </ActionButton>
-                <ActionButton variant="secondary">
+                <ActionButton variant="secondary" onClick={() => setShowPaymentModal(true)}>
                   <DollarSign className="w-4 h-4 inline mr-1" /> 登记回款
                 </ActionButton>
-                <ActionButton variant="secondary">
+                <ActionButton variant="secondary" onClick={() => setShowFeedbackModal(true)}>
                   <MessageSquare className="w-4 h-4 inline mr-1" /> 记录反馈
                 </ActionButton>
               </>
             )}
             {selectedDetail.receipt_status === 'lost' && (
-              <ActionButton variant="danger">
+              <ActionButton variant="danger" onClick={() => setShowExceptionModal(true)}>
                 <AlertCircle className="w-4 h-4 inline mr-1" /> 发起异常处理
               </ActionButton>
             )}
@@ -339,6 +495,23 @@ export default function DistributionPage() {
     </div>
   ) : null
 
+  const Modal = ({ show, title, onClose, children }) => {
+    if (!show) return null
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <h3 className="font-semibold text-gray-800">{title}</h3>
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-4">{children}</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full">
       <TwoPanelLayout
@@ -347,6 +520,224 @@ export default function DistributionPage() {
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
+
+      <Modal show={showReturnModal} title="登记退货" onClose={() => setShowReturnModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">退货数量（册）</label>
+            <input
+              type="number"
+              value={returnForm.quantity}
+              onChange={(e) => setReturnForm({ ...returnForm, quantity: e.target.value })}
+              placeholder="请输入退货数量"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">退货类型</label>
+            <select
+              value={returnForm.return_type}
+              onChange={(e) => setReturnForm({ ...returnForm, return_type: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="normal">正常退货</option>
+              <option value="damaged">破损退货</option>
+              <option value="expired">过期退货</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">退货原因</label>
+            <textarea
+              value={returnForm.return_reason}
+              onChange={(e) => setReturnForm({ ...returnForm, return_reason: e.target.value })}
+              placeholder="请填写退货原因"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea
+              value={returnForm.remarks}
+              onChange={(e) => setReturnForm({ ...returnForm, remarks: e.target.value })}
+              placeholder="选填"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={2}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <ActionButton variant="secondary" onClick={() => setShowReturnModal(false)} className="flex-1">
+              取消
+            </ActionButton>
+            <ActionButton onClick={handleCreateReturn} className="flex-1" disabled={submitting}>
+              {submitting ? '提交中...' : '确认提交'}
+            </ActionButton>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal show={showPaymentModal} title="登记回款" onClose={() => setShowPaymentModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">回款金额（元）</label>
+            <input
+              type="number"
+              step="0.01"
+              value={paymentForm.amount}
+              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+              placeholder="请输入回款金额"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">回款日期</label>
+            <input
+              type="date"
+              value={paymentForm.payment_date}
+              onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">支付方式</label>
+            <select
+              value={paymentForm.payment_method}
+              onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="银行转账">银行转账</option>
+              <option value="支付宝">支付宝</option>
+              <option value="微信支付">微信支付</option>
+              <option value="现金">现金</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea
+              value={paymentForm.remarks}
+              onChange={(e) => setPaymentForm({ ...paymentForm, remarks: e.target.value })}
+              placeholder="选填"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={2}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <ActionButton variant="secondary" onClick={() => setShowPaymentModal(false)} className="flex-1">
+              取消
+            </ActionButton>
+            <ActionButton onClick={handleCreatePayment} className="flex-1" disabled={submitting}>
+              {submitting ? '提交中...' : '确认提交'}
+            </ActionButton>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal show={showFeedbackModal} title="记录渠道反馈" onClose={() => setShowFeedbackModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">反馈类型</label>
+            <select
+              value={feedbackForm.feedback_type}
+              onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_type: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="sales">销售反馈</option>
+              <option value="reorder">补货申请</option>
+              <option value="complaint">投诉建议</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">反馈日期</label>
+            <input
+              type="date"
+              value={feedbackForm.feedback_date}
+              onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {feedbackForm.feedback_type === 'sales' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">销售数量（册）</label>
+              <input
+                type="number"
+                value={feedbackForm.sales_quantity}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, sales_quantity: e.target.value })}
+                placeholder="选填，已销售数量"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">反馈内容</label>
+            <textarea
+              value={feedbackForm.feedback_content}
+              onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_content: e.target.value })}
+              placeholder="请填写反馈内容"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">反馈人</label>
+            <input
+              type="text"
+              value={feedbackForm.feedback_by}
+              onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_by: e.target.value })}
+              placeholder="选填，渠道联系人"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <ActionButton variant="secondary" onClick={() => setShowFeedbackModal(false)} className="flex-1">
+              取消
+            </ActionButton>
+            <ActionButton onClick={handleCreateFeedback} className="flex-1" disabled={submitting}>
+              {submitting ? '提交中...' : '确认提交'}
+            </ActionButton>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal show={showExceptionModal} title="发起异常处理" onClose={() => setShowExceptionModal(false)}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">异常类型</label>
+            <select
+              value={exceptionForm.exception_type}
+              onChange={(e) => setExceptionForm({ ...exceptionForm, exception_type: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="receipt_lost">回执丢失</option>
+              <option value="quantity_discrepancy">数量差异</option>
+              <option value="payment_mismatch">金额不符</option>
+            </select>
+          </div>
+          <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+            <p className="text-sm text-yellow-700">
+              关联单据: {selectedDetail?.distribution_no}
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">异常描述</label>
+            <textarea
+              value={exceptionForm.description}
+              onChange={(e) => setExceptionForm({ ...exceptionForm, description: e.target.value })}
+              placeholder="请详细描述异常情况，便于后续跟踪处理"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={4}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <ActionButton variant="secondary" onClick={() => setShowExceptionModal(false)} className="flex-1">
+              取消
+            </ActionButton>
+            <ActionButton variant="danger" onClick={handleCreateException} className="flex-1" disabled={submitting}>
+              {submitting ? '提交中...' : '确认提交'}
+            </ActionButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

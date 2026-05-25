@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import date, datetime
 from typing import Optional, List
 
@@ -15,11 +15,10 @@ class UserCreate(UserBase):
 
 
 class User(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class BookBase(BaseModel):
@@ -37,10 +36,9 @@ class BookCreate(BookBase):
 
 
 class Book(BookBase):
-    id: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+    id: int
 
 
 class ChannelBase(BaseModel):
@@ -58,10 +56,9 @@ class ChannelCreate(ChannelBase):
 
 
 class Channel(ChannelBase):
-    id: int
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+    id: int
 
 
 class DistributionBase(BaseModel):
@@ -90,6 +87,8 @@ class DistributionUpdate(BaseModel):
 
 
 class Distribution(DistributionBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     distribution_no: str
     status: str
@@ -103,9 +102,6 @@ class Distribution(DistributionBase):
     channel_manager: User
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class ReturnBase(BaseModel):
@@ -131,6 +127,8 @@ class ReturnUpdate(BaseModel):
 
 
 class Return(ReturnBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     return_no: str
     status: str
@@ -143,9 +141,6 @@ class Return(ReturnBase):
     handler: User
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class PaymentBase(BaseModel):
@@ -169,6 +164,8 @@ class PaymentUpdate(BaseModel):
 
 
 class Payment(PaymentBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     payment_no: str
     status: str
@@ -178,9 +175,6 @@ class Payment(PaymentBase):
     channel: Channel
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class ExceptionRecordBase(BaseModel):
@@ -200,6 +194,8 @@ class ExceptionRecordUpdate(BaseModel):
 
 
 class ExceptionRecord(ExceptionRecordBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     status: str
     handler_id: int
@@ -207,9 +203,6 @@ class ExceptionRecord(ExceptionRecordBase):
     resolution: Optional[str] = None
     handler: User
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class ChannelFeedbackBase(BaseModel):
@@ -226,11 +219,10 @@ class ChannelFeedbackCreate(ChannelFeedbackBase):
 
 
 class ChannelFeedback(ChannelFeedbackBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class DashboardStats(BaseModel):
