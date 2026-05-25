@@ -149,35 +149,50 @@ export function AppProvider({ children }) {
     };
     setCollectionRecords(prev => [newRecord, ...prev]);
 
-    const existingTask = tasks.find(t => t.relatedOrderId === record.creditOrderId && t.type === 'collection');
-
-    if (existingTask) {
-      setTasks(prev => prev.map(t => {
-        if (t.relatedOrderId === record.creditOrderId && t.type === 'collection') {
-          return {
-            ...t,
-            title: `${record.customerName} 回款催办中`,
-            priority: 'high',
-            status: record.status === 'completed' ? 'completed' : 'in_progress',
-            relatedId: newRecord.id,
-            dueDate: record.nextFollowDate || t.dueDate,
-            relatedOrderId: record.creditOrderId
-          };
+    setTasks(prev => {
+      const collectionTasks = prev.filter(t => t.type === 'collection');
+      
+      let foundTask = null;
+      for (const t of collectionTasks) {
+        const taskOrderId = t.relatedOrderId || (t.relatedId && t.relatedId.startsWith('CO') ? t.relatedId : null);
+        if (taskOrderId === record.creditOrderId) {
+          foundTask = t;
+          break;
         }
-        return t;
-      }));
-    } else {
-      addTask({
-        title: `${record.customerName} 回款催办`,
-        type: 'collection',
-        priority: 'high',
-        status: record.status === 'completed' ? 'completed' : 'in_progress',
-        assignedTo: record.operator || '李销售',
-        relatedId: newRecord.id,
-        relatedOrderId: record.creditOrderId,
-        dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0]
-      });
-    }
+      }
+
+      if (foundTask) {
+        return prev.map(t => {
+          const taskOrderId = t.relatedOrderId || (t.relatedId && t.relatedId.startsWith('CO') ? t.relatedId : null);
+          if (taskOrderId === record.creditOrderId && t.type === 'collection') {
+            return {
+              ...t,
+              title: `${record.customerName} 回款催办中`,
+              priority: 'high',
+              status: record.status === 'completed' ? 'completed' : 'in_progress',
+              relatedId: newRecord.id,
+              dueDate: record.nextFollowDate || t.dueDate,
+              relatedOrderId: record.creditOrderId
+            };
+          }
+          return t;
+        });
+      } else {
+        const newTask = {
+          id: Date.now(),
+          title: `${record.customerName} 回款催办`,
+          type: 'collection',
+          priority: 'high',
+          status: record.status === 'completed' ? 'completed' : 'in_progress',
+          assignedTo: record.operator || '李销售',
+          relatedId: newRecord.id,
+          relatedOrderId: record.creditOrderId,
+          dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0],
+          createDate: new Date().toISOString().split('T')[0]
+        };
+        return [newTask, ...prev];
+      }
+    });
 
     if (record.status === 'completed') {
       const order = creditOrders.find(o => o.id === record.creditOrderId);
@@ -203,7 +218,7 @@ export function AppProvider({ children }) {
         });
       }
     }
-  }, [creditOrders, customers, tasks, addTask, addNotification]);
+  }, [creditOrders, customers, addNotification]);
 
   const completeCollectionRecord = useCallback((recordId) => {
     const record = collectionRecords.find(r => r.id === recordId);
@@ -234,10 +249,13 @@ export function AppProvider({ children }) {
     }
 
     setTasks(prev => prev.map(t => {
-      if (t.relatedOrderId === record.creditOrderId && t.type === 'collection') {
+      if (t.type !== 'collection') return t;
+      const taskOrderId = t.relatedOrderId || (t.relatedId && t.relatedId.startsWith('CO') ? t.relatedId : null);
+      if (taskOrderId === record.creditOrderId) {
         return {
           ...t,
-          status: 'completed'
+          status: 'completed',
+          relatedOrderId: record.creditOrderId
         };
       }
       return t;

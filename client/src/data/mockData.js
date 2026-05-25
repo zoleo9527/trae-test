@@ -112,14 +112,14 @@ export const mockComplaintRecords = [
 export const mockTasks = [
   { id: 1, title: '过磅单 WO202501004 待确认', type: 'weighing', priority: 'high', status: 'pending', assignedTo: '孙采购', relatedId: 'WO202501004', dueDate: daysLater(0), createDate: daysAgo(0) },
   { id: 2, title: '分级记录 GR202501002 待完成', type: 'grading', priority: 'high', status: 'in_progress', assignedTo: '王库管', relatedId: 'GR202501002', dueDate: daysLater(1), createDate: daysAgo(1) },
-  { id: 3, title: '惠民水果店 逾期账款催办', type: 'collection', priority: 'urgent', status: 'in_progress', assignedTo: '李销售', relatedId: 'CO202412003', dueDate: daysAgo(1), createDate: daysAgo(3) },
-  { id: 4, title: '果味鲜 逾期账款催办', type: 'collection', priority: 'urgent', status: 'pending', assignedTo: '李销售', relatedId: 'CO202412004', dueDate: daysLater(0), createDate: daysAgo(1) },
+  { id: 3, title: '惠民水果店 逾期账款催办', type: 'collection', priority: 'urgent', status: 'in_progress', assignedTo: '李销售', relatedId: 'CR202501001', relatedOrderId: 'CO202412003', dueDate: daysAgo(1), createDate: daysAgo(3) },
+  { id: 4, title: '果味鲜 逾期账款催办', type: 'collection', priority: 'urgent', status: 'pending', assignedTo: '李销售', relatedId: 'CR202501002', relatedOrderId: 'CO202412004', dueDate: daysLater(0), createDate: daysAgo(1) },
   { id: 5, title: '损耗记录 LS202501002 待审核', type: 'loss', priority: 'medium', status: 'pending', assignedTo: '张经理', relatedId: 'LS202501002', dueDate: daysLater(2), createDate: daysAgo(0) },
   { id: 6, title: '投诉 CP202501003 待处理', type: 'complaint', priority: 'high', status: 'pending', assignedTo: '李销售', relatedId: 'CP202501003', dueDate: daysLater(1), createDate: daysAgo(0) },
   { id: 7, title: '损耗记录 LS202501003 已驳回', type: 'loss', priority: 'medium', status: 'rejected', assignedTo: '王库管', relatedId: 'LS202501003', dueDate: daysLater(0), createDate: daysAgo(1), rejectReason: '损耗原因描述不够详细' },
   { id: 8, title: '香蕉库存即将到期', type: 'inventory', priority: 'warning', status: 'pending', assignedTo: '王库管', relatedId: '3', dueDate: daysLater(6), createDate: daysAgo(0) },
-  { id: 9, title: '天天鲜果 账款即将到期', type: 'credit', priority: 'medium', status: 'pending', assignedTo: '李销售', relatedId: 'CO202501002', dueDate: daysLater(20), createDate: daysAgo(0) },
-  { id: 10, title: '百果汇 账款即将到期', type: 'credit', priority: 'medium', status: 'pending', assignedTo: '李销售', relatedId: 'CO202501006', dueDate: daysLater(22), createDate: daysAgo(0) }
+  { id: 9, title: '天天鲜果 账款即将到期', type: 'collection', priority: 'medium', status: 'pending', assignedTo: '李销售', relatedId: 'CO202501002', relatedOrderId: 'CO202501002', dueDate: daysLater(20), createDate: daysAgo(0) },
+  { id: 10, title: '百果汇 账款即将到期', type: 'collection', priority: 'medium', status: 'pending', assignedTo: '李销售', relatedId: 'CO202501006', relatedOrderId: 'CO202501006', dueDate: daysLater(22), createDate: daysAgo(0) }
 ]
 
 export const mockNotifications = [
