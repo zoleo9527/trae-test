@@ -95,6 +95,7 @@ export const useConsoleStore = defineStore('console', {
         inTransfer: state.transfers.filter(t => t.status !== 'completed').length,
         receiptsMissing: state.receipts.filter(r => r.status === 'missing').length,
         mismatches: state.reconciliations.filter(r => r.status === 'mismatch').length,
+        reconciled: state.reconciliations.filter(r => r.status === 'matched').length,
       }
     },
     selectedReturn(state): ReturnApplication | undefined {
@@ -238,8 +239,23 @@ export const useConsoleStore = defineStore('console', {
       if (!target || target.status !== 'draft') return
       const line = target.lines[lineIndex]
       if (!line) return
+      const oldTitle = line.title
+      const oldQty = line.returnedQty
+      const oldPrice = line.price
       Object.assign(line, patch)
       target.totalAmount = target.lines.reduce((s, l) => s + l.price * l.returnedQty, 0)
+      const changed: string[] = []
+      if (oldTitle !== line.title) changed.push(`书名《${oldTitle}》→《${line.title}》`)
+      if (oldQty !== line.returnedQty) changed.push(`退货数 ${oldQty} → ${line.returnedQty}`)
+      if (oldPrice !== line.price) changed.push(`单价 ¥${oldPrice} → ¥${line.price}`)
+      if (changed.length) {
+        this.appendHistory('return', id, {
+          role: 'channel',
+          operator: target.manager,
+          action: '修改退货明细',
+          comment: changed.join('；'),
+        })
+      }
     },
     submitReturn(id: string) {
       const target = this.returns.find(r => r.id === id)
@@ -248,8 +264,18 @@ export const useConsoleStore = defineStore('console', {
       if (target.lines.length === 0) {
         throw new Error('请至少添加一条退货明细后再提交')
       }
-      if (!target.channelName) {
+      if (!target.channelName || target.channelName.trim().length === 0) {
         throw new Error('请填写渠道名称后再提交')
+      }
+      const invalidLine = target.lines.find(
+        l =>
+          !l.title ||
+          l.title.trim().length === 0 ||
+          !l.returnedQty ||
+          l.returnedQty <= 0,
+      )
+      if (invalidLine) {
+        throw new Error('存在未完善的退货明细，请补全书名与退货数量后再提交')
       }
       target.status = 'submitted'
       this.appendHistory('return', id, {

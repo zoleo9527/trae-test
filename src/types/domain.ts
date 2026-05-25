@@ -131,4 +131,5 @@ export interface OverviewSummary {
   inTransfer: number
   receiptsMissing: number
   mismatches: number
+  reconciled: number
 }

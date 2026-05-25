@@ -269,18 +269,24 @@
             <div
               style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px"
             >
-              <el-form-item label="书名">
-                <el-input v-model="line.title" />
+              <el-form-item label="书名" required>
+                <el-input
+                  v-model="line.title"
+                  @blur="onLineChange(idx)"
+                  @change="onLineChange(idx)"
+                />
               </el-form-item>
               <el-form-item label="ISBN">
-                <el-input v-model="line.isbn" />
+                <el-input v-model="line.isbn" @blur="onLineChange(idx)" />
               </el-form-item>
-              <el-form-item label="单价（元）">
+              <el-form-item label="单价（元）" required>
                 <el-input-number
                   v-model="line.price"
                   :min="0"
                   :precision="2"
+                  :step="0.1"
                   style="width: 100%"
+                  @change="onLineChange(idx)"
                 />
               </el-form-item>
               <el-form-item label="铺货数">
@@ -288,13 +294,15 @@
                   v-model="line.distributedQty"
                   :min="0"
                   style="width: 100%"
+                  @change="onLineChange(idx)"
                 />
               </el-form-item>
-              <el-form-item label="退货数">
+              <el-form-item label="退货数" required>
                 <el-input-number
                   v-model="line.returnedQty"
-                  :min="0"
+                  :min="1"
                   style="width: 100%"
+                  @change="onLineChange(idx)"
                 />
               </el-form-item>
               <el-form-item label="退货原因">
@@ -302,6 +310,7 @@
                   v-model="line.reason"
                   placeholder="选择原因"
                   style="width: 100%"
+                  @change="onLineChange(idx)"
                 >
                   <el-option value="滞销" label="滞销" />
                   <el-option value="包装破损" label="包装破损" />
@@ -601,6 +610,15 @@ function addLine() {
 function removeLine(idx: number) {
   if (!ret.value || ret.value.status !== "draft") return;
   store.removeReturnLine(ret.value.id, idx);
+}
+
+function onLineChange(idx: number) {
+  if (!ret.value || ret.value.status !== "draft") return;
+  const line = ret.value.lines[idx];
+  if (!line) return;
+  if (!line.title || line.title.trim().length === 0) return;
+  if (!line.returnedQty || line.returnedQty <= 0) return;
+  store.updateReturnLine(ret.value.id, idx, { ...line });
 }
 
 function submit() {
