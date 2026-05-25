@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useTraceStore } from '@/stores/trace'
 import { useExceptionStore } from '@/stores/exception'
 import StatusTag from '@/components/common/StatusTag.vue'
-import { Search, Filter, Clock, User, FileText, ChevronRight, AlertCircle } from 'lucide-vue-next'
+import { Search, Filter, Clock, User, FileText, ChevronRight, AlertCircle, ExternalLink } from 'lucide-vue-next'
 
+const router = useRouter()
 const traceStore = useTraceStore()
 const exceptionStore = useExceptionStore()
 
@@ -45,11 +47,32 @@ const viewRelatedException = (targetId: string) => {
   }
 }
 
+const goToBorrowOrder = (orderNo: string) => {
+  router.push({
+    path: '/borrow',
+    query: { orderNo, highlight: 'true' }
+  })
+}
+
+const goToTicketOrder = (orderNo: string) => {
+  router.push({
+    path: '/ticket',
+    query: { orderNo, highlight: 'true' }
+  })
+}
+
 const getTargetLink = (log: { targetType: string; targetId: string; action: string }) => {
   if (log.targetType === 'exception' && log.action !== '异常触发') {
     return true
   }
   return false
+}
+
+const getLinkType = (log: { targetType: string; targetId: string }) => {
+  if (log.targetType === 'exception') return 'exception'
+  if (log.targetType === 'borrow') return 'borrow'
+  if (log.targetType === 'ticket') return 'ticket'
+  return null
 }
 </script>
 
@@ -131,11 +154,28 @@ const getTargetLink = (log: { targetType: string; targetId: string; action: stri
                 <div class="flex items-center gap-1">
                   <span class="text-sm font-mono text-museum-gray-600">{{ log.targetId }}</span>
                   <button 
-                    v-if="getTargetLink(log)"
+                    v-if="getLinkType(log) === 'exception'"
                     class="inline-flex items-center text-museum-gold hover:underline"
                     @click="viewRelatedException(log.targetId)"
+                    title="查看异常"
                   >
                     <ChevronRight class="w-4 h-4" />
+                  </button>
+                  <button 
+                    v-else-if="getLinkType(log) === 'borrow'"
+                    class="inline-flex items-center text-museum-gold hover:underline"
+                    @click="goToBorrowOrder(log.targetId)"
+                    title="查看借调单"
+                  >
+                    <ExternalLink class="w-4 h-4" />
+                  </button>
+                  <button 
+                    v-else-if="getLinkType(log) === 'ticket'"
+                    class="inline-flex items-center text-museum-gold hover:underline"
+                    @click="goToTicketOrder(log.targetId)"
+                    title="查看票务单"
+                  >
+                    <ExternalLink class="w-4 h-4" />
                   </button>
                 </div>
               </td>

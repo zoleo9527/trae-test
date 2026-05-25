@@ -79,6 +79,7 @@ const processQueryParams = () => {
   if (orderNo && highlight) {
     const order = ticketStore.ticketOrders.find(o => o.orderNo === orderNo)
     if (order) {
+      selectedTickets.value = []
       nextTick(() => {
         selectedOrderId.value = order.id
         const element = document.getElementById(`ticket-order-${order.id}`)
