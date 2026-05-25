@@ -218,7 +218,8 @@ const selectDate = (date: Date | null) => {
 const handleEventClick = (event: CalendarEvent) => {
   if (event.relatedRecordId) {
     store.setSelectedRecord(event.relatedRecordId)
-    navigateTo('/')
+    store.setSelectedDate(event.date)
+    navigateTo('/', { replace: false })
   }
 }
 </script>

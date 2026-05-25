@@ -8,7 +8,7 @@
     </div>
     
     <div class="flex-1 overflow-y-auto">
-      <div class="p-4 space-y-6">
+      <div class="p-4 space-y-5">
         <div class="flex items-start gap-3">
           <div 
             class="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -21,7 +21,7 @@
             />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <h3 class="font-semibold text-gray-900 truncate">{{ record.productName }}</h3>
               <Badge :status="record.status" />
             </div>
@@ -38,45 +38,57 @@
             <p class="text-xs text-gray-500">优先级</p>
             <p class="font-medium text-gray-900 mt-1">{{ priorityText[record.priority] }}</p>
           </div>
-          <div>
+          <div v-if="canSeeField('location')">
             <p class="text-xs text-gray-500">位置</p>
             <p class="font-medium text-gray-900 mt-1">{{ record.location }}</p>
           </div>
-          <div v-if="record.supplier">
+          <div v-if="canSeeField('supplier') && record.supplier">
             <p class="text-xs text-gray-500">供应商</p>
             <p class="font-medium text-gray-900 mt-1">{{ record.supplier }}</p>
           </div>
-          <div v-if="record.lossReason">
+          <div v-if="canSeeField('lossReason') && record.lossReason">
             <p class="text-xs text-gray-500">损耗原因</p>
             <p class="font-medium text-gray-900 mt-1">{{ lossReasonText[record.lossReason] || record.lossReason }}</p>
           </div>
-          <div v-if="record.expectedDate">
+          <div v-if="canSeeField('expectedDate') && record.expectedDate">
             <p class="text-xs text-gray-500">预计日期</p>
             <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.expectedDate) }}</p>
+          </div>
+          <div v-if="canSeeField('actualDate') && record.actualDate">
+            <p class="text-xs text-gray-500">实际日期</p>
+            <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.actualDate) }}</p>
           </div>
         </div>
         
         <div v-if="record.remark">
-          <p class="text-xs text-gray-500">备注</p>
+          <p class="text-xs text-gray-500">当前备注</p>
           <p class="text-sm text-gray-700 mt-1">{{ record.remark }}</p>
         </div>
         
-        <div v-if="record.relatedEvent || record.relatedTicketOrder" class="space-y-2">
-          <p class="text-xs text-gray-500">关联信息</p>
-          <div v-if="record.relatedEvent" class="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm">
-            <Icon name="lucide:calendar" class="w-4 h-4" />
-            {{ record.relatedEvent }}
-          </div>
-          <div v-if="record.relatedTicketOrder" class="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm ml-2">
-            <Icon name="lucide:ticket" class="w-4 h-4" />
-            {{ record.relatedTicketOrder }}
+        <div v-if="(canSeeField('relatedEvent') && record.relatedEvent) || (canSeeField('relatedTicketOrder') && record.relatedTicketOrder)" class="space-y-2">
+          <p class="text-xs text-gray-500">关联链路</p>
+          <div class="space-y-2">
+            <div v-if="canSeeField('relatedEvent') && record.relatedEvent" class="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-lg">
+              <Icon name="lucide:calendar" class="w-4 h-4 text-purple-600" />
+              <div class="flex-1 min-w-0">
+                <p class="text-xs text-purple-500">关联活动</p>
+                <p class="text-sm text-purple-700 font-medium">{{ record.relatedEvent }}</p>
+              </div>
+            </div>
+            <div v-if="canSeeField('relatedTicketOrder') && record.relatedTicketOrder" class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg">
+              <Icon name="lucide:ticket" class="w-4 h-4 text-blue-600" />
+              <div class="flex-1 min-w-0">
+                <p class="text-xs text-blue-500">关联订单</p>
+                <p class="text-sm text-blue-700 font-medium">{{ record.relatedTicketOrder }}</p>
+              </div>
+            </div>
           </div>
         </div>
         
         <div class="border-t border-gray-100 pt-4">
-          <p class="text-xs text-gray-500 mb-3">处理人</p>
+          <p class="text-xs text-gray-500 mb-3">当前责任人</p>
           <div class="flex items-center gap-3">
-            <img :src="getHandlerAvatar(record.currentHandler)" :alt="record.currentHandlerName" class="w-8 h-8 rounded-full" />
+            <img :src="getHandlerAvatar(record.currentHandler)" :alt="record.currentHandlerName" class="w-10 h-10 rounded-full" />
             <div>
               <p class="text-sm font-medium text-gray-900">{{ record.currentHandlerName }}</p>
               <p class="text-xs text-gray-500">{{ getHandlerRole(record.currentHandler) }}</p>
@@ -85,28 +97,50 @@
         </div>
         
         <div class="border-t border-gray-100 pt-4">
-          <p class="text-xs text-gray-500 mb-3">状态流转</p>
-          <div class="relative">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs text-gray-500">完整链路追踪</p>
+            <span class="text-xs text-gray-400">{{ record.history.length }} 个节点</span>
+          </div>
+          <div class="relative bg-gray-50 rounded-lg p-4">
             <div 
               v-for="(history, index) in record.history" 
               :key="index"
-              class="relative pl-6 pb-4 last:pb-0"
+              class="relative pl-8 pb-5 last:pb-0"
             >
-              <div class="absolute left-0 top-1 w-3 h-3 rounded-full border-2 border-white"
-                :class="statusDotClass(history.status)"
-              ></div>
-              <div v-if="index < record.history.length - 1" class="absolute left-1.5 top-4 w-px h-full bg-gray-200"></div>
-              <div>
-                <div class="flex items-center gap-2">
+              <div class="absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm"
+                :class="statusDotBgClass(history.status)"
+              >
+                <Icon :name="statusIcon(history.status)" class="w-3 h-3 text-white" />
+              </div>
+              <div v-if="index < record.history.length - 1" class="absolute left-2.5 top-7 w-0.5 h-full bg-gray-200"></div>
+              <div class="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+                <div class="flex items-center gap-2 mb-2">
                   <span class="badge text-xs" :class="statusBadgeClass(history.status)">
                     {{ statusText[history.status] }}
                   </span>
-                  <span class="text-xs text-gray-400">{{ formatDateTime(history.timestamp) }}</span>
+                  <span class="text-xs text-gray-400 ml-auto">{{ formatDateTime(history.timestamp) }}</span>
                 </div>
-                <p class="text-sm text-gray-700 mt-1">{{ history.remark }}</p>
-                <p class="text-xs text-gray-500 mt-0.5">{{ history.userName }}</p>
+                <p class="text-sm text-gray-700">{{ history.remark }}</p>
+                <div class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-50">
+                  <img :src="getHandlerAvatar(history.userId)" :alt="history.userName" class="w-4 h-4 rounded-full" />
+                  <span class="text-xs text-gray-500">{{ history.userName }}</span>
+                  <span class="text-xs text-gray-400">·</span>
+                  <span class="text-xs text-gray-400">{{ getHandlerRole(history.userId) }}</span>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <div class="border-t border-gray-100 pt-4">
+          <p class="text-xs text-gray-500 mb-3">创建信息</p>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-500">创建人</span>
+            <span class="font-medium text-gray-700">{{ record.createdByName }}</span>
+          </div>
+          <div class="flex items-center justify-between text-sm mt-1">
+            <span class="text-gray-500">创建时间</span>
+            <span class="text-gray-700">{{ formatDateTime(record.createdAt) }}</span>
           </div>
         </div>
       </div>
@@ -155,6 +189,11 @@ defineEmits<{
 const store = useMuseumStore()
 const { formatDate, formatDateTime, statusText, priorityText, lossReasonText } = useFormat()
 
+const canSeeField = (field: string): boolean => {
+  if (store.permissions.visibleFields.includes('all')) return true
+  return store.permissions.visibleFields.includes(field)
+}
+
 const getProductUnit = (productId: string): string => {
   const product = store.products.find(p => p.id === productId)
   return product?.unit || ''
@@ -175,7 +214,7 @@ const getHandlerRole = (userId: string): string => {
   return user ? roleNames[user.role] : ''
 }
 
-const statusDotClass = (status: RecordStatus): string => {
+const statusDotBgClass = (status: RecordStatus): string => {
   const classes: Record<RecordStatus, string> = {
     pending: 'bg-amber-500',
     approved: 'bg-green-500',
@@ -185,6 +224,18 @@ const statusDotClass = (status: RecordStatus): string => {
     abnormal: 'bg-orange-500'
   }
   return classes[status]
+}
+
+const statusIcon = (status: RecordStatus): string => {
+  const icons: Record<RecordStatus, string> = {
+    pending: 'lucide:clock',
+    approved: 'lucide:check',
+    rejected: 'lucide:x',
+    processing: 'lucide:loader',
+    completed: 'lucide:check-circle',
+    abnormal: 'lucide:alert-triangle'
+  }
+  return icons[status]
 }
 
 const statusBadgeClass = (status: RecordStatus): string => {

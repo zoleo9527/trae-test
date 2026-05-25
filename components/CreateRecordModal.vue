@@ -91,6 +91,12 @@
             </select>
           </div>
           
+          <div v-if="form.type === 'loss'">
+            <label class="block text-sm font-medium text-gray-700 mb-1">发生日期</label>
+            <input v-model="form.lossDate" type="date" class="input" />
+            <p class="text-xs text-gray-500 mt-1">用于在日历视图中显示</p>
+          </div>
+          
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">关联活动（可选）</label>
             <input v-model="form.relatedEvent" type="text" placeholder="如：五一特别展览" class="input" />
@@ -138,6 +144,7 @@ const form = reactive({
   location: '主馆文创区',
   supplier: '',
   expectedDate: '',
+  lossDate: '',
   lossReason: '',
   relatedEvent: '',
   relatedTicketOrder: '',
@@ -172,29 +179,33 @@ const handleSubmit = () => {
     }),
     ...(form.type === 'loss' && {
       lossReason: form.lossReason,
-      relatedTicketOrder: form.relatedTicketOrder || undefined
+      relatedTicketOrder: form.relatedTicketOrder || undefined,
+      expectedDate: form.lossDate || undefined
     }),
     ...(form.relatedEvent && {
       relatedEvent: form.relatedEvent
     })
   }
   
-  store.createRecord(newRecord)
+  const createdRecord = store.createRecord(newRecord)
   
   store.addNotification({
     title: `新${form.type === 'restock' ? '补货' : '损耗'}申请`,
     content: `${product.name} ${form.type === 'restock' ? '补货' : '损耗'}${form.quantity}${product.unit}，等待审批`,
     type: 'info',
+    relatedRecordId: createdRecord.id,
     priority: form.priority
   })
   
-  if (form.relatedEvent && form.expectedDate) {
+  const calendarDate = form.type === 'restock' ? form.expectedDate : form.lossDate
+  if (calendarDate) {
     store.addCalendarEvent({
-      date: form.expectedDate,
+      date: calendarDate,
       type: form.type === 'restock' ? 'restock' : 'loss',
       title: `${product.name} ${form.type === 'restock' ? '补货到货' : '损耗记录'}`,
-      description: form.remark,
-      status: 'pending'
+      description: form.remark || `${form.type === 'restock' ? '补货' : '损耗'}${form.quantity}${product.unit}`,
+      status: 'pending',
+      relatedRecordId: createdRecord.id
     })
   }
   

@@ -14,7 +14,7 @@
         :class="{ 'bg-museum-50': store.selectedRecordId === record.id }"
       >
         <div class="flex items-start justify-between gap-4">
-          <div class="flex items-start gap-3">
+          <div class="flex items-start gap-3 flex-1 min-w-0">
             <div 
               class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
               :class="record.type === 'restock' ? 'bg-blue-100' : 'bg-orange-100'"
@@ -25,8 +25,8 @@
                 :class="record.type === 'restock' ? 'text-blue-600' : 'text-orange-600'"
               />
             </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
                 <h3 class="font-medium text-gray-900 truncate">{{ record.productName }}</h3>
                 <Badge :status="record.status" />
                 <span 
@@ -37,7 +37,7 @@
                 </span>
               </div>
               <p class="text-sm text-gray-500 mt-0.5">{{ record.productSku }}</p>
-              <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
                 <span class="flex items-center gap-1">
                   <Icon name="lucide:hash" class="w-3 h-3" />
                   {{ record.quantity }}{{ getProductUnit(record.productId) }}
@@ -46,15 +46,27 @@
                   <Icon name="lucide:user" class="w-3 h-3" />
                   {{ record.createdByName }}
                 </span>
-                <span class="flex items-center gap-1">
+                <span v-if="canSeeField('location')" class="flex items-center gap-1">
                   <Icon name="lucide:map-pin" class="w-3 h-3" />
                   {{ record.location }}
                 </span>
-              </div>
-              <div v-if="record.relatedEvent" class="mt-2">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">
+                <span v-if="canSeeField('supplier') && record.supplier" class="flex items-center gap-1">
+                  <Icon name="lucide:building" class="w-3 h-3" />
+                  {{ record.supplier }}
+                </span>
+                <span v-if="canSeeField('relatedEvent') && record.relatedEvent" class="flex items-center gap-1">
                   <Icon name="lucide:calendar" class="w-3 h-3" />
                   {{ record.relatedEvent }}
+                </span>
+                <span v-if="canSeeField('relatedTicketOrder') && record.relatedTicketOrder" class="flex items-center gap-1">
+                  <Icon name="lucide:ticket" class="w-3 h-3" />
+                  {{ record.relatedTicketOrder }}
+                </span>
+              </div>
+              <div v-if="record.status === 'abnormal'" class="mt-2">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">
+                  <Icon name="lucide:alert-triangle" class="w-3 h-3" />
+                  {{ getAbnormalRemark(record) }}
                 </span>
               </div>
             </div>
@@ -88,5 +100,19 @@ const { relativeTime, formatDate } = useFormat()
 const getProductUnit = (productId: string): string => {
   const product = store.products.find(p => p.id === productId)
   return product?.unit || ''
+}
+
+const canSeeField = (field: string): boolean => {
+  if (store.permissions.visibleFields.includes('all')) return true
+  return store.permissions.visibleFields.includes(field)
+}
+
+const getAbnormalRemark = (record: InventoryRecord): string => {
+  const abnormalHistory = record.history.find(h => h.status === 'abnormal')
+  if (abnormalHistory) {
+    const remark = abnormalHistory.remark.replace(/【.*?】/g, '').trim()
+    return remark.length > 20 ? remark.substring(0, 20) + '...' : remark
+  }
+  return '异常待处理'
 }
 </script>
