@@ -102,6 +102,9 @@ export const updatePerformance = (id, data, userId) => {
     data.endTime !== oldPerformance.endTime ||
     data.venue !== oldPerformance.venue;
   
+  const changeReason = data.changeReason || '排期调整';
+  delete data.changeReason;
+  
   performances[index] = {
     ...oldPerformance,
     ...data,
@@ -111,6 +114,7 @@ export const updatePerformance = (id, data, userId) => {
   
   if (hasScheduleChange && oldPerformance.status !== PERFORMANCE_STATUS.DRAFT) {
     const changeNote = `演出${data.venue ? `场地变更为${data.venue}` : ''}${data.startTime ? `时间变更为${new Date(data.startTime).toLocaleString()}` : ''}`;
+    const historyRemark = `${changeNote}，原因：${changeReason}`;
     
     const ticketTask = {
       id: `task-${uuidv4().slice(0, 8)}`,
@@ -118,7 +122,7 @@ export const updatePerformance = (id, data, userId) => {
       performanceId: id,
       type: TASK_TYPE.SCHEDULE_CHANGE,
       title: `${oldPerformance.title}排期变更-票务确认`,
-      description: `${changeNote}，请票务主管确认并通知相关团单`,
+      description: `${changeNote}，请票务主管确认并通知相关团单。变更原因：${changeReason}`,
       status: TASK_STATUS.PENDING,
       priority: 'high',
       assigneeRole: ROLES.TICKET_SUPERVISOR,
@@ -127,7 +131,7 @@ export const updatePerformance = (id, data, userId) => {
       createdAt: new Date().toISOString(),
       dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
       history: [
-        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: changeNote }
+        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: historyRemark }
       ],
       oldSchedule: {
         startTime: oldPerformance.startTime,
@@ -136,7 +140,8 @@ export const updatePerformance = (id, data, userId) => {
       newSchedule: {
         startTime: data.startTime || oldPerformance.startTime,
         venue: data.venue || oldPerformance.venue
-      }
+      },
+      changeReason
     };
     tasks.push(ticketTask);
     
@@ -146,7 +151,7 @@ export const updatePerformance = (id, data, userId) => {
       performanceId: id,
       type: TASK_TYPE.SCHEDULE_CHANGE,
       title: `${oldPerformance.title}排期变更-联排调整`,
-      description: `${changeNote}，请后台统筹调整联排时间和场地`,
+      description: `${changeNote}，请后台统筹调整联排时间和场地。变更原因：${changeReason}`,
       status: TASK_STATUS.PENDING,
       priority: 'high',
       assigneeRole: ROLES.BACKEND_COORDINATOR,
@@ -155,7 +160,7 @@ export const updatePerformance = (id, data, userId) => {
       createdAt: new Date().toISOString(),
       dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
       history: [
-        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: changeNote }
+        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: historyRemark }
       ],
       oldSchedule: {
         startTime: oldPerformance.startTime,
@@ -164,7 +169,8 @@ export const updatePerformance = (id, data, userId) => {
       newSchedule: {
         startTime: data.startTime || oldPerformance.startTime,
         venue: data.venue || oldPerformance.venue
-      }
+      },
+      changeReason
     };
     tasks.push(backendTask);
     
@@ -177,7 +183,7 @@ export const updatePerformance = (id, data, userId) => {
         userId: ticketSupervisor.id,
         type: 'schedule_change',
         title: '演出排期变更通知',
-        content: `${oldPerformance.title}排期已变更，请处理`,
+        content: `${oldPerformance.title}排期已变更（${changeNote}），原因：${changeReason}，请处理`,
         read: false,
         createdAt: new Date().toISOString(),
         relatedId: ticketTask.id
@@ -190,7 +196,7 @@ export const updatePerformance = (id, data, userId) => {
         userId: backendCoordinator.id,
         type: 'schedule_change',
         title: '演出排期变更通知',
-        content: `${oldPerformance.title}排期已变更，请调整联排`,
+        content: `${oldPerformance.title}排期已变更（${changeNote}），原因：${changeReason}，请调整联排`,
         read: false,
         createdAt: new Date().toISOString(),
         relatedId: backendTask.id

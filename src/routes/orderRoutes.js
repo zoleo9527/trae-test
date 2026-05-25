@@ -14,7 +14,7 @@ import { ROLES } from '../data/models.js';
 
 const router = express.Router();
 
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, requireRole(ROLES.THEATER_MANAGER, ROLES.TICKET_SUPERVISOR), (req, res) => {
   try {
     const filters = {
       status: req.query.status,
@@ -28,7 +28,7 @@ router.get('/', authenticateToken, (req, res) => {
   }
 });
 
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, requireRole(ROLES.THEATER_MANAGER, ROLES.TICKET_SUPERVISOR), (req, res) => {
   try {
     const order = getOrderById(req.params.id);
     if (!order) {

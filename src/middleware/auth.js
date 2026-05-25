@@ -29,7 +29,7 @@ export const generateToken = (user) => {
 
 export const requireRole = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: '权限不足' });
     }
     next();

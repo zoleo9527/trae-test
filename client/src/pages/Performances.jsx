@@ -62,7 +62,8 @@ const Performances = () => {
       setSubmitting(true);
       await performanceApi.update(selectedPerf.id, {
         startTime: new Date(changeForm.startTime).toISOString(),
-        venue: changeForm.venue
+        venue: changeForm.venue,
+        changeReason: changeForm.reason || '排期调整'
       });
       setShowChangeModal(false);
       loadPerformances();

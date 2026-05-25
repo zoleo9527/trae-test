@@ -54,6 +54,19 @@ export const getTaskById = (id) => {
   return tasks.find(t => t.id === id);
 };
 
+export const checkTaskPermission = (taskId, userId, userRole) => {
+  const task = getTaskById(taskId);
+  if (!task) {
+    throw new Error('任务不存在');
+  }
+  const matchRole = task.assigneeRole === userRole;
+  const matchAssignee = !task.assignee || task.assignee === userId;
+  if (!matchRole || !matchAssignee) {
+    throw new Error('无权操作此任务');
+  }
+  return task;
+};
+
 export const updateTaskStatus = (id, status, remark, userId) => {
   const index = tasks.findIndex(t => t.id === id);
   
