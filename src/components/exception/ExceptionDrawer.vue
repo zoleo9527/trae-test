@@ -11,6 +11,8 @@ const appStore = useAppStore()
 
 const newRemark = ref('')
 const showAddRemark = ref(false)
+const showResolveForm = ref(false)
+const resolveRemark = ref('')
 
 const exceptionTypeLabels: Record<string, string> = {
   overdue: '展品逾期',
@@ -20,19 +22,35 @@ const exceptionTypeLabels: Record<string, string> = {
   schedule_conflict: '进度冲突'
 }
 
-const canClaim = computed(() => 
-  exceptionStore.currentException?.status === 'pending' && 
-  appStore.currentRole === 'executor'
-)
+const canClaim = computed(() => {
+  const exception = exceptionStore.currentException
+  if (!exception) return false
+  if (exception.status !== 'pending') return false
+  return appStore.currentRole === 'executor' || appStore.currentRole === 'manager'
+})
 
-const canResolve = computed(() => 
-  exceptionStore.currentException?.status === 'processing' &&
-  appStore.currentRole === 'executor'
-)
+const canResolve = computed(() => {
+  const exception = exceptionStore.currentException
+  if (!exception) return false
+  if (exception.status !== 'processing') return false
+  if (appStore.currentRole !== 'executor' && appStore.currentRole !== 'manager') return false
+  if (appStore.currentRole === 'executor' && exception.handler && exception.handler !== appStore.roleNames[appStore.currentRole]) return false
+  return true
+})
 
-const canAddRemark = computed(() => 
-  exceptionStore.currentException?.status !== 'closed'
-)
+const canAddRemark = computed(() => {
+  const exception = exceptionStore.currentException
+  if (!exception) return false
+  if (exception.status === 'closed') return false
+  return appStore.currentRole === 'executor' || appStore.currentRole === 'manager'
+})
+
+const canClose = computed(() => {
+  const exception = exceptionStore.currentException
+  if (!exception) return false
+  if (exception.status !== 'resolved') return false
+  return appStore.currentRole === 'manager'
+})
 
 const claimException = () => {
   if (exceptionStore.currentException) {
@@ -44,19 +62,19 @@ const claimException = () => {
 }
 
 const resolveException = () => {
-  if (exceptionStore.currentException && newRemark.value) {
+  if (exceptionStore.currentException && resolveRemark.value.trim()) {
     exceptionStore.resolveException(
       exceptionStore.currentException.id,
       appStore.roleNames[appStore.currentRole],
-      newRemark.value
+      resolveRemark.value
     )
-    newRemark.value = ''
-    showAddRemark.value = false
+    resolveRemark.value = ''
+    showResolveForm.value = false
   }
 }
 
 const addRemark = () => {
-  if (exceptionStore.currentException && newRemark.value) {
+  if (exceptionStore.currentException && newRemark.value.trim()) {
     exceptionStore.addHandleRecord(
       exceptionStore.currentException.id,
       appStore.roleNames[appStore.currentRole],
@@ -66,6 +84,21 @@ const addRemark = () => {
     newRemark.value = ''
     showAddRemark.value = false
   }
+}
+
+const closeException = () => {
+  if (exceptionStore.currentException) {
+    exceptionStore.closeException(
+      exceptionStore.currentException.id,
+      appStore.roleNames[appStore.currentRole],
+      '异常已解决，归档关闭'
+    )
+  }
+}
+
+const cancelResolve = () => {
+  resolveRemark.value = ''
+  showResolveForm.value = false
 }
 </script>
 
@@ -220,6 +253,31 @@ const addRemark = () => {
           </div>
 
           <div class="p-6 border-t border-museum-gray-200 space-y-3">
+            <div v-if="showResolveForm" class="p-4 bg-museum-gray-50 rounded-lg border border-museum-gray-200">
+              <h4 class="text-sm font-medium text-museum-gray-800 mb-3">确认解决异常</h4>
+              <textarea
+                v-model="resolveRemark"
+                class="w-full px-4 py-3 border border-museum-gray-300 rounded-lg focus:ring-2 focus:ring-museum-gold/50 focus:border-museum-gold transition-all resize-none text-sm"
+                rows="3"
+                placeholder="请描述解决情况..."
+              ></textarea>
+              <div class="flex justify-end gap-2 mt-3">
+                <button 
+                  @click="cancelResolve"
+                  class="px-4 py-2 text-sm text-museum-gray-600 hover:bg-museum-gray-100 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  @click="resolveException"
+                  :disabled="!resolveRemark.trim()"
+                  class="px-4 py-2 text-sm bg-museum-green text-white rounded-lg hover:bg-museum-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  确认解决
+                </button>
+              </div>
+            </div>
+
             <div class="flex gap-3">
               <button 
                 v-if="canClaim"
@@ -231,8 +289,8 @@ const addRemark = () => {
               </button>
               
               <button 
-                v-if="canResolve"
-                @click="showAddRemark = true"
+                v-if="canResolve && !showResolveForm"
+                @click="showResolveForm = true"
                 class="flex-1 px-4 py-3 bg-museum-green text-white rounded-lg hover:bg-museum-green/90 transition-colors font-medium flex items-center justify-center gap-2"
               >
                 <CheckCircle class="w-4 h-4" />
@@ -240,7 +298,7 @@ const addRemark = () => {
               </button>
 
               <button 
-                v-if="canAddRemark && !showAddRemark"
+                v-if="canAddRemark && !showAddRemark && !showResolveForm"
                 @click="showAddRemark = true"
                 class="px-4 py-3 border border-museum-gray-300 text-museum-gray-700 rounded-lg hover:bg-museum-gray-50 transition-colors"
               >
@@ -249,16 +307,19 @@ const addRemark = () => {
             </div>
             
             <button 
-              v-if="exceptionStore.currentException.status === 'resolved'"
-              @click="exceptionStore.closeException(exceptionStore.currentException.id, appStore.roleNames[appStore.currentRole], '异常已解决，归档关闭')"
+              v-if="canClose"
+              @click="closeException"
               class="w-full px-4 py-3 border border-museum-gray-300 text-museum-gray-600 rounded-lg hover:bg-museum-gray-50 transition-colors font-medium flex items-center justify-center gap-2"
             >
               <Archive class="w-4 h-4" />
               关闭归档
             </button>
 
-            <p v-if="appStore.currentRole !== 'executor'" class="text-xs text-center text-museum-gray-400">
-              当前角色无处理权限，请切换至「活动执行」角色
+            <p v-if="exceptionStore.currentException?.status === 'resolved' && !canClose" class="text-xs text-center text-museum-gray-400">
+              待馆务经理确认后关闭归档
+            </p>
+            <p v-if="exceptionStore.currentException?.status === 'processing' && !canResolve && !canClaim" class="text-xs text-center text-museum-gray-400">
+              当前异常已由 {{ exceptionStore.currentException?.handler }} 认领处理
             </p>
           </div>
         </div>

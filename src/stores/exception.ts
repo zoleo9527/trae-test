@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ExceptionRecord, HandleRecord } from '@/types'
 import { mockExceptions } from '@/mock/exception'
+import { useTraceStore } from './trace'
 
 export const useExceptionStore = defineStore('exception', () => {
   const exceptions = ref<ExceptionRecord[]>([...mockExceptions])
@@ -45,10 +46,24 @@ export const useExceptionStore = defineStore('exception', () => {
   const claimException = (exceptionId: string, handler: string) => {
     const exception = exceptions.value.find(e => e.id === exceptionId)
     if (exception && exception.status === 'pending') {
+      const oldStatus = exception.status
       exception.status = 'processing'
       exception.handler = handler
       exception.handleTime = new Date().toLocaleString('zh-CN')
       addHandleRecord(exceptionId, handler, '领取异常', '已领取该异常，开始处理')
+      
+      const traceStore = useTraceStore()
+      traceStore.addLog({
+        operator: handler,
+        operateTime: new Date().toLocaleString('zh-CN'),
+        module: '异常管理',
+        action: '领取异常',
+        targetId: exception.exceptionNo,
+        targetType: 'exception',
+        beforeChange: `状态: ${oldStatus}`,
+        afterChange: `状态: processing, 处理人: ${handler}`,
+        remark: '异常已认领，开始处理'
+      })
     }
   }
 
@@ -63,23 +78,62 @@ export const useExceptionStore = defineStore('exception', () => {
         remark
       }
       exception.handleRecords.push(record)
+      
+      const traceStore = useTraceStore()
+      traceStore.addLog({
+        operator,
+        operateTime: new Date().toLocaleString('zh-CN'),
+        module: '异常管理',
+        action,
+        targetId: exception.exceptionNo,
+        targetType: 'exception',
+        remark
+      })
     }
   }
 
   const resolveException = (exceptionId: string, operator: string, remark: string) => {
     const exception = exceptions.value.find(e => e.id === exceptionId)
     if (exception) {
+      const oldStatus = exception.status
       exception.status = 'resolved'
       exception.resolveTime = new Date().toLocaleString('zh-CN')
       addHandleRecord(exceptionId, operator, '解决异常', remark)
+      
+      const traceStore = useTraceStore()
+      traceStore.addLog({
+        operator,
+        operateTime: new Date().toLocaleString('zh-CN'),
+        module: '异常管理',
+        action: '解决异常',
+        targetId: exception.exceptionNo,
+        targetType: 'exception',
+        beforeChange: `状态: ${oldStatus}`,
+        afterChange: `状态: resolved`,
+        remark
+      })
     }
   }
 
   const closeException = (exceptionId: string, operator: string, remark: string) => {
     const exception = exceptions.value.find(e => e.id === exceptionId)
     if (exception) {
+      const oldStatus = exception.status
       exception.status = 'closed'
       addHandleRecord(exceptionId, operator, '关闭异常', remark)
+      
+      const traceStore = useTraceStore()
+      traceStore.addLog({
+        operator,
+        operateTime: new Date().toLocaleString('zh-CN'),
+        module: '异常管理',
+        action: '关闭异常',
+        targetId: exception.exceptionNo,
+        targetType: 'exception',
+        beforeChange: `状态: ${oldStatus}`,
+        afterChange: `状态: closed`,
+        remark
+      })
     }
   }
 

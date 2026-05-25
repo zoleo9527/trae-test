@@ -2,17 +2,23 @@
 import { ref, computed } from 'vue'
 import { useExhibitStore } from '@/stores/exhibit'
 import { useExceptionStore } from '@/stores/exception'
+import { useAppStore } from '@/stores/app'
 import StatusTag from '@/components/common/StatusTag.vue'
 import PriorityTag from '@/components/common/PriorityTag.vue'
-import { Search, Filter, ChevronDown, AlertCircle, MapPin, User, Calendar, Check, Package } from 'lucide-vue-next'
+import { Search, Filter, ChevronDown, AlertCircle, MapPin, User, Calendar, Check, Package, PackageCheck, Settings, X } from 'lucide-vue-next'
 import type { BorrowStatus } from '@/types'
 
 const exhibitStore = useExhibitStore()
 const exceptionStore = useExceptionStore()
+const appStore = useAppStore()
 
 const searchKeyword = ref('')
 const statusFilter = ref<BorrowStatus | 'all'>('all')
 const expandedOrderId = ref<string | null>(null)
+const showReceiptConfirm = ref(false)
+const showInstallConfirm = ref(false)
+const confirmOrderId = ref<string | null>(null)
+const confirmRemark = ref('')
 
 const statusOptions: { value: BorrowStatus | 'all'; label: string }[] = [
   { value: 'all', label: '全部状态' },
@@ -33,6 +39,10 @@ const filteredOrders = computed(() => {
   })
 })
 
+const canOperate = computed(() => 
+  appStore.currentRole === 'manager' || appStore.currentRole === 'executor'
+)
+
 const toggleExpand = (id: string) => {
   expandedOrderId.value = expandedOrderId.value === id ? null : id
 }
@@ -47,6 +57,51 @@ const openRelatedException = (orderId: string) => {
 const getProgressPercent = (progress: { status: string }[]) => {
   const completed = progress.filter(p => p.status === 'completed').length
   return Math.round((completed / progress.length) * 100)
+}
+
+const openReceiptConfirm = (orderId: string) => {
+  confirmOrderId.value = orderId
+  confirmRemark.value = ''
+  showReceiptConfirm.value = true
+}
+
+const openInstallConfirm = (orderId: string) => {
+  confirmOrderId.value = orderId
+  confirmRemark.value = ''
+  showInstallConfirm.value = true
+}
+
+const confirmReceipt = () => {
+  if (confirmOrderId.value) {
+    exhibitStore.confirmReceipt(
+      confirmOrderId.value,
+      appStore.roleNames[appStore.currentRole],
+      confirmRemark.value || undefined
+    )
+    showReceiptConfirm.value = false
+    confirmOrderId.value = null
+    confirmRemark.value = ''
+  }
+}
+
+const confirmInstall = () => {
+  if (confirmOrderId.value) {
+    exhibitStore.completeInstall(
+      confirmOrderId.value,
+      appStore.roleNames[appStore.currentRole],
+      confirmRemark.value || undefined
+    )
+    showInstallConfirm.value = false
+    confirmOrderId.value = null
+    confirmRemark.value = ''
+  }
+}
+
+const cancelConfirm = () => {
+  showReceiptConfirm.value = false
+  showInstallConfirm.value = false
+  confirmOrderId.value = null
+  confirmRemark.value = ''
 }
 </script>
 
@@ -218,6 +273,25 @@ const getProgressPercent = (progress: { status: string }[]) => {
                       <span class="text-xs text-museum-gray-500">{{ item.location }}</span>
                     </div>
                   </div>
+                  
+                  <div v-if="canOperate && (order.status === 'transferring' || order.status === 'installing')" class="mt-4 flex gap-3">
+                    <button
+                      v-if="order.status === 'transferring'"
+                      @click="openReceiptConfirm(order.id)"
+                      class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-museum-dark text-white rounded-lg hover:bg-museum-darker transition-colors text-sm font-medium"
+                    >
+                      <PackageCheck class="w-4 h-4" />
+                      确认签收
+                    </button>
+                    <button
+                      v-if="order.status === 'installing'"
+                      @click="openInstallConfirm(order.id)"
+                      class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-museum-green text-white rounded-lg hover:bg-museum-green/90 transition-colors text-sm font-medium"
+                    >
+                      <Settings class="w-4 h-4" />
+                      完成布展
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -230,6 +304,57 @@ const getProgressPercent = (progress: { status: string }[]) => {
         <p class="text-museum-gray-500">暂无匹配的借调单</p>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showReceiptConfirm || showInstallConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="cancelConfirm"></div>
+          
+          <div class="relative w-full max-w-md bg-white rounded-xl shadow-2xl p-6 animate-fade-in">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-museum-gray-800 font-serif">
+                {{ showReceiptConfirm ? '确认展品签收' : '确认布展完成' }}
+              </h3>
+              <button @click="cancelConfirm" class="p-1 hover:bg-museum-gray-100 rounded-lg transition-colors">
+                <X class="w-5 h-5 text-museum-gray-500" />
+              </button>
+            </div>
+            
+            <p class="text-sm text-museum-gray-600 mb-4">
+              {{ showReceiptConfirm 
+                ? '确认展品已安全到达并完成清点签收？此操作将更新借调状态为"布展中"。' 
+                : '确认所有展品已按要求布展完成？此操作将更新借调状态为"已完成"并清除异常标记。' }}
+            </p>
+            
+            <div class="mb-4">
+              <label class="text-sm font-medium text-museum-gray-700 mb-2 block">备注（可选）</label>
+              <textarea
+                v-model="confirmRemark"
+                class="w-full px-4 py-3 border border-museum-gray-300 rounded-lg focus:ring-2 focus:ring-museum-gold/50 focus:border-museum-gold transition-all resize-none text-sm"
+                rows="3"
+                placeholder="请输入备注信息..."
+              ></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-3">
+              <button
+                @click="cancelConfirm"
+                class="px-4 py-2 border border-museum-gray-300 text-museum-gray-700 rounded-lg hover:bg-museum-gray-50 transition-colors text-sm"
+              >
+                取消
+              </button>
+              <button
+                @click="showReceiptConfirm ? confirmReceipt() : confirmInstall()"
+                class="px-4 py-2 text-white rounded-lg transition-colors text-sm font-medium"
+                :class="showReceiptConfirm ? 'bg-museum-dark hover:bg-museum-darker' : 'bg-museum-green hover:bg-museum-green/90'"
+              >
+                确认提交
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -249,5 +374,15 @@ const getProgressPercent = (progress: { status: string }[]) => {
 .expand-enter-to,
 .expand-leave-from {
   max-height: 500px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
