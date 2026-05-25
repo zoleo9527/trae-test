@@ -42,7 +42,8 @@ def get_dashboard_stats(db: Session):
 
 def get_pending_items(db: Session):
     pending_feedbacks = db.query(models.Feedback).filter(
-        models.Feedback.status.in_([models.FeedbackStatus.PENDING, models.FeedbackStatus.PROCESSING])
+        models.Feedback.status == models.FeedbackStatus.PENDING,
+        models.Feedback.needs_review == False
     ).order_by(models.Feedback.created_at.desc()).limit(10).all()
     
     rejected_feedbacks = db.query(models.Feedback).filter(
