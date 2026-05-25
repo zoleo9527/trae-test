@@ -57,6 +57,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	activities.Post("/registrations/:id/confirm", activitiesOnly, handlers.ConfirmRegistration)
 	activities.Post("/registrations/:id/checkin", activitiesOnly, handlers.CheckinRegistration)
 	activities.Get("/:id/audit-logs", handlers.GetActivityAuditLogs)
+	activities.Get("/registrations/:id/trace", handlers.GetRegistrationTrace)
+	activities.Get("/:id/full-trace", handlers.GetActivityFullTrace)
 
 	exhibits := api.Group("/exhibits")
 	exhibits.Use(middleware.AuthRequired(cfg), allRoles)

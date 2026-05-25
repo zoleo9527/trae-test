@@ -3,6 +3,7 @@ package handlers
 import (
 	"gallery-system/config"
 	"gallery-system/database"
+	"gallery-system/middleware"
 	"gallery-system/models"
 	"gallery-system/utils"
 
@@ -63,7 +64,10 @@ func Login(cfg *config.Config) fiber.Handler {
 }
 
 func GetCurrentUserProfile(c *fiber.Ctx) error {
-	claims := c.Locals("user").(*utils.Claims)
+	claims := middleware.GetCurrentUser(c)
+	if claims == nil {
+		return utils.JSONError(c, fiber.StatusUnauthorized, "未授权", "用户未登录")
+	}
 
 	var user models.User
 	if err := database.DB.First(&user, claims.UserID).Error; err != nil {
@@ -74,7 +78,10 @@ func GetCurrentUserProfile(c *fiber.Ctx) error {
 }
 
 func ChangePassword(c *fiber.Ctx) error {
-	claims := c.Locals("user").(*utils.Claims)
+	claims := middleware.GetCurrentUser(c)
+	if claims == nil {
+		return utils.JSONError(c, fiber.StatusUnauthorized, "未授权", "用户未登录")
+	}
 
 	var req struct {
 		OldPassword string `json:"old_password"`
