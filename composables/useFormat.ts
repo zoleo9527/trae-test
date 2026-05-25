@@ -1,6 +1,17 @@
+const parseDateSafe = (dateString: string): Date => {
+  if (dateString.includes('T')) {
+    return new Date(dateString)
+  }
+  const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (match) {
+    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
+  }
+  return new Date(dateString)
+}
+
 export const useFormat = () => {
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
+    const date = parseDateSafe(dateString)
     return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: '2-digit',

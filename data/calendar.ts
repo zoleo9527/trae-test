@@ -3,9 +3,9 @@ import type { CalendarEvent } from '~/types'
 export const calendarEvents: CalendarEvent[] = [
   {
     id: 'c001',
-    date: '2024-05-20',
+    date: '2024-05-25',
     type: 'restock',
-    title: '梵高向日葵徽章补货申请',
+    title: '梵高向日葵徽章补货到货',
     description: '五一假期后库存告急，紧急补货200个',
     status: 'processing',
     relatedRecordId: 'r001'
@@ -21,28 +21,28 @@ export const calendarEvents: CalendarEvent[] = [
   },
   {
     id: 'c003',
-    date: '2024-05-18',
+    date: '2024-05-20',
     type: 'restock',
-    title: '蒙娜丽莎拼图补货',
+    title: '蒙娜丽莎拼图补货异常',
     description: '到货数量异常，缺少5盒',
     status: 'abnormal',
     relatedRecordId: 'r003'
   },
   {
     id: 'c004',
-    date: '2024-05-15',
-    type: 'event',
-    title: '春季收藏家沙龙',
-    description: 'VIP活动，使用限定丝巾作为礼品',
+    date: '2024-05-16',
+    type: 'loss',
+    title: '限定展览丝巾损耗',
+    description: '春季收藏家沙龙VIP活动赠礼',
     status: 'completed',
     relatedRecordId: 'r004'
   },
   {
     id: 'c005',
-    date: '2024-05-10',
+    date: '2024-05-12',
     type: 'restock',
-    title: '莫奈睡莲帆布袋补货',
-    description: '母亲节促销备货100个',
+    title: '莫奈睡莲帆布袋补货完成',
+    description: '母亲节促销备货100个，已签收入库',
     status: 'completed',
     relatedRecordId: 'r005'
   },
@@ -56,10 +56,10 @@ export const calendarEvents: CalendarEvent[] = [
   },
   {
     id: 'c007',
-    date: '2024-05-22',
-    type: 'event',
-    title: '小小艺术家工作坊',
-    description: '儿童教育活动，使用明信片套装',
+    date: '2024-05-25',
+    type: 'loss',
+    title: '艺术大师明信片套装损耗',
+    description: '小小艺术家工作坊儿童教育活动使用',
     status: 'approved',
     relatedRecordId: 'r008'
   },
@@ -73,11 +73,20 @@ export const calendarEvents: CalendarEvent[] = [
   },
   {
     id: 'c009',
-    date: '2024-05-25',
+    date: '2024-05-21',
+    type: 'loss',
+    title: '雕塑复刻钥匙扣损耗驳回',
+    description: '活动道具使用申请被驳回，请走样品借用流程',
+    status: 'rejected',
+    relatedRecordId: 'r006'
+  },
+  {
+    id: 'c010',
+    date: '2024-05-28',
     type: 'restock',
-    title: '徽章补货预计到货',
-    description: '向日葵徽章200个预计今日送达',
-    status: 'processing',
-    relatedRecordId: 'r001'
+    title: '美术馆定制笔记本预计到货',
+    description: '常规备货200本',
+    status: 'pending',
+    relatedRecordId: 'r007'
   }
 ]
