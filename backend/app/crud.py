@@ -128,6 +128,12 @@ def update_schedule(db: Session, schedule_id: int, schedule_update: schemas.Volu
     return db_schedule
 
 
+def get_schedule_feedbacks(db: Session, schedule_id: int):
+    return db.query(models.Feedback).filter(
+        models.Feedback.schedule_id == schedule_id
+    ).order_by(models.Feedback.created_at.desc()).all()
+
+
 def create_feedback(db: Session, feedback: schemas.FeedbackCreate):
     db_feedback = models.Feedback(**feedback.model_dump())
     db.add(db_feedback)

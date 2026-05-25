@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, AlertCircle, Clock, User, ChevronRight, Filter } from 'lucide-react'
+import { Search, AlertCircle, Clock, User, ChevronRight, Filter, Calendar } from 'lucide-react'
 import { feedbackAPI } from '../utils/api'
 
 export default function ReviewPage() {
@@ -30,6 +30,18 @@ export default function ReviewPage() {
     const matchesType = !filterType || feedback.feedback_type === filterType
     return matchesSearch && matchesType
   })
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      pending: { class: 'status-pending', label: '待处理' },
+      processing: { class: 'status-processing', label: '处理中' },
+      resolved: { class: 'status-resolved', label: '已解决' },
+      rejected: { class: 'status-rejected', label: '已驳回' },
+      needs_review: { class: 'bg-orange-100 text-orange-800', label: '需回查' },
+    }
+    const info = statusMap[status] || statusMap.pending
+    return <span className={'status-badge ' + info.class}>{info.label}</span>
+  }
 
   const getTypeLabel = (type) => {
     const typeMap = {
@@ -120,18 +132,25 @@ export default function ReviewPage() {
           filteredFeedbacks.map((feedback) => (
             <Link
               key={feedback.id}
-              to={`/feedbacks/${feedback.id}`}
+              to={'/feedbacks/' + feedback.id}
               className="card hover:shadow-md transition-shadow block"
             >
               <div className="card-body">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-lg font-semibold">{feedback.title}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(feedback.feedback_type)}`}>
+                      <span className={'px-2 py-1 rounded-full text-xs font-medium ' + getTypeColor(feedback.feedback_type)}>
                         {getTypeLabel(feedback.feedback_type)}
                       </span>
                       <span className="status-badge bg-orange-100 text-orange-800">需回查</span>
+                      {getStatusBadge(feedback.status)}
+                      {feedback.schedule_id && (
+                        <span className="flex items-center gap-1 text-xs text-museum-600 bg-museum-50 px-2 py-1 rounded">
+                          <Calendar size={12} />
+                          关联排班 #{feedback.schedule_id}
+                        </span>
+                      )}
                     </div>
                     <p className="text-gray-600 mt-2 line-clamp-2">{feedback.content}</p>
                     {feedback.review_notes && (
@@ -142,7 +161,7 @@ export default function ReviewPage() {
                         </p>
                       </div>
                     )}
-                    <div className="mt-3 flex items-center gap-4 text-sm text-gray-500">
+                    <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                       <div className="flex items-center gap-1">
                         <User size={14} />
                         <span>{feedback.visitor_name || '匿名'}</span>

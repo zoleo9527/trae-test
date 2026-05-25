@@ -23,6 +23,7 @@ export const scheduleAPI = {
   get: function(id) { return api.get('/schedules/' + id) },
   create: function(data) { return api.post('/schedules/', data) },
   update: function(id, data) { return api.put('/schedules/' + id, data) },
+  getFeedbacks: function(id) { return api.get('/schedules/' + id + '/feedbacks') },
 }
 
 export const feedbackAPI = {

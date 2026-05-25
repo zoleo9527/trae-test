@@ -23,7 +23,7 @@ class FeedbackStatus(str, enum.Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     RESOLVED = "resolved"
-    REJECTED = "resolved"
+    REJECTED = "rejected"
     NEEDS_REVIEW = "needs_review"
 
 

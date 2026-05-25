@@ -86,6 +86,11 @@ def update_schedule(
     return crud.update_schedule(db, schedule_id=schedule_id, schedule_update=schedule_update)
 
 
+@app.get("/api/schedules/{schedule_id}/feedbacks", response_model=List[schemas.Feedback])
+def read_schedule_feedbacks(schedule_id: int, db: Session = Depends(get_db)):
+    return crud.get_schedule_feedbacks(db, schedule_id=schedule_id)
+
+
 @app.post("/api/feedbacks/", response_model=schemas.Feedback)
 def create_feedback(feedback: schemas.FeedbackCreate, db: Session = Depends(get_db)):
     return crud.create_feedback(db=db, feedback=feedback)
