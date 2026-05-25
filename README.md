@@ -162,9 +162,10 @@ curl -X POST http://localhost:8000/api/init-sample-data
 
 1. 创建票务订单（状态：confirmed）
 2. 申请退票（状态：confirmed → refund_pending）
-3. 审批通过（状态：refund_pending → refunded）或驳回（refund_pending → confirmed）
-4. 退票通过后自动回退演出已售票数
-5. 每步操作均记录到时间轴
+3. 审批通过（状态：refund_pending → refunded）或驳回（refund_pending → refund_rejected）
+4. 驳回的退票可重新申请（refund_rejected → refund_pending）
+5. 退票通过后自动回退演出已售票数
+6. 每步操作均记录到时间轴
 
 ### 状态时间轴
 

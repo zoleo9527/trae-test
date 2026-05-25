@@ -283,19 +283,77 @@ def init_sample_data(db: Session = Depends(get_db)):
     all_performances = crud.get_performances(db)
     
     if len(all_performances) >= 2:
-        crud.create_ticket_order(db, schemas.TicketOrderCreate(
+        order1 = crud.create_ticket_order(db, schemas.TicketOrderCreate(
             performance_id=all_performances[0].id,
             customer_name="张三",
             customer_phone="13900139001",
             ticket_count=2,
             total_price=360
         ))
-        crud.create_ticket_order(db, schemas.TicketOrderCreate(
+        order2 = crud.create_ticket_order(db, schemas.TicketOrderCreate(
             performance_id=all_performances[1].id,
             customer_name="李四",
             customer_phone="13900139002",
             ticket_count=3,
             total_price=540
+        ))
+        
+        crud.update_ticket_order(db, order1.id, schemas.TicketOrderUpdate(
+            status="refund_pending",
+            refund_reason="行程冲突，无法到场",
+            refund_applicant="张三"
+        ))
+        
+        crud.update_ticket_order(db, order2.id, schemas.TicketOrderUpdate(
+            status="refund_pending",
+            refund_reason="看错时间了",
+            refund_applicant="李四"
+        ))
+        crud.update_ticket_order(db, order2.id, schemas.TicketOrderUpdate(
+            status="refund_rejected",
+            refund_approver="王经理",
+            refund_approval_notes="演出临近，已超过退票期限"
+        ))
+    
+    all_receptions = crud.get_receptions(db)
+    all_settlements = crud.get_settlements(db)
+    
+    if len(all_receptions) >= 2:
+        crud.update_reception(db, all_receptions[1].id, schemas.ReceptionUpdate(
+            status="reviewing",
+            hotel="如家精选酒店",
+            room_count=5,
+            meal_count=8
+        ))
+    
+    if len(all_settlements) >= 3:
+        crud.update_settlement(db, all_settlements[1].id, schemas.SettlementUpdate(
+            status="reviewing",
+            performance_fee=50000,
+            hotel_expense=3000,
+            meal_expense=1500,
+            transportation_expense=500,
+            other_expense=0,
+            ticket_revenue=80000
+        ))
+        crud.update_settlement(db, all_settlements[2].id, schemas.SettlementUpdate(
+            status="reviewing",
+            performance_fee=40000,
+            hotel_expense=2000,
+            meal_expense=1000,
+            transportation_expense=300,
+            other_expense=0,
+            ticket_revenue=60000
+        ))
+        crud.update_settlement(db, all_settlements[2].id, schemas.SettlementUpdate(
+            status="rejected",
+            approver="财务李总",
+            approval_notes="演出费用明细不全，缺少演员个税缴纳证明，请补充后重新提交"
+        ))
+    
+    if len(all_performances) >= 1:
+        crud.update_performance(db, all_performances[0].id, schemas.PerformanceUpdate(
+            venue="实验剧场"
         ))
     
     return {"message": "示例数据初始化成功，已创建演出、接待、结算记录及票务订单"}

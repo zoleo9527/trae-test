@@ -123,9 +123,17 @@
                   <span class="text-xs text-gray-400">{{ formatDate(item.created_at) }}</span>
                 </div>
                 <div class="flex items-center space-x-2 mt-2">
-                  <span :class="getStatusClass(item.old_status)" class="status-badge">{{ getStatusText(item.old_status) }}</span>
-                  <span class="text-gray-400">→</span>
-                  <span :class="getStatusClass(item.new_status)" class="status-badge">{{ getStatusText(item.new_status) }}</span>
+                  <template v-if="item.entity_type === 'performance' && (item.title === '演出时间变更' || item.title === '演出场地变更')">
+                    <span class="text-xs text-gray-600">{{ item.title === '演出时间变更' ? '原时间' : '原场地' }}:</span>
+                    <span class="text-xs font-medium text-gray-900 bg-gray-200 px-2 py-0.5 rounded">{{ item.old_status }}</span>
+                    <span class="text-gray-400">→</span>
+                    <span class="text-xs font-medium text-gray-900 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{{ item.new_status }}</span>
+                  </template>
+                  <template v-else>
+                    <span :class="getStatusClass(item.old_status)" class="status-badge text-xs">{{ getStatusText(item.old_status) }}</span>
+                    <span class="text-gray-400">→</span>
+                    <span :class="getStatusClass(item.new_status)" class="status-badge text-xs">{{ getStatusText(item.new_status) }}</span>
+                  </template>
                 </div>
                 <p v-if="item.change_reason" class="text-xs text-gray-500 mt-2">{{ item.change_reason }}</p>
               </div>
