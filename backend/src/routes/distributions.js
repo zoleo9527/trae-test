@@ -103,6 +103,11 @@ router.post('/', authRequired, (req, res) => {
   const batchNum = String(maxNum + 1).padStart(3, '0')
   const batch = body.batch || `P${y}-${m}-${batchNum}`
 
+  let ownerId = body.ownerId || req.user.id
+  if (req.user.role === 'distribution_specialist') {
+    ownerId = req.user.id
+  }
+
   const id = 'd' + (distributions.length + 1)
   const d = {
     id,
@@ -121,7 +126,7 @@ router.post('/', authRequired, (req, res) => {
     settledAmount: 0,
     settledAt: null,
     status: '样书待回执',
-    ownerId: body.ownerId || req.user.id,
+    ownerId,
     records: [
       {
         time: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -147,6 +152,34 @@ router.post('/:id/records', authRequired, (req, res) => {
     actor: req.user.name,
     action: action || '跟进',
     note: note || ''
+  })
+  res.json(enrich(d))
+})
+
+router.patch('/:id/settle', authRequired, (req, res) => {
+  const d = visibleDistributions(req.user).find(x => x.id === req.params.id)
+  if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
+  if (!canSettle(req.user)) {
+    return res.status(403).json({ error: '当前角色无权登记回款' })
+  }
+  if (d.status === '已回款') {
+    return res.status(400).json({ error: '该铺货单已登记回款，请勿重复操作' })
+  }
+  const body = req.body || {}
+  const amount = Number(body.amount)
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ error: '回款金额必须大于 0' })
+  }
+  const now = new Date()
+  const prevStatus = d.status
+  d.settledAmount = amount
+  d.settledAt = body.date || now.toISOString().slice(0, 10)
+  d.status = '已回款'
+  d.records.push({
+    time: now.toISOString().slice(0, 16).replace('T', ' '),
+    actor: req.user.name,
+    action: '回款登记',
+    note: `金额 ¥${amount}，${prevStatus} → 已回款`
   })
   res.json(enrich(d))
 })

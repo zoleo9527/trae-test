@@ -139,6 +139,18 @@ function DistributionsPage() {
     load()
   }
 
+  async function settleDistribution() {
+    if (!selected) return
+    const amt = prompt('请输入回款金额：')
+    if (!amt) return
+    await fetcher(`/api/distributions/${selected.id}/settle`, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount: Number(amt), date: new Date().toISOString().slice(0, 10) })
+    })
+    load()
+    setSelected(null)
+  }
+
   const role = auth?.user?.role
   const userId = auth?.user?.id
 
@@ -386,14 +398,7 @@ function DistributionsPage() {
                 {canSettle(role) && selected.status !== '已回款' && (
                   <button
                     className="btn"
-                    onClick={() => {
-                      const amt = prompt('请输入回款金额：')
-                      if (!amt) return
-                      const now = new Date().toISOString().slice(0, 10)
-                      patchField('settledAmount', Number(amt))
-                      patchField('settledAt', now)
-                      changeStatus('已回款')
-                    }}
+                    onClick={settleDistribution}
                   >
                     登记回款
                   </button>
@@ -442,10 +447,17 @@ function DistributionsPage() {
             <div className="form-row"><label>样书快递单号</label><input name="sampleExpress" placeholder="如 SF123456" /></div>
             <div className="form-row"><label>样书数量</label><input type="number" name="sampleQty" defaultValue={10} min="0" /></div>
             <div className="form-row"><label>责任人</label>
-              <select name="ownerId" defaultValue={auth?.user?.id}>
-                <option value="">请选择</option>
-                {owners.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roleName}</option>)}
-              </select>
+              {(role === 'admin' || role === 'channel_manager') ? (
+                <select name="ownerId" defaultValue={auth?.user?.id}>
+                  <option value="">请选择</option>
+                  {owners.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roleName}</option>)}
+                </select>
+              ) : (
+                <div style={{ padding: '8px 12px', background: '#f3f4f6', borderRadius: 6, color: '#374151' }}>
+                  {auth?.user?.name} · {auth?.user?.roleName}
+                  <input type="hidden" name="ownerId" value={auth?.user?.id} />
+                </div>
+              )}
             </div>
             <div className="form-row"><label>备注</label><textarea name="note" rows={3} placeholder="折扣、合同条款等" /></div>
             <div className="form-actions">

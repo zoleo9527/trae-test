@@ -81,6 +81,10 @@ router.post('/', authRequired, (req, res) => {
     return res.status(403).json({ error: '当前角色无权新建活动' })
   }
   const body = req.body || {}
+  let ownerId = body.ownerId || req.user.id
+  if (req.user.role === 'distribution_specialist') {
+    ownerId = req.user.id
+  }
   const id = 'act' + (authorActivities.length + 1)
   const activity = {
     id,
@@ -92,7 +96,7 @@ router.post('/', authRequired, (req, res) => {
     location: body.location || '',
     expectedQty: Number(body.expectedQty) || 0,
     status: body.status || '待确认',
-    ownerId: body.ownerId || req.user.id,
+    ownerId,
     timeline: [
       {
         time: new Date().toISOString().slice(0, 16).replace('T', ' '),
