@@ -214,6 +214,25 @@ export function seedReceipts(returns: ReturnApplication[]): SampleReceipt[] {
     const statuses: Array<SampleReceipt['status']> = ['pending', 'submitted', 'missing', 'confirmed']
     const status = statuses[idx % statuses.length]
     const line = r.lines[0]
+    const ts = fmt(new Date())
+    const history: HistoryEntry[] = [{
+      id: uid('h_'),
+      timestamp: ts + ' 09:00',
+      role: 'channel',
+      operator: r.manager,
+      action: status === 'pending' ? '发起样书申请' : '提交样书回执',
+      comment: status === 'missing' ? '样书回执丢失，需补寄' : '正常提交',
+    }]
+    if (status === 'confirmed') {
+      history.push({
+        id: uid('h_'),
+        timestamp: ts + ' 15:20',
+        role: 'finance',
+        operator: '财务对接·孙雯',
+        action: '确认回执',
+        comment: '已核对回执编号',
+      })
+    }
     return {
       id: uid('RC'),
       returnApplicationId: r.id,
@@ -221,9 +240,12 @@ export function seedReceipts(returns: ReturnApplication[]): SampleReceipt[] {
       bookTitle: line.title,
       qty: Math.min(line.returnedQty, 5),
       status,
-      submittedAt: status === 'submitted' || status === 'confirmed' ? fmt(new Date()) : undefined,
-      confirmedAt: status === 'confirmed' ? fmt(new Date()) : undefined,
+      submittedAt: status === 'submitted' || status === 'confirmed' ? ts : undefined,
+      confirmedAt: status === 'confirmed' ? ts : undefined,
+      receiptCode: status === 'confirmed' ? 'RC' + (100001 + idx) : undefined,
+      method: status === 'confirmed' ? (idx % 2 === 0 ? 'online' : 'mail') : undefined,
       note: status === 'missing' ? '样书回执丢失，需渠道补寄或书面说明' : '正常流程',
+      history,
     }
   })
 }
@@ -235,6 +257,25 @@ export function seedReconciliation(returns: ReturnApplication[]): Reconciliation
     const actual = idx === 1 ? expected - 2 : idx === 3 ? expected + 1 : expected
     const status: ReconciliationRecord['status'] =
       expected === actual ? 'matched' : idx === 2 ? 'pending' : 'mismatch'
+    const ts = fmt(new Date())
+    const history: HistoryEntry[] = [{
+      id: uid('h_'),
+      timestamp: ts + ' 10:00',
+      role: 'finance',
+      operator: '财务对接·孙雯',
+      action: '生成对账台账',
+      comment: '基于铺货表与实退数据生成',
+    }]
+    if (status === 'matched') {
+      history.push({
+        id: uid('h_'),
+        timestamp: ts + ' 11:30',
+        role: 'finance',
+        operator: '财务对接·孙雯',
+        action: '核对一致',
+        comment: '铺货台账与实退数据一致',
+      })
+    }
     return {
       id: uid('REC'),
       month: '2026-05',
@@ -245,8 +286,9 @@ export function seedReconciliation(returns: ReturnApplication[]): Reconciliation
       delta: actual - expected,
       caliber: status === 'mismatch' ? '退货口径前后不一' : '铺货台账一致',
       status,
-      lastCheckedAt: fmt(new Date()),
+      lastCheckedAt: ts,
       checker: '财务对接·孙雯',
+      history,
     }
   })
 }

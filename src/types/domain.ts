@@ -80,6 +80,8 @@ export interface StockTransfer {
   history: HistoryEntry[]
 }
 
+export type ReceiptMethod = 'mail' | 'online' | 'note'
+
 export interface SampleReceipt {
   id: string
   returnApplicationId: string
@@ -89,7 +91,11 @@ export interface SampleReceipt {
   status: ReceiptStatus
   submittedAt?: string
   confirmedAt?: string
+  receiptCode?: string
+  method?: ReceiptMethod
+  remark?: string
   note: string
+  history: HistoryEntry[]
 }
 
 export interface ReconciliationRecord {
@@ -104,6 +110,7 @@ export interface ReconciliationRecord {
   status: 'matched' | 'mismatch' | 'pending'
   lastCheckedAt: string
   checker: string
+  history: HistoryEntry[]
 }
 
 export interface HistoryEntry {

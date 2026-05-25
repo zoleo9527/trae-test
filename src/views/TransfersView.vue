@@ -64,7 +64,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="expectedDate" label="预计" width="110" />
-        <el-table-column label="操作" width="220">
+        <el-table-column label="操作" width="240">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)"
               >查看</el-button
@@ -155,6 +155,7 @@ function jumpReturn(id: string) {
     store.openDrawer({
       visible: true,
       mode: "detail",
+      contextKind: "return",
       title: `申请详情 ${id}`,
     });
   }, 200);
@@ -165,6 +166,7 @@ function openDetail(row: StockTransfer) {
   store.openDrawer({
     visible: true,
     mode: "detail",
+    contextKind: "transfer",
     title: `调拨单 ${row.id}`,
     context: row,
   });
@@ -175,6 +177,7 @@ function openException(row: StockTransfer) {
   store.openDrawer({
     visible: true,
     mode: "exception",
+    contextKind: "transfer",
     title: `调拨异常 ${row.id}`,
     context: row,
   });

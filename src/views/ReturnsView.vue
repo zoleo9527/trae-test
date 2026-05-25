@@ -11,7 +11,7 @@
         <el-button
           type="primary"
           :disabled="store.role !== 'channel'"
-          @click="createDraft"
+          @click="store.createDraftReturn()"
         >
           <el-icon class="el-icon--left"><Plus /></el-icon>
           新建申请
@@ -51,7 +51,11 @@
 
       <el-table :data="filtered" stripe style="width: 100%">
         <el-table-column prop="id" label="申请编号" width="150" />
-        <el-table-column prop="channelName" label="渠道" min-width="180" />
+        <el-table-column prop="channelName" label="渠道" min-width="180">
+          <template #default="{ row }">{{
+            row.channelName || "未填写"
+          }}</template>
+        </el-table-column>
         <el-table-column prop="manager" label="渠道经理" width="100" />
         <el-table-column label="退货金额" width="120">
           <template #default="{ row }"
@@ -66,7 +70,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="deadline" label="截止" width="110" />
-        <el-table-column label="操作" width="260">
+        <el-table-column label="操作" width="280">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)"
               >查看</el-button
@@ -74,8 +78,15 @@
             <el-button
               v-if="store.role === 'channel' && row.status === 'draft'"
               link
+              type="primary"
+              @click="openEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-if="store.role === 'channel' && row.status === 'draft'"
+              link
               type="success"
-              @click="submit(row)"
+              @click="trySubmit(row)"
               >提交</el-button
             >
             <el-button
@@ -95,7 +106,7 @@
               "
               link
               type="danger"
-              @click="reject(row)"
+              @click="openException(row)"
               >驳回</el-button
             >
             <el-button link type="warning" @click="openException(row)"
@@ -117,6 +128,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
 import { useConsoleStore } from "@/stores/console";
 import RoleBanner from "@/components/common/RoleBanner.vue";
 import EmptyBlock from "@/components/common/EmptyBlock.vue";
@@ -145,7 +157,7 @@ const filtered = computed(() => {
   if (kw) {
     list = list.filter(
       (r) =>
-        r.channelName.toLowerCase().includes(kw) ||
+        (r.channelName || "").toLowerCase().includes(kw) ||
         r.id.toLowerCase().includes(kw),
     );
   }
@@ -181,7 +193,19 @@ function openDetail(row: ReturnApplication) {
   store.openDrawer({
     visible: true,
     mode: "detail",
+    contextKind: "return",
     title: `申请详情 ${row.id}`,
+    context: row,
+  });
+}
+
+function openEdit(row: ReturnApplication) {
+  store.selectReturn(row.id);
+  store.openDrawer({
+    visible: true,
+    mode: "edit",
+    contextKind: "return",
+    title: `编辑草稿 ${row.id}`,
     context: row,
   });
 }
@@ -191,53 +215,23 @@ function openException(row: ReturnApplication) {
   store.openDrawer({
     visible: true,
     mode: "exception",
+    contextKind: "return",
     title: `异常处理 ${row.id}`,
     context: row,
   });
 }
 
-function submit(row: ReturnApplication) {
-  store.submitReturn(row.id);
+function trySubmit(row: ReturnApplication) {
+  try {
+    store.submitReturn(row.id);
+    ElMessage.success("已提交审核");
+  } catch (e) {
+    ElMessage.warning((e as Error).message);
+    openEdit(row);
+  }
 }
 
 function approve(row: ReturnApplication) {
   store.approveReturn(row.id, "与铺货台账核对一致，审核通过");
-}
-
-function reject(row: ReturnApplication) {
-  store.selectReturn(row.id);
-  store.openDrawer({
-    visible: true,
-    mode: "exception",
-    title: `驳回 ${row.id}`,
-    context: row,
-  });
-}
-
-function createDraft() {
-  router.push("/returns");
-  store.returns.unshift({
-    id: "RT" + Date.now().toString(36).slice(-6),
-    channelCode: "CH999",
-    channelName: "示例渠道（新建）",
-    manager: "当前用户",
-    createdAt: new Date().toISOString().slice(0, 10),
-    deadline: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10),
-    status: "draft",
-    totalAmount: 0,
-    lines: [],
-    note: "待补充明细",
-    attachments: [],
-    history: [
-      {
-        id: "h_" + Date.now(),
-        timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
-        role: "channel",
-        operator: "当前用户",
-        action: "创建草稿",
-        comment: "等待补充明细",
-      },
-    ],
-  });
 }
 </script>
