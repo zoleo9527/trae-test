@@ -110,26 +110,92 @@ export const updatePerformance = (id, data, userId) => {
   };
   
   if (hasScheduleChange && oldPerformance.status !== PERFORMANCE_STATUS.DRAFT) {
-    const changeTask = {
+    const changeNote = `演出${data.venue ? `场地变更为${data.venue}` : ''}${data.startTime ? `时间变更为${new Date(data.startTime).toLocaleString()}` : ''}`;
+    
+    const ticketTask = {
       id: `task-${uuidv4().slice(0, 8)}`,
       chainId: oldPerformance.chainId,
       performanceId: id,
       type: TASK_TYPE.SCHEDULE_CHANGE,
-      title: `${oldPerformance.title}排期变更通知`,
-      description: `演出时间或场地有变更，请相关人员注意`,
-      status: TASK_STATUS.IN_PROGRESS,
+      title: `${oldPerformance.title}排期变更-票务确认`,
+      description: `${changeNote}，请票务主管确认并通知相关团单`,
+      status: TASK_STATUS.PENDING,
       priority: 'high',
-      assigneeRole: ROLES.THEATER_MANAGER,
-      assignee: userId,
+      assigneeRole: ROLES.TICKET_SUPERVISOR,
+      assignee: null,
       createdBy: userId,
       createdAt: new Date().toISOString(),
       dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
       history: [
-        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: '排期已变更' }
-      ]
+        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: changeNote }
+      ],
+      oldSchedule: {
+        startTime: oldPerformance.startTime,
+        venue: oldPerformance.venue
+      },
+      newSchedule: {
+        startTime: data.startTime || oldPerformance.startTime,
+        venue: data.venue || oldPerformance.venue
+      }
     };
+    tasks.push(ticketTask);
     
-    tasks.push(changeTask);
+    const backendTask = {
+      id: `task-${uuidv4().slice(0, 8)}`,
+      chainId: oldPerformance.chainId,
+      performanceId: id,
+      type: TASK_TYPE.SCHEDULE_CHANGE,
+      title: `${oldPerformance.title}排期变更-联排调整`,
+      description: `${changeNote}，请后台统筹调整联排时间和场地`,
+      status: TASK_STATUS.PENDING,
+      priority: 'high',
+      assigneeRole: ROLES.BACKEND_COORDINATOR,
+      assignee: null,
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+      history: [
+        { action: 'schedule_changed', userId, timestamp: new Date().toISOString(), remark: changeNote }
+      ],
+      oldSchedule: {
+        startTime: oldPerformance.startTime,
+        venue: oldPerformance.venue
+      },
+      newSchedule: {
+        startTime: data.startTime || oldPerformance.startTime,
+        venue: data.venue || oldPerformance.venue
+      }
+    };
+    tasks.push(backendTask);
+    
+    const ticketSupervisor = users.find(u => u.role === ROLES.TICKET_SUPERVISOR);
+    const backendCoordinator = users.find(u => u.role === ROLES.BACKEND_COORDINATOR);
+    
+    if (ticketSupervisor) {
+      notifications.push({
+        id: `notif-${uuidv4().slice(0, 8)}`,
+        userId: ticketSupervisor.id,
+        type: 'schedule_change',
+        title: '演出排期变更通知',
+        content: `${oldPerformance.title}排期已变更，请处理`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        relatedId: ticketTask.id
+      });
+    }
+    
+    if (backendCoordinator) {
+      notifications.push({
+        id: `notif-${uuidv4().slice(0, 8)}`,
+        userId: backendCoordinator.id,
+        type: 'schedule_change',
+        title: '演出排期变更通知',
+        content: `${oldPerformance.title}排期已变更，请调整联排`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        relatedId: backendTask.id
+      });
+    }
   }
   
   return performances[index];

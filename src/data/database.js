@@ -145,11 +145,11 @@ export let orders = [
     ticketCount: 100,
     unitPrice: 380,
     totalAmount: 38000,
-    paidAmount: 0,
-    status: ORDER_STATUS.PENDING,
+    paidAmount: 38000,
+    status: ORDER_STATUS.PAID,
     seats: ['B区2-5排1-20座'],
-    createdAt: '2026-05-25T09:00:00',
-    updatedAt: '2026-05-25T09:00:00',
+    createdAt: '2026-05-22T09:00:00',
+    updatedAt: '2026-05-23T14:00:00',
     createdBy: 'user-002',
     remarks: '企业包场，需要开票',
     settlementStatus: 'pending'
@@ -360,6 +360,47 @@ export let tasks = [
       { action: 'created', userId: 'user-002', timestamp: '2026-05-25T09:00:00', remark: '启动结算流程' }
     ],
     settlementAmount: 22800
+  },
+  {
+    id: 'task-006',
+    chainId: 'chain-002',
+    performanceId: 'perf-002',
+    type: TASK_TYPE.REFUND_REQUEST,
+    title: '市话剧协会部分退票申请',
+    description: '部分演员无法出席，申请退回10张票',
+    orderId: 'order-003',
+    status: TASK_STATUS.REJECTED,
+    priority: 'medium',
+    assigneeRole: ROLES.TICKET_SUPERVISOR,
+    assignee: 'user-002',
+    createdBy: 'user-002',
+    createdAt: '2026-05-23T10:00:00',
+    dueDate: '2026-05-24T18:00:00',
+    history: [
+      { action: 'created', userId: 'user-002', timestamp: '2026-05-23T10:00:00', remark: '提交退票申请' },
+      { action: 'status_rejected', userId: 'user-002', timestamp: '2026-05-23T16:00:00', remark: '临近演出，不支持退票，建议转让' }
+    ],
+    refundAmount: 2800,
+    refundReason: '部分演员无法出席'
+  },
+  {
+    id: 'task-007',
+    chainId: 'chain-001',
+    performanceId: 'perf-001',
+    type: TASK_TYPE.REHEARSAL_ARRANGEMENT,
+    title: '天鹅湖彩排时间确认',
+    description: '需要确认最终彩排时间安排',
+    rehearsalId: 'rehearsal-001',
+    status: TASK_STATUS.PENDING,
+    priority: 'high',
+    assigneeRole: ROLES.BACKEND_COORDINATOR,
+    assignee: null,
+    createdBy: 'user-001',
+    createdAt: '2026-05-20T09:00:00',
+    dueDate: '2026-05-22T18:00:00',
+    history: [
+      { action: 'created', userId: 'user-001', timestamp: '2026-05-20T09:00:00', remark: '经理安排任务' }
+    ]
   }
 ];
 

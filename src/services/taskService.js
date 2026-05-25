@@ -18,6 +18,12 @@ export const getMyTasks = (userId, userRole, filters = {}) => {
   if (filters.type) {
     result = result.filter(t => t.type === filters.type);
   }
+  if (filters.active === 'true') {
+    result = result.filter(t => 
+      t.status === TASK_STATUS.PENDING || 
+      t.status === TASK_STATUS.IN_PROGRESS
+    );
+  }
   
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
   return result.sort((a, b) => {

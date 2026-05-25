@@ -83,6 +83,14 @@ export const requestRefund = (orderId, refundAmount, refundReason, ticketCount, 
     throw new Error('订单不存在');
   }
   
+  if (order.status !== ORDER_STATUS.CONFIRMED && order.status !== ORDER_STATUS.PAID) {
+    throw new Error('只有已确认或已付款的团单才能申请退票');
+  }
+  
+  if (refundAmount > order.paidAmount) {
+    throw new Error('退款金额不能超过已支付金额');
+  }
+  
   const refundTask = {
     id: `task-${uuidv4().slice(0, 8)}`,
     chainId: order.chainId,

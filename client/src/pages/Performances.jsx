@@ -8,6 +8,10 @@ const Performances = () => {
   const [performances, setPerformances] = useState([]);
   const [filter, setFilter] = useState({ status: '', venue: '' });
   const [loading, setLoading] = useState(true);
+  const [showChangeModal, setShowChangeModal] = useState(false);
+  const [selectedPerf, setSelectedPerf] = useState(null);
+  const [changeForm, setChangeForm] = useState({ startTime: '', venue: '', reason: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadPerformances();
@@ -38,11 +42,43 @@ const Performances = () => {
     cancelled: '已取消'
   };
 
+  const canEdit = user?.role === 'theater_manager';
+
+  const openChangeModal = (perf) => {
+    setSelectedPerf(perf);
+    setChangeForm({
+      startTime: dayjs(perf.startTime).format('YYYY-MM-DDTHH:mm'),
+      venue: perf.venue,
+      reason: ''
+    });
+    setShowChangeModal(true);
+  };
+
+  const handleSubmitChange = async (e) => {
+    e.preventDefault();
+    if (!selectedPerf) return;
+    
+    try {
+      setSubmitting(true);
+      await performanceApi.update(selectedPerf.id, {
+        startTime: new Date(changeForm.startTime).toISOString(),
+        venue: changeForm.venue
+      });
+      setShowChangeModal(false);
+      loadPerformances();
+      alert('排期变更已提交，相关任务已通知票务和后台人员');
+    } catch (err) {
+      alert('变更失败: ' + err.response?.data?.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h2>🎭 演出排期</h2>
-        {user?.role === 'theater_manager' && (
+        {canEdit && (
           <button className="btn btn-primary btn-sm">+ 新增演出</button>
         )}
       </div>
@@ -119,7 +155,12 @@ const Performances = () => {
                   <td>
                     <div className="action-buttons">
                       <button className="btn btn-secondary btn-sm">查看</button>
-                      <button className="btn btn-secondary btn-sm">链条</button>
+                      {canEdit && perf.status !== 'completed' && perf.status !== 'cancelled' && (
+                        <button 
+                          className="btn btn-warning btn-sm" 
+                          onClick={() => openChangeModal(perf)}
+                        >变更</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -128,6 +169,65 @@ const Performances = () => {
           </tbody>
         </table>
       </div>
+
+      {showChangeModal && selectedPerf && (
+        <div className="modal-overlay" onClick={() => setShowChangeModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>变更排期 - {selectedPerf.title}</h3>
+              <button className="close-btn" onClick={() => setShowChangeModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSubmitChange}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>演出时间</label>
+                  <input 
+                    type="datetime-local" 
+                    className="form-control"
+                    value={changeForm.startTime}
+                    onChange={e => setChangeForm({...changeForm, startTime: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>演出场地</label>
+                  <select 
+                    className="form-control"
+                    value={changeForm.venue}
+                    onChange={e => setChangeForm({...changeForm, venue: e.target.value})}
+                    required
+                  >
+                    <option value="主剧场">主剧场</option>
+                    <option value="实验剧场">实验剧场</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>变更原因</label>
+                  <textarea 
+                    className="form-control"
+                    value={changeForm.reason}
+                    onChange={e => setChangeForm({...changeForm, reason: e.target.value})}
+                    rows="3"
+                    placeholder="请说明变更原因（可选，将记录在任务历史中）"
+                  />
+                </div>
+                <div style={{ background: '#fffbeb', padding: 12, borderRadius: 8, fontSize: 13 }}>
+                  <strong>⚠️ 系统提示：</strong>
+                  <div>变更后将自动通知：</div>
+                  <div>• 票务主管 - 确认并通知相关团单</div>
+                  <div>• 后台统筹 - 调整联排时间和场地</div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowChangeModal(false)}>取消</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? '提交中...' : '确认变更'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
