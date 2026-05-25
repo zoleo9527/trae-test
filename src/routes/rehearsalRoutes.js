@@ -68,7 +68,7 @@ router.patch('/:id/status', authenticateToken, requireRole(ROLES.BACKEND_COORDIN
   }
 });
 
-router.post('/:id/issues', authenticateToken, (req, res) => {
+router.post('/:id/issues', authenticateToken, requireRole(ROLES.THEATER_MANAGER, ROLES.BACKEND_COORDINATOR), (req, res) => {
   try {
     const issue = reportIssue(req.params.id, req.body.content, req.user.id);
     res.status(201).json(issue);
@@ -86,7 +86,7 @@ router.patch('/:rehearsalId/issues/:issueId/resolve', authenticateToken, require
   }
 });
 
-router.post('/arrangement-request', authenticateToken, (req, res) => {
+router.post('/arrangement-request', authenticateToken, requireRole(ROLES.THEATER_MANAGER, ROLES.TICKET_SUPERVISOR), (req, res) => {
   try {
     const { performanceId, description } = req.body;
     const task = requestRehearsalArrangement(performanceId, description, req.user.id);

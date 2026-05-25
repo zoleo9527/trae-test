@@ -22,18 +22,52 @@ export const getPerformanceById = (id) => {
   return performances.find(p => p.id === id);
 };
 
-export const getPerformanceChain = (chainId) => {
+export const getPerformanceChain = (chainId, userRole = null) => {
   const perf = performances.find(p => p.chainId === chainId);
+  if (!perf) {
+    return { performance: null, orders: [], rehearsals: [], tasks: [] };
+  }
+  
   const relatedOrders = orders.filter(o => o.chainId === chainId);
   const relatedRehearsals = rehearsals.filter(r => r.chainId === chainId);
   const relatedTasks = tasks.filter(t => t.chainId === chainId);
   
-  return {
+  if (!userRole || userRole === 'theater_manager') {
+    return {
+      performance: perf,
+      orders: relatedOrders,
+      rehearsals: relatedRehearsals,
+      tasks: relatedTasks
+    };
+  }
+  
+  const result = {
     performance: perf,
-    orders: relatedOrders,
-    rehearsals: relatedRehearsals,
-    tasks: relatedTasks
+    orders: [],
+    rehearsals: [],
+    tasks: []
   };
+  
+  if (userRole === 'ticket_supervisor') {
+    result.orders = relatedOrders;
+    result.tasks = relatedTasks.filter(t => 
+      t.assigneeRole === 'ticket_supervisor' || 
+      t.type === 'refund_request' || 
+      t.type === 'ticket_group' ||
+      t.type === 'settlement'
+    );
+  }
+  
+  if (userRole === 'backend_coordinator') {
+    result.rehearsals = relatedRehearsals;
+    result.tasks = relatedTasks.filter(t => 
+      t.assigneeRole === 'backend_coordinator' || 
+      t.type === 'rehearsal_arrangement' ||
+      t.type === 'issue_report'
+    );
+  }
+  
+  return result;
 };
 
 export const createPerformance = (data, userId) => {

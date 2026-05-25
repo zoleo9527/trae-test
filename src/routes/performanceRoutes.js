@@ -41,7 +41,7 @@ router.get('/:id', authenticateToken, (req, res) => {
 
 router.get('/chain/:chainId', authenticateToken, (req, res) => {
   try {
-    const chain = getPerformanceChain(req.params.chainId);
+    const chain = getPerformanceChain(req.params.chainId, req.user.role);
     if (!chain.performance) {
       return res.status(404).json({ message: '链条不存在' });
     }

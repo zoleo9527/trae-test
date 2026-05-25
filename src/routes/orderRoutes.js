@@ -67,7 +67,7 @@ router.patch('/:id/status', authenticateToken, requireRole(ROLES.TICKET_SUPERVIS
   }
 });
 
-router.post('/:id/refund-request', authenticateToken, (req, res) => {
+router.post('/:id/refund-request', authenticateToken, requireRole(ROLES.THEATER_MANAGER, ROLES.TICKET_SUPERVISOR), (req, res) => {
   try {
     const { refundAmount, refundReason, ticketCount } = req.body;
     const task = requestRefund(req.params.id, refundAmount, refundReason, ticketCount, req.user.id);
