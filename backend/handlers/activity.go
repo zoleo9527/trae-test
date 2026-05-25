@@ -237,15 +237,37 @@ func CreateRegistration(c *fiber.Ctx) error {
 		return utils.JSONError(c, fiber.StatusBadRequest, "参数错误", err.Error())
 	}
 
+	var member *models.User
 	if activity.IsMemberOnly {
 		if req.MemberID == nil {
 			tx.Rollback()
 			return utils.JSONError(c, fiber.StatusBadRequest, "该活动仅限会员参加，请提供会员ID", "")
 		}
-		var member models.User
-		if err := tx.Where("id = ? AND status = ?", *req.MemberID, "active").First(&member).Error; err != nil {
+
+		member = &models.User{}
+		if err := tx.Where("id = ? AND status = ?", *req.MemberID, "active").First(member).Error; err != nil {
 			tx.Rollback()
 			return utils.JSONError(c, fiber.StatusBadRequest, "会员不存在或已失效", "")
+		}
+
+		if !member.IsMember {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该用户不是有效会员", "用户ID: "+strconv.Itoa(int(*req.MemberID)))
+		}
+
+		if member.MemberExpire != nil && now.After(*member.MemberExpire) {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员资格已过期", "过期时间: "+member.MemberExpire.String())
+		}
+
+		if req.MemberName == "" {
+			req.MemberName = member.Name
+		}
+		if req.MemberPhone == "" {
+			req.MemberPhone = member.Phone
+		}
+		if req.MemberEmail == "" {
+			req.MemberEmail = member.Email
 		}
 	}
 
@@ -268,19 +290,44 @@ func CreateRegistration(c *fiber.Ctx) error {
 			return utils.JSONError(c, fiber.StatusBadRequest, "票据不存在", "")
 		}
 
-		if ticket.ActivityID != nil && *ticket.ActivityID != activity.ID {
+		if ticket.ActivityID == nil {
 			tx.Rollback()
-			return utils.JSONError(c, fiber.StatusBadRequest, "该票据不属于此活动", "")
+			return utils.JSONError(c, fiber.StatusBadRequest, "该票据未关联活动", "票号: "+ticket.TicketNo)
+		}
+		if *ticket.ActivityID != activity.ID {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该票据不属于此活动",
+				"票据活动ID: "+strconv.Itoa(int(*ticket.ActivityID))+", 当前活动ID: "+strconv.Itoa(int(activity.ID)))
 		}
 
 		if ticket.Status != models.TicketStatusIssued {
 			tx.Rollback()
-			return utils.JSONError(c, fiber.StatusBadRequest, "票据状态异常，当前状态: "+string(ticket.Status), "")
+			return utils.JSONError(c, fiber.StatusBadRequest, "票据状态异常", "当前状态: "+string(ticket.Status))
 		}
 
 		if now.After(ticket.ValidTo) {
 			tx.Rollback()
 			return utils.JSONError(c, fiber.StatusBadRequest, "票据已过期", "")
+		}
+
+		if activity.IsMemberOnly {
+			if ticket.MemberID == nil {
+				tx.Rollback()
+				return utils.JSONError(c, fiber.StatusBadRequest, "会员专属活动票据需绑定会员", "票号: "+ticket.TicketNo)
+			}
+			if req.MemberID == nil || *ticket.MemberID != *req.MemberID {
+				ticketMemberID := "nil"
+				reqMemberID := "nil"
+				if ticket.MemberID != nil {
+					ticketMemberID = strconv.Itoa(int(*ticket.MemberID))
+				}
+				if req.MemberID != nil {
+					reqMemberID = strconv.Itoa(int(*req.MemberID))
+				}
+				tx.Rollback()
+				return utils.JSONError(c, fiber.StatusBadRequest, "票据与报名会员不一致",
+					"票据会员ID: "+ticketMemberID+", 报名会员ID: "+reqMemberID)
+			}
 		}
 	}
 
@@ -431,6 +478,8 @@ func ConfirmRegistration(c *fiber.Ctx) error {
 		}
 	}()
 
+	now := time.Now()
+
 	var registration models.ActivityRegistration
 	if err := tx.Preload("Activity").First(&registration, regID).Error; err != nil {
 		tx.Rollback()
@@ -448,14 +497,55 @@ func ConfirmRegistration(c *fiber.Ctx) error {
 		return utils.JSONError(c, fiber.StatusNotFound, "关联活动不存在", err.Error())
 	}
 
-	if activity.IsMemberOnly && registration.MemberID == nil {
-		tx.Rollback()
-		return utils.JSONError(c, fiber.StatusBadRequest, "会员专属活动，报名记录缺少会员信息", "")
+	if activity.IsMemberOnly {
+		if registration.MemberID == nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员专属活动，报名记录缺少会员信息", "")
+		}
+
+		var member models.User
+		if err := tx.Where("id = ? AND status = ?", *registration.MemberID, "active").First(&member).Error; err != nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员不存在或已失效", "")
+		}
+		if !member.IsMember {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该用户不是有效会员", "")
+		}
+		if member.MemberExpire != nil && now.After(*member.MemberExpire) {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员资格已过期", "")
+		}
 	}
 
-	if activity.RequiresTicket && registration.TicketID == nil {
-		tx.Rollback()
-		return utils.JSONError(c, fiber.StatusBadRequest, "该活动需要购票，报名记录缺少关联票据", "")
+	if activity.RequiresTicket {
+		if registration.TicketID == nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该活动需要购票，报名记录缺少关联票据", "")
+		}
+
+		var ticket models.Ticket
+		if err := tx.First(&ticket, *registration.TicketID).Error; err != nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "关联票据不存在", "")
+		}
+
+		if ticket.ActivityID == nil || *ticket.ActivityID != activity.ID {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "票据与活动不匹配", "")
+		}
+
+		if ticket.Status != models.TicketStatusVerified {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "票据状态异常", "当前状态: "+string(ticket.Status))
+		}
+
+		if activity.IsMemberOnly {
+			if ticket.MemberID == nil || registration.MemberID == nil || *ticket.MemberID != *registration.MemberID {
+				tx.Rollback()
+				return utils.JSONError(c, fiber.StatusBadRequest, "票据与报名会员不一致", "")
+			}
+		}
 	}
 
 	var registeredCount int64
@@ -468,7 +558,6 @@ func ConfirmRegistration(c *fiber.Ctx) error {
 		return utils.JSONError(c, fiber.StatusBadRequest, "活动名额已满，无法确认", "")
 	}
 
-	now := time.Now()
 	oldStatus := registration.Status
 	registration.Status = models.RegistrationConfirmed
 	registration.ConfirmedBy = &claims.UserID
@@ -571,20 +660,54 @@ func CheckinRegistration(c *fiber.Ctx) error {
 		return utils.JSONError(c, fiber.StatusBadRequest, "该报名已签到", "签到时间: "+registration.CheckinTime.String())
 	}
 
-	if activity.RequiresTicket && registration.TicketID == nil {
-		tx.Rollback()
-		return utils.JSONError(c, fiber.StatusBadRequest, "该活动需要购票，报名记录缺少关联票据", "")
+	if activity.IsMemberOnly {
+		if registration.MemberID == nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员专属活动，报名记录缺少会员信息", "")
+		}
+
+		var member models.User
+		if err := tx.Where("id = ? AND status = ?", *registration.MemberID, "active").First(&member).Error; err != nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员不存在或已失效", "")
+		}
+		if !member.IsMember {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该用户不是有效会员", "")
+		}
+		if member.MemberExpire != nil && time.Now().After(*member.MemberExpire) {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "会员资格已过期", "")
+		}
 	}
 
-	if registration.TicketID != nil {
+	if activity.RequiresTicket {
+		if registration.TicketID == nil {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "该活动需要购票，报名记录缺少关联票据", "")
+		}
+
 		var ticket models.Ticket
 		if err := tx.First(&ticket, *registration.TicketID).Error; err != nil {
 			tx.Rollback()
 			return utils.JSONError(c, fiber.StatusBadRequest, "关联票据不存在", "")
 		}
+
+		if ticket.ActivityID == nil || *ticket.ActivityID != activity.ID {
+			tx.Rollback()
+			return utils.JSONError(c, fiber.StatusBadRequest, "票据与活动不匹配", "")
+		}
+
 		if ticket.Status != models.TicketStatusVerified {
 			tx.Rollback()
 			return utils.JSONError(c, fiber.StatusBadRequest, "票据状态异常", "当前状态: "+string(ticket.Status))
+		}
+
+		if activity.IsMemberOnly {
+			if ticket.MemberID == nil || registration.MemberID == nil || *ticket.MemberID != *registration.MemberID {
+				tx.Rollback()
+				return utils.JSONError(c, fiber.StatusBadRequest, "票据与报名会员不一致", "")
+			}
 		}
 	}
 
