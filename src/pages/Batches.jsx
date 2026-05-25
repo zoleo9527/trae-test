@@ -76,16 +76,35 @@ export default function Batches() {
                 <div className="kpi"><div className="label">分级规则</div><div className="value" style={{ fontSize: 14 }}>{detail.grade_rule}</div></div>
               </div>
               <div className="sep" />
-              <h3 style={{ fontSize: 13, color: 'var(--ink-3)', margin: 0 }}>时间线</h3>
-              <div className="timeline" style={{ marginTop: 6 }}>
-                {timeline.map((t, i) => (
-                  <React.Fragment key={i}>
-                    <div className="c">{t.at}</div>
-                    <div className="c"><strong>{t.title}</strong></div>
-                    <div className="c">{t.detail}</div>
-                    <div className="c muted small">{t.type}</div>
-                  </React.Fragment>
-                ))}
+              <h3 style={{ fontSize: 13, color: 'var(--ink-3)', margin: 0 }}>时间线（含客诉、赊销、回款）</h3>
+              <div className="timeline" style={{ marginTop: 6, gridTemplateColumns: '140px 110px 1fr 100px' }}>
+                <div className="h">时间</div><div className="h">动作</div><div className="h">详情</div><div className="h">关联 ID</div>
+                {timeline.map((t, i) => {
+                  let tagClass = 'tag'
+                  if (t.type === 'move' && t.title === '入库') tagClass = 'tag green'
+                  else if (t.type === 'move') tagClass = 'tag gray'
+                  else if (t.type === 'grade') tagClass = 'tag'
+                  else if (t.type === 'pick') tagClass = 'tag yellow'
+                  else if (t.type === 'loss') tagClass = 'tag red'
+                  else if (t.type === 'claim') tagClass = 'tag red'
+                  else if (t.type === 'credit') tagClass = 'tag yellow'
+                  else if (t.type === 'payment') tagClass = 'tag green'
+                  else if (t.type === 'settle') tagClass = 'tag green'
+                  return (
+                    <React.Fragment key={i}>
+                      <div className="c small">{t.at}</div>
+                      <div className="c"><span className={tagClass}>{t.title}</span></div>
+                      <div className="c notes small">{t.detail}</div>
+                      <div className="c small muted">
+                        {t.picking_id && <div>配货 #{t.picking_id}</div>}
+                        {t.claim_id && <div>客诉 #{t.claim_id}</div>}
+                        {t.credit_id && <div>赊销 #{t.credit_id}</div>}
+                        {t.payment_id && <div>回款 #{t.payment_id}</div>}
+                        {t.ref && <div>凭证 {t.ref}</div>}
+                      </div>
+                    </React.Fragment>
+                  )
+                })}
               </div>
               <div className="sep" />
               <div className="row">

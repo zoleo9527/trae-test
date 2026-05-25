@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS claims (
 CREATE TABLE IF NOT EXISTS losses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   batch_id INTEGER NOT NULL,
+  claim_id INTEGER,
   found_at TEXT NOT NULL,
   kind TEXT NOT NULL,
   qty_kg REAL NOT NULL,
@@ -110,7 +111,9 @@ CREATE TABLE IF NOT EXISTS losses (
   reviewed_by TEXT,
   status TEXT DEFAULT 'reported',
   note TEXT,
-  created_at TEXT DEFAULT (datetime('now','localtime'))
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY (batch_id) REFERENCES batches(id),
+  FOREIGN KEY (claim_id) REFERENCES claims(id)
 );
 
 CREATE TABLE IF NOT EXISTS operators (

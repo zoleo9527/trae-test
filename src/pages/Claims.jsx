@@ -43,22 +43,36 @@ export default function Claims() {
           <h2>客诉列表</h2>
           <table>
             <thead>
-              <tr><th>客户</th><th>批次/配货</th><th>投诉</th><th>原因</th><th>状态</th><th>处理</th></tr>
+              <tr><th>客户</th><th>批次/配货</th><th>投诉</th><th>原因</th><th>关联损耗</th><th>状态</th><th>处理</th></tr>
             </thead>
             <tbody>
-              {rows.map(c => (
-                <tr key={c.id}>
-                  <td>{c.customer}</td>
-                  <td className="small">{c.batch_code} · {c.order_no}</td>
-                  <td className="small">{c.reported_at}</td>
-                  <td className="small">{c.reason}</td>
-                  <td><span className={`tag ${c.status === 'resolved' ? 'green' : c.status === 'rejected' ? 'gray' : c.status === 'open' ? 'red' : 'yellow'}`}>{c.status}</span></td>
-                  <td>
-                    {c.status !== 'resolved' && <button className="btn" onClick={() => updateStatus(c.id, 'resolved')}>已解决</button>}
-                    {c.status === 'open' && <button className="btn" onClick={() => updateStatus(c.id, 'reviewing')}>复核中</button>}
-                  </td>
-                </tr>
-              ))}
+              {rows.map(c => {
+                const losses = c.linked_losses ? c.linked_losses.split(';').map(s => {
+                  const [id, qty, status] = s.split(':')
+                  return { id, qty, status }
+                }) : []
+                return (
+                  <tr key={c.id}>
+                    <td>{c.customer}</td>
+                    <td className="small">{c.batch_code} · {c.order_no}</td>
+                    <td className="small">{c.reported_at}</td>
+                    <td className="small">{c.reason}</td>
+                    <td className="small">
+                      {losses.length ? losses.map((l, i) => (
+                        <div key={i}>
+                          <span className={`tag ${l.status === 'confirmed' ? 'green' : 'red'}`}>损耗 #{l.id}</span>
+                          <span className="muted" style={{ marginLeft: 4 }}>{l.qty}</span>
+                        </div>
+                      )) : <span className="muted">—</span>}
+                    </td>
+                    <td><span className={`tag ${c.status === 'resolved' ? 'green' : c.status === 'rejected' ? 'gray' : c.status === 'open' ? 'red' : 'yellow'}`}>{c.status}</span></td>
+                    <td>
+                      {c.status !== 'resolved' && <button className="btn" onClick={() => updateStatus(c.id, 'resolved')}>已解决</button>}
+                      {c.status === 'open' && <button className="btn" onClick={() => updateStatus(c.id, 'reviewing')}>复核中</button>}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -102,12 +102,12 @@ const tx = db.transaction(() => {
   CL('家乐购', 4, '2026-05-08', '到货24小时内发现表皮花皮果占比高', 60, 630, 'reviewing', null, '客户提供到货开箱照片，要求复核')
   CL('阳光超市', 2, '2026-05-06', '部分苹果压伤，比例较小', 12, 110, 'resolved', '折价退款 110 元', '财务已记账，客户确认')
 
-  const L = (batch_id, found_at, kind, qty, cause, amount, reviewer, status, note) =>
-    ins('INSERT INTO losses(batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, status, note) VALUES (?,?,?,?,?,?,?,?,?)',
-      [batch_id, found_at, kind, qty, cause, amount, reviewer, status, note])
-  L(3, '2026-05-10', '自然损耗', 40, '库内温度波动+表皮失水', 356, '陈立', 'confirmed', '周盘点发现，与分级时估计一致')
-  L(4, '2026-05-11', '客户损耗争议', 120, '与家乐购客诉争议关联，待复核', 468, null, 'pending', '需与客户争议单 CL-001 关联确认')
-  L(6, '2026-05-15', '配货损伤', 20, '装车挤压', 196, '陈立', 'confirmed', '装车时压伤，现场拍照')
+  const L = (batch_id, found_at, kind, qty, cause, amount, reviewer, status, note, claim_id = null) =>
+    ins('INSERT INTO losses(batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, status, note, claim_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [batch_id, found_at, kind, qty, cause, amount, reviewer, status, note, claim_id])
+  L(3, '2026-05-10', '自然损耗', 40, '库内温度波动+表皮失水', 356, '陈立', 'confirmed', '周盘点发现，与分级时估计一致', null)
+  L(4, '2026-05-11', '客户损耗争议', 120, '与家乐购客诉争议关联，待复核', 468, null, 'pending', '需与客户争议单 CL-001 关联确认', 1)
+  L(6, '2026-05-15', '配货损伤', 20, '装车挤压', 196, '陈立', 'confirmed', '装车时压伤，现场拍照', null)
 })
 tx()
 

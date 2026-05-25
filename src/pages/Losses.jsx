@@ -2,16 +2,16 @@ import React, { useEffect, useState } from 'react'
 
 export default function Losses() {
   const [rows, setRows] = useState([])
-  const [form, setForm] = useState({ batch_id: '', found_at: '', kind: '自然损耗', qty_kg: '', cause: '', amount: '', reviewed_by: '', note: '' })
+  const [form, setForm] = useState({ batch_id: '', found_at: '', kind: '自然损耗', qty_kg: '', cause: '', amount: '', reviewed_by: '', note: '', claim_id: '' })
   useEffect(() => { fetch('/api/losses').then(r => r.json()).then(setRows) }, [])
 
   const submit = (e) => {
     e.preventDefault()
     fetch('/api/losses', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, qty_kg: Number(form.qty_kg) || 0, amount: Number(form.amount) || 0 }) })
+      body: JSON.stringify({ ...form, qty_kg: Number(form.qty_kg) || 0, amount: Number(form.amount) || 0, claim_id: form.claim_id ? Number(form.claim_id) : null }) })
       .then(r => r.json()).then(() => {
         fetch('/api/losses').then(r => r.json()).then(setRows)
-        setForm({ batch_id: '', found_at: '', kind: '自然损耗', qty_kg: '', cause: '', amount: '', reviewed_by: '', note: '' })
+        setForm({ batch_id: '', found_at: '', kind: '自然损耗', qty_kg: '', cause: '', amount: '', reviewed_by: '', note: '', claim_id: '' })
       })
   }
 
@@ -40,6 +40,7 @@ export default function Losses() {
             <label>原因</label><input value={form.cause} onChange={e => setForm({ ...form, cause: e.target.value })} />
             <label>金额¥</label><input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
             <label>复核人</label><input value={form.reviewed_by} onChange={e => setForm({ ...form, reviewed_by: e.target.value })} />
+            <label>关联客诉 ID</label><input value={form.claim_id} onChange={e => setForm({ ...form, claim_id: e.target.value })} placeholder="可选，如 1" />
             <label>备注</label><textarea value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
             <div /><button className="btn primary">登记</button>
           </form>
@@ -48,7 +49,7 @@ export default function Losses() {
           <h2>损耗列表</h2>
           <table>
             <thead>
-              <tr><th>批次</th><th>发现</th><th>类型</th><th>kg</th><th>原因</th><th>复核人</th><th>状态</th><th></th></tr>
+              <tr><th>批次</th><th>发现</th><th>类型</th><th>kg</th><th>原因</th><th>关联客诉</th><th>复核人</th><th>状态</th><th></th></tr>
             </thead>
             <tbody>
               {rows.map(l => (
@@ -58,6 +59,11 @@ export default function Losses() {
                   <td>{l.kind}</td>
                   <td>{l.qty_kg}</td>
                   <td className="small">{l.cause}</td>
+                  <td className="small">
+                    {l.claim_id
+                      ? <><span className="tag red">#{l.claim_id}</span> <span className="muted">{l.claim_customer}</span></>
+                      : <span className="muted">—</span>}
+                  </td>
                   <td>{l.reviewed_by || '-'}</td>
                   <td><span className={`tag ${l.status === 'confirmed' ? 'green' : l.status === 'pending' ? 'red' : 'yellow'}`}>{l.status}</span></td>
                   <td>

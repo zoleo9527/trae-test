@@ -161,7 +161,8 @@ app.post('/api/payments', (req, res) => {
 
 app.get('/api/claims', (req, res) => {
   const rows = q(`SELECT cl.*, p.order_no, p.customer, p.qty_kg pick_qty,
-    b.code batch_code, b.fruit
+    b.code batch_code, b.fruit,
+    (SELECT GROUP_CONCAT(l.id || ':' || l.qty_kg || 'kg:' || l.status, ';') FROM losses l WHERE l.claim_id=cl.id) linked_losses
     FROM claims cl
     LEFT JOIN picking p ON p.id=cl.picking_id
     LEFT JOIN batches b ON b.id=p.batch_id
@@ -186,29 +187,110 @@ app.put('/api/claims/:id', (req, res) => {
 })
 
 app.get('/api/losses', (req, res) => {
-  const rows = q(`SELECT l.*, b.code batch_code, b.fruit FROM losses l
-    LEFT JOIN batches b ON b.id=l.batch_id ORDER BY l.found_at DESC`)
+  const rows = q(`SELECT l.*, b.code batch_code, b.fruit,
+    cl.id claim_id, cl.reason claim_reason, cl.status claim_status, cl.customer claim_customer
+    FROM losses l
+    LEFT JOIN batches b ON b.id=l.batch_id
+    LEFT JOIN claims cl ON cl.id=l.claim_id
+    ORDER BY l.found_at DESC`)
   res.json(rows)
 })
 
 app.post('/api/losses', (req, res) => {
-  const { batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, note } = req.body
+  const { batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, note, claim_id } = req.body
   const info = run(
-    'INSERT INTO losses(batch_id,found_at,kind,qty_kg,cause,amount,reviewed_by,note) VALUES (?,?,?,?,?,?,?,?)',
-    [batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, note]
+    'INSERT INTO losses(batch_id,found_at,kind,qty_kg,cause,amount,reviewed_by,note,claim_id) VALUES (?,?,?,?,?,?,?,?,?)',
+    [batch_id, found_at, kind, qty_kg, cause, amount, reviewed_by, note, claim_id || null]
   )
   res.json({ id: info.lastInsertRowid })
 })
 
 app.put('/api/losses/:id', (req, res) => {
-  const { status, reviewed_by, note } = req.body
-  const info = run('UPDATE losses SET status=COALESCE(?,status), reviewed_by=COALESCE(?,reviewed_by), note=COALESCE(?,note) WHERE id=?',
-    [status, reviewed_by, note, req.params.id])
+  const { status, reviewed_by, note, claim_id } = req.body
+  const info = run('UPDATE losses SET status=COALESCE(?,status), reviewed_by=COALESCE(?,reviewed_by), note=COALESCE(?,note), claim_id=COALESCE(?,claim_id) WHERE id=?',
+    [status, reviewed_by, note, claim_id, req.params.id])
   res.json({ changes: info.changes })
 })
 
 app.get('/api/operators', (req, res) => {
   res.json(q('SELECT * FROM operators ORDER BY id'))
+})
+
+app.get('/api/day-actions', (req, res) => {
+  const { date } = req.query
+  if (!date) return res.status(400).json({ error: 'date required' })
+  const actions = []
+  q(`SELECT sm.*, b.code batch_code, b.fruit FROM stock_movements sm
+    LEFT JOIN batches b ON b.id=sm.batch_id WHERE date(sm.at)=?`, [date])
+    .forEach(m => actions.push({
+      id: 'sm-' + m.id, type: 'move', at: m.at, kind: m.type,
+      title: m.type === 'in' ? '入库' : '出库',
+      detail: `${m.batch_code} ${m.fruit} ${m.qty_kg}kg · ${m.operator || ''}`,
+      note: m.note, ref: m.ref, batch_id: m.batch_id
+    }))
+  q(`SELECT g.*, b.code batch_code, b.fruit FROM grading g
+    LEFT JOIN batches b ON b.id=g.batch_id WHERE date(g.graded_at)=?`, [date])
+    .forEach(g => actions.push({
+      id: 'g-' + g.id, type: 'grade', at: g.graded_at, kind: 'grade',
+      title: `分级 ${g.grade}`,
+      detail: `${g.batch_code} ${g.fruit} ${g.qty_kg}kg · ${g.operator || ''}`,
+      note: g.note, batch_id: g.batch_id
+    }))
+  q(`SELECT p.*, b.code batch_code, b.fruit FROM picking p
+    LEFT JOIN batches b ON b.id=p.batch_id WHERE date(p.picked_at)=?`, [date])
+    .forEach(p => actions.push({
+      id: 'p-' + p.id, type: 'pick', at: p.picked_at, kind: 'pick',
+      title: '配货',
+      detail: `${p.customer} ${p.batch_code} ${p.fruit} ${p.qty_kg}kg ${p.grade || ''}`,
+      note: p.note, batch_id: p.batch_id, picking_id: p.id
+    }))
+  q(`SELECT l.*, b.code batch_code, b.fruit FROM losses l
+    LEFT JOIN batches b ON b.id=l.batch_id WHERE date(l.found_at)=?`, [date])
+    .forEach(l => actions.push({
+      id: 'l-' + l.id, type: 'loss', at: l.found_at, kind: 'loss',
+      title: `损耗 · ${l.kind}`,
+      detail: `${l.batch_code} ${l.fruit} ${l.qty_kg}kg · 状态:${l.status}`,
+      note: l.note, batch_id: l.batch_id, claim_id: l.claim_id
+    }))
+  q(`SELECT cl.*, p.order_no, p.customer, b.code batch_code, b.fruit FROM claims cl
+    LEFT JOIN picking p ON p.id=cl.picking_id
+    LEFT JOIN batches b ON b.id=p.batch_id WHERE date(cl.reported_at)=?`, [date])
+    .forEach(cl => actions.push({
+      id: 'cl-' + cl.id, type: 'claim', at: cl.reported_at, kind: 'claim',
+      title: '客诉',
+      detail: `${cl.customer} ${cl.batch_code} ${cl.reason} · 争议¥${cl.amount || '-'}`,
+      note: cl.note, batch_id: cl.batch_id, claim_id: cl.id
+    }))
+  q(`SELECT c.*, p.order_no, p.customer, b.code batch_code, b.fruit FROM credits c
+    LEFT JOIN picking p ON p.id=c.picking_id
+    LEFT JOIN batches b ON b.id=p.batch_id WHERE date(c.issued_at)=?`, [date])
+    .forEach(c => actions.push({
+      id: 'c-' + c.id, type: 'credit', at: c.issued_at, kind: 'credit',
+      title: '赊销开单',
+      detail: `${c.customer} ¥${c.amount} · 到期${c.due_at}`,
+      note: c.note, batch_id: c.batch_id, credit_id: c.id
+    }))
+  q(`SELECT py.*, c.customer, c.amount credit_amount, p.batch_id, b.code batch_code, b.fruit FROM payments py
+    LEFT JOIN credits c ON c.id=py.credit_id
+    LEFT JOIN picking p ON p.id=c.picking_id
+    LEFT JOIN batches b ON b.id=p.batch_id WHERE date(py.paid_at)=?`, [date])
+    .forEach(py => actions.push({
+      id: 'py-' + py.id, type: 'payment', at: py.paid_at, kind: 'payment',
+      title: '回款',
+      detail: `${py.customer} ¥${py.amount} · ${py.method || ''}`,
+      note: py.note, batch_id: py.batch_id, credit_id: py.credit_id
+    }))
+  q(`SELECT c.*, p.order_no, p.customer, b.code batch_code, b.fruit FROM credits c
+    LEFT JOIN picking p ON p.id=c.picking_id
+    LEFT JOIN batches b ON b.id=p.batch_id WHERE date(c.settled_at)=?`, [date])
+    .forEach(c => actions.push({
+      id: 'cs-' + c.id, type: 'settle', at: c.settled_at, kind: 'settle',
+      title: '结算完成',
+      detail: `${c.customer} ¥${c.amount} 已结清`,
+      note: c.note, batch_id: c.batch_id, credit_id: c.id
+    }))
+  actions.sort((a, b) => a.at.localeCompare(b.at))
+  res.json(actions)
 })
 
 app.get('/api/calendar', (req, res) => {
@@ -235,11 +317,61 @@ app.get('/api/calendar', (req, res) => {
 app.get('/api/timeline/:batchId', (req, res) => {
   const id = req.params.batchId
   const rows = []
-  q('SELECT * FROM batches WHERE id=?', [id]).forEach(b => rows.push({ at: b.received_at, type: 'batch', title: '到仓', detail: `${b.fruit} ${b.variety} 净重${b.net_kg}kg` }))
-  q('SELECT * FROM stock_movements WHERE batch_id=? ORDER BY at', [id]).forEach(m => rows.push({ at: m.at, type: 'move', title: m.type === 'in' ? '入库' : '出库', detail: `${m.qty_kg}kg · ${m.operator || ''} · ${m.note || ''}` }))
-  q('SELECT * FROM grading WHERE batch_id=? ORDER BY graded_at', [id]).forEach(g => rows.push({ at: g.graded_at, type: 'grade', title: `分级 ${g.grade}`, detail: `${g.qty_kg}kg · ${g.note || ''}` }))
-  q('SELECT * FROM losses WHERE batch_id=? ORDER BY found_at', [id]).forEach(l => rows.push({ at: l.found_at, type: 'loss', title: `损耗 · ${l.kind}`, detail: `${l.qty_kg}kg · ${l.cause || ''} · 状态:${l.status}` }))
-  q('SELECT * FROM picking WHERE batch_id=? ORDER BY picked_at', [id]).forEach(p => rows.push({ at: p.picked_at, type: 'pick', title: `配货`, detail: `${p.customer} ${p.qty_kg}kg ${p.grade || ''}` }))
+  q('SELECT * FROM batches WHERE id=?', [id]).forEach(b => rows.push({
+    at: b.received_at, type: 'batch', title: '到仓',
+    detail: `${b.fruit} ${b.variety} 净重${b.net_kg}kg`
+  }))
+  q('SELECT * FROM stock_movements WHERE batch_id=? ORDER BY at', [id]).forEach(m => rows.push({
+    at: m.at, type: 'move', title: m.type === 'in' ? '入库' : '出库',
+    detail: `${m.qty_kg}kg · ${m.operator || ''} · ${m.note || ''}`,
+    ref: m.ref
+  }))
+  q('SELECT * FROM grading WHERE batch_id=? ORDER BY graded_at', [id]).forEach(g => rows.push({
+    at: g.graded_at, type: 'grade', title: `分级 ${g.grade}`,
+    detail: `${g.qty_kg}kg · ${g.operator || ''} · ${g.note || ''}`
+  }))
+  q('SELECT * FROM picking WHERE batch_id=? ORDER BY picked_at', [id]).forEach(p => rows.push({
+    at: p.picked_at, type: 'pick', title: '配货',
+    detail: `${p.customer} ${p.qty_kg}kg ${p.grade || ''} · ${p.driver || ''}`,
+    picking_id: p.id
+  }))
+  q(`SELECT c.*, p.id pid FROM credits c
+    LEFT JOIN picking p ON p.id=c.picking_id WHERE p.batch_id=? ORDER BY c.issued_at`, [id])
+    .forEach(c => rows.push({
+      at: c.issued_at, type: 'credit', title: '赊销开单',
+      detail: `${c.customer} ¥${c.amount} · 到期${c.due_at} · 状态:${c.status}`,
+      credit_id: c.id
+    }))
+  q(`SELECT cl.* FROM claims cl
+    LEFT JOIN picking p ON p.id=cl.picking_id WHERE p.batch_id=? ORDER BY cl.reported_at`, [id])
+    .forEach(cl => rows.push({
+      at: cl.reported_at, type: 'claim', title: '客诉',
+      detail: `${cl.customer} ${cl.reason} · ${cl.qty_kg || '-'}kg · 争议¥${cl.amount || '-'} · 状态:${cl.status}`,
+      claim_id: cl.id
+    }))
+  q(`SELECT l.* FROM losses l WHERE l.batch_id=? ORDER BY l.found_at`, [id])
+    .forEach(l => rows.push({
+      at: l.found_at, type: 'loss', title: `损耗 · ${l.kind}`,
+      detail: `${l.qty_kg}kg · ${l.cause || ''} · 状态:${l.status}${l.claim_id ? ' · 关联客诉#' + l.claim_id : ''}`,
+      loss_id: l.id, claim_id: l.claim_id
+    }))
+  q(`SELECT py.*, c.customer, p.batch_id FROM payments py
+    LEFT JOIN credits c ON c.id=py.credit_id
+    LEFT JOIN picking p ON p.id=c.picking_id
+    WHERE p.batch_id=? ORDER BY py.paid_at`, [id])
+    .forEach(py => rows.push({
+      at: py.paid_at, type: 'payment', title: '回款',
+      detail: `${py.customer} ¥${py.amount} · ${py.method || ''} · ${py.note || ''}`,
+      payment_id: py.id
+    }))
+  q(`SELECT c.*, p.batch_id FROM credits c
+    LEFT JOIN picking p ON p.id=c.picking_id
+    WHERE p.batch_id=? AND c.settled_at IS NOT NULL ORDER BY c.settled_at`, [id])
+    .forEach(c => rows.push({
+      at: c.settled_at, type: 'settle', title: '结算完成',
+      detail: `${c.customer} ¥${c.amount} 已结清`,
+      credit_id: c.id
+    }))
   rows.sort((a, b) => a.at.localeCompare(b.at))
   res.json(rows)
 })

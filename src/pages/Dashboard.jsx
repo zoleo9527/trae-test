@@ -224,25 +224,47 @@ export default function Dashboard() {
 function DayDetail({ date }) {
   const [data, setData] = useState(null)
   useEffect(() => {
-    fetch(`/api/movements?from=${date}&to=${date}`).then(r => r.json()).then(m => {
+    fetch(`/api/day-actions?date=${date}`).then(r => r.json()).then(m => {
       setData(m)
     })
   }, [date])
+
+  const tagFor = (a) => {
+    switch (a.type) {
+      case 'move': return <span className={`tag ${a.kind === 'in' ? 'green' : 'gray'}`}>{a.title}</span>
+      case 'grade': return <span className="tag">{a.title}</span>
+      case 'pick': return <span className="tag yellow">{a.title}</span>
+      case 'loss': return <span className="tag red">{a.title}</span>
+      case 'claim': return <span className="tag red">{a.title}</span>
+      case 'credit': return <span className="tag yellow">{a.title}</span>
+      case 'payment': return <span className="tag green">{a.title}</span>
+      case 'settle': return <span className="tag green">{a.title}</span>
+      default: return <span className="tag">{a.type}</span>
+    }
+  }
+
   if (!data) return <div className="muted small">加载中…</div>
-  if (!data.length) return <div className="muted small">当日暂无出入库动作。</div>
+  if (!data.length) return <div className="muted small">当日暂无任何业务动作。</div>
   return (
     <table>
       <thead>
-        <tr><th>类型</th><th>批次</th><th>kg</th><th>操作</th><th>备注</th></tr>
+        <tr><th style={{ width: 70 }}>时间</th><th style={{ width: 80 }}>类型</th><th>动作详情</th><th style={{ width: 100 }}>关联</th></tr>
       </thead>
       <tbody>
-        {data.map(m => (
-          <tr key={m.id}>
-            <td><span className={`tag ${m.type === 'in' ? 'green' : 'gray'}`}>{m.type === 'in' ? '入库' : '出库'}</span></td>
-            <td className="small">{m.batch_code} {m.fruit}</td>
-            <td>{m.qty_kg}</td>
-            <td>{m.operator}</td>
-            <td className="small">{m.note}</td>
+        {data.map(a => (
+          <tr key={a.id}>
+            <td className="small muted">{a.at.slice(11, 16)}</td>
+            <td>{tagFor(a)}</td>
+            <td className="small">
+              <div>{a.detail}</div>
+              {a.note && <div className="muted" style={{ marginTop: 2 }}>备注：{a.note}</div>}
+              {a.ref && <div className="muted" style={{ marginTop: 2 }}>凭证：{a.ref}</div>}
+            </td>
+            <td className="small muted">
+              {a.claim_id && <div>客诉 #{a.claim_id}</div>}
+              {a.credit_id && <div>赊销 #{a.credit_id}</div>}
+              {a.picking_id && <div>配货 #{a.picking_id}</div>}
+            </td>
           </tr>
         ))}
       </tbody>
