@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '../store/authStore';
+import { ROUTES } from '../lib/routes';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -10,7 +11,7 @@ export default function Login() {
 
   useEffect(() => {
     if (user) {
-      router.push('/');
+      router.push(ROUTES.HOME);
     }
   }, [user, router]);
 
@@ -18,7 +19,7 @@ export default function Login() {
     e.preventDefault();
     try {
       await login(username, password);
-      router.push('/');
+      router.push(ROUTES.HOME);
     } catch (err) {
     }
   };

@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore, getRoleName } from '../store/authStore';
+import { ROUTES } from '../lib/routes';
 import Link from 'next/link';
 
 interface LayoutProps {
@@ -46,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    router.push(ROUTES.LOGIN);
   };
 
   return (

@@ -36,6 +36,11 @@ router.get('/', async (req: AuthRequest, res) => {
         orderNo: order?.orderNo,
         newShowName: newShow?.name,
         newShowTime: newShow?.startTime,
+        paidAmount: order?.settlement?.paidAmount || 0,
+        totalAmount: order?.totalAmount || 0,
+        pendingRefund: (order?.settlement?.paidAmount || 0) - (order?.settlement?.refundAmount || 0),
+        unitPrice: order?.unitPrice || 0,
+        originalTicketCount: order?.ticketCount || 0,
       };
     });
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '../store/authStore';
+import { ROUTES } from '../lib/routes';
 import Layout from '../components/Layout';
 import UnifiedWorkspace from '../components/UnifiedWorkspace';
 
@@ -11,7 +12,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!token) {
-      router.push('/login');
+      router.push(ROUTES.LOGIN);
     } else {
       setLoading(false);
     }

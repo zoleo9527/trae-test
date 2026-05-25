@@ -71,8 +71,20 @@ interface RefundRequest {
   applicantName: string;
   createdAt: string;
   showName: string;
+  showTime: string;
   organization: string;
   orderNo: string;
+  newShowId?: string;
+  newShowName?: string;
+  newShowTime?: string;
+  paidAmount: number;
+  totalAmount: number;
+  pendingRefund: number;
+  unitPrice: number;
+  originalTicketCount: number;
+  ticketApprovalNote?: string;
+  managerApprovalNote?: string;
+  rejectionReason?: string;
 }
 
 interface DashboardData {
@@ -134,6 +146,9 @@ export default function UnifiedWorkspace() {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -242,6 +257,30 @@ export default function UnifiedWorkspace() {
     } catch (error) {
       console.error('Confirm order error:', error);
       showMessage('error', '确认失败');
+    }
+  };
+
+  const handleRejectClick = (id: string) => {
+    setRejectingId(id);
+    setRejectionReason('');
+    setRejectModalOpen(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectingId || !rejectionReason.trim()) {
+      showMessage('error', '请填写驳回原因');
+      return;
+    }
+    try {
+      await refundsAPI.reject(rejectingId, rejectionReason.trim());
+      showMessage('success', '已驳回申请');
+      setRejectModalOpen(false);
+      setRejectingId(null);
+      setRejectionReason('');
+      fetchData();
+    } catch (error) {
+      console.error('Reject error:', error);
+      showMessage('error', '驳回失败');
     }
   };
 
@@ -658,25 +697,34 @@ export default function UnifiedWorkspace() {
                         />
                       </th>
                     )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       申请编号
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       申请单位
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       类型/原因
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      原场次
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      改期目标
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       退改内容
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      已收款/待退款
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       状态
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       申请时间
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       操作
                     </th>
                   </tr>
@@ -698,43 +746,88 @@ export default function UnifiedWorkspace() {
                           />
                         </td>
                       )}
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="font-medium text-gray-900">{request.requestNo}</div>
-                        <div className="text-xs text-gray-500">对应团单: {request.orderNo}</div>
+                        <div className="text-xs text-gray-500">团单: {request.orderNo}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="font-medium text-gray-900">{request.organization}</div>
                         <div className="text-sm text-gray-500">{request.applicantName}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="text-sm text-gray-900">
                           {request.type === 'FULL' ? '全额退票' : request.type === 'PARTIAL' ? '部分退票' : '改期'}
                         </div>
-                        <div className="text-xs text-gray-500 max-w-xs truncate">{request.reason}</div>
+                        <div className="text-xs text-gray-500 max-w-[200px] truncate" title={request.reason}>
+                          {request.reason}
+                        </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{request.refundTicketCount} 张票</div>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-gray-900 font-medium">{request.showName}</div>
+                        <div className="text-xs text-gray-500">
+                          {dayjs(request.showTime).format('MM-DD HH:mm')}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {request.type === 'DATE_CHANGE' && request.newShowName ? (
+                          <>
+                            <div className="text-sm text-blue-600 font-medium">{request.newShowName}</div>
+                            <div className="text-xs text-blue-500">
+                              {dayjs(request.newShowTime).format('MM-DD HH:mm')}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm text-gray-400">-</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-gray-900">
+                          {request.refundTicketCount} / {request.originalTicketCount} 张
+                        </div>
                         <div className="text-sm text-gray-500">¥{request.refundAmount.toLocaleString()}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[request.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {statusNames[request.status] || request.status}
-                        </span>
+                      <td className="px-4 py-4">
+                        <div className="text-sm text-green-600 font-medium">
+                          已收: ¥{request.paidAmount.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-red-500">
+                          待退: ¥{Math.min(request.pendingRefund, request.refundAmount).toLocaleString()}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
+                      <td className="px-4 py-4">
+                        <div className="mb-1">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[request.status] || 'bg-gray-100 text-gray-600'}`}>
+                            {statusNames[request.status] || request.status}
+                          </span>
+                        </div>
+                        {request.ticketApprovalNote && (
+                          <div className="text-xs text-gray-500" title={request.ticketApprovalNote}>
+                            票务: {request.ticketApprovalNote.slice(0, 10)}...
+                          </div>
+                        )}
+                        {request.rejectionReason && (
+                          <div className="text-xs text-red-500" title={request.rejectionReason}>
+                            驳回: {request.rejectionReason.slice(0, 10)}...
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">
                         {dayjs(request.createdAt).format('MM-DD HH:mm')}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center space-x-2">
                           {request.status === 'PENDING' && user?.role === 'TICKET_SUPERVISOR' && (
                             <>
                               <button
                                 onClick={() => handleRefundApprove(request.id, true)}
-                                className="text-green-600 hover:text-green-700 text-sm font-medium"
+                                className="text-green-600 hover:text-green-700 text-sm font-medium px-2 py-1 rounded hover:bg-green-50 transition"
                               >
                                 通过
                               </button>
-                              <button className="text-red-600 hover:text-red-700 text-sm font-medium">
+                              <button
+                                onClick={() => handleRejectClick(request.id)}
+                                className="text-red-600 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition"
+                              >
                                 驳回
                               </button>
                             </>
@@ -743,14 +836,23 @@ export default function UnifiedWorkspace() {
                             <>
                               <button
                                 onClick={() => handleRefundApprove(request.id, false)}
-                                className="text-green-600 hover:text-green-700 text-sm font-medium"
+                                className="text-green-600 hover:text-green-700 text-sm font-medium px-2 py-1 rounded hover:bg-green-50 transition"
                               >
                                 终审
                               </button>
-                              <button className="text-red-600 hover:text-red-700 text-sm font-medium">
+                              <button
+                                onClick={() => handleRejectClick(request.id)}
+                                className="text-red-600 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition"
+                              >
                                 驳回
                               </button>
                             </>
+                          )}
+                          {request.status === 'REJECTED' && (
+                            <span className="text-xs text-gray-400">已处理</span>
+                          )}
+                          {request.status === 'COMPLETED' && (
+                            <span className="text-xs text-gray-400">已完成</span>
                           )}
                         </div>
                       </td>
@@ -785,6 +887,46 @@ export default function UnifiedWorkspace() {
           ))}
         </div>
       </div>
+
+      {rejectModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">驳回退改申请</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                驳回原因 <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="请输入驳回原因，该原因将被记录..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition resize-none"
+                rows={4}
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRejectingId(null);
+                  setRejectionReason('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRejectConfirm}
+                disabled={!rejectionReason.trim()}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
