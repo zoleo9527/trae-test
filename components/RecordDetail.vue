@@ -50,17 +50,17 @@
             <p class="text-xs text-gray-500">损耗原因</p>
             <p class="font-medium text-gray-900 mt-1">{{ lossReasonText[record.lossReason] || record.lossReason }}</p>
           </div>
-          <div v-if="canSeeField('expectedDate') && record.type === 'restock' && record.expectedDate">
+          <div v-if="canSeeField('actualDate') && record.actualDate">
+            <p class="text-xs text-gray-500">{{ record.status === 'completed' ? '完成日期' : '实际日期' }}</p>
+            <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.actualDate) }}</p>
+          </div>
+          <div v-if="canSeeField('expectedDate') && record.type === 'restock' && record.expectedDate && !record.actualDate">
             <p class="text-xs text-gray-500">预计到货</p>
             <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.expectedDate) }}</p>
           </div>
-          <div v-if="canSeeField('lossDate') && record.type === 'loss' && record.lossDate">
+          <div v-if="canSeeField('lossDate') && record.type === 'loss' && record.lossDate && !record.actualDate">
             <p class="text-xs text-gray-500">发生日期</p>
             <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.lossDate) }}</p>
-          </div>
-          <div v-if="canSeeField('actualDate') && record.actualDate">
-            <p class="text-xs text-gray-500">完成日期</p>
-            <p class="font-medium text-gray-900 mt-1">{{ formatDate(record.actualDate) }}</p>
           </div>
         </div>
         

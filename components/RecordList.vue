@@ -103,7 +103,7 @@ const { relativeTime, formatDate } = useFormat()
 const getBusinessDate = store.getBusinessDate
 
 const getDateLabel = (record: InventoryRecord): string => {
-  if (record.status === 'completed') return '完成日期'
+  if (record.actualDate) return record.status === 'completed' ? '完成日期' : '实际日期'
   if (record.type === 'restock') return '预计到货'
   if (record.type === 'loss') return '发生日期'
   return '业务日期'

@@ -1,17 +1,21 @@
-const parseDateSafe = (dateString: string): Date => {
-  if (dateString.includes('T')) {
-    return new Date(dateString)
+const parseDateSafe = (dateInput: string | Date): Date => {
+  if (dateInput instanceof Date) {
+    return dateInput
   }
-  const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dateInput.includes('T')) {
+    return new Date(dateInput)
+  }
+  const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (match) {
     return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
   }
-  return new Date(dateString)
+  return new Date(dateInput)
 }
 
 export const useFormat = () => {
-  const formatDate = (dateString: string): string => {
-    const date = parseDateSafe(dateString)
+  const formatDate = (dateInput: string | Date | null | undefined): string => {
+    if (!dateInput) return ''
+    const date = parseDateSafe(dateInput)
     return date.toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: '2-digit',

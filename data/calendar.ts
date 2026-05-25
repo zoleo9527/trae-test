@@ -21,10 +21,10 @@ export const calendarEvents: CalendarEvent[] = [
   },
   {
     id: 'c003',
-    date: '2024-05-20',
+    date: '2024-05-21',
     type: 'restock',
     title: '蒙娜丽莎拼图补货异常',
-    description: '到货数量异常，缺少5盒',
+    description: '实际到货45盒，与订单50盒不符，缺少5盒',
     status: 'abnormal',
     relatedRecordId: 'r003'
   },

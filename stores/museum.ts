@@ -19,8 +19,8 @@ interface FilterState {
 }
 
 const getBusinessDate = (record: InventoryRecord): string | null => {
-  if (record.status === 'completed') {
-    return record.actualDate || null
+  if (record.actualDate) {
+    return record.actualDate
   }
   if (record.type === 'restock') {
     return record.expectedDate || null
