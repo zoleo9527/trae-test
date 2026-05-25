@@ -75,3 +75,10 @@
 {"level":"info","message":"Remark added to schedule sch-004 by user 9ee32a87-3f40-4df2-819e-77df636cf963","timestamp":"2026-05-25 15:55:22"}
 {"level":"info","message":"::1 - - [25/May/2026:07:55:22 +0000] \"POST /api/v1/remarks/schedule/sch-004 HTTP/1.1\" 201 508 \"-\" \"curl/8.7.1\"","timestamp":"2026-05-25 15:55:22"}
 {"duration":7,"level":"info","message":"Request completed: POST /api/v1/remarks/schedule/sch-004 201 (7ms)","method":"POST","requestId":"fa48a543-0892-4b43-aeee-001bb5debadd","statusCode":201,"timestamp":"2026-05-25 15:55:22","url":"/api/v1/remarks/schedule/sch-004","userId":"9ee32a87-3f40-4df2-819e-77df636cf963"}
+{"level":"info","message":"🚀 Server running on port 3001","timestamp":"2026-05-25 17:22:01"}
+{"level":"info","message":"📊 Environment: development","timestamp":"2026-05-25 17:22:01"}
+{"level":"info","message":"🔗 API Base: http://localhost:3001/api/v1","timestamp":"2026-05-25 17:22:01"}
+{"level":"info","message":"💊 Health Check: http://localhost:3001/api/v1/health","timestamp":"2026-05-25 17:22:01"}
+{"ip":"::1","level":"info","message":"Incoming request: GET /api/health","method":"GET","requestId":"c264cc58-3b0d-45be-be21-7d36799b2ba3","timestamp":"2026-05-25 17:26:08","url":"/api/health","userAgent":"curl/8.7.1","userId":null}
+{"level":"info","message":"::1 - - [25/May/2026:09:26:08 +0000] \"GET /api/health HTTP/1.1\" 404 195 \"-\" \"curl/8.7.1\"","timestamp":"2026-05-25 17:26:08"}
+{"duration":5,"level":"info","message":"Request completed: GET /api/health 404 (5ms)","method":"GET","requestId":"c264cc58-3b0d-45be-be21-7d36799b2ba3","statusCode":404,"timestamp":"2026-05-25 17:26:08","url":"/api/health","userId":null}

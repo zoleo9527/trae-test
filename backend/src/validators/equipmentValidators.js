@@ -23,8 +23,8 @@ const updateEquipmentSchema = yup.object({
 });
 
 const createBorrowRequestSchema = yup.object({
-  scheduleId: yup.string().uuid('Invalid schedule ID').required('Schedule ID is required'),
-  equipmentId: yup.string().uuid('Invalid equipment ID').required('Equipment ID is required'),
+  scheduleId: yup.string().required('Schedule ID is required'),
+  equipmentId: yup.string().required('Equipment ID is required'),
   borrowQty: yup.number().integer().min(1).required('Borrow quantity is required'),
   requestReason: yup.string().required('Request reason is required').max(500),
   expectedReturnDate: yup.date().required('Expected return date is required'),
@@ -55,9 +55,9 @@ const equipmentFilterSchema = yup.object({
 
 const borrowFilterSchema = yup.object({
   status: yup.string().oneOf(BorrowStatus).nullable(),
-  scheduleId: yup.string().uuid().nullable(),
-  equipmentId: yup.string().uuid().nullable(),
-  requestedById: yup.string().uuid().nullable(),
+  scheduleId: yup.string().nullable(),
+  equipmentId: yup.string().nullable(),
+  requestedById: yup.string().nullable(),
   page: yup.number().integer().min(1).default(1),
   pageSize: yup.number().integer().min(1).max(100).default(20),
 });

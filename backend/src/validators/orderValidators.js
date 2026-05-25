@@ -3,7 +3,7 @@ const yup = require('yup');
 const OrderStatus = ['PENDING', 'CONFIRMED', 'PAID', 'REFUND_REQUESTED', 'REFUND_APPROVED', 'REFUND_REJECTED', 'COMPLETED', 'CANCELLED'];
 
 const createOrderSchema = yup.object({
-  scheduleId: yup.string().uuid('Invalid schedule ID').required('Schedule ID is required'),
+  scheduleId: yup.string().required('Schedule ID is required'),
   groupName: yup.string().required('Group name is required').max(200),
   contactPerson: yup.string().required('Contact person is required').max(100),
   contactPhone: yup.string().required('Contact phone is required').max(20),
@@ -49,8 +49,8 @@ const markPaidSchema = yup.object({
 
 const orderFilterSchema = yup.object({
   status: yup.string().oneOf(OrderStatus).nullable(),
-  scheduleId: yup.string().uuid().nullable(),
-  createdById: yup.string().uuid().nullable(),
+  scheduleId: yup.string().nullable(),
+  createdById: yup.string().nullable(),
   page: yup.number().integer().min(1).default(1),
   pageSize: yup.number().integer().min(1).max(100).default(20),
 });

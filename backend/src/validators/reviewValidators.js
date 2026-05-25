@@ -3,7 +3,7 @@ const yup = require('yup');
 const IssueStatus = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
 const createReviewSchema = yup.object({
-  scheduleId: yup.string().uuid('Invalid schedule ID').required('Schedule ID is required'),
+  scheduleId: yup.string().required('Schedule ID is required'),
   reviewContent: yup.string().required('Review content is required'),
   overallRating: yup.number().integer().min(1).max(5).nullable(),
   issuesFound: yup.string().nullable(),
@@ -18,7 +18,7 @@ const updateReviewSchema = yup.object({
 });
 
 const createIssueSchema = yup.object({
-  reviewId: yup.string().uuid('Invalid review ID').required('Review ID is required'),
+  reviewId: yup.string().required('Review ID is required'),
   title: yup.string().required('Issue title is required').max(200),
   description: yup.string().required('Issue description is required'),
   severity: yup.string().oneOf(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'], 'Invalid severity').required('Severity is required'),
@@ -35,14 +35,14 @@ const updateIssueSchema = yup.object({
 });
 
 const reviewFilterSchema = yup.object({
-  scheduleId: yup.string().uuid().nullable(),
-  createdById: yup.string().uuid().nullable(),
+  scheduleId: yup.string().nullable(),
+  createdById: yup.string().nullable(),
   page: yup.number().integer().min(1).default(1),
   pageSize: yup.number().integer().min(1).max(100).default(20),
 });
 
 const issueFilterSchema = yup.object({
-  reviewId: yup.string().uuid().nullable(),
+  reviewId: yup.string().nullable(),
   status: yup.string().oneOf(IssueStatus).nullable(),
   severity: yup.string().oneOf(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullable(),
   page: yup.number().integer().min(1).default(1),

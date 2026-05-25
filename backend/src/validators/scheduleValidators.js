@@ -18,7 +18,6 @@ const updateScheduleSchema = yup.object({
   startTime: yup.date(),
   endTime: yup.date().min(yup.ref('startTime'), 'End time must be after start time'),
   venue: yup.string().max(200),
-  status: yup.string().oneOf(ScheduleStatus, 'Invalid status'),
   castList: yup.string().nullable(),
   description: yup.string().nullable(),
 });
