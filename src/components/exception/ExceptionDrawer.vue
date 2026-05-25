@@ -114,9 +114,15 @@ const goToRelatedOrder = () => {
   exceptionStore.closeDrawer()
   
   if (exception.relatedOrderType === 'borrow') {
-    router.push('/borrow')
+    router.push({
+      path: '/borrow',
+      query: { orderNo: exception.relatedOrderNo, highlight: 'true' }
+    })
   } else if (exception.relatedOrderType === 'ticket') {
-    router.push('/ticket')
+    router.push({
+      path: '/ticket',
+      query: { orderNo: exception.relatedOrderNo, highlight: 'true' }
+    })
   }
 }
 </script>

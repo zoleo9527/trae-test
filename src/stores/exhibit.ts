@@ -77,6 +77,11 @@ export const useExhibitStore = defineStore('exhibit', () => {
       updateProgressNode(orderId, receiptNode.id, 'completed', operator, remark || '签收确认')
     }
     
+    const installNode = getProgressNodeByName(order, '布展完成')
+    if (installNode && installNode.status === 'pending') {
+      updateProgressNode(orderId, installNode.id, 'processing', operator, '开始布展')
+    }
+    
     order.status = 'installing'
     
     order.items.forEach(item => {
@@ -90,7 +95,7 @@ export const useExhibitStore = defineStore('exhibit', () => {
       operateTime: new Date().toLocaleString('zh-CN'),
       module: '展品借调',
       action: '展品签收',
-      targetId: order.id,
+      targetId: order.orderNo,
       targetType: 'borrow',
       beforeChange: `状态: ${oldStatus}`,
       afterChange: `状态: installing`,
@@ -125,7 +130,7 @@ export const useExhibitStore = defineStore('exhibit', () => {
       operateTime: new Date().toLocaleString('zh-CN'),
       module: '展品借调',
       action: '布展完成',
-      targetId: order.id,
+      targetId: order.orderNo,
       targetType: 'borrow',
       beforeChange: `状态: ${oldStatus}`,
       afterChange: `状态: completed`,

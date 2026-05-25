@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { useTicketStore } from '@/stores/ticket'
 import { useExceptionStore } from '@/stores/exception'
 import { useAppStore } from '@/stores/app'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { Search, QrCode, CheckCircle, AlertTriangle, Users, Ticket, ChevronDown, User, Phone } from 'lucide-vue-next'
+
+const route = useRoute()
 
 const ticketStore = useTicketStore()
 const exceptionStore = useExceptionStore()
@@ -68,6 +71,32 @@ const openRelatedException = (orderId: string) => {
 const canVerify = computed(() => 
   appStore.currentRole === 'ticket' || appStore.currentRole === 'manager'
 )
+
+const processQueryParams = () => {
+  const orderNo = route.query.orderNo as string
+  const highlight = route.query.highlight === 'true'
+  
+  if (orderNo && highlight) {
+    const order = ticketStore.ticketOrders.find(o => o.orderNo === orderNo)
+    if (order) {
+      nextTick(() => {
+        selectedOrderId.value = order.id
+        const element = document.getElementById(`ticket-order-${order.id}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    }
+  }
+}
+
+onMounted(() => {
+  processQueryParams()
+})
+
+watch(() => route.query, () => {
+  processQueryParams()
+})
 </script>
 
 <template>
@@ -87,8 +116,13 @@ const canVerify = computed(() =>
         <div 
           v-for="order in filteredOrders"
           :key="order.id"
-          class="p-4 bg-white rounded-xl shadow-museum cursor-pointer transition-all hover:shadow-museum-hover"
-          :class="{ 'ring-2 ring-museum-gold': selectedOrderId === order.id }"
+          :id="`ticket-order-${order.id}`"
+          class="p-4 bg-white rounded-xl shadow-museum cursor-pointer transition-all duration-300 hover:shadow-museum-hover"
+          :class="{ 
+            'ring-2 ring-museum-gold': selectedOrderId === order.id,
+            'ring-offset-2 ring-offset-museum-gray-50 animate-pulse': 
+              selectedOrderId === order.id && route.query.highlight === 'true'
+          }"
           @click="selectOrder(order.id)"
         >
           <div class="flex items-start justify-between mb-2">

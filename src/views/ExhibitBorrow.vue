@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { useExhibitStore } from '@/stores/exhibit'
 import { useExceptionStore } from '@/stores/exception'
 import { useAppStore } from '@/stores/app'
@@ -7,6 +8,8 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import PriorityTag from '@/components/common/PriorityTag.vue'
 import { Search, Filter, ChevronDown, AlertCircle, MapPin, User, Calendar, Check, Package, PackageCheck, Settings, X } from 'lucide-vue-next'
 import type { BorrowStatus } from '@/types'
+
+const route = useRoute()
 
 const exhibitStore = useExhibitStore()
 const exceptionStore = useExceptionStore()
@@ -127,6 +130,32 @@ const cancelConfirm = () => {
   confirmOrderId.value = null
   confirmRemark.value = ''
 }
+
+const processQueryParams = () => {
+  const orderNo = route.query.orderNo as string
+  const highlight = route.query.highlight === 'true'
+  
+  if (orderNo && highlight) {
+    const order = exhibitStore.borrowOrders.find(o => o.orderNo === orderNo)
+    if (order) {
+      nextTick(() => {
+        expandedOrderId.value = order.id
+        const element = document.getElementById(`borrow-order-${order.id}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    }
+  }
+}
+
+onMounted(() => {
+  processQueryParams()
+})
+
+watch(() => route.query, () => {
+  processQueryParams()
+})
 </script>
 
 <template>
@@ -170,7 +199,12 @@ const cancelConfirm = () => {
       <div 
         v-for="order in filteredOrders"
         :key="order.id"
-        class="bg-white rounded-xl shadow-museum overflow-hidden hover:shadow-museum-hover transition-shadow"
+        :id="`borrow-order-${order.id}`"
+        class="bg-white rounded-xl shadow-museum overflow-hidden hover:shadow-museum-hover transition-all duration-300"
+        :class="{ 
+          'ring-2 ring-museum-gold ring-offset-2 ring-offset-museum-gray-50 animate-pulse': 
+            expandedOrderId === order.id && route.query.highlight === 'true'
+        }"
       >
         <div 
           class="p-5 cursor-pointer"
