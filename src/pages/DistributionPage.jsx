@@ -15,10 +15,24 @@ export default function DistributionPage() {
   const [books, setBooks] = useState([])
   const [channels, setChannels] = useState([])
 
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [showExceptionModal, setShowExceptionModal] = useState(false)
+
+  const [createForm, setCreateForm] = useState({
+    book_id: '',
+    channel_id: '',
+    quantity: '',
+    sample_quantity: '',
+    distribution_date: new Date().toISOString().split('T')[0],
+    tracking_no: '',
+    courier_company: '',
+    remarks: '',
+    handler_id: '',
+    channel_manager_id: '',
+  })
 
   const [returnForm, setReturnForm] = useState({
     quantity: '',
@@ -245,12 +259,57 @@ export default function DistributionPage() {
     }
   }
 
+  const handleCreateDistribution = async () => {
+    if (submitting) return
+    if (!createForm.book_id || !createForm.channel_id || !createForm.quantity || !createForm.handler_id || !createForm.channel_manager_id) {
+      alert('请填写完整必填信息（图书、渠道、数量、发行专员、渠道经理）')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await distributionAPI.createDistribution({
+        book_id: parseInt(createForm.book_id),
+        channel_id: parseInt(createForm.channel_id),
+        quantity: parseInt(createForm.quantity),
+        sample_quantity: parseInt(createForm.sample_quantity) || 0,
+        distribution_date: createForm.distribution_date,
+        tracking_no: createForm.tracking_no || undefined,
+        courier_company: createForm.courier_company || undefined,
+        remarks: createForm.remarks || undefined,
+        handler_id: parseInt(createForm.handler_id),
+        channel_manager_id: parseInt(createForm.channel_manager_id),
+      })
+      const newId = res.data.id
+      setShowCreateModal(false)
+      setCreateForm({
+        book_id: '',
+        channel_id: '',
+        quantity: '',
+        sample_quantity: '',
+        distribution_date: new Date().toISOString().split('T')[0],
+        tracking_no: '',
+        courier_company: '',
+        remarks: '',
+        handler_id: '',
+        channel_manager_id: '',
+      })
+      loadData()
+      setSelectedId(newId)
+      loadDetail(newId)
+    } catch (error) {
+      console.error('新建铺货失败:', error)
+      alert('新建铺货失败，请重试')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const ListPanel = (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-gray-200 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-800">铺货单列表</h2>
-          <ActionButton>
+          <ActionButton onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 inline mr-1" /> 新建铺货
           </ActionButton>
         </div>
@@ -520,6 +579,158 @@ export default function DistributionPage() {
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
+
+      <Modal show={showCreateModal} title="新建铺货单" onClose={() => setShowCreateModal(false)}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                选择图书 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={createForm.book_id}
+                onChange={(e) => setCreateForm({ ...createForm, book_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">请选择图书</option>
+                {books.map((book) => (
+                  <option key={book.id} value={book.id}>
+                    {book.title} ({book.isbn})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                选择渠道 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={createForm.channel_id}
+                onChange={(e) => setCreateForm({ ...createForm, channel_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">请选择渠道</option>
+                {channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                铺货数量（册） <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={createForm.quantity}
+                onChange={(e) => setCreateForm({ ...createForm, quantity: e.target.value })}
+                placeholder="请输入铺货数量"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">样书数量（册）</label>
+              <input
+                type="number"
+                value={createForm.sample_quantity}
+                onChange={(e) => setCreateForm({ ...createForm, sample_quantity: e.target.value })}
+                placeholder="选填，默认0"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              铺货日期 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={createForm.distribution_date}
+              onChange={(e) => setCreateForm({ ...createForm, distribution_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">快递公司</label>
+              <input
+                type="text"
+                value={createForm.courier_company}
+                onChange={(e) => setCreateForm({ ...createForm, courier_company: e.target.value })}
+                placeholder="选填"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">运单号</label>
+              <input
+                type="text"
+                value={createForm.tracking_no}
+                onChange={(e) => setCreateForm({ ...createForm, tracking_no: e.target.value })}
+                placeholder="选填"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                发行专员 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={createForm.handler_id}
+                onChange={(e) => setCreateForm({ ...createForm, handler_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">请选择</option>
+                {users.filter(u => u.role === 'distribution_specialist' || u.role === 'admin').map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                渠道经理 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={createForm.channel_manager_id}
+                onChange={(e) => setCreateForm({ ...createForm, channel_manager_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">请选择</option>
+                {users.filter(u => u.role === 'channel_manager' || u.role === 'admin').map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea
+              value={createForm.remarks}
+              onChange={(e) => setCreateForm({ ...createForm, remarks: e.target.value })}
+              placeholder="选填"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={2}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <ActionButton variant="secondary" onClick={() => setShowCreateModal(false)} className="flex-1">
+              取消
+            </ActionButton>
+            <ActionButton onClick={handleCreateDistribution} className="flex-1" disabled={submitting}>
+              {submitting ? '提交中...' : '确认提交'}
+            </ActionButton>
+          </div>
+        </div>
+      </Modal>
 
       <Modal show={showReturnModal} title="登记退货" onClose={() => setShowReturnModal(false)}>
         <div className="space-y-4">
