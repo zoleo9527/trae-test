@@ -1,15 +1,25 @@
-import { Camera, Check, FileText, Plus, Search } from 'lucide-react';
+import { Check, FileText, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import Modal from '../components/Modal.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Table from '../components/Table.jsx';
 import { useApp } from '../context/AppContext.jsx';
 
+const mockEvidenceFiles = [
+  'photo_质量问题_20250101_01.jpg',
+  'photo_质量问题_20250101_02.jpg',
+  'photo_质量问题_20250101_03.jpg',
+  '过磅单_20250101.jpg',
+  '签收单_20250101.jpg',
+  '视频_运输损坏_20250101.mp4'
+];
+
 export default function Complaints() {
-  const { complaintRecords, customers, creditOrders, addComplaintRecord, processComplaint, resolveComplaint } = useApp();
+  const { complaintRecords, customers, creditOrders, addComplaintRecord, processComplaint, resolveComplaint, currentUser } = useApp();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -21,8 +31,24 @@ export default function Complaints() {
     type: 'quality',
     description: '',
     quantity: '',
-    claimAmount: ''
+    claimAmount: '',
+    evidence: []
   });
+
+  const toggleEvidence = (fileName) => {
+    const current = newRecord.evidence || [];
+    if (current.includes(fileName)) {
+      setNewRecord({
+        ...newRecord,
+        evidence: current.filter(f => f !== fileName)
+      });
+    } else {
+      setNewRecord({
+        ...newRecord,
+        evidence: [...current, fileName]
+      });
+    }
+  };
 
   const filteredRecords = complaintRecords.filter(record => {
     const matchesSearch = record.customerName.includes(searchTerm) ||
@@ -60,8 +86,8 @@ export default function Complaints() {
       quantity: parseFloat(newRecord.quantity),
       unit: '斤',
       claimAmount: parseFloat(newRecord.claimAmount),
-      evidence: [],
-      handler: '李销售'
+      evidence: newRecord.evidence || [],
+      handler: currentUser.name
     });
 
     setShowCreateModal(false);
@@ -71,7 +97,8 @@ export default function Complaints() {
       type: 'quality',
       description: '',
       quantity: '',
-      claimAmount: ''
+      claimAmount: '',
+      evidence: []
     });
   };
 
@@ -157,46 +184,60 @@ export default function Complaints() {
           </select>
         </div>
 
-        <Table headers={['投诉单号', '客户', '关联订单', '类型', '描述', '索赔数量', '索赔金额', '处理人', '状态', '操作']}>
+        <Table headers={['投诉单号', '客户', '关联订单', '类型', '描述', '凭证', '索赔金额', '处理人', '状态', '操作']}>
           {filteredRecords.map((record) => (
             <tr key={record.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 text-sm font-medium text-primary-600">{record.id}</td>
               <td className="px-4 py-3 text-sm">{record.customerName}</td>
               <td className="px-4 py-3 text-sm text-gray-500">{record.orderId}</td>
               <td className="px-4 py-3 text-sm">{getTypeLabel(record.type)}</td>
-              <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">{record.description}</td>
-              <td className="px-4 py-3 text-sm">{record.quantity} {record.unit}</td>
+              <td className="px-4 py-3 text-sm text-gray-500 max-w-[150px] truncate">{record.description}</td>
+              <td className="px-4 py-3 text-sm">
+                {record.evidence && record.evidence.length > 0 ? (
+                  <span className="text-primary-600">{record.evidence.length} 个</span>
+                ) : (
+                  <span className="text-gray-400">-</span>
+                )}
+              </td>
               <td className="px-4 py-3 text-sm font-medium text-danger-600">¥{record.claimAmount.toLocaleString()}</td>
               <td className="px-4 py-3 text-sm">{record.handler}</td>
               <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
               <td className="px-4 py-3">
-                {record.status === 'pending' && (
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       setSelectedRecord(record);
-                      setResolution('');
-                      setShowProcessModal(true);
+                      setShowDetailModal(true);
                     }}
-                    className="text-primary-600 hover:text-primary-700 text-sm"
+                    className="text-info-600 hover:text-info-700 text-sm flex items-center gap-1"
                   >
-                    处理
+                    <Image size={14} /> 凭证
                   </button>
-                )}
-                {record.status === 'processing' && (
-                  <button
-                    onClick={() => {
-                      setSelectedRecord(record);
-                      setResolution(record.resolution || '');
-                      setShowResolveModal(true);
-                    }}
-                    className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1"
-                  >
-                    <Check size={14} /> 结案
-                  </button>
-                )}
-                {record.status === 'resolved' && (
-                  <span className="text-xs text-gray-500">已解决</span>
-                )}
+                  {record.status === 'pending' && (
+                    <button
+                      onClick={() => {
+                        setSelectedRecord(record);
+                        setResolution('');
+                        setShowProcessModal(true);
+                      }}
+                      className="text-primary-600 hover:text-primary-700 text-sm"
+                    >
+                      处理
+                    </button>
+                  )}
+                  {record.status === 'processing' && (
+                    <button
+                      onClick={() => {
+                        setSelectedRecord(record);
+                        setResolution(record.resolution || '');
+                        setShowResolveModal(true);
+                      }}
+                      className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1"
+                    >
+                      <Check size={14} /> 结案
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
@@ -284,11 +325,30 @@ export default function Complaints() {
             />
           </div>
           <div>
-            <label className="label">上传凭证 (可选)</label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <Camera size={24} className="mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-500">点击或拖拽上传照片</p>
-              <p className="text-xs text-gray-400 mt-1">支持 JPG、PNG 格式</p>
+            <label className="label">
+              选择凭证
+              <span className="text-xs text-gray-400 ml-2">已选 {newRecord.evidence?.length || 0} 个</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-lg">
+              {mockEvidenceFiles.map((fileName) => (
+                <button
+                  key={fileName}
+                  type="button"
+                  onClick={() => toggleEvidence(fileName)}
+                  className={`flex items-center gap-2 p-2 rounded-lg text-left text-sm transition-colors ${
+                    newRecord.evidence?.includes(fileName)
+                      ? 'bg-primary-50 border border-primary-300'
+                      : 'bg-gray-50 border border-transparent hover:bg-gray-100'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded flex items-center justify-center ${
+                    newRecord.evidence?.includes(fileName) ? 'bg-primary-500 text-white' : 'bg-gray-200'
+                  }`}>
+                    {newRecord.evidence?.includes(fileName) && <Check size={12} />}
+                  </div>
+                  <span className="truncate text-xs">{fileName}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -386,6 +446,123 @@ export default function Complaints() {
               <button onClick={handleResolve} className="btn-primary">
                 <Check size={16} className="mr-2" />
                 确认结案
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedRecord(null);
+        }}
+        title="投诉详情"
+        size="lg"
+      >
+        {selectedRecord && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">投诉单号</p>
+                <p className="text-lg font-medium text-gray-800">{selectedRecord.id}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">状态</p>
+                <StatusBadge status={selectedRecord.status} />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">客户</p>
+                <p className="text-lg font-medium text-gray-800">{selectedRecord.customerName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">关联订单</p>
+                <p className="text-lg font-medium text-primary-600">{selectedRecord.orderId}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">投诉类型</p>
+                <p className="text-lg font-medium text-gray-800">{getTypeLabel(selectedRecord.type)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">处理人</p>
+                <p className="text-lg font-medium text-gray-800">{selectedRecord.handler}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">索赔数量</p>
+                <p className="text-lg font-medium text-gray-800">{selectedRecord.quantity} {selectedRecord.unit}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">索赔金额</p>
+                <p className="text-lg font-bold text-danger-600">¥{selectedRecord.claimAmount.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">创建日期</p>
+                <p className="text-lg font-medium text-gray-800">{selectedRecord.createDate}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-sm text-gray-500 mb-2">问题描述</p>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-800">{selectedRecord.description}</p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-gray-800">凭证文件</p>
+                <span className="text-xs text-gray-500">共 {selectedRecord.evidence?.length || 0} 个</span>
+              </div>
+              {selectedRecord.evidence && selectedRecord.evidence.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedRecord.evidence.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="w-10 h-10 bg-primary-100 rounded flex items-center justify-center">
+                        {file.endsWith('.mp4') ? (
+                          <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        ) : (
+                          <Image size={20} className="text-primary-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{file}</p>
+                        <p className="text-xs text-gray-500">{file.endsWith('.mp4') ? '视频文件' : '图片'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Image size={32} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">暂无凭证文件</p>
+                </div>
+              )}
+            </div>
+
+            {selectedRecord.resolution && (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-sm text-gray-500 mb-2">处理方案</p>
+                <div className="bg-primary-50 rounded-lg p-4">
+                  <p className="text-sm text-primary-800">{selectedRecord.resolution}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setSelectedRecord(null);
+                }}
+                className="btn-secondary"
+              >
+                关闭
               </button>
             </div>
           </div>

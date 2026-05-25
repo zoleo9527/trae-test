@@ -124,7 +124,21 @@ export function AppProvider({ children }) {
         currentCredit: c.currentCredit + order.totalAmount
       } : c));
     }
-  }, [customers]);
+    addTask({
+      title: `${customer?.name || '客户'} ${newOrder.id} 账款待催办`,
+      type: 'collection',
+      priority: 'medium',
+      status: 'pending',
+      assignedTo: order.salesperson || '李销售',
+      relatedId: newOrder.id,
+      dueDate: order.dueDate
+    });
+    addNotification({
+      type: 'info',
+      message: `新赊销单 ${newOrder.id} 已创建，到期日 ${order.dueDate}`,
+      relatedTo: newOrder.id
+    });
+  }, [customers, addTask, addNotification]);
 
   const addCollectionRecord = useCallback((record) => {
     const newRecord = {
@@ -133,14 +147,26 @@ export function AppProvider({ children }) {
       createDate: new Date().toISOString().split('T')[0]
     };
     setCollectionRecords(prev => [newRecord, ...prev]);
+
+    addTask({
+      title: `${record.customerName} 回款催办`,
+      type: 'collection',
+      priority: 'high',
+      status: record.status === 'completed' ? 'completed' : record.status,
+      assignedTo: record.operator || '李销售',
+      relatedId: newRecord.id,
+      dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0]
+    });
+
     if (record.status === 'completed') {
       const order = creditOrders.find(o => o.id === record.creditOrderId);
       if (order) {
         const newPaidAmount = order.paidAmount + record.amount;
+        const isFullyPaid = newPaidAmount >= order.totalAmount;
         setCreditOrders(prev => prev.map(o => o.id === record.creditOrderId ? {
           ...o,
           paidAmount: newPaidAmount,
-          status: newPaidAmount >= o.totalAmount ? 'paid' : o.status
+          status: isFullyPaid ? 'paid' : o.status
         } : o));
         const customer = customers.find(c => c.id === order.customerId);
         if (customer) {
@@ -149,9 +175,54 @@ export function AppProvider({ children }) {
             currentCredit: Math.max(0, c.currentCredit - record.amount)
           } : c));
         }
+        addNotification({
+          type: 'success',
+          message: `${record.customerName} 订单 ${record.creditOrderId} 已回款 ¥${record.amount.toLocaleString()}`,
+          relatedTo: record.creditOrderId
+        });
       }
     }
-  }, [creditOrders, customers]);
+  }, [creditOrders, customers, addTask, addNotification]);
+
+  const completeCollectionRecord = useCallback((recordId) => {
+    const record = collectionRecords.find(r => r.id === recordId);
+    if (!record) return;
+
+    setCollectionRecords(prev => prev.map(r => r.id === recordId ? {
+      ...r,
+      status: 'completed',
+      nextFollowDate: null
+    } : r));
+
+    const order = creditOrders.find(o => o.id === record.creditOrderId);
+    if (order) {
+      const newPaidAmount = order.paidAmount + record.amount;
+      const isFullyPaid = newPaidAmount >= order.totalAmount;
+      setCreditOrders(prev => prev.map(o => o.id === record.creditOrderId ? {
+        ...o,
+        paidAmount: newPaidAmount,
+        status: isFullyPaid ? 'paid' : o.status
+      } : o));
+      const customer = customers.find(c => c.id === order.customerId);
+      if (customer) {
+        setCustomers(prev => prev.map(c => c.id === order.customerId ? {
+          ...c,
+          currentCredit: Math.max(0, c.currentCredit - record.amount)
+        } : c));
+      }
+    }
+
+    setTasks(prev => prev.map(t => t.relatedId === recordId && t.type === 'collection' ? {
+      ...t,
+      status: 'completed'
+    } : t));
+
+    addNotification({
+      type: 'success',
+      message: `${record.customerName} 催办记录 ${recordId} 已标记完成，回款 ¥${record.amount.toLocaleString()}`,
+      relatedTo: record.creditOrderId
+    });
+  }, [collectionRecords, creditOrders, customers, addNotification]);
 
   const addLossRecord = useCallback((record) => {
     const newRecord = {
@@ -274,6 +345,7 @@ export function AppProvider({ children }) {
     completeGrading,
     addCreditOrder,
     addCollectionRecord,
+    completeCollectionRecord,
     addLossRecord,
     confirmLossRecord,
     rejectLossRecord,

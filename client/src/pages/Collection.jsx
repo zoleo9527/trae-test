@@ -6,7 +6,7 @@ import Table from '../components/Table.jsx';
 import { useApp } from '../context/AppContext.jsx';
 
 export default function Collection() {
-  const { creditOrders, collectionRecords, addCollectionRecord, updateTask } = useApp();
+  const { creditOrders, collectionRecords, addCollectionRecord, completeCollectionRecord, currentUser } = useApp();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -48,7 +48,7 @@ export default function Collection() {
       amount: parseFloat(newRecord.amount),
       method: newRecord.method,
       record: newRecord.record,
-      operator: '李销售',
+      operator: currentUser.name,
       status: newRecord.status,
       nextFollowDate: newRecord.status === 'completed' ? null : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
@@ -64,7 +64,7 @@ export default function Collection() {
   };
 
   const handleComplete = (recordId) => {
-    updateTask(recordId, { status: 'completed' });
+    completeCollectionRecord(recordId);
     setShowDetailModal(false);
   };
 
