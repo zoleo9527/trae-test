@@ -148,15 +148,34 @@ export function AppProvider({ children }) {
     };
     setCollectionRecords(prev => [newRecord, ...prev]);
 
-    addTask({
-      title: `${record.customerName} 回款催办`,
-      type: 'collection',
-      priority: 'high',
-      status: record.status === 'completed' ? 'completed' : record.status,
-      assignedTo: record.operator || '李销售',
-      relatedId: newRecord.id,
-      dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0]
-    });
+    setTasks(prev => prev.map(t => {
+      if (t.relatedId === record.creditOrderId && t.type === 'collection') {
+        return {
+          ...t,
+          title: `${record.customerName} 回款催办中`,
+          priority: 'high',
+          status: record.status === 'completed' ? 'completed' : 'in_progress',
+          relatedId: newRecord.id,
+          dueDate: record.nextFollowDate || t.dueDate,
+          relatedOrderId: record.creditOrderId
+        };
+      }
+      return t;
+    }));
+
+    const existingTask = tasks.find(t => t.relatedId === record.creditOrderId && t.type === 'collection');
+    if (!existingTask) {
+      addTask({
+        title: `${record.customerName} 回款催办`,
+        type: 'collection',
+        priority: 'high',
+        status: record.status === 'completed' ? 'completed' : 'in_progress',
+        assignedTo: record.operator || '李销售',
+        relatedId: newRecord.id,
+        dueDate: record.nextFollowDate || new Date().toISOString().split('T')[0],
+        relatedOrderId: record.creditOrderId
+      });
+    }
 
     if (record.status === 'completed') {
       const order = creditOrders.find(o => o.id === record.creditOrderId);
@@ -182,7 +201,7 @@ export function AppProvider({ children }) {
         });
       }
     }
-  }, [creditOrders, customers, addTask, addNotification]);
+  }, [creditOrders, customers, tasks, addTask, addNotification]);
 
   const completeCollectionRecord = useCallback((recordId) => {
     const record = collectionRecords.find(r => r.id === recordId);
@@ -212,10 +231,18 @@ export function AppProvider({ children }) {
       }
     }
 
-    setTasks(prev => prev.map(t => t.relatedId === recordId && t.type === 'collection' ? {
-      ...t,
-      status: 'completed'
-    } : t));
+    setTasks(prev => prev.map(t => {
+      const isRelated = t.relatedId === recordId || 
+        (t.relatedOrderId === record.creditOrderId && t.type === 'collection') ||
+        (t.relatedId === record.creditOrderId && t.type === 'collection');
+      if (isRelated) {
+        return {
+          ...t,
+          status: 'completed'
+        };
+      }
+      return t;
+    }));
 
     addNotification({
       type: 'success',

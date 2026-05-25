@@ -1,4 +1,4 @@
-import { Check, FileText, Plus, Search } from 'lucide-react';
+import { Check, FileText, Image, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import Modal from '../components/Modal.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
