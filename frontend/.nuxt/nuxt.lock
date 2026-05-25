@@ -1,0 +1,9 @@
+{
+  "pid": 1550,
+  "startedAt": 1779709011063,
+  "command": "dev",
+  "cwd": "/Users/zhangliu/Documents/private/model-test/trae-test-3/frontend",
+  "port": 3002,
+  "hostname": "0.0.0.0",
+  "url": "http://0.0.0.0:3002"
+}

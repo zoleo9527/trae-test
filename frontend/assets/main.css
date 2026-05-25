@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__nuxt { height: 100%; }
+body { background: #f6f7f9; color: #1f2937; font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
+
+.card { @apply bg-white rounded-xl shadow-sm border border-slate-200; }
+.btn { @apply inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition; }
+.btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
+.btn-ghost { @apply btn text-slate-600 hover:bg-slate-100; }
+.btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+.tag { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+.tag-green { @apply tag bg-emerald-100 text-emerald-700; }
+.tag-red { @apply tag bg-rose-100 text-rose-700; }
+.tag-amber { @apply tag bg-amber-100 text-amber-700; }
+.tag-blue { @apply tag bg-sky-100 text-sky-700; }
+.tag-slate { @apply tag bg-slate-100 text-slate-600; }
+.input { @apply w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500; }
+.label { @apply text-xs text-slate-500 mb-1 block; }
+table.fruit { @apply w-full text-sm; }
+table.fruit th { @apply text-left text-xs font-medium text-slate-500 uppercase tracking-wider py-2 px-3 border-b border-slate-200 bg-slate-50; }
+table.fruit td { @apply py-2 px-3 border-b border-slate-100; }
