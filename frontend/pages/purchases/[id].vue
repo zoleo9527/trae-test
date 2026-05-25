@@ -8,8 +8,9 @@
             {{ purchase.code }} · {{ purchase.product_name }}
           </div>
           <div class="text-sm text-slate-500 mt-1">
-            供应商：{{ purchase.supplier_name }}（{{
-              purchase.supplier_contact
+            供应商：{{ purchase.supplier_name }}（{{ purchase.supplier_contact
+            }}{{
+              purchase.supplier_region ? " · " + purchase.supplier_region : ""
             }}） · 净重 {{ purchase.net_kg }} 斤 · 冷库
             {{ purchase.warehouse_in }} · 车牌号 {{ purchase.truck_no }}
           </div>
@@ -183,6 +184,37 @@
             </tbody>
           </table>
         </div>
+
+        <div class="card p-4">
+          <div class="font-semibold mb-2">回款记录</div>
+          <table class="fruit">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>方式</th>
+                <th>金额</th>
+                <th>操作人</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in trace.payments" :key="p.id">
+                <td class="text-xs">{{ p.paid_at?.slice(0, 10) }}</td>
+                <td>
+                  <span class="tag tag-blue">{{ p.method }}</span>
+                </td>
+                <td>¥{{ p.amount?.toFixed(2) }}</td>
+                <td>{{ p.operator }}</td>
+                <td class="text-xs text-slate-500">{{ p.remark }}</td>
+              </tr>
+              <tr v-if="!trace.payments.length">
+                <td colspan="5" class="text-center text-slate-400 py-4">
+                  暂无回款记录
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="lg:col-span-4 space-y-4">
@@ -244,6 +276,28 @@
                     s.status
                   }}]
                 </div>
+              </div>
+            </TraceStep>
+            <TraceStep
+              label="回款"
+              :active="trace.payments.length > 0"
+              :done="salesAllSettled"
+            >
+              <div
+                v-if="trace.payments.length"
+                class="text-xs text-slate-600 space-y-0.5"
+              >
+                <div v-for="p in trace.payments" :key="p.id">
+                  {{ p.method }}·¥{{ p.amount?.toFixed(0) }}·{{
+                    p.paid_at?.slice(0, 10)
+                  }}
+                </div>
+              </div>
+              <div
+                v-else-if="trace.sales.length > 0"
+                class="text-xs text-slate-400"
+              >
+                暂无回款记录
               </div>
             </TraceStep>
             <TraceStep

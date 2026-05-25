@@ -73,6 +73,8 @@ class PurchaseOut(BaseModel):
     code: str
     supplier_id: int
     supplier_name: Optional[str] = None
+    supplier_contact: Optional[str] = None
+    supplier_region: Optional[str] = None
     product_id: int
     product_name: Optional[str] = None
     gross_kg: float

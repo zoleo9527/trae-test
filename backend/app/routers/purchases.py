@@ -16,7 +16,10 @@ def _enrich(p: Purchase) -> dict:
     allocated_kg = sum(a.qty_kg for a in p.allocations) or 0
     return {
         "id": p.id, "code": p.code,
-        "supplier_id": p.supplier_id, "supplier_name": p.supplier.name if p.supplier else None,
+        "supplier_id": p.supplier_id,
+        "supplier_name": p.supplier.name if p.supplier else None,
+        "supplier_contact": p.supplier.contact if p.supplier else None,
+        "supplier_region": p.supplier.region if p.supplier else None,
         "product_id": p.product_id, "product_name": p.product.name if p.product else None,
         "gross_kg": p.gross_kg, "tare_kg": p.tare_kg, "net_kg": p.net_kg,
         "unit_price": p.unit_price, "total_amount": p.total_amount,
