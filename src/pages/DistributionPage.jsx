@@ -114,6 +114,7 @@ export default function DistributionPage() {
     if (!selectedId) return
     try {
       await distributionAPI.updateDistribution(selectedId, {
+        status: 'completed',
         receipt_status: 'confirmed',
         receipt_date: new Date().toISOString().split('T')[0],
       })
@@ -182,6 +183,11 @@ export default function DistributionPage() {
         payment_method: paymentForm.payment_method,
         remarks: paymentForm.remarks,
       })
+      if (selectedDetail.status !== 'returned') {
+        await distributionAPI.updateDistribution(selectedId, {
+          status: 'completed',
+        })
+      }
       setShowPaymentModal(false)
       setPaymentForm({
         amount: '',
@@ -444,9 +450,11 @@ export default function DistributionPage() {
             )}
             {selectedDetail.receipt_status === 'confirmed' && (
               <>
-                <ActionButton variant="secondary" onClick={() => setShowReturnModal(true)}>
-                  <RefreshCw className="w-4 h-4 inline mr-1" /> 登记退货
-                </ActionButton>
+                {selectedDetail.status !== 'returned' && (
+                  <ActionButton variant="secondary" onClick={() => setShowReturnModal(true)}>
+                    <RefreshCw className="w-4 h-4 inline mr-1" /> 登记退货
+                  </ActionButton>
+                )}
                 <ActionButton variant="secondary" onClick={() => setShowPaymentModal(true)}>
                   <DollarSign className="w-4 h-4 inline mr-1" /> 登记回款
                 </ActionButton>

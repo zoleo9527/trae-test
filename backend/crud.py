@@ -78,7 +78,7 @@ def create_distribution(db: Session, distribution: schemas.DistributionCreate):
     db_distribution = models.Distribution(
         **distribution.model_dump(),
         distribution_no=distribution_no,
-        status="pending",
+        status="shipped",
         receipt_status="pending"
     )
     db.add(db_distribution)
