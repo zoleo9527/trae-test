@@ -14,10 +14,6 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { name: '统一工作面', href: '/', icon: 'dashboard' },
-    { name: '场次管理', href: '/shows', icon: 'calendar' },
-    { name: '团单管理', href: '/orders', icon: 'ticket' },
-    { name: '退改审核', href: '/refunds', icon: 'refresh' },
-    { name: '操作日志', href: '/logs', icon: 'history' },
   ];
 
   const icons: Record<string, ReactNode> = {

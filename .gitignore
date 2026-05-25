@@ -1,0 +1,14 @@
+node_modules/
+**/node_modules/
+
+.next/
+**/.next/
+.vite/
+**/.vite/
+dist/
+build/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example

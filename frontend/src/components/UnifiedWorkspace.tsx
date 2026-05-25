@@ -15,8 +15,31 @@ interface Show {
   totalSold: number;
   remainingSeats: number;
   refundRequestCount: number;
-  orders: any[];
-  rehearsalSchedule?: any[];
+  orders: Array<{
+    id: string;
+    orderNo: string;
+    organization: string;
+    ticketCount: number;
+    status: string;
+  }>;
+  rehearsalSchedule?: Array<{
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    type: string;
+    confirmedBy?: string;
+    confirmedAt?: string;
+  }>;
+  changeLog?: Array<{
+    id: string;
+    changedBy: string;
+    changedAt: string;
+    field: string;
+    oldValue: string;
+    newValue: string;
+    reason?: string;
+  }>;
 }
 
 interface GroupOrder {
@@ -32,6 +55,7 @@ interface GroupOrder {
   showTime: string;
   showStatus: string;
   refundRequests: any[];
+  createdAt: string;
 }
 
 interface RefundRequest {
@@ -49,6 +73,19 @@ interface RefundRequest {
   showName: string;
   organization: string;
   orderNo: string;
+}
+
+interface DashboardData {
+  pendingOrders: number;
+  pendingRefunds: number;
+  modifiedShows: number;
+  unsettledAmount: number;
+  recentActivities: Array<{
+    userName: string;
+    action: string;
+    detail: string;
+    createdAt: string;
+  }>;
 }
 
 const statusColors: Record<string, string> = {
@@ -92,10 +129,16 @@ export default function UnifiedWorkspace() {
   const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
   const [selectedShow, setSelectedShow] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'shows' | 'orders' | 'refunds'>('shows');
-  const [dashboard, setDashboard] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -106,12 +149,13 @@ export default function UnifiedWorkspace() {
         refundsAPI.getAll(),
         logsAPI.getDashboard(),
       ]);
-      setShows(showsRes.data);
-      setOrders(ordersRes.data);
-      setRefundRequests(refundsRes.data);
-      setDashboard(dashboardRes.data);
+      setShows(showsRes.data || []);
+      setOrders(ordersRes.data || []);
+      setRefundRequests(refundsRes.data || []);
+      setDashboard(dashboardRes.data || null);
     } catch (error) {
       console.error('Fetch data error:', error);
+      showMessage('error', '数据加载失败，请刷新重试');
     } finally {
       setLoading(false);
     }
@@ -149,22 +193,27 @@ export default function UnifiedWorkspace() {
         await ordersAPI.batchConfirm(selectedItems);
         setSelectedItems([]);
         setBatchMode(false);
+        showMessage('success', `成功确认 ${selectedItems.length} 个团单`);
         fetchData();
       } catch (error) {
         console.error('Batch confirm error:', error);
+        showMessage('error', '批量确认失败');
       }
     } else if (activeTab === 'refunds' && selectedItems.length > 0) {
       try {
         if (user?.role === 'TICKET_SUPERVISOR') {
           await refundsAPI.batchTicketApprove(selectedItems);
+          showMessage('success', `成功审批 ${selectedItems.length} 个退改申请`);
         } else if (user?.role === 'THEATER_MANAGER') {
           await refundsAPI.batchManagerApprove(selectedItems);
+          showMessage('success', `成功终审 ${selectedItems.length} 个退改申请`);
         }
         setSelectedItems([]);
         setBatchMode(false);
         fetchData();
       } catch (error) {
         console.error('Batch approve error:', error);
+        showMessage('error', '批量审批失败');
       }
     }
   };
@@ -173,12 +222,26 @@ export default function UnifiedWorkspace() {
     try {
       if (isTicket) {
         await refundsAPI.ticketApprove(id);
+        showMessage('success', '审批通过');
       } else {
         await refundsAPI.managerApprove(id);
+        showMessage('success', '终审通过');
       }
       fetchData();
     } catch (error) {
       console.error('Approve error:', error);
+      showMessage('error', '审批失败');
+    }
+  };
+
+  const handleOrderConfirm = async (id: string) => {
+    try {
+      await ordersAPI.confirm(id);
+      showMessage('success', '团单确认成功');
+      fetchData();
+    } catch (error) {
+      console.error('Confirm order error:', error);
+      showMessage('error', '确认失败');
     }
   };
 
@@ -200,6 +263,14 @@ export default function UnifiedWorkspace() {
 
   return (
     <div className="p-6">
+      {message && (
+        <div className={`fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 ${
+          message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {message.text}
+        </div>
+      )}
+
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">统一工作面</h1>
         <p className="text-gray-500">
@@ -433,7 +504,7 @@ export default function UnifiedWorkspace() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[show.status]}`}>
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[show.status] || 'bg-gray-100 text-gray-600'}`}>
                           {statusNames[show.status] || show.status}
                         </span>
                       </td>
@@ -465,7 +536,10 @@ export default function UnifiedWorkspace() {
                       <th className="px-4 py-3 text-left">
                         <input
                           type="checkbox"
-                          checked={selectedItems.length === filteredOrders.filter((o) => o.status === 'PENDING').length && filteredOrders.filter((o) => o.status === 'PENDING').length > 0}
+                          checked={
+                            selectedItems.length === filteredOrders.filter((o) => o.status === 'PENDING').length && 
+                            filteredOrders.filter((o) => o.status === 'PENDING').length > 0
+                          }
                           onChange={handleSelectAll}
                           className="rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                         />
@@ -529,7 +603,7 @@ export default function UnifiedWorkspace() {
                         <div className="text-sm text-gray-500">¥{order.totalAmount.toLocaleString()}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
                           {statusNames[order.status] || order.status}
                         </span>
                         {order.refundRequests?.length > 0 && (
@@ -544,10 +618,7 @@ export default function UnifiedWorkspace() {
                       <td className="px-6 py-4">
                         {order.status === 'PENDING' && (user?.role === 'TICKET_SUPERVISOR' || user?.role === 'THEATER_MANAGER') && (
                           <button
-                            onClick={async () => {
-                              await ordersAPI.confirm(order.id);
-                              fetchData();
-                            }}
+                            onClick={() => handleOrderConfirm(order.id)}
                             className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                           >
                             确认
@@ -646,7 +717,7 @@ export default function UnifiedWorkspace() {
                         <div className="text-sm text-gray-500">¥{request.refundAmount.toLocaleString()}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[request.status]}`}>
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[request.status] || 'bg-gray-100 text-gray-600'}`}>
                           {statusNames[request.status] || request.status}
                         </span>
                       </td>
