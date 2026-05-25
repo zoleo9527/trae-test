@@ -6,7 +6,7 @@ const paginationSchema = yup.object({
 });
 
 const idParamSchema = yup.object({
-  id: yup.string().uuid('Invalid ID format').required('ID is required'),
+  id: yup.string().required('ID is required'),
 });
 
 const remarkSchema = yup.object({

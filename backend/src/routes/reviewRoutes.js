@@ -17,39 +17,6 @@ const { idParamSchema } = require('../validators/commonValidators');
 const router = express.Router();
 
 router.get(
-  '/',
-  auth,
-  requirePermission(Permissions.REVIEW_VIEW),
-  validate(reviewFilterSchema, 'query'),
-  reviewController.getReviews
-);
-
-router.post(
-  '/',
-  auth,
-  requirePermission(Permissions.REVIEW_CREATE),
-  validate(createReviewSchema),
-  reviewController.createReview
-);
-
-router.get(
-  '/:id',
-  auth,
-  requirePermission(Permissions.REVIEW_VIEW),
-  validate(idParamSchema, 'params'),
-  reviewController.getReview
-);
-
-router.put(
-  '/:id',
-  auth,
-  requirePermission(Permissions.REVIEW_CREATE),
-  validate(idParamSchema, 'params'),
-  validate(updateReviewSchema),
-  reviewController.updateReview
-);
-
-router.get(
   '/issues',
   auth,
   requirePermission(Permissions.REVIEW_VIEW),
@@ -80,6 +47,39 @@ router.put(
   validate(idParamSchema, 'params'),
   validate(updateIssueSchema),
   reviewController.updateIssue
+);
+
+router.get(
+  '/',
+  auth,
+  requirePermission(Permissions.REVIEW_VIEW),
+  validate(reviewFilterSchema, 'query'),
+  reviewController.getReviews
+);
+
+router.post(
+  '/',
+  auth,
+  requirePermission(Permissions.REVIEW_CREATE),
+  validate(createReviewSchema),
+  reviewController.createReview
+);
+
+router.get(
+  '/:id',
+  auth,
+  requirePermission(Permissions.REVIEW_VIEW),
+  validate(idParamSchema, 'params'),
+  reviewController.getReview
+);
+
+router.put(
+  '/:id',
+  auth,
+  requirePermission(Permissions.REVIEW_CREATE),
+  validate(idParamSchema, 'params'),
+  validate(updateReviewSchema),
+  reviewController.updateReview
 );
 
 module.exports = router;

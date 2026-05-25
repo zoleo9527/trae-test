@@ -58,8 +58,7 @@ const changePassword = async (req, res, next) => {
 
 const getCurrentUser = async (req, res, next) => {
   try {
-    const user = await authService.getCurrentUser(req.user.id);
-    success(res, user);
+    success(res, req.user);
   } catch (error) {
     next(error);
   }

@@ -172,6 +172,13 @@ const updateSchedule = async (id, data, userId, { ipAddress, userAgent, requestI
     throw new NotFoundError('Schedule not found');
   }
 
+  if (data.status !== undefined) {
+    throw new BusinessError(
+      'Status cannot be updated through this endpoint. Use the status change endpoint instead.',
+      'STATUS_UPDATE_NOT_ALLOWED'
+    );
+  }
+
   if (data.startTime || data.endTime || data.venue) {
     const conflicts = await checkTimeConflict(
       data.startTime || oldSchedule.startTime,
@@ -191,6 +198,7 @@ const updateSchedule = async (id, data, userId, { ipAddress, userAgent, requestI
   }
 
   const updatedData = { ...data, updatedById: userId };
+  delete updatedData.status;
 
   const schedule = await prisma.schedule.update({
     where: { id },

@@ -20,39 +20,6 @@ const { idParamSchema } = require('../validators/commonValidators');
 const router = express.Router();
 
 router.get(
-  '/',
-  auth,
-  requirePermission(Permissions.EQUIPMENT_VIEW),
-  validate(equipmentFilterSchema, 'query'),
-  equipmentController.getEquipments
-);
-
-router.post(
-  '/',
-  auth,
-  requirePermission(Permissions.EQUIPMENT_MANAGE),
-  validate(createEquipmentSchema),
-  equipmentController.createEquipment
-);
-
-router.get(
-  '/:id',
-  auth,
-  requirePermission(Permissions.EQUIPMENT_VIEW),
-  validate(idParamSchema, 'params'),
-  equipmentController.getEquipment
-);
-
-router.put(
-  '/:id',
-  auth,
-  requirePermission(Permissions.EQUIPMENT_MANAGE),
-  validate(idParamSchema, 'params'),
-  validate(updateEquipmentSchema),
-  equipmentController.updateEquipment
-);
-
-router.get(
   '/borrows',
   auth,
   requirePermission(Permissions.EQUIPMENT_VIEW),
@@ -126,6 +93,39 @@ router.get(
   requirePermission(Permissions.EQUIPMENT_VIEW),
   validate(idParamSchema, 'params'),
   equipmentController.getBorrowStatusHistory
+);
+
+router.get(
+  '/',
+  auth,
+  requirePermission(Permissions.EQUIPMENT_VIEW),
+  validate(equipmentFilterSchema, 'query'),
+  equipmentController.getEquipments
+);
+
+router.post(
+  '/',
+  auth,
+  requirePermission(Permissions.EQUIPMENT_MANAGE),
+  validate(createEquipmentSchema),
+  equipmentController.createEquipment
+);
+
+router.get(
+  '/:id',
+  auth,
+  requirePermission(Permissions.EQUIPMENT_VIEW),
+  validate(idParamSchema, 'params'),
+  equipmentController.getEquipment
+);
+
+router.put(
+  '/:id',
+  auth,
+  requirePermission(Permissions.EQUIPMENT_MANAGE),
+  validate(idParamSchema, 'params'),
+  validate(updateEquipmentSchema),
+  equipmentController.updateEquipment
 );
 
 module.exports = router;

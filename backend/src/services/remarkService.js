@@ -1,15 +1,15 @@
 const prisma = require('../config/prisma');
 const logger = require('../config/logger');
-const { NotFoundError, AuthorizationError } = require('../utils/errors');
+const { NotFoundError, AuthorizationError, BusinessError } = require('../utils/errors');
 const { logAction, AuditAction, EntityType } = require('./auditService');
 
 const EntityMap = {
-  schedule: { entityType: EntityType.SCHEDULE, field: 'scheduleId' },
-  equipment: { entityType: EntityType.EQUIPMENT, field: 'equipmentId' },
-  borrow: { entityType: EntityType.EQUIPMENT_BORROW, field: 'borrowId' },
-  review: { entityType: EntityType.PERFORMANCE_REVIEW, field: 'reviewId' },
-  issue: { entityType: EntityType.REVIEW_ISSUE, field: 'issueId' },
-  order: { entityType: EntityType.GROUP_ORDER, field: 'orderId' },
+  schedule: { entityType: EntityType.SCHEDULE, field: 'scheduleId', prismaModel: 'schedule' },
+  equipment: { entityType: EntityType.EQUIPMENT, field: 'equipmentId', prismaModel: 'equipment' },
+  borrow: { entityType: EntityType.EQUIPMENT_BORROW, field: 'borrowId', prismaModel: 'equipmentBorrow' },
+  review: { entityType: EntityType.PERFORMANCE_REVIEW, field: 'reviewId', prismaModel: 'performanceReview' },
+  issue: { entityType: EntityType.REVIEW_ISSUE, field: 'issueId', prismaModel: 'reviewIssue' },
+  order: { entityType: EntityType.GROUP_ORDER, field: 'orderId', prismaModel: 'groupOrder' },
 };
 
 const addRemark = async ({
@@ -24,10 +24,10 @@ const addRemark = async ({
 }) => {
   const entityConfig = EntityMap[entityType];
   if (!entityConfig) {
-    throw new Error(`Invalid entity type: ${entityType}`);
+    throw new BusinessError(`Invalid entity type: ${entityType}. Valid types: ${Object.keys(EntityMap).join(', ')}`, 'INVALID_ENTITY_TYPE');
   }
 
-  const entity = await prisma[entityConfig.entityType].findUnique({
+  const entity = await prisma[entityConfig.prismaModel].findUnique({
     where: { id: entityId },
   });
 
@@ -70,7 +70,7 @@ const addRemark = async ({
 const getRemarks = async (entityType, entityId) => {
   const entityConfig = EntityMap[entityType];
   if (!entityConfig) {
-    throw new Error(`Invalid entity type: ${entityType}`);
+    throw new BusinessError(`Invalid entity type: ${entityType}. Valid types: ${Object.keys(EntityMap).join(', ')}`, 'INVALID_ENTITY_TYPE');
   }
 
   return prisma.remark.findMany({
