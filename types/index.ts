@@ -52,6 +52,7 @@ export interface InventoryRecord {
   supplier?: string
   expectedDate?: string
   actualDate?: string
+  lossDate?: string
   location: string
   remark: string
 }

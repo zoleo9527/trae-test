@@ -18,6 +18,19 @@ interface FilterState {
   location: string
 }
 
+const getBusinessDate = (record: InventoryRecord): string | null => {
+  if (record.status === 'completed') {
+    return record.actualDate || null
+  }
+  if (record.type === 'restock') {
+    return record.expectedDate || null
+  }
+  if (record.type === 'loss') {
+    return record.lossDate || null
+  }
+  return null
+}
+
 export const useMuseumStore = defineStore('museum', {
   state: () => ({
     currentUser: users[0] as User,
@@ -79,21 +92,24 @@ export const useMuseumStore = defineStore('museum', {
       }
       
       if (state.filters.dateRange) {
+        const start = new Date(state.filters.dateRange.start)
+        const end = new Date(state.filters.dateRange.end)
+        end.setHours(23, 59, 59, 999)
         result = result.filter(r => {
-          const recordDate = new Date(r.createdAt)
-          const start = new Date(state.filters.dateRange!.start)
-          const end = new Date(state.filters.dateRange!.end)
+          const businessDate = getBusinessDate(r)
+          if (!businessDate) return false
+          const recordDate = new Date(businessDate)
           return recordDate >= start && recordDate <= end
         })
       }
       
       if (state.selectedDate) {
         const selected = new Date(state.selectedDate).toDateString()
-        result = result.filter(r => 
-          new Date(r.createdAt).toDateString() === selected ||
-          (r.expectedDate && new Date(r.expectedDate).toDateString() === selected) ||
-          (r.actualDate && new Date(r.actualDate).toDateString() === selected)
-        )
+        result = result.filter(r => {
+          const businessDate = getBusinessDate(r)
+          if (!businessDate) return false
+          return new Date(businessDate).toDateString() === selected
+        })
       }
       
       return result.sort((a, b) => 
@@ -122,7 +138,9 @@ export const useMuseumStore = defineStore('museum', {
       state.records.filter(r => r.status === 'abnormal').length,
 
     lowStockProducts: (state) =>
-      state.products.filter(p => p.currentStock < p.minStock)
+      state.products.filter(p => p.currentStock < p.minStock),
+
+    getBusinessDate: () => getBusinessDate
   },
 
   actions: {

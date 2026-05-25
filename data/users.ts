@@ -38,7 +38,7 @@ export const rolePermissions: Record<UserRole, RolePermission> = {
     canEdit: true,
     canDelete: false,
     canExport: false,
-    visibleFields: ['location', 'supplier', 'expectedDate', 'actualDate', 'relatedTicketOrder']
+    visibleFields: ['location', 'supplier', 'expectedDate', 'actualDate', 'lossDate', 'relatedTicketOrder']
   },
   event: {
     canViewAll: false,
@@ -47,7 +47,7 @@ export const rolePermissions: Record<UserRole, RolePermission> = {
     canEdit: true,
     canDelete: false,
     canExport: false,
-    visibleFields: ['location', 'relatedEvent', 'lossReason']
+    visibleFields: ['location', 'lossDate', 'relatedEvent', 'lossReason']
   }
 }
 

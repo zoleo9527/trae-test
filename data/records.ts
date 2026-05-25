@@ -63,6 +63,7 @@ export const inventoryRecords: InventoryRecord[] = [
     location: '主馆文创区',
     remark: '顾客挑选时不慎打碎',
     lossReason: '顾客损坏',
+    lossDate: '2024-05-23',
     relatedTicketOrder: 'TK2024052300127',
     history: [
       {
@@ -143,6 +144,8 @@ export const inventoryRecords: InventoryRecord[] = [
     location: '特展文创区',
     remark: 'VIP活动纪念礼品',
     lossReason: '活动赠礼',
+    lossDate: '2024-05-15',
+    actualDate: '2024-05-16',
     relatedEvent: '春季收藏家沙龙',
     history: [
       {
@@ -238,6 +241,7 @@ export const inventoryRecords: InventoryRecord[] = [
     location: '活动现场',
     remark: '活动道具使用',
     lossReason: '其他',
+    lossDate: '2024-05-21',
     history: [
       {
         status: 'pending',
@@ -302,6 +306,7 @@ export const inventoryRecords: InventoryRecord[] = [
     location: '教育活动区',
     remark: '儿童工作坊材料',
     lossReason: '活动消耗',
+    lossDate: '2024-05-25',
     relatedEvent: '小小艺术家工作坊',
     history: [
       {

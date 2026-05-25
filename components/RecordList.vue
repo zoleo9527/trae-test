@@ -72,8 +72,11 @@
             </div>
           </div>
           <div class="text-right flex-shrink-0">
-            <p class="text-xs text-gray-400">{{ relativeTime(record.updatedAt) }}</p>
-            <p class="text-xs text-gray-500 mt-1">{{ formatDate(record.updatedAt) }}</p>
+            <p class="text-xs text-gray-500">
+              <span class="text-gray-400">{{ getDateLabel(record) }}：</span>
+              {{ formatDate(getBusinessDate(record) || record.updatedAt) }}
+            </p>
+            <p class="text-xs text-gray-400 mt-1">{{ relativeTime(record.updatedAt) }}</p>
           </div>
         </div>
       </div>
@@ -96,6 +99,15 @@ defineEmits<{
 
 const store = useMuseumStore()
 const { relativeTime, formatDate } = useFormat()
+
+const getBusinessDate = store.getBusinessDate
+
+const getDateLabel = (record: InventoryRecord): string => {
+  if (record.status === 'completed') return '完成日期'
+  if (record.type === 'restock') return '预计到货'
+  if (record.type === 'loss') return '发生日期'
+  return '业务日期'
+}
 
 const getProductUnit = (productId: string): string => {
   const product = store.products.find(p => p.id === productId)

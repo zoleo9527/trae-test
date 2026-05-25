@@ -179,8 +179,8 @@ const handleSubmit = () => {
     }),
     ...(form.type === 'loss' && {
       lossReason: form.lossReason,
-      relatedTicketOrder: form.relatedTicketOrder || undefined,
-      expectedDate: form.lossDate || undefined
+      lossDate: form.lossDate || undefined,
+      relatedTicketOrder: form.relatedTicketOrder || undefined
     }),
     ...(form.relatedEvent && {
       relatedEvent: form.relatedEvent
