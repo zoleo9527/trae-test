@@ -157,6 +157,12 @@ const Issues = () => {
                           对账处置
                         </button>
                       )}
+                      <button 
+                        className="btn btn-outline btn-sm"
+                        onClick={() => navigate(`/returns?returnId=${item.id}&action=caliber`)}
+                      >
+                        查看退货
+                      </button>
                     </>
                   ) : (
                     <span className="text-muted">待发行专员/财务处理</span>

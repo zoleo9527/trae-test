@@ -58,7 +58,8 @@ export const returnApi = {
   approve: (id, data) => api.put(`/returns/${id}/approve`, data),
   reject: (id) => api.put(`/returns/${id}/reject`),
   receive: (id, data) => api.put(`/returns/${id}/receive`, data),
-  reconcile: (id) => api.put(`/returns/${id}/reconcile`)
+  reconcile: (id) => api.put(`/returns/${id}/reconcile`),
+  updateCaliber: (id, data) => api.put(`/returns/${id}/update-caliber`, data)
 };
 
 export const reconciliationApi = {

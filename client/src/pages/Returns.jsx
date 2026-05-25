@@ -28,6 +28,7 @@ const Returns = () => {
   const [loading, setLoading] = useState(true);
   const [showCaliberModal, setShowCaliberModal] = useState(false);
   const [targetReturn, setTargetReturn] = useState(null);
+  const [expandedRow, setExpandedRow] = useState(null);
   const [caliberForm, setCaliberForm] = useState({
     approvedQuantity: 0,
     caliberType: 'channel',
@@ -50,9 +51,12 @@ const Returns = () => {
         const target = returns.find(r => r.id === returnId);
         if (target) {
           setTargetReturn(target);
+          setExpandedRow(returnId);
           setCaliberForm(prev => ({
             ...prev,
-            approvedQuantity: target.approvedQuantity || target.requestedQuantity
+            approvedQuantity: target.approvedQuantity || target.requestedQuantity,
+            caliberType: target.caliberType || 'channel',
+            caliberNotes: target.caliberNotes || ''
           }));
           if (action === 'caliber') {
             setShowCaliberModal(true);
@@ -82,7 +86,7 @@ const Returns = () => {
     
     setActionLoading(true);
     try {
-      await returnApi.approve(targetReturn.id, {
+      await returnApi.updateCaliber(targetReturn.id, {
         approvedQuantity: parseInt(caliberForm.approvedQuantity),
         caliberType: caliberForm.caliberType,
         caliberNotes: caliberForm.caliberNotes
@@ -195,73 +199,112 @@ const Returns = () => {
             </thead>
             <tbody>
               {returns.map(ret => (
-                <tr 
-                  key={ret.id} 
-                  ref={targetReturn?.id === ret.id ? targetRowRef : null}
-                  style={{ 
-                    background: targetReturn?.id === ret.id ? '#fef3c7' : 'inherit',
-                    transition: 'background 0.3s'
-                  }}
-                >
-                  <td><code>{ret.returnNo}</code></td>
-                  <td>{ret.SampleShipment?.Book?.title}</td>
-                  <td>{ret.SampleShipment?.Channel?.name}</td>
-                  <td>{RETURN_REASONS[ret.returnReason]}</td>
-                  <td>
-                    {ret.requestedQuantity} / {ret.approvedQuantity || '-'} / {ret.receivedQuantity || 0}
-                  </td>
-                  <td>
-                    <span className={`status-badge status-${ret.caliberType}`}>
-                      {ret.caliberType === 'channel' ? '渠道口径' : ret.caliberType === 'finance' ? '财务口径' : '原始口径'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`status-badge status-${ret.status}`}>
-                      {STATUS_LABELS[ret.status]}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status === 'pending' && (
-                        <>
-                          <button className="btn btn-success btn-sm" onClick={() => handleApprove(ret.id)}>
-                            批准
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleReject(ret.id)}>
-                            拒绝
-                          </button>
-                        </>
-                      )}
-                      {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status !== 'rejected' && ret.status !== 'reconciled' && ret.caliberType !== 'original' && (
-                        <button 
-                          className="btn btn-warning btn-sm" 
-                          onClick={() => {
-                            setTargetReturn(ret);
-                            setCaliberForm(prev => ({
-                              ...prev,
-                              approvedQuantity: ret.approvedQuantity || ret.requestedQuantity,
-                              caliberType: ret.caliberType,
-                              caliberNotes: ret.caliberNotes || ''
-                            }));
-                            setShowCaliberModal(true);
-                          }}
-                        >
-                          调整口径
-                        </button>
-                      )}
-                      {hasRole('distribution_specialist') && ret.status === 'approved' && (
-                        <button className="btn btn-primary btn-sm" onClick={() => handleReceive(ret.id)}>
-                          确认收货
-                        </button>
-                      )}
-                      {hasRole('finance') && ret.status === 'received' && (
-                        <button className="btn btn-success btn-sm" onClick={() => handleReconcile(ret.id)}>
-                          对账
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={ret.id}>
+                  <tr 
+                    ref={targetReturn?.id === ret.id ? targetRowRef : null}
+                    style={{ 
+                      background: targetReturn?.id === ret.id ? '#fef3c7' : 'inherit',
+                      transition: 'background 0.3s',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setExpandedRow(expandedRow === ret.id ? null : ret.id)}
+                  >
+                    <td><code>{ret.returnNo}</code></td>
+                    <td>{ret.SampleShipment?.Book?.title}</td>
+                    <td>{ret.SampleShipment?.Channel?.name}</td>
+                    <td>{RETURN_REASONS[ret.returnReason]}</td>
+                    <td>
+                      {ret.requestedQuantity} / {ret.approvedQuantity || '-'} / {ret.receivedQuantity || 0}
+                    </td>
+                    <td>
+                      <span className={`status-badge status-${ret.caliberType}`}>
+                        {ret.caliberType === 'channel' ? '渠道口径' : ret.caliberType === 'finance' ? '财务口径' : '原始口径'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status-badge status-${ret.status}`}>
+                        {STATUS_LABELS[ret.status]}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {expandedRow === ret.id ? '▼ 收起' : '▶ 展开'}
+                      </span>
+                    </td>
+                  </tr>
+                  {expandedRow === ret.id && (
+                    <tr style={{ background: '#f9fafb' }}>
+                      <td colSpan="8" style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
+                          <div>
+                            <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>退货详情</h4>
+                            <div className="detail-item">
+                              <label>申请日期</label>
+                              <div className="value">{new Date(ret.requestDate).toLocaleDateString()}</div>
+                            </div>
+                            <div className="detail-item">
+                              <label>退货原因</label>
+                              <div className="value">{RETURN_REASONS[ret.returnReason]}</div>
+                            </div>
+                            <div className="detail-item">
+                              <label>详细说明</label>
+                              <div className="value">{ret.returnReasonDetail || '-'}</div>
+                            </div>
+                            <div className="detail-item">
+                              <label>口径说明</label>
+                              <div className="value" style={{ color: ret.caliberType !== 'original' ? '#f59e0b' : 'inherit' }}>
+                                {ret.caliberNotes || '-'}
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>操作面板</h4>
+                            <div className="action-buttons" style={{ flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                              {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status === 'pending' && (
+                                <>
+                                  <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleApprove(ret.id); }}>
+                                    批准退货
+                                  </button>
+                                  <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleReject(ret.id); }}>
+                                    拒绝退货
+                                  </button>
+                                </>
+                              )}
+                              {(hasRole('distribution_specialist') || hasRole('finance')) && ret.status !== 'rejected' && ret.status !== 'reconciled' && (
+                                <button 
+                                  className="btn btn-warning btn-sm" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTargetReturn(ret);
+                                    setCaliberForm(prev => ({
+                                      ...prev,
+                                      approvedQuantity: ret.approvedQuantity || ret.requestedQuantity,
+                                      caliberType: ret.caliberType,
+                                      caliberNotes: ret.caliberNotes || ''
+                                    }));
+                                    setShowCaliberModal(true);
+                                  }}
+                                >
+                                  {ret.caliberType === 'original' ? '设置口径' : '调整口径'}
+                                </button>
+                              )}
+                              {hasRole('distribution_specialist') && ret.status === 'approved' && (
+                                <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); handleReceive(ret.id); }}>
+                                  确认收货
+                                </button>
+                              )}
+                              {hasRole('finance') && ret.status === 'received' && (
+                                <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleReconcile(ret.id); }}>
+                                  完成对账
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
