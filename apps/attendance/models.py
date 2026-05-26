@@ -42,6 +42,7 @@ class ReconciliationBatch(models.Model):
 class ReconciliationRecord(models.Model):
     class Status(models.TextChoices):
         SUCCESS = 'success', _('成功')
+        PARTIAL = 'partial', _('部分成功')
         FAILED = 'failed', _('失败')
         SKIPPED = 'skipped', _('已跳过')
 

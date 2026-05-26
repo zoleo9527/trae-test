@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
+from decimal import Decimal
 from .models import User
 from .models_audit import AuditLog
 
@@ -38,6 +39,32 @@ class UserService:
 
 class AuditService:
     @staticmethod
+    def _serialize_value(value):
+        import datetime as dt
+        if value is None:
+            return None
+        if isinstance(value, (int, float, str, bool)):
+            return value
+        if isinstance(value, (dt.datetime, dt.date)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return str(value)
+        if hasattr(value, 'pk'):
+            return str(value.pk)
+        if hasattr(value, '__str__'):
+            return str(value)
+        return str(value)
+
+    @staticmethod
+    def _serialize_dict(data):
+        if not data:
+            return data
+        result = {}
+        for key, value in data.items():
+            result[key] = AuditService._serialize_value(value)
+        return result
+
+    @staticmethod
     def log_action(user, action, instance=None, old_value=None, new_value=None, ip_address=None, user_agent=None):
         from django.contrib.contenttypes.models import ContentType
         content_type = None
@@ -48,6 +75,9 @@ class AuditService:
             content_type = ContentType.objects.get_for_model(instance)
             object_id = instance.pk
 
+        old_value = AuditService._serialize_dict(old_value)
+        new_value = AuditService._serialize_dict(new_value)
+
         return AuditLog.objects.create(
             user=user,
             action=action,
@@ -57,7 +87,7 @@ class AuditService:
             old_value=old_value,
             new_value=new_value,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent or '',
         )
 
     @staticmethod

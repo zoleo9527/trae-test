@@ -29,7 +29,7 @@ class AuditLog(models.Model):
     old_value = models.JSONField(null=True, blank=True, verbose_name='旧值')
     new_value = models.JSONField(null=True, blank=True, verbose_name='新值')
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP地址')
-    user_agent = models.TextField(blank=True, verbose_name='用户代理')
+    user_agent = models.TextField(blank=True, default='', verbose_name='用户代理')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='操作时间')
 
     class Meta:

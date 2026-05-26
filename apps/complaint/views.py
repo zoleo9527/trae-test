@@ -22,6 +22,10 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return [IsFrontDesk()]
         if self.action in ['destroy', 'statistics']:
             return [IsDirector()]
+        if self.action in ['assign', 'escalate']:
+            return [IsCoachSupervisor()]
+        if self.action in ['update_status', 'add_comment']:
+            return [IsCoach()]
         return super().get_permissions()
 
     def list(self, request):

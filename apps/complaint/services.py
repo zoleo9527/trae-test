@@ -86,9 +86,17 @@ class ComplaintService:
                 f'无法从 {complaint.get_status_display()} 变更为 {dict(Complaint.Status.choices)[new_status]}'
             )
 
-        if complaint.assigned_to_id and complaint.assigned_to_id != user.id and user.role not in ['director', 'coach_supervisor']:
-            if new_status in [Complaint.Status.RESOLVED, Complaint.Status.CLOSED]:
+        is_director = user.role == 'director'
+        is_supervisor = user.role in ['director', 'coach_supervisor']
+        is_assignee = complaint.assigned_to_id == user.id
+
+        if new_status in [Complaint.Status.RESOLVED, Complaint.Status.CLOSED]:
+            if not is_supervisor and not is_assignee:
                 raise ValidationException('只有处理人或主管可以关闭或标记解决')
+
+        if new_status in [Complaint.Status.PROCESSING]:
+            if not is_supervisor and not is_assignee:
+                raise ValidationException('只有处理人或主管可以标记为处理中')
 
         old_status = complaint.status
 
@@ -119,6 +127,9 @@ class ComplaintService:
     def assign_complaint(user, complaint, assigned_to_id, notes=''):
         if complaint.status in [Complaint.Status.CLOSED, Complaint.Status.RESOLVED]:
             raise StatusConflictException('已关闭或已解决的投诉无法分配')
+
+        if user.role not in ['director', 'coach_supervisor']:
+            raise ValidationException('只有馆长或教练主管可以分配投诉')
 
         from apps.core.models import User
         assignee = User.objects.filter(id=assigned_to_id).first()
@@ -166,6 +177,12 @@ class ComplaintService:
         if complaint.status in [Complaint.Status.CLOSED, Complaint.Status.RESOLVED]:
             raise StatusConflictException('已关闭或已解决的投诉无法升级')
 
+        if user.role not in ['director', 'coach_supervisor']:
+            raise ValidationException('只有馆长或教练主管可以升级投诉')
+
+        old_priority = complaint.priority
+        old_status = complaint.status
+
         from apps.core.models import User
         director = User.objects.filter(role='director').first()
         if director:
@@ -186,7 +203,7 @@ class ComplaintService:
             user=user,
             action=AuditLog.Action.STATUS_CHANGE,
             instance=complaint,
-            old_value={'priority': complaint.priority, 'status': complaint.status},
+            old_value={'priority': old_priority, 'status': old_status},
             new_value={'priority': Complaint.Priority.URGENT, 'status': Complaint.Status.ESCALATED}
         )
         return complaint
