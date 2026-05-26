@@ -14,7 +14,7 @@ function createAuditLog({ userId, action, resourceType, resourceId, oldValue, ne
 }
 
 function auditMiddleware(action, resourceType) {
-  return (req, _res, next) => {
+  return (req, res, next) => {
     const userId = req.user?.id
     const ipAddress = req.ip
     const userAgent = req.headers['user-agent']

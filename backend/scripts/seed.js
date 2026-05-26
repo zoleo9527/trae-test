@@ -20,6 +20,8 @@ function seed() {
   initSchema()
   db.pragma('foreign_keys = OFF')
 
+  const orderTs = Date.now().toString().slice(-8)
+
   db.exec('DELETE FROM audit_logs')
   db.exec('DELETE FROM order_status_history')
   db.exec('DELETE FROM refunds')
@@ -151,7 +153,7 @@ function seed() {
 
   const orders = [
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '001',
+      order_no: 'ORD' + orderTs + '001',
       customer: '陈小明', store_id: store1Id, optician: 'optician1', processor: 'processor1',
       frame_brand: '雷朋', frame_model: 'RB7180', frame_color: '黑色', frame_price: 800,
       lens_sku_id: skuMap['ZEI-167-BL'], lens_brand: '蔡司', lens_model: '清锐1.67防蓝光', lens_coating: '防蓝光', lens_price: 2200,
@@ -162,7 +164,7 @@ function seed() {
       created_at: offsetDateTime(-7)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '002',
+      order_no: 'ORD' + orderTs + '002',
       customer: '李晓红', store_id: store1Id, optician: 'optician1', processor: 'processor1',
       frame_brand: '木九十', frame_model: 'MJ102FE', frame_color: '玳瑁色', frame_price: 600,
       lens_sku_id: skuMap['ESS-174-CLR'], lens_brand: '依视路', lens_model: '钻晶1.74', lens_coating: '钻晶A4', lens_price: 3500,
@@ -173,7 +175,7 @@ function seed() {
       created_at: offsetDateTime(-3)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '003',
+      order_no: 'ORD' + orderTs + '003',
       customer: '王大伟', store_id: store1Id, optician: 'optician1', processor: null,
       frame_brand: '雷朋', frame_model: 'RB6421', frame_color: '枪灰色', frame_price: 900,
       lens_sku_id: null, lens_brand: '依视路', lens_model: '钻晶1.67', lens_coating: '钻晶A4', lens_price: 2500,
@@ -293,13 +295,13 @@ function seed() {
 
   const allocations = [
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '002',
+      order_no: 'ORD' + orderTs + '002',
       lens_sku_id: skuMap['ESS-174-CLR'], quantity: 1,
       to_store_id: store1Id, status: 'allocated',
       allocated_by: 'manager1', allocated_at: offsetDateTime(-2)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '003',
+      order_no: 'ORD' + orderTs + '003',
       lens_sku_id: skuMap['HOK-167-P'], quantity: 1,
       from_store_id: store2Id, to_store_id: store1Id, status: 'pending',
       allocated_by: 'manager1', allocated_at: offsetDateTime(-1),
@@ -317,13 +319,13 @@ function seed() {
 
   const processingRecords = [
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '002',
+      order_no: 'ORD' + orderTs + '002',
       processor: 'processor1', processing_type: 'standard', status: 'in_progress',
       started_at: offsetDateTime(-1),
       remarks: '加急单，优先处理'
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '001',
+      order_no: 'ORD' + orderTs + '001',
       processor: 'processor1', processing_type: 'standard', status: 'completed',
       started_at: offsetDateTime(-6), completed_at: offsetDateTime(-4),
       quality_check_by: 'manager1', quality_check_result: 'pass', quality_check_notes: '检验合格'
