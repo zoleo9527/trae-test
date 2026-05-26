@@ -36,6 +36,7 @@ async function main() {
 
   console.log('创建演示数据...');
 
+  // 1. 待审批 - 销售1申请借实木餐桌
   const borrow1 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[0].id,
@@ -58,6 +59,7 @@ async function main() {
     },
   });
 
+  // 2. 已驳回 - 销售2申请借餐椅被驳回
   const borrow2 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[1].id,
@@ -91,6 +93,7 @@ async function main() {
     },
   });
 
+  // 3. 借出中（已超时）- 销售1借餐椅
   const borrow3 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[2].id,
@@ -136,6 +139,7 @@ async function main() {
     },
   });
 
+  // 4. 借出中 - 销售2借茶几
   const borrow4 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[3].id,
@@ -152,7 +156,36 @@ async function main() {
     where: { id: samples[3].id },
     data: { status: 'BORROWED' },
   });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow4.id,
+      action: 'CREATE',
+      newValue: JSON.stringify(borrow4),
+      remark: '提交借出申请',
+      userId: sales2.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow4.id,
+      action: 'APPROVE',
+      remark: '审批通过',
+      userId: manager.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow4.id,
+      action: 'BORROW',
+      remark: '确认样品已借出',
+      userId: sales2.id,
+    },
+  });
 
+  // 5. 待验收 - 销售1借主卧大床已归还
   const borrow5 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[4].id,
@@ -166,6 +199,10 @@ async function main() {
       actualReturn: now,
     },
   });
+  await prisma.sample.update({
+    where: { id: samples[4].id },
+    data: { status: 'BORROWED' },
+  });
   const return1 = await prisma.sampleReturn.create({
     data: {
       borrowId: borrow5.id,
@@ -178,12 +215,51 @@ async function main() {
     data: {
       entityType: 'SampleBorrow',
       entityId: borrow5.id,
+      action: 'CREATE',
+      newValue: JSON.stringify(borrow5),
+      remark: '提交借出申请',
+      userId: sales1.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow5.id,
+      action: 'APPROVE',
+      remark: '审批通过',
+      userId: manager.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow5.id,
+      action: 'BORROW',
+      remark: '确认样品已借出',
+      userId: sales1.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleReturn',
+      entityId: return1.id,
+      action: 'RETURN',
+      newValue: JSON.stringify(return1),
+      remark: '提交归还，待验收',
+      userId: sales1.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow5.id,
       action: 'RETURN',
       remark: '提交归还，待验收',
       userId: sales1.id,
     },
   });
 
+  // 6. 需回查 - 销售2借两门衣柜归还时发现划痕
   const borrow6 = await prisma.sampleBorrow.create({
     data: {
       sampleId: samples[5].id,
@@ -197,14 +273,72 @@ async function main() {
       actualReturn: now,
     },
   });
+  await prisma.sample.update({
+    where: { id: samples[5].id },
+    data: { status: 'BORROWED' },
+  });
   const return2 = await prisma.sampleReturn.create({
     data: {
       borrowId: borrow6.id,
       returnDate: now,
       condition: 'DAMAGED',
       remarks: '表面有轻微划痕',
+      status: ReturnStatus.PENDING_INSPECTION,
+    },
+  });
+  const return2Updated = await prisma.sampleReturn.update({
+    where: { id: return2.id },
+    data: {
       status: ReturnStatus.NEEDS_REVIEW,
       reviewReason: '表面有轻微划痕，需确认是借出前已有还是借出期间造成，涉及赔偿问题需销售与客户确认',
+      version: { increment: 1 },
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow6.id,
+      action: 'CREATE',
+      newValue: JSON.stringify(borrow6),
+      remark: '提交借出申请',
+      userId: sales2.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow6.id,
+      action: 'APPROVE',
+      remark: '审批通过',
+      userId: manager.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow6.id,
+      action: 'BORROW',
+      remark: '确认样品已借出',
+      userId: sales2.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleReturn',
+      entityId: return2.id,
+      action: 'RETURN',
+      newValue: JSON.stringify(return2),
+      remark: '提交归还，待验收',
+      userId: sales2.id,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'SampleBorrow',
+      entityId: borrow6.id,
+      action: 'RETURN',
+      remark: '提交归还，待验收',
+      userId: sales2.id,
     },
   });
   await prisma.auditLog.create({
@@ -212,11 +346,14 @@ async function main() {
       entityType: 'SampleReturn',
       entityId: return2.id,
       action: 'INSPECT',
+      oldValue: JSON.stringify(return2),
+      newValue: JSON.stringify(return2Updated),
       remark: '需回查：表面有轻微划痕，需确认是借出前已有还是借出期间造成，涉及赔偿问题需销售与客户确认',
       userId: manager.id,
     },
   });
 
+  // 通知
   await prisma.notification.createMany({
     data: [
       {
@@ -234,7 +371,7 @@ async function main() {
         relatedId: borrow5.id,
       },
       {
-        userId: sales1.id,
+        userId: sales2.id,
         title: '借出申请被驳回',
         content: `您申请的样品「${samples[1].name}」被驳回：该样品本周末有客户预约看样，无法借出`,
         type: 'BORROW_REJECTED',
@@ -269,11 +406,11 @@ async function main() {
   console.log('✅ 演示数据创建完成！');
   console.log('');
   console.log('📊 数据概览：');
-  console.log('  • 待审批：1 条');
-  console.log('  • 待验收：1 条');
-  console.log('  • 需回查：1 条');
-  console.log('  • 已驳回：1 条');
-  console.log('  • 借出中：2 条（含1条已超时）');
+  console.log('  • 待审批：1 条（实木餐桌）');
+  console.log('  • 待验收：1 条（主卧大床，样品已标记借出中）');
+  console.log('  • 需回查：1 条（两门衣柜，样品已标记借出中）');
+  console.log('  • 已驳回：1 条（餐椅，驳回通知发给销售2）');
+  console.log('  • 借出中：4 条（含1条已超时）');
   console.log('  • 通知：6 条');
 }
 
