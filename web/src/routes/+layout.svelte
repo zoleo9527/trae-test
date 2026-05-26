@@ -1,10 +1,12 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { api, type User } from '$lib/api';
+  import { api, setToken, type User } from '$lib/api';
   import { onMount } from 'svelte';
 
   let user: User | null = null;
+  let users: User[] = [];
   let loading = true;
+  let showUserMenu = false;
 
   const navItems = [
     { path: '/', label: '首页仪表盘', icon: '📊' },
@@ -19,11 +21,24 @@
     operator: '机手'
   };
 
+  async function switchUser(selectedUser: User) {
+    try {
+      const result = await api.login(selectedUser.username);
+      setToken(result.token);
+      user = result.user;
+      showUserMenu = false;
+      window.location.reload();
+    } catch (e) {
+      console.error('Switch user failed', e);
+    }
+  }
+
   onMount(async () => {
     try {
       user = await api.getMe();
+      users = await api.getUsers();
     } catch (e) {
-      console.log('Not logged in');
+      console.log('Not logged in or token invalid');
     }
     loading = false;
   });
@@ -38,9 +53,27 @@
         <span class="subtitle">补贴申报与资料回收系统</span>
       </div>
       {#if !loading && user}
-        <div class="user-info">
-          <span class="user-name">{user.name}</span>
-          <span class="user-role">{roleNames[user.role]}</span>
+        <div class="user-menu">
+          <button class="user-btn" on:click={() => showUserMenu = !showUserMenu}>
+            <span class="user-name">{user.name}</span>
+            <span class="user-role">{roleNames[user.role]}</span>
+            <span class="arrow">{showUserMenu ? '▲' : '▼'}</span>
+          </button>
+          {#if showUserMenu}
+            <div class="user-dropdown">
+              <div class="dropdown-title">切换角色</div>
+              {#each users as u}
+                <button
+                  class="dropdown-item"
+                  class:active={u.id === user.id}
+                  on:click={() => switchUser(u)}
+                >
+                  <span>{u.name}</span>
+                  <span class="role-tag">{roleNames[u.role]}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -107,10 +140,26 @@
     border-left: 1px solid rgba(255,255,255,0.3);
   }
 
-  .user-info {
+  .user-menu {
+    position: relative;
+  }
+
+  .user-btn {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+  }
+
+  .user-btn:hover {
+    background: rgba(255,255,255,0.25);
   }
 
   .user-name {
@@ -118,10 +167,73 @@
   }
 
   .user-role {
-    background: rgba(255,255,255,0.2);
-    padding: 4px 12px;
-    border-radius: 12px;
+    background: rgba(255,255,255,0.25);
+    padding: 3px 10px;
+    border-radius: 10px;
     font-size: 12px;
+  }
+
+  .arrow {
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  .user-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    color: #111827;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    min-width: 200px;
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .dropdown-title {
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .dropdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+  }
+
+  .dropdown-item:hover {
+    background: #f3f4f6;
+  }
+
+  .dropdown-item.active {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .role-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: #e5e7eb;
+    border-radius: 8px;
+    color: #4b5563;
+  }
+
+  .dropdown-item.active .role-tag {
+    background: #dbeafe;
+    color: #1d4ed8;
   }
 
   .nav {

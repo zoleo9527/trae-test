@@ -1,13 +1,21 @@
 <script lang="ts">
-  import { api } from '$lib/api';
+  import { api, type User } from '$lib/api';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
 
   let subsidy: any = null;
+  let users: User[] = [];
+  let currentUser: User | null = null;
   let loading = true;
   let error: string | null = null;
-  let showReportForm = false;
-  let showFlagForm = false;
+
+  let showScheduleForm = false;
+  let showRejectForm = false;
+  let showFuelForm = false;
+
+  let schedule = { scheduled_for: '', operator_id: '' };
+  let rejectNote = '';
+  let newFuel = { vehicle_no: '', liters: '', cost: '', note: '' };
 
   const statusLabels: Record<string, string> = {
     submitted: '已提交',
@@ -37,10 +45,17 @@
     note: ''
   };
 
+  let showReportForm = false;
+  let showFlagForm = false;
+
   onMount(async () => {
     const id = parseInt($page.params.id);
     try {
-      subsidy = await api.getSubsidy(id);
+      [subsidy, users] = await Promise.all([
+        api.getSubsidy(id),
+        api.getUsers()
+      ]);
+      currentUser = await api.getMe();
     } catch (e: any) {
       error = e.message;
     }
@@ -52,6 +67,59 @@
     subsidy = await api.getSubsidy(id);
   }
 
+  function canSchedule() {
+    if (!currentUser) return false;
+    if (subsidy.status === 'completed' || subsidy.status === 'rejected') return false;
+    return ['director', 'dispatcher'].includes(currentUser.role);
+  }
+
+  function canReject() {
+    if (!currentUser) return false;
+    if (subsidy.status === 'completed' || subsidy.status === 'rejected') return false;
+    return ['director', 'dispatcher'].includes(currentUser.role);
+  }
+
+  function canComplete() {
+    if (!currentUser) return false;
+    if (!['scheduled', 'in_progress'].includes(subsidy.status)) return false;
+    return true;
+  }
+
+  function canResubmit() {
+    return subsidy?.status === 'rejected';
+  }
+
+  function canAddFuel() {
+    return currentUser && subsidy?.status !== 'rejected';
+  }
+
+  async function submitSchedule() {
+    await api.scheduleSubsidy(subsidy.id, {
+      scheduled_for: schedule.scheduled_for,
+      operator_id: parseInt(schedule.operator_id)
+    });
+    showScheduleForm = false;
+    schedule = { scheduled_for: '', operator_id: '' };
+    refresh();
+  }
+
+  async function submitReject() {
+    await api.rejectSubsidy(subsidy.id, rejectNote);
+    showRejectForm = false;
+    rejectNote = '';
+    refresh();
+  }
+
+  async function submitResubmit() {
+    await api.resubmitSubsidy(subsidy.id);
+    refresh();
+  }
+
+  async function submitComplete() {
+    await api.completeSubsidy(subsidy.id);
+    refresh();
+  }
+
   async function submitReport() {
     await api.reportProgress(subsidy.id, {
       progress_pct: parseInt(newReport.progress_pct),
@@ -61,6 +129,19 @@
     });
     newReport = { progress_pct: '', area_done: '', issue_type: '', issue_note: '' };
     showReportForm = false;
+    refresh();
+  }
+
+  async function submitFuel() {
+    await api.postFuel({
+      application_id: subsidy.id,
+      vehicle_no: newFuel.vehicle_no,
+      liters: parseFloat(newFuel.liters),
+      cost: parseFloat(newFuel.cost),
+      note: newFuel.note
+    });
+    newFuel = { vehicle_no: '', liters: '', cost: '', note: '' };
+    showFuelForm = false;
     refresh();
   }
 
@@ -84,10 +165,7 @@
     refresh();
   }
 
-  async function resubmit() {
-    await api.resubmitSubsidy(subsidy.id);
-    refresh();
-  }
+  const operators = () => users.filter(u => u.role === 'operator');
 </script>
 
 <div class="detail-page">
@@ -140,9 +218,95 @@
         <div class="note">备注：{subsidy.note}</div>
       {/if}
 
-      {#if subsidy.status === 'rejected'}
-        <div class="action-bar">
-          <button class="btn-primary" on:click={resubmit}>重新提交</button>
+      <div class="action-bar">
+        {#if canSchedule()}
+          <button class="btn-primary" on:click={() => showScheduleForm = !showScheduleForm}>
+            {showScheduleForm ? '取消' : '📅 排期分配'}
+          </button>
+        {/if}
+        {#if canReject()}
+          <button class="btn-danger" on:click={() => showRejectForm = !showRejectForm}>
+            {showRejectForm ? '取消' : '❌ 驳回'}
+          </button>
+        {/if}
+        {#if canComplete()}
+          <button class="btn-success" on:click={submitComplete}>
+            ✅ 标记完工
+          </button>
+        {/if}
+        {#if canResubmit()}
+          <button class="btn-primary" on:click={submitResubmit}>
+            🔄 重新提交
+          </button>
+        {/if}
+        {#if canAddFuel()}
+          <button class="btn-secondary" on:click={() => showFuelForm = !showFuelForm}>
+            {showFuelForm ? '取消' : '⛽ 登记油料'}
+          </button>
+        {/if}
+      </div>
+
+      {#if showScheduleForm}
+        <div class="action-form">
+          <h4>排期分配</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>计划日期</label>
+              <input type="date" bind:value={schedule.scheduled_for} />
+            </div>
+            <div class="form-group">
+              <label>指派机手</label>
+              <select bind:value={schedule.operator_id}>
+                <option value="">请选择</option>
+                {#each operators() as op}
+                  <option value={op.id}>{op.name}</option>
+                {/each}
+              </select>
+            </div>
+            <button class="btn-primary" on:click={submitSchedule} disabled={!schedule.scheduled_for || !schedule.operator_id}>
+              确认排期
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      {#if showRejectForm}
+        <div class="action-form">
+          <h4>驳回申报</h4>
+          <div class="form-row">
+            <div class="form-group full">
+              <label>驳回原因</label>
+              <input type="text" bind:value={rejectNote} placeholder="请输入驳回原因" />
+            </div>
+            <button class="btn-danger" on:click={submitReject}>确认驳回</button>
+          </div>
+        </div>
+      {/if}
+
+      {#if showFuelForm}
+        <div class="action-form">
+          <h4>油料登记</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>车牌号</label>
+              <input type="text" bind:value={newFuel.vehicle_no} placeholder="如：鲁H-12345" />
+            </div>
+            <div class="form-group">
+              <label>加油量（升）</label>
+              <input type="number" bind:value={newFuel.liters} placeholder="0" />
+            </div>
+            <div class="form-group">
+              <label>金额（元）</label>
+              <input type="number" bind:value={newFuel.cost} placeholder="0" />
+            </div>
+            <div class="form-group">
+              <label>备注</label>
+              <input type="text" bind:value={newFuel.note} placeholder="可选" />
+            </div>
+            <button class="btn-primary" on:click={submitFuel} disabled={!newFuel.liters || !newFuel.cost}>
+              登记
+            </button>
+          </div>
         </div>
       {/if}
     </div>
@@ -160,7 +324,7 @@
             <input type="number" placeholder="进度 %" bind:value={newReport.progress_pct} />
             <input type="number" placeholder="完成亩数" bind:value={newReport.area_done} />
             <input type="text" placeholder="问题说明（可选）" bind:value={newReport.issue_note} />
-            <button class="btn-primary" on:click={submitReport}>提交</button>
+            <button class="btn-primary" on:click={submitReport} disabled={!newReport.progress_pct || !newReport.area_done}>提交</button>
           </div>
         {/if}
         <div class="simple-list">
@@ -184,7 +348,7 @@
         <div class="simple-list">
           {#each subsidy.fuels as fuel}
             <div class="simple-item">
-              <span class="vehicle">{fuel.vehicle_no}</span>
+              <span class="vehicle">{fuel.vehicle_no || '未登记'}</span>
               <span>{fuel.liters}L</span>
               <span>¥{fuel.cost}</span>
               <span class="time">{fuel.recorded_at?.slice(0, 16)}</span>
@@ -362,12 +526,48 @@
     padding: 16px 20px;
     border-top: 1px solid #f3f4f6;
     display: flex;
-    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
   .btn-primary {
     padding: 8px 16px;
     background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-danger {
+    padding: 8px 16px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-success {
+    padding: 8px 16px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-secondary {
+    padding: 8px 16px;
+    background: #6b7280;
     color: white;
     border: none;
     border-radius: 6px;
@@ -392,6 +592,50 @@
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
+  }
+
+  .action-form {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .action-form h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #374151;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .form-group.full {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .form-group label {
+    font-size: 12px;
+    color: #4b5563;
+  }
+
+  .form-group input, .form-group select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    min-width: 120px;
   }
 
   .grid-2 {
@@ -488,6 +732,7 @@
   .material-item .name {
     flex: 1;
     font-size: 14px;
+    color: #111827;
   }
 
   .flag-list {

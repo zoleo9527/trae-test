@@ -260,7 +260,7 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     SELECT id, code, farmer_name, field_name, status, scheduled_for,
       crop_type, operation_type
     FROM subsidy_applications
-    WHERE status IN ('submitted','scheduled','in_progress')
+    WHERE status IN ('submitted','scheduled')
     ORDER BY id DESC LIMIT 10
   `).all();
 
