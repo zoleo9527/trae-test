@@ -67,6 +67,7 @@ db.exec(`
     scheduled_time TEXT,
     followup_type TEXT NOT NULL,
     status TEXT DEFAULT 'pending',
+    sort_order INTEGER DEFAULT 0,
     actual_date TEXT,
     content TEXT,
     result TEXT,

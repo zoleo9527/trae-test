@@ -49,7 +49,7 @@ export const followupAPI = {
   create: (data) => api.post('/followups', data),
   update: (id, data) => api.put(`/followups/${id}`, data),
   delete: (id) => api.delete(`/followups/${id}`),
-  batchUpdate: (updates) => api.post('/followups/batch-update', { updates }),
+  reorder: (items) => api.post('/followups/reorder', { items }),
 };
 
 export const orderAPI = {

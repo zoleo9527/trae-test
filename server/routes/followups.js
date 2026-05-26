@@ -35,7 +35,7 @@ router.get('/', (req, res) => {
       sql += ' AND f.trial_id = ?';
       params.push(trial_id);
     }
-    sql += ' ORDER BY f.scheduled_date ASC, f.scheduled_time ASC';
+    sql += ' ORDER BY f.scheduled_date ASC, f.sort_order ASC, f.scheduled_time ASC';
     
     const followups = db.prepare(sql).all(...params);
     res.json(followups);
@@ -64,7 +64,7 @@ router.get('/calendar', (req, res) => {
       sql += ' AND f.assigned_staff_id = ?';
       params.push(assigned_staff_id);
     }
-    sql += ' ORDER BY f.scheduled_date ASC, f.scheduled_time ASC';
+    sql += ' ORDER BY f.scheduled_date ASC, f.sort_order ASC, f.scheduled_time ASC';
     
     const followups = db.prepare(sql).all(...params);
     res.json(followups);
@@ -110,14 +110,21 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: '试饮记录与所选客户不匹配' });
     }
 
+    const maxSortOrder = db.prepare(`
+      SELECT COALESCE(MAX(sort_order), -1) as max_order 
+      FROM followup_tasks 
+      WHERE scheduled_date = ? AND assigned_staff_id = ?
+    `).get(scheduled_date, assigned_staff_id);
+    const sort_order = maxSortOrder.max_order + 1;
+
     const id = uuidv4();
     const now = new Date().toISOString();
     
     db.prepare(
-      'INSERT INTO followup_tasks (id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, 'pending', now, now);
+      'INSERT INTO followup_tasks (id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, 'pending', sort_order, now, now);
     
-    res.status(201).json({ id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status: 'pending' });
+    res.status(201).json({ id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status: 'pending', sort_order });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -125,7 +132,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { status, actual_date, content, result, next_followup_date, scheduled_date, scheduled_time, assigned_staff_id } = req.body;
+    const { status, actual_date, content, result, next_followup_date, scheduled_date, scheduled_time, assigned_staff_id, sort_order } = req.body;
     const now = new Date().toISOString();
     
     let sql = 'UPDATE followup_tasks SET updated_at = ?';
@@ -163,6 +170,10 @@ router.put('/:id', (req, res) => {
       sql += ', assigned_staff_id = ?';
       params.push(assigned_staff_id);
     }
+    if (sort_order !== undefined) {
+      sql += ', sort_order = ?';
+      params.push(sort_order);
+    }
     
     sql += ' WHERE id = ?';
     params.push(req.params.id);
@@ -183,29 +194,29 @@ router.delete('/:id', (req, res) => {
   }
 });
 
-router.post('/batch-update', (req, res) => {
+router.post('/reorder', (req, res) => {
   try {
-    const { updates } = req.body;
+    const { items } = req.body;
     const now = new Date().toISOString();
 
-    if (!Array.isArray(updates)) {
-      return res.status(400).json({ error: 'updates必须是数组' });
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'items必须是数组' });
     }
 
     const updateStmt = db.prepare(`
       UPDATE followup_tasks 
-      SET scheduled_date = ?, scheduled_time = ?, updated_at = ?
+      SET scheduled_date = ?, sort_order = ?, updated_at = ?
       WHERE id = ?
     `);
 
-    const updateMany = db.transaction((items) => {
-      for (const item of items) {
-        updateStmt.run(item.scheduled_date, item.scheduled_time || null, now, item.id);
+    const updateMany = db.transaction((updates) => {
+      for (const item of updates) {
+        updateStmt.run(item.scheduled_date, item.sort_order, now, item.id);
       }
     });
 
-    updateMany(updates);
-    res.json({ success: true, updated: updates.length });
+    updateMany(items);
+    res.json({ success: true, updated: items.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

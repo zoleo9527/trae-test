@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -60,12 +61,12 @@ function SortableFollowupItem({ item, onComplete, onDelete }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, data: { type: 'followup', item } });
+  } = useSortable({ id: item.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.3 : 1,
   };
 
   return (
@@ -135,7 +136,12 @@ function SortableFollowupItem({ item, onComplete, onDelete }) {
   );
 }
 
-function DroppableColumn({ date, dateStr, items, onAddClick, children }) {
+function DroppableColumn({ date, dateStr, items, onAddClick, children, isOver }) {
+  const { setNodeRef } = useDroppable({
+    id: dateStr,
+    data: { type: 'column', date: dateStr },
+  });
+
   return (
     <Col span={24 / 7}>
       <Card
@@ -149,7 +155,11 @@ function DroppableColumn({ date, dateStr, items, onAddClick, children }) {
             {date.isSame(dayjs(), 'day') && <Tag color="blue" size="small">今天</Tag>}
           </div>
         }
-        style={{ height: '100%' }}
+        style={{ 
+          height: '100%',
+          backgroundColor: isOver ? '#e6f7ff' : undefined,
+          transition: 'background-color 0.2s',
+        }}
         bodyStyle={{ minHeight: 400, padding: 8 }}
         extra={
           <Button
@@ -160,13 +170,15 @@ function DroppableColumn({ date, dateStr, items, onAddClick, children }) {
           />
         }
       >
-        <SortableContext
-          id={dateStr}
-          items={items.map(f => f.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {children}
-        </SortableContext>
+        <div ref={setNodeRef} style={{ minHeight: 350 }}>
+          <SortableContext
+            id={dateStr}
+            items={items.map(f => f.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {children}
+          </SortableContext>
+        </div>
       </Card>
     </Col>
   );
@@ -183,12 +195,13 @@ function Followups() {
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [completingItem, setCompletingItem] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [overId, setOverId] = useState(null);
   const [form] = Form.useForm();
   const [completeForm] = Form.useForm();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -239,81 +252,144 @@ function Followups() {
     }
   };
 
-  const findContainer = (id) => {
-    if (id in getFollowupsByDateGroup()) return id;
-    const item = followups.find(f => f.id === id);
-    return item ? item.scheduled_date : null;
-  };
-
-  const getFollowupsByDateGroup = useCallback(() => {
-    const groups = {};
+  const getDateColumns = useCallback(() => {
+    const columns = [];
     const start = dateRange[0];
     const days = dateRange[1].diff(dateRange[0], 'day') + 1;
     for (let i = 0; i < days; i++) {
       const date = start.add(i, 'day');
       const dateStr = date.format('YYYY-MM-DD');
-      groups[dateStr] = followups.filter(f => f.scheduled_date === dateStr);
+      columns.push({ date, dateStr });
     }
-    return groups;
-  }, [followups, dateRange]);
+    return columns;
+  }, [dateRange]);
+
+  const getFollowupsByDate = useCallback((dateStr) => {
+    return followups
+      .filter(f => f.scheduled_date === dateStr)
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [followups]);
+
+  const findContainer = useCallback((id) => {
+    const dateColumns = getDateColumns();
+    for (const col of dateColumns) {
+      if (col.dateStr === id) return id;
+      const items = getFollowupsByDate(col.dateStr);
+      if (items.some(item => item.id === id)) {
+        return col.dateStr;
+      }
+    }
+    return null;
+  }, [getDateColumns, getFollowupsByDate]);
+
+  const getItemById = useCallback((id) => {
+    return followups.find(f => f.id === id);
+  }, [followups]);
 
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
   };
 
+  const handleDragOver = (event) => {
+    const { over } = event;
+    setOverId(over?.id || null);
+  };
+
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     setActiveId(null);
+    setOverId(null);
 
     if (!over) return;
 
     const activeId = active.id;
-    const overId = over.id;
-
-    const activeItem = followups.find(f => f.id === activeId);
+    const activeItem = getItemById(activeId);
     if (!activeItem) return;
 
-    const activeContainer = activeItem.scheduled_date;
-    const overContainer = findContainer(overId);
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(over.id);
 
-    if (!overContainer) return;
+    if (!activeContainer || !overContainer) return;
+
+    const dateColumns = getDateColumns();
+    const reorderItems = [];
 
     if (activeContainer === overContainer) {
-      const items = getFollowupsByDateGroup()[activeContainer] || [];
+      const items = getFollowupsByDate(activeContainer);
       const oldIndex = items.findIndex(item => item.id === activeId);
-      const overIndex = items.findIndex(item => item.id === overId);
+      const overIndex = items.findIndex(item => item.id === over.id);
 
       if (oldIndex !== overIndex) {
         const newItems = arrayMove(items, oldIndex, overIndex);
-        const newFollowups = followups.map(f => {
-          const idx = newItems.findIndex(item => item.id === f.id);
-          if (idx !== -1) {
-            return { ...f, scheduled_time: newItems[idx].scheduled_time };
+        newItems.forEach((item, idx) => {
+          if (item.sort_order !== idx) {
+            reorderItems.push({ id: item.id, scheduled_date: activeContainer, sort_order: idx });
           }
-          return f;
         });
-        setFollowups(newFollowups);
+
+        if (reorderItems.length > 0) {
+          try {
+            await followupAPI.reorder(reorderItems);
+            const newFollowups = followups.map(f => {
+              const updated = reorderItems.find(r => r.id === f.id);
+              if (updated) {
+                return { ...f, sort_order: updated.sort_order };
+              }
+              return f;
+            });
+            setFollowups(newFollowups);
+            message.success('排序已保存');
+          } catch (error) {
+            message.error('保存失败');
+            console.error(error);
+          }
+        }
       }
     } else {
-      const newScheduledDate = overContainer;
+      const oldItems = getFollowupsByDate(activeContainer);
+      const newItems = getFollowupsByDate(overContainer);
 
-      try {
-        await followupAPI.update(activeId, {
-          scheduled_date: newScheduledDate,
-          scheduled_time: activeItem.scheduled_time,
-        });
-        
-        const newFollowups = followups.map(f => {
-          if (f.id === activeId) {
-            return { ...f, scheduled_date: newScheduledDate };
-          }
-          return f;
-        });
-        setFollowups(newFollowups);
-        message.success('已更新回访日期');
-      } catch (error) {
-        message.error('更新失败');
-        console.error(error);
+      const oldIndex = oldItems.findIndex(item => item.id === activeId);
+      const overIndex = over.id === overContainer 
+        ? newItems.length 
+        : newItems.findIndex(item => item.id === over.id);
+
+      const newListForOldDate = oldItems.filter(item => item.id !== activeId);
+      newListForOldDate.forEach((item, idx) => {
+        if (item.sort_order !== idx) {
+          reorderItems.push({ id: item.id, scheduled_date: activeContainer, sort_order: idx });
+        }
+      });
+
+      const itemToMove = { ...activeItem, scheduled_date: overContainer };
+      const newListForNewDate = [...newItems];
+      if (overIndex >= newListForNewDate.length) {
+        newListForNewDate.push(itemToMove);
+      } else {
+        newListForNewDate.splice(overIndex, 0, itemToMove);
+      }
+      newListForNewDate.forEach((item, idx) => {
+        if (item.id === activeId || item.sort_order !== idx) {
+          reorderItems.push({ id: item.id, scheduled_date: overContainer, sort_order: idx });
+        }
+      });
+
+      if (reorderItems.length > 0) {
+        try {
+          await followupAPI.reorder(reorderItems);
+          const newFollowups = followups.map(f => {
+            const updated = reorderItems.find(r => r.id === f.id);
+            if (updated) {
+              return { ...f, scheduled_date: updated.scheduled_date, sort_order: updated.sort_order };
+            }
+            return f;
+          });
+          setFollowups(newFollowups);
+          message.success('已更新回访日期');
+        } catch (error) {
+          message.error('保存失败');
+          console.error(error);
+        }
       }
     }
   };
@@ -389,45 +465,9 @@ function Followups() {
     !form.getFieldValue('customer_id') || t.customer_id === form.getFieldValue('customer_id')
   );
 
-  const activeItem = activeId ? followups.find(f => f.id === activeId) : null;
+  const activeItem = activeId ? getItemById(activeId) : null;
 
-  const generateDateColumns = () => {
-    const columns = [];
-    const start = dateRange[0];
-    const days = dateRange[1].diff(dateRange[0], 'day') + 1;
-
-    for (let i = 0; i < days; i++) {
-      const date = start.add(i, 'day');
-      const dateStr = date.format('YYYY-MM-DD');
-      const dayFollowups = getFollowupsByDateGroup()[dateStr] || [];
-
-      columns.push(
-        <DroppableColumn
-          key={dateStr}
-          date={date}
-          dateStr={dateStr}
-          items={dayFollowups}
-          onAddClick={(d) => {
-            form.setFieldsValue({ scheduled_date: d });
-            setModalVisible(true);
-          }}
-        >
-          {dayFollowups.map(item => (
-            <SortableFollowupItem
-              key={item.id}
-              item={item}
-              onComplete={(item) => {
-                setCompletingItem(item);
-                setCompleteModalVisible(true);
-              }}
-              onDelete={handleDelete}
-            />
-          ))}
-        </DroppableColumn>
-      );
-    }
-    return columns;
-  };
+  const dateColumns = getDateColumns();
 
   return (
     <div>
@@ -462,14 +502,42 @@ function Followups() {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <Row gutter={8}>
-          {generateDateColumns()}
+          {dateColumns.map(col => {
+            const items = getFollowupsByDate(col.dateStr);
+            return (
+              <DroppableColumn
+                key={col.dateStr}
+                date={col.date}
+                dateStr={col.dateStr}
+                items={items}
+                isOver={overId === col.dateStr}
+                onAddClick={(d) => {
+                  form.setFieldsValue({ scheduled_date: d });
+                  setModalVisible(true);
+                }}
+              >
+                {items.map(item => (
+                  <SortableFollowupItem
+                    key={item.id}
+                    item={item}
+                    onComplete={(item) => {
+                      setCompletingItem(item);
+                      setCompleteModalVisible(true);
+                    }}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </DroppableColumn>
+            );
+          })}
         </Row>
         <DragOverlay>
           {activeItem ? (
-            <div className="drag-item" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <div className="drag-item" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: 0.9 }}>
               <Space>
                 <Avatar size="small" style={{ backgroundColor: '#1890ff' }}>{activeItem.customer_name?.[0]}</Avatar>
                 <strong>{activeItem.customer_name}</strong>
