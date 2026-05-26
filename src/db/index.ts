@@ -141,12 +141,14 @@ export const dbApi = {
              reporter.name as reporter_name,
              assignee.name as assignee_name,
              l.locker_no,
-             c.name as course_name
+             c.name as course_name,
+             p.location as patrol_location
       FROM appeals a
       LEFT JOIN users reporter ON a.reporter_id = reporter.id
       LEFT JOIN users assignee ON a.assignee_id = assignee.id
       LEFT JOIN lockers l ON a.related_locker_id = l.id
       LEFT JOIN courses c ON a.related_course_id = c.id
+      LEFT JOIN patrol_photos p ON a.related_patrol_id = p.id
     `
     const params: any[] = []
     const where: string[] = []

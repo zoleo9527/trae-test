@@ -19,11 +19,11 @@
           <option v-for="(label, value) in typeLabels" :key="value" :value="value">{{ label }}</option>
         </select>
         <button 
-          v-if="userStore.hasRole(['director', 'head_coach', 'reception'])" 
+          v-if="canCreateAppeal" 
           class="btn btn-primary" 
           @click="openCreateModal()"
         >
-          + 新建申诉
+          + {{ createButtonText }}
         </button>
       </div>
     </div>
@@ -56,7 +56,8 @@
             <td>
               <span v-if="appeal.locker_no" class="tag">储物柜 {{ appeal.locker_no }}</span>
               <span v-else-if="appeal.course_name" class="tag">{{ appeal.course_name }}</span>
-              <span v-else-if="appeal.transaction_id" class="tag">交易 #{{ appeal.transaction_id }}</span>
+              <span v-else-if="appeal.related_transaction_id" class="tag">交易 #{{ appeal.related_transaction_id }}</span>
+              <span v-else-if="appeal.patrol_location" class="tag">巡场 - {{ appeal.patrol_location }}</span>
               <span v-else class="text-muted">-</span>
             </td>
             <td>
@@ -103,7 +104,9 @@
             <div class="form-group">
               <label class="label">申诉类型</label>
               <select v-model="createForm.type" class="select" @change="onTypeChange">
-                <option v-for="(label, value) in typeLabels" :key="value" :value="value">{{ label }}</option>
+                <option v-for="type in allowedAppealTypes" :key="type.value" :value="type.value">
+                  {{ type.label }}
+                </option>
               </select>
             </div>
             <div class="form-group">
@@ -227,6 +230,45 @@ const typeLabels = APPEAL_TYPE_LABELS
 const statusLabels = APPEAL_STATUS_LABELS
 const priorityLabels = APPEAL_PRIORITY_LABELS
 
+const canCreateAppeal = computed(() => {
+  return userStore.hasRole(['director', 'head_coach', 'reception'])
+})
+
+const createButtonText = computed(() => {
+  if (userStore.hasRole(['reception'])) return '登记客诉'
+  if (userStore.hasRole(['head_coach'])) return '上报问题'
+  return '新建申诉'
+})
+
+const allowedAppealTypes = computed(() => {
+  const allTypes = [
+    { value: 'locker_issue', label: APPEAL_TYPE_LABELS.locker_issue },
+    { value: 'course_leave', label: APPEAL_TYPE_LABELS.course_leave },
+    { value: 'billing_error', label: APPEAL_TYPE_LABELS.billing_error },
+    { value: 'water_quality', label: APPEAL_TYPE_LABELS.water_quality },
+    { value: 'other', label: APPEAL_TYPE_LABELS.other }
+  ]
+  
+  if (userStore.hasRole(['director'])) {
+    return allTypes
+  }
+  if (userStore.hasRole(['head_coach'])) {
+    return [
+      { value: 'course_leave', label: APPEAL_TYPE_LABELS.course_leave },
+      { value: 'water_quality', label: APPEAL_TYPE_LABELS.water_quality },
+      { value: 'other', label: APPEAL_TYPE_LABELS.other }
+    ]
+  }
+  if (userStore.hasRole(['reception'])) {
+    return [
+      { value: 'locker_issue', label: APPEAL_TYPE_LABELS.locker_issue },
+      { value: 'billing_error', label: APPEAL_TYPE_LABELS.billing_error },
+      { value: 'other', label: APPEAL_TYPE_LABELS.other }
+    ]
+  }
+  return []
+})
+
 const assignmentsForLocker = computed(() => {
   if (!createForm.value.related_locker_id) return []
   return activeAssignments.value.filter(a => a.locker_id === createForm.value.related_locker_id)
@@ -296,9 +338,10 @@ function onTypeChange() {
 function openCreateModal(prefill?: { lockerId?: number; assignmentId?: number; type?: string }) {
   resetCreateForm()
   prefillInfo.value = null
+  const allowedTypes = allowedAppealTypes.value.map(t => t.value)
   
   if (prefill) {
-    if (prefill.lockerId) {
+    if (prefill.lockerId && allowedTypes.includes('locker_issue')) {
       createForm.value.type = 'locker_issue'
       createForm.value.related_locker_id = prefill.lockerId
       const locker = lockers.value.find(l => l.id === prefill.lockerId)
@@ -311,7 +354,7 @@ function openCreateModal(prefill?: { lockerId?: number; assignmentId?: number; t
         prefillInfo.value = `已关联储物柜 ${locker.locker_no}（${locker.zone}区）`
       }
     }
-    if (prefill.type) {
+    if (prefill.type && allowedTypes.includes(prefill.type)) {
       createForm.value.type = prefill.type
     }
   }
@@ -351,9 +394,15 @@ async function handleCreate() {
   }
 }
 
+function getDefaultType(): string {
+  const allowed = allowedAppealTypes.value
+  if (allowed.length > 0) return allowed[0].value
+  return 'other'
+}
+
 function resetCreateForm() {
   createForm.value = {
-    type: 'locker_issue',
+    type: getDefaultType() as any,
     priority: 'normal',
     title: '',
     description: '',

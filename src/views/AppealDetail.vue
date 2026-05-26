@@ -26,7 +26,9 @@
       </div>
       <div class="header-right" v-if="canUpdateStatus">
         <select v-model="newStatus" class="select" style="width: 140px;">
-          <option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
+          <option v-for="status in allowedStatusOptions" :key="status.value" :value="status.value">
+            {{ status.label }}
+          </option>
         </select>
         <button class="btn btn-primary btn-sm" @click="handleStatusChange" :disabled="newStatus === appeal?.status">
           更新状态
@@ -231,6 +233,49 @@ const canReject = computed(() => {
 
 const canAssign = computed(() => {
   return userStore.hasRole(['director'])
+})
+
+const allowedStatusOptions = computed(() => {
+  if (!appeal.value) return []
+  const currentStatus = appeal.value.status
+  const options: { value: string; label: string }[] = [{ value: currentStatus, label: statusLabels[currentStatus as keyof typeof statusLabels] }]
+
+  if (userStore.hasRole(['director'])) {
+    if (currentStatus === 'pending') {
+      options.push({ value: 'investigating', label: '调查中' })
+      options.push({ value: 'resolved', label: '已解决' })
+      options.push({ value: 'rejected', label: '已驳回' })
+    }
+    if (currentStatus === 'investigating') {
+      options.push({ value: 'resolved', label: '已解决' })
+      options.push({ value: 'rejected', label: '已驳回' })
+      options.push({ value: 'escalated', label: '已升级' })
+      options.push({ value: 'pending', label: '待处理' })
+    }
+    if (currentStatus === 'escalated') {
+      options.push({ value: 'resolved', label: '已解决' })
+      options.push({ value: 'rejected', label: '已驳回' })
+      options.push({ value: 'investigating', label: '调查中' })
+    }
+    if (currentStatus === 'resolved' || currentStatus === 'rejected') {
+      options.push({ value: 'investigating', label: '重新调查' })
+    }
+  } else if (userStore.hasRole(['head_coach'])) {
+    if (appeal.value.assignee_id === userStore.currentUser?.id) {
+      if (currentStatus === 'pending') {
+        options.push({ value: 'investigating', label: '开始调查' })
+      }
+      if (currentStatus === 'investigating') {
+        options.push({ value: 'resolved', label: '标记已解决' })
+      }
+    }
+  } else if (userStore.hasRole(['reception'])) {
+    if (currentStatus === 'pending') {
+      options.push({ value: 'investigating', label: '开始处理' })
+    }
+  }
+
+  return options
 })
 
 function priorityClass(priority?: string): string {
