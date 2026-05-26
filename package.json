@@ -1,0 +1,21 @@
+{
+    "name": "trae-test-2",
+    "version": "1.0.0",
+    "description": "眼镜连锁-验光预约与加工跟单后端（Node.js + Express + SQLite）",
+    "main": "backend/src/index.js",
+    "scripts": {
+        "start": "node backend/src/index.js",
+        "dev": "node backend/src/index.js",
+        "seed": "node backend/scripts/seed.js",
+        "lint": "echo 'no lint configured'",
+        "check": "for f in $(find backend/src backend/scripts -name '*.js'); do node -c \"$f\" || exit 1; done && echo 'all files syntax OK'"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "better-sqlite3": "^11.3.0",
+        "csv-stringify": "^6.5.1",
+        "express": "^4.21.0",
+        "jsonwebtoken": "^9.0.2",
+        "uuid": "^9.0.1"
+    }
+}
