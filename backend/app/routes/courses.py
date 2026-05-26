@@ -42,7 +42,9 @@ def update_course(course_id: str, payload: CourseUpdate) -> Course:
     is_consume_action = payload.status in (CourseStatus.leave, CourseStatus.cancelled)
 
     if is_consume_action:
-        if payload.member_id and payload.member_id not in store.members:
+        if not payload.member_id:
+            raise HTTPException(status_code=400, detail="消课/取消操作必须指定会员")
+        if payload.member_id not in store.members:
             raise HTTPException(status_code=404, detail="会员不存在")
         if c.consume_record_id:
             raise HTTPException(status_code=409, detail="该课程已生成过储值流水，不允许重复扣减")
@@ -61,19 +63,18 @@ def update_course(course_id: str, payload: CourseUpdate) -> Course:
             note = payload.note or "课程取消"
             c.note = f"{note} · 已写入储值流水"
 
-        if payload.member_id:
-            amount = payload.consume_amount or default_amount
-            sv = StoredValueRecord(
-                member_id=payload.member_id,
-                amount=amount,
-                type="consume",
-                note=f"{c.title} · {note}",
-            )
-            store.stored_value[sv.id] = sv
-            member = store.members[payload.member_id]
-            member.balance -= amount
-            member.used_sessions += 1
-            c.consume_record_id = sv.id
-            c.consumed_member_id = payload.member_id
+        amount = payload.consume_amount or default_amount
+        sv = StoredValueRecord(
+            member_id=payload.member_id,
+            amount=amount,
+            type="consume",
+            note=f"{c.title} · {note}",
+        )
+        store.stored_value[sv.id] = sv
+        member = store.members[payload.member_id]
+        member.balance -= amount
+        member.used_sessions += 1
+        c.consume_record_id = sv.id
+        c.consumed_member_id = payload.member_id
 
     return c

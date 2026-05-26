@@ -135,10 +135,14 @@
             />
           </div>
         </div>
+        <div
+          v-if="errorMessage"
+          class="mt-3 text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded px-3 py-2"
+        >
+          {{ errorMessage }}
+        </div>
         <div class="flex justify-end gap-2 mt-5">
-          <button class="btn-ghost" @click="consumeDialog.open = false">
-            取消
-          </button>
+          <button class="btn-ghost" @click="closeConsumeDialog">取消</button>
           <button
             class="btn-primary"
             :disabled="!consumeDialog.memberId || submitting"
@@ -163,6 +167,7 @@ const { data: courses, refresh } = await useApi<Course[]>("/courses", {
 });
 const items = computed(() => courses.value || []);
 const submitting = ref(false);
+const errorMessage = ref("");
 
 interface ConsumeDialog {
   open: boolean;
@@ -180,6 +185,11 @@ const consumeDialog = reactive<ConsumeDialog>({
   amount: 64.0,
   note: "",
 });
+
+function closeConsumeDialog() {
+  consumeDialog.open = false;
+  errorMessage.value = "";
+}
 
 function coachName(id: string) {
   return coaches.value?.find((c) => c.id === id)?.name || "-";
@@ -220,11 +230,13 @@ function openConsume(c: Course, action: "leave" | "cancelled") {
   consumeDialog.memberId = "";
   consumeDialog.amount = 64.0;
   consumeDialog.note = "";
+  errorMessage.value = "";
 }
 
 async function submitConsume() {
   if (!consumeDialog.course || !consumeDialog.memberId) return;
   submitting.value = true;
+  errorMessage.value = "";
   try {
     await apiPatch(`/courses/${consumeDialog.course.id}`, {
       status: consumeDialog.action,
@@ -234,8 +246,11 @@ async function submitConsume() {
       member_id: consumeDialog.memberId,
       consume_amount: consumeDialog.amount,
     });
+    errorMessage.value = "";
     consumeDialog.open = false;
     refresh();
+  } catch (e: any) {
+    errorMessage.value = e?.data?.detail || "提交失败，请稍后重试";
   } finally {
     submitting.value = false;
   }
