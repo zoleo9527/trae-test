@@ -1,0 +1,15 @@
+[project]
+name = "pool-ops-backend"
+version = "0.1.0"
+description = "Swimming pool operations backend (water quality inspection, rectification recheck, leave/cancel exceptions)"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "python-multipart>=0.0.9",
+]
+
+[tool.uvicorn]
+factory = false
