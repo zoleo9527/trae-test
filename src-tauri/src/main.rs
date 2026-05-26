@@ -386,18 +386,44 @@ fn check_and_create_alerts(conn: &Connection) -> rusqlite::Result<()> {
     for alert in alerts {
         let (lens_id, sku, name, store, qty, min) = alert?;
         let alert_type = if qty == 0 { "out_of_stock" } else { "low_stock" };
+        let alert_id = format!("ALERT_{}_{}", sku, store);
         
-        conn.execute(
-            "INSERT INTO stock_alerts (id, lens_id, sku, lens_name, store, current_quantity, min_stock, alert_type, created_at, acknowledged)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
-            params![
-                format!("ALERT_{}_{}", sku, store),
-                lens_id, sku, name, store, qty, min, alert_type,
-                Local::now().to_rfc3339()
-            ],
+        let existing: Option<String> = conn.query_row(
+            "SELECT id FROM stock_alerts WHERE id = ?",
+            params![alert_id],
+            |row| row.get(0),
         ).optional()?;
+        
+        if existing.is_none() {
+            conn.execute(
+                "INSERT INTO stock_alerts (id, lens_id, sku, lens_name, store, current_quantity, min_stock, alert_type, created_at, acknowledged)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
+                params![
+                    alert_id,
+                    lens_id, sku, name, store, qty, min, alert_type,
+                    Local::now().to_rfc3339()
+                ],
+            )?;
+        } else {
+            conn.execute(
+                "UPDATE stock_alerts SET current_quantity = ?, min_stock = ?, alert_type = ?, created_at = ?, acknowledged = 0 
+                 WHERE id = ?",
+                params![qty, min, alert_type, Local::now().to_rfc3339(), alert_id],
+            )?;
+        }
     }
 
+    Ok(())
+}
+
+fn update_inventory_quantity(conn: &Connection, sku: &str, store: &str, quantity_change: i32) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE lens_inventory 
+         SET quantity = quantity + ?, last_updated = ? 
+         WHERE sku = ? AND store = ?",
+        params![quantity_change, Local::now().to_rfc3339(), sku, store],
+    )?;
+    check_and_create_alerts(conn)?;
     Ok(())
 }
 
@@ -646,6 +672,16 @@ fn create_transfer_order(
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     
+    let current_qty: i32 = conn.query_row(
+        "SELECT quantity FROM lens_inventory WHERE sku = ? AND store = ?",
+        params![lens_sku, from_store],
+        |row| row.get(0),
+    ).map_err(|_| "调出店库存不足或镜片不存在")?;
+    
+    if current_qty < quantity {
+        return Err(format!("调出店库存不足，当前库存: {}", current_qty));
+    }
+    
     let id = format!("TR{}", Local::now().format("%Y%m%d%H%M%S"));
     
     conn.execute(
@@ -669,18 +705,36 @@ fn update_transfer_status(
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     
+    let (lens_sku, from_store, to_store, quantity, current_status): (String, String, String, i32, String) = conn.query_row(
+        "SELECT lens_sku, from_store, to_store, quantity, status FROM transfer_orders WHERE id = ?",
+        params![id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+    ).map_err(|_| "调拨单不存在")?;
+    
+    if current_status == status {
+        return Ok(());
+    }
+    
     let now = Local::now().to_rfc3339();
     
     match status.as_str() {
         "shipped" => {
+            update_inventory_quantity(conn, &lens_sku, &from_store, -quantity)
+                .map_err(|e| format!("扣减调出店库存失败: {}", e))?;
             conn.execute("UPDATE transfer_orders SET status = ?, shipped_at = ? WHERE id = ?",
                 params![status, now, id]).map_err(|e| e.to_string())?;
         }
         "received" => {
+            update_inventory_quantity(conn, &lens_sku, &to_store, quantity)
+                .map_err(|e| format!("增加调入店库存失败: {}", e))?;
             conn.execute("UPDATE transfer_orders SET status = ?, received_at = ? WHERE id = ?",
                 params![status, now, id]).map_err(|e| e.to_string())?;
         }
         "lost" => {
+            if current_status == "shipped" {
+                update_inventory_quantity(conn, &lens_sku, &from_store, quantity)
+                    .map_err(|e| format!("恢复调出店库存失败: {}", e))?;
+            }
             conn.execute("UPDATE transfer_orders SET status = ?, lost_at = ? WHERE id = ?",
                 params![status, now, id]).map_err(|e| e.to_string())?;
         }

@@ -15,6 +15,7 @@ const Workbench = () => {
     setShowTransferModal,
     currentRole,
     loading,
+    approveRefund,
   } = useStore()
 
   const statusLabels = {
@@ -43,6 +44,7 @@ const Workbench = () => {
       title: '验光完成',
       description: `${customer.optometrist} | ${customer.lens_brand} ${customer.lens_type}`,
       time: customer.created_at,
+      handler: customer.optometrist,
     })
 
     const processing = processingRecords.find(p => p.optometry_id === customer.id)
@@ -50,8 +52,10 @@ const Workbench = () => {
       timeline.push({
         type: processing.status === 'completed' ? 'completed' : 'processing',
         title: '加工' + (processing.status === 'completed' ? '完成' : '中'),
-        description: `加工师: ${processing.processor}`,
+        description: `加工师: ${processing.processor}${processing.quality_check ? ` | 质检: ${processing.quality_check}` : ''}`,
         time: processing.started_at || processing.created_at,
+        handler: processing.processor,
+        progress: processing.status === 'completed' ? '已完成' : '进行中',
       })
     }
 
@@ -67,8 +71,12 @@ const Workbench = () => {
       timeline.push({
         type: status.type,
         title: status.title,
-        description: `${t.from_store} → ${t.to_store} | ${t.lens_name} x${t.quantity}`,
-        time: t.created_at,
+        description: `${t.from_store} → ${t.to_store} | ${t.lens_name} x${t.quantity}${t.tracking_no ? ` | 单号: ${t.tracking_no}` : ''}`,
+        time: t.status === 'shipped' ? t.shipped_at : 
+              t.status === 'received' ? t.received_at : 
+              t.status === 'lost' ? t.lost_at : t.created_at,
+        handler: t.created_by,
+        progress: status.title,
       })
     })
 
@@ -77,8 +85,10 @@ const Workbench = () => {
       timeline.push({
         type: repair.status === 'completed' ? 'completed' : 'processing',
         title: '返修' + (repair.status === 'completed' ? '完成' : '中'),
-        description: `${repair.repair_type}: ${repair.reason}`,
-        time: repair.created_at,
+        description: `${repair.repair_type}: ${repair.reason}${repair.lens_replaced ? ` | 更换镜片: ${repair.lens_replaced}` : ''}${repair.cost ? ` | 费用: ¥${repair.cost}` : ''}`,
+        time: repair.status === 'completed' ? repair.completed_at : repair.created_at,
+        handler: repair.created_by,
+        progress: repair.status === 'completed' ? '已完成' : '处理中',
       })
     }
 
@@ -87,12 +97,25 @@ const Workbench = () => {
       timeline.push({
         type: refund.status === 'approved' ? 'completed' : 'pending',
         title: '退款' + (refund.status === 'approved' ? '已批准' : '待审批'),
-        description: `¥${refund.amount} | ${refund.reason}`,
-        time: refund.created_at,
+        description: `¥${refund.amount} | ${refund.reason}${refund.approved_by ? ` | 审批人: ${refund.approved_by}` : ''}`,
+        time: refund.status === 'approved' ? refund.approved_at : refund.created_at,
+        handler: refund.created_by,
+        progress: refund.status === 'approved' ? '已批准' : '等待店经理审批',
       })
     }
 
-    return timeline.sort((a, b) => new Date(a.time) - new Date(b.time))
+    return timeline.sort((a, b) => new Date(a.time || 0) - new Date(b.time || 0))
+  }
+
+  const handleApproveRefund = async (refundId) => {
+    if (confirm('确认批准此退款申请？')) {
+      try {
+        await approveRefund(refundId, '店经理')
+        alert('退款已批准')
+      } catch (error) {
+        alert('审批失败: ' + error)
+      }
+    }
   }
 
   if (loading) {
@@ -265,12 +288,43 @@ const Workbench = () => {
                       <div className="timeline-content">
                         <h5>{item.title}</h5>
                         <p>{item.description}</p>
-                        <div className="timeline-time">{formatDate(item.time)}</div>
+                        {item.handler && (
+                          <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                            👤 处理人: {item.handler}{item.progress && ` | 📊 进度: ${item.progress}`}
+                          </p>
+                        )}
+                        <div className="timeline-time">{item.time ? formatDate(item.time) : '-'}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {refundRecords.find(r => r.optometry_id === selectedCustomer.id)?.status === 'pending' && currentRole === 'manager' && (
+                <div className="detail-section">
+                  <div style={{ 
+                    background: '#fef3c7', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center' 
+                  }}>
+                    <div>
+                      <strong>💰 退款待审批</strong>
+                      <p style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
+                        ¥{refundRecords.find(r => r.optometry_id === selectedCustomer.id)?.amount} - {refundRecords.find(r => r.optometry_id === selectedCustomer.id)?.reason}
+                      </p>
+                    </div>
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleApproveRefund(refundRecords.find(r => r.optometry_id === selectedCustomer.id)?.id)}
+                    >
+                      批准退款
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="empty-state">👈 请从左侧选择一个验光单查看详情</div>
@@ -319,19 +373,34 @@ const Workbench = () => {
             [...repairRecords.map(r => ({ ...r, type: 'repair' })), 
               ...refundRecords.map(r => ({ ...r, type: 'refund' }))].map(record => (
               <div key={record.id} className="list-item">
-                <div className="item-title">
-                  {record.type === 'repair' ? '🔧 返修单' : '💰 退款单'} - {record.id}
-                  <span className={`status-badge ${
-                    record.status === 'in_progress' || record.status === 'pending' 
-                      ? 'status-pending' : 'status-completed'
-                  }`} style={{ marginLeft: 8 }}>
-                    {record.status === 'in_progress' ? '处理中' : 
-                     record.status === 'pending' ? '待审批' : '已完成'}
-                  </span>
-                </div>
-                <div className="item-meta">
-                  <span>验光单: {record.optometry_id}</span>
-                  <span>{record.type === 'repair' ? record.reason : record.reason}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="item-title">
+                      {record.type === 'repair' ? '🔧 返修单' : '💰 退款单'} - {record.id}
+                      <span className={`status-badge ${
+                        record.status === 'in_progress' || record.status === 'pending' 
+                          ? 'status-pending' : 'status-completed'
+                      }`} style={{ marginLeft: 8 }}>
+                        {record.status === 'in_progress' ? '处理中' : 
+                         record.status === 'pending' ? '待审批' : '已完成'}
+                      </span>
+                    </div>
+                    <div className="item-meta">
+                      <span>验光单: {record.optometry_id}</span>
+                      <span>处理人: {record.created_by}</span>
+                      <span>{record.type === 'repair' ? record.reason : record.reason}</span>
+                      {record.type === 'refund' && <span>金额: ¥{record.amount}</span>}
+                    </div>
+                  </div>
+                  {record.type === 'refund' && record.status === 'pending' && currentRole === 'manager' && (
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleApproveRefund(record.id)}
+                      style={{ marginLeft: 12 }}
+                    >
+                      批准
+                    </button>
+                  )}
                 </div>
               </div>
             ))
