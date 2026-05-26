@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Station {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  users     User[]
+  orders    CollectionOrder[]
+
+  @@map("stations")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  realName  String
+  role      Role
+  stationId String?
+  station   Station? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  auditLogs       AuditLog[]
+  rejectionNotes  RejectionNote[]
+  supplementalNotes SupplementalNote[]
+
+  @@map("users")
+}
+
+enum Role {
+  STATION_OWNER
+  WEIGHER
+  FINANCE
+}
+
+model CollectionOrder {
+  id             String   @id @default(cuid())
+  orderNo        String   @unique
+  supplierName   String
+  supplierPhone  String?
+  materialType   String
+  grossWeight    Decimal  @db.Decimal(12, 3)
+  tareWeight     Decimal  @db.Decimal(12, 3)
+  netWeight      Decimal  @db.Decimal(12, 3)
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  totalAmount    Decimal  @db.Decimal(12, 2)
+  status         OrderStatus @default(PENDING)
+  photos         Json?
+  remarks        String?
+
+  stationId      String
+  station        Station  @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User     @relation("CreatedOrders", fields: [createdById], references: [id])
+  weigherId      String?
+  weigher        User?    @relation("WeighedOrders", fields: [weigherId], references: [id], onDelete: SetNull)
+
+  sortingRecords    SortingRecord[]
+  priceAdjustments  PriceAdjustment[]
+  settlementRecords SettlementRecord[]
+  rejectionNotes    RejectionNote[]
+  supplementalNotes SupplementalNote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderNo])
+  @@index([status])
+  @@index([createdAt])
+  @@map("collection_orders")
+}
+
+enum OrderStatus {
+  PENDING
+  WEIGHED
+  SORTED
+  PRICE_ADJUSTED
+  SETTLED
+  REJECTED
+}
+
+model SortingRecord {
+  id                String   @id @default(cuid())
+  collectionOrderId String
+  order             CollectionOrder @relation(fields: [collectionOrderId], references: [id], onDelete: Cascade)
+  sortedMaterialType String
+  sortedWeight      Decimal  @db.Decimal(12, 3)
+  binLocation       String?
+  sorterId          String
+  sorter            User     @relation(fields: [sorterId], references: [id])
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  @@index([collectionOrderId])
+  @@index([sorterId])
+  @@map("sorting_records")
+}
+
+model PriceAdjustment {
+  id                String   @id @default(cuid())
+  collectionOrderId String
+  order             CollectionOrder @relation(fields: [collectionOrderId], references: [id], onDelete: Cascade)
+  originalPrice     Decimal  @db.Decimal(10, 2)
+  adjustedPrice     Decimal  @db.Decimal(10, 2)
+  reason            String
+  approvedById      String?
+  approvedBy        User?    @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  status            AdjustmentStatus @default(PENDING)
+  createdAt         DateTime @default(now())
+
+  @@index([collectionOrderId])
+  @@index([status])
+  @@map("price_adjustments")
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model SettlementRecord {
+  id                String   @id @default(cuid())
+  collectionOrderId String
+  order             CollectionOrder @relation(fields: [collectionOrderId], references: [id], onDelete: Cascade)
+  amount            Decimal  @db.Decimal(12, 2)
+  settledById       String
+  settledBy         User     @relation(fields: [settledById], references: [id])
+  paymentMethod     String   @default("CASH")
+  notes             String?
+  settledAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  @@index([collectionOrderId])
+  @@index([settledAt])
+  @@map("settlement_records")
+}
+
+model RejectionNote {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  reason      String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("rejection_notes")
+}
+
+model SupplementalNote {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  content     String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("supplemental_notes")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String
+  entityId    String?
+  changes     Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  idempotencyKey String @unique
+  requestHash  String
+  responseBody Json?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([idempotencyKey])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
