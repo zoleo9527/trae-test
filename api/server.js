@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
-const { openDB, migrate } = require('./db');
+const { openDB, migrate, DB_PATH } = require('./db');
 const fs = require('fs');
-const path = require('path');
+const seed = require('./seed');
 
-const DB_PATH = path.join(__dirname, 'coop.db');
-if (!fs.existsSync(DB_PATH)) require('./seed');
-else migrate();
+if (!fs.existsSync(DB_PATH)) {
+  console.log('[api] Database not found, running seed...');
+  seed();
+} else {
+  console.log('[api] Database found, running migrate...');
+  migrate();
+}
 
 const app = express();
 app.use(cors());

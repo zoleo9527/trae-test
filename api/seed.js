@@ -57,12 +57,14 @@ function seed() {
       scheduled_for, scheduled_operator_id, note)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
   `);
+  const appIds = [];
   for (const a of apps) {
-    insApp.run(
+    const info = insApp.run(
       a.code, a.farmer_name, a.field_name, a.field_area,
       a.crop_type, a.operation_type, a.status, a.submitted_by,
       a.submitted_at, a.scheduled_for, a.scheduled_operator_id, a.note
     );
+    appIds.push(Number(info.lastInsertRowid));
   }
 
   const insReport = db.prepare(`
@@ -70,26 +72,26 @@ function seed() {
       progress_pct, area_done, issue_type, issue_note)
     VALUES(?,?,?,?,?,?,?)
   `);
-  insReport.run(3, 4, '2026-05-04 18:00', 60, 132, null, null);
+  insReport.run(appIds[2], 4, '2026-05-04 18:00', 60, 132, null, null);
 
   const insFuel = db.prepare(`
     INSERT INTO fuel_logs(application_id, operator_id, vehicle_no,
       liters, cost, recorded_at, note)
     VALUES(?,?,?,?,?,?,?)
   `);
-  insFuel.run(3, 4, '鲁H-88231', 120, 900, '2026-05-04 17:30', '上午加油');
-  insFuel.run(5, 5, '鲁H-77128', 80, 600, '2026-05-02 16:00', '作业完毕回库');
+  insFuel.run(appIds[2], 4, '鲁H-88231', 120, 900, '2026-05-04 17:30', '上午加油');
+  insFuel.run(appIds[4], 5, '鲁H-77128', 80, 600, '2026-05-02 16:00', '作业完毕回库');
 
   const insFlag = db.prepare(`
     INSERT INTO review_flags(application_id, flag_type, severity, status,
       created_by, created_at, note)
     VALUES(?,?,?,?,?,?,?)
   `);
-  insFlag.run(2, 'missing_doc', 'high', 'open', 2, '2026-05-03 09:30',
+  insFlag.run(appIds[1], 'missing_doc', 'high', 'open', 2, '2026-05-03 09:30',
     '身份证复印件未收回');
-  insFlag.run(3, 'late_progress', 'normal', 'open', 2, '2026-05-05 09:00',
+  insFlag.run(appIds[2], 'late_progress', 'normal', 'open', 2, '2026-05-05 09:00',
     '原计划 5 日前完工，当前 60% 需跟进');
-  insFlag.run(3, 'maintenance', 'low', 'open', 4, '2026-05-04 18:10',
+  insFlag.run(appIds[2], 'maintenance', 'low', 'open', 4, '2026-05-04 18:10',
     '作业中出现轻微渗漏，建议检修');
 
   const insMat = db.prepare(`
@@ -98,12 +100,14 @@ function seed() {
     VALUES(?,?,?,?,?)
   `);
   const materials = ['土地流转合同', '身份证复印件', '作业确认单', '农机作业小票'];
-  for (const a of apps) {
+  for (let i = 0; i < apps.length; i++) {
+    const a = apps[i];
+    const appId = appIds[i];
     for (const m of materials) {
       let collected = 0;
       if (a.status === 'completed') collected = 1;
-      if (a.id === 2 && m === '身份证复印件') collected = 0;
-      insMat.run(a.id, m, collected, collected ? '2026-05-04 10:00' : null, null);
+      if (i === 1 && m === '身份证复印件') collected = 0;
+      insMat.run(appId, m, collected, collected ? '2026-05-04 10:00' : null, null);
     }
   }
 
