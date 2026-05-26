@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String
+  role      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBorrows  SampleBorrow[] @relation("createdBy")
+  approvedBorrows SampleBorrow[] @relation("approvedBy")
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+}
+
+model Sample {
+  id          String   @id @default(uuid())
+  name        String
+  sku         String   @unique
+  category    String
+  description String?
+  location    String
+  status      String   @default("AVAILABLE")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  borrowRecords SampleBorrow[]
+}
+
+model SampleBorrow {
+  id              String   @id @default(uuid())
+  sampleId        String
+  borrowerName    String
+  borrowerContact String
+  purpose         String
+  expectedReturn  DateTime
+  actualReturn    DateTime?
+  status          String   @default("DRAFT")
+  version         Int      @default(1)
+  rejectReason    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdById  String?
+  approvedById String?
+  sample       Sample         @relation(fields: [sampleId], references: [id])
+  createdBy    User?          @relation("createdBy", fields: [createdById], references: [id])
+  approvedBy   User?          @relation("approvedBy", fields: [approvedById], references: [id])
+  returnRecord SampleReturn?
+}
+
+model SampleReturn {
+  id           String   @id @default(uuid())
+  borrowId     String   @unique
+  returnDate   DateTime
+  condition    String
+  remarks      String?
+  status       String   @default("PENDING_INSPECTION")
+  version      Int      @default(1)
+  reviewReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  borrow SampleBorrow @relation(fields: [borrowId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  action     String
+  oldValue   String?
+  newValue   String?
+  remark     String?
+  createdAt  DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  content   String
+  type      String
+  read      Boolean  @default(false)
+  relatedId String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

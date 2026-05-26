@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家具展厅样品管理系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fa; color: #303133; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    .login-box { max-width: 400px; margin: 100px auto; background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .login-box h1 { text-align: center; margin-bottom: 30px; color: #409eff; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: 500; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px; }
+    .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+    .btn-primary { background: #409eff; color: #fff; }
+    .btn-primary:hover { background: #66b1ff; }
+    .btn-success { background: #67c23a; color: #fff; }
+    .btn-success:hover { background: #85ce61; }
+    .btn-warning { background: #e6a23c; color: #fff; }
+    .btn-warning:hover { background: #ebb563; }
+    .btn-danger { background: #f56c6c; color: #fff; }
+    .btn-danger:hover { background: #f78989; }
+    .btn-info { background: #909399; color: #fff; }
+    .btn-info:hover { background: #a6a9ad; }
+    .header { background: #fff; padding: 15px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .header h1 { font-size: 20px; color: #409eff; }
+    .user-info { display: flex; align-items: center; gap: 15px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+    .badge-manager { background: #ecf5ff; color: #409eff; }
+    .badge-sales { background: #f0f9eb; color: #67c23a; }
+    .badge-install { background: #fdf6ec; color: #e6a23c; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .stat-card .label { color: #909399; font-size: 13px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 600; }
+    .stat-card.warning .value { color: #e6a23c; }
+    .stat-card.danger .value { color: #f56c6c; }
+    .stat-card.success .value { color: #67c23a; }
+    .stat-card.info .value { color: #409eff; }
+    .panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 20px; overflow: hidden; }
+    .panel-header { padding: 15px 20px; border-bottom: 1px solid #ebeef5; display: flex; justify-content: space-between; align-items: center; }
+    .panel-header h2 { font-size: 16px; }
+    .panel-body { padding: 20px; }
+    .tabs { display: flex; gap: 20px; border-bottom: 1px solid #ebeef5; margin-bottom: 20px; }
+    .tab { padding: 12px 0; cursor: pointer; color: #909399; border-bottom: 2px solid transparent; }
+    .tab.active { color: #409eff; border-bottom-color: #409eff; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ebeef5; font-size: 13px; }
+    th { background: #fafafa; font-weight: 500; color: #606266; }
+    tr:hover { background: #fafafa; }
+    .status-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+    .status-draft { background: #f4f4f5; color: #909399; }
+    .status-pending { background: #fdf6ec; color: #e6a23c; }
+    .status-approved { background: #ecf5ff; color: #409eff; }
+    .status-borrowed { background: #f0f9eb; color: #67c23a; }
+    .status-returning { background: #fdf6ec; color: #e6a23c; }
+    .status-completed { background: #f0f9eb; color: #67c23a; }
+    .status-rejected { background: #fef0f0; color: #f56c6c; }
+    .status-needs-review { background: #fef0f0; color: #f56c6c; }
+    .action-buttons { display: flex; gap: 8px; }
+    .action-buttons button { padding: 5px 12px; font-size: 12px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: #fff; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+    .modal-header { padding: 15px 20px; border-bottom: 1px solid #ebeef5; display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: 20px; }
+    .modal-footer { padding: 15px 20px; border-top: 1px solid #ebeef5; display: flex; justify-content: flex-end; gap: 10px; }
+    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #909399; }
+    .hidden { display: none; }
+    .empty { text-align: center; padding: 40px; color: #909399; }
+    .timeline { border-left: 2px solid #ebeef5; padding-left: 20px; margin-left: 10px; }
+    .timeline-item { position: relative; margin-bottom: 15px; }
+    .timeline-item::before { content: ''; position: absolute; left: -27px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #409eff; }
+    .timeline-time { color: #909399; font-size: 12px; }
+    .timeline-content { margin-top: 4px; font-size: 13px; }
+    .alert { padding: 12px 16px; border-radius: 4px; margin-bottom: 15px; }
+    .alert-error { background: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; }
+    .alert-success { background: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8; }
+    .flex { display: flex; }
+    .gap-2 { gap: 8px; }
+    .gap-4 { gap: 16px; }
+    .mb-4 { margin-bottom: 16px; }
+    .text-sm { font-size: 13px; }
+    .text-muted { color: #909399; }
+    .text-red { color: #f56c6c; }
+    .font-medium { font-weight: 500; }
+    .w-full { width: 100%; }
+    .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) {
+      .two-cols { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginPage" class="login-box">
+    <h1>🏠 家具展厅样品管理</h1>
+    <div id="loginAlert"></div>
+    <div class="form-group">
+      <label>用户名</label>
+      <input type="text" id="loginUsername" placeholder="manager / sales1 / sales2 / install">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="loginPassword" placeholder="123456">
+    </div>
+    <button class="btn btn-primary w-full" onclick="login()">登 录</button>
+    <p style="text-align: center; margin-top: 20px; color: #909399; font-size: 12px;">
+      默认账号：manager/123456（经理），sales1/123456（销售），install/123456（协调）
+    </p>
+  </div>
+
+  <div id="appPage" class="hidden">
+    <div class="header">
+      <h1>🏠 家具展厅样品管理系统</h1>
+      <div class="user-info">
+        <span id="userName"></span>
+        <span id="userRole" class="badge"></span>
+        <button class="btn btn-info" onclick="logout()">退出</button>
+      </div>
+    </div>
+    <div class="container">
+      <div class="tabs">
+        <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">首页看板</div>
+        <div class="tab" data-tab="samples" onclick="switchTab('samples')">样品管理</div>
+        <div class="tab" data-tab="borrows" onclick="switchTab('borrows')">借出管理</div>
+        <div class="tab" data-tab="returns" onclick="switchTab('returns')">归还验收</div>
+        <div class="tab" data-tab="audit" onclick="switchTab('audit')">审计日志</div>
+      </div>
+
+      <div id="dashboardTab">
+        <div class="stats-grid">
+          <div class="stat-card info"><div class="label">待我审批</div><div class="value" id="statPendingApproval">0</div></div>
+          <div class="stat-card warning"><div class="label">待归还验收</div><div class="value" id="statPendingInspection">0</div></div>
+          <div class="stat-card danger"><div class="label">需回查</div><div class="value" id="statNeedsReview">0</div></div>
+          <div class="stat-card danger"><div class="label">已驳回</div><div class="value" id="statRejected">0</div></div>
+          <div class="stat-card success"><div class="label">借出中</div><div class="value" id="statBorrowed">0</div></div>
+          <div class="stat-card warning"><div class="label">我的待处理</div><div class="value" id="statMyPending">0</div></div>
+          <div class="stat-card danger"><div class="label">已超时</div><div class="value" id="statOverdue">0</div></div>
+        </div>
+
+        <div class="two-cols">
+          <div class="panel">
+            <div class="panel-header"><h2>⏳ 待审批借出</h2></div>
+            <div class="panel-body"><table id="pendingApprovalTable"><thead><tr><th>样品</th><th>申请人</th><th>借用人</th><th>预计归还</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h2>📦 待归还验收</h2></div>
+            <div class="panel-body"><table id="pendingInspectionTable"><thead><tr><th>样品</th><th>归还人</th><th>归还日期</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="two-cols">
+          <div class="panel">
+            <div class="panel-header"><h2>⚠️ 需回查</h2></div>
+            <div class="panel-body"><table id="needsReviewTable"><thead><tr><th>样品</th><th>原因</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h2>❌ 已驳回（我的）</h2></div>
+            <div class="panel-body"><table id="myRejectedTable"><thead><tr><th>样品</th><th>驳回原因</th><th>驳回人</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>📝 最新动态</h2></div>
+          <div class="panel-body"><div id="activityTimeline" class="timeline"></div></div>
+        </div>
+      </div>
+
+      <div id="samplesTab" class="hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>样品列表</h2>
+            <button class="btn btn-primary" id="addSampleBtn" onclick="showAddSampleModal()">+ 新增样品</button>
+          </div>
+          <div class="panel-body">
+            <div class="flex gap-4 mb-4">
+              <input type="text" id="sampleKeyword" placeholder="搜索名称/SKU" onkeyup="loadSamples()">
+              <select id="sampleStatus" onchange="loadSamples()"><option value="">全部状态</option><option value="AVAILABLE">可借出</option><option value="BORROWED">借出中</option></select>
+              <button class="btn btn-info" onclick="loadSamples()">搜索</button>
+            </div>
+            <table id="samplesTable"><thead><tr><th>SKU</th><th>名称</th><th>分类</th><th>位置</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="borrowsTab" class="hidden">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>借出记录</h2>
+            <button class="btn btn-primary" onclick="showAddBorrowModal()">+ 申请借出</button>
+          </div>
+          <div class="panel-body">
+            <div class="flex gap-4 mb-4">
+              <select id="borrowStatus" onchange="loadBorrows()">
+                <option value="">全部状态</option>
+                <option value="PENDING_APPROVAL">待审批</option>
+                <option value="APPROVED">已批准</option>
+                <option value="BORROWED">借出中</option>
+                <option value="RETURNING">归还中</option>
+                <option value="COMPLETED">已完成</option>
+                <option value="REJECTED">已驳回</option>
+              </select>
+              <label><input type="checkbox" id="myBorrows" onchange="loadBorrows()"> 只看我的</label>
+            </div>
+            <table id="borrowsTable"><thead><tr><th>样品</th><th>借用人</th><th>用途</th><th>预计归还</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="returnsTab" class="hidden">
+        <div class="panel">
+          <div class="panel-header"><h2>归还验收</h2></div>
+          <div class="panel-body">
+            <table id="returnsTable"><thead><tr><th>样品</th><th>归还日期</th><th>状况</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="auditTab" class="hidden">
+        <div class="panel">
+          <div class="panel-header"><h2>审计日志</h2></div>
+          <div class="panel-body">
+            <table id="auditTable"><thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>备注</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">标题</h3>
+        <button class="close-btn" onclick="closeModal()">×</button>
+      </div>
+      <div id="modalBody" class="modal-body"></div>
+      <div id="modalFooter" class="modal-footer"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let token = localStorage.getItem('token');
+    let currentUser = null;
+    let currentTab = 'dashboard';
+
+    const ROLE_LABELS = { SHOWROOM_MANAGER: '展厅经理', SALES_CONSULTANT: '销售顾问', INSTALL_COORDINATOR: '安装协调' };
+    const ROLE_CLASS = { SHOWROOM_MANAGER: 'badge-manager', SALES_CONSULTANT: 'badge-sales', INSTALL_COORDINATOR: 'badge-install' };
+    const STATUS_LABELS = {
+      DRAFT: '草稿', PENDING_APPROVAL: '待审批', APPROVED: '已批准', BORROWED: '借出中',
+      RETURNING: '归还中', COMPLETED: '已完成', REJECTED: '已驳回',
+      PENDING_INSPECTION: '待验收', INSPECTION_PASSED: '验收通过', NEEDS_REVIEW: '需回查'
+    };
+    const STATUS_CLASS = {
+      DRAFT: 'status-draft', PENDING_APPROVAL: 'status-pending', APPROVED: 'status-approved',
+      BORROWED: 'status-borrowed', RETURNING: 'status-returning', COMPLETED: 'status-completed',
+      REJECTED: 'status-rejected', PENDING_INSPECTION: 'status-pending',
+      INSPECTION_PASSED: 'status-completed', NEEDS_REVIEW: 'status-needs-review'
+    };
+    const ACTION_LABELS = { CREATE: '创建', UPDATE: '更新', APPROVE: '审批通过', REJECT: '驳回', BORROW: '借出', RETURN: '归还', INSPECT: '验收', REASSIGN: '重新分配', COMMENT: '评论' };
+
+    async function request(url, options = {}) {
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      const res = await fetch(API_BASE + url, { ...options, headers, body: options.body ? JSON.stringify(options.body) : undefined });
+      const data = await res.json();
+      if (data.code === 401) { localStorage.removeItem('token'); token = null; showLogin(); }
+      return data;
+    }
+
+    function showLogin() {
+      document.getElementById('loginPage').classList.remove('hidden');
+      document.getElementById('appPage').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('loginPage').classList.add('hidden');
+      document.getElementById('appPage').classList.remove('hidden');
+      document.getElementById('userName').textContent = currentUser.name;
+      document.getElementById('userRole').textContent = ROLE_LABELS[currentUser.role];
+      document.getElementById('userRole').className = 'badge ' + ROLE_CLASS[currentUser.role];
+      document.getElementById('addSampleBtn').style.display = currentUser.role === 'SHOWROOM_MANAGER' ? '' : 'none';
+      loadDashboard();
+    }
+
+    async function login() {
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+      const data = await request('/auth/login', { method: 'POST', body: { username, password } });
+      if (data.code === 0) {
+        token = data.data.token;
+        currentUser = data.data.user;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        showApp();
+      } else {
+        document.getElementById('loginAlert').innerHTML = `<div class="alert alert-error">${data.message}</div>`;
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      token = null; currentUser = null;
+      showLogin();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      ['dashboard', 'samples', 'borrows', 'returns', 'audit'].forEach(t => {
+        document.getElementById(t + 'Tab').classList.toggle('hidden', t !== tab);
+      });
+      if (tab === 'dashboard') loadDashboard();
+      else if (tab === 'samples') loadSamples();
+      else if (tab === 'borrows') loadBorrows();
+      else if (tab === 'returns') loadReturns();
+      else if (tab === 'audit') loadAuditLogs();
+    }
+
+    async function loadDashboard() {
+      const data = await request('/dashboard');
+      if (data.code !== 0) return;
+      const s = data.data.stats;
+      document.getElementById('statPendingApproval').textContent = s.pendingApproval;
+      document.getElementById('statPendingInspection').textContent = s.pendingReturnInspection;
+      document.getElementById('statNeedsReview').textContent = s.needsReview;
+      document.getElementById('statRejected').textContent = s.rejected;
+      document.getElementById('statBorrowed').textContent = s.borrowed;
+      document.getElementById('statMyPending').textContent = s.myPending;
+      document.getElementById('statOverdue').textContent = s.overdue;
+
+      const approvalTbody = document.querySelector('#pendingApprovalTable tbody');
+      approvalTbody.innerHTML = data.data.pendingApprovalList.length ? data.data.pendingApprovalList.map(b => `
+        <tr>
+          <td>${b.sample.name} (${b.sample.sku})</td>
+          <td>${b.createdBy?.name || '-'}</td>
+          <td>${b.borrowerName}</td>
+          <td>${new Date(b.expectedReturn).toLocaleDateString()}</td>
+          <td class="action-buttons">
+            <button class="btn btn-success" onclick="approveBorrow('${b.id}', ${b.version})">通过</button>
+            <button class="btn btn-danger" onclick="showRejectModal('${b.id}', ${b.version})">驳回</button>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="5" class="empty">暂无待审批</td></tr>';
+
+      const inspectionTbody = document.querySelector('#pendingInspectionTable tbody');
+      inspectionTbody.innerHTML = data.data.pendingInspectionList.length ? data.data.pendingInspectionList.map(r => `
+        <tr>
+          <td>${r.borrow.sample.name}</td>
+          <td>${r.borrow.createdBy?.name || '-'}</td>
+          <td>${new Date(r.returnDate).toLocaleDateString()}</td>
+          <td><span class="status-tag status-pending">待验收</span></td>
+          <td class="action-buttons">
+            <button class="btn btn-success" onclick="inspectPass('${r.id}', ${r.version})">验收通过</button>
+            <button class="btn btn-warning" onclick="showNeedReviewModal('${r.id}', ${r.version})">需回查</button>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="5" class="empty">暂无待验收</td></tr>';
+
+      const reviewTbody = document.querySelector('#needsReviewTable tbody');
+      reviewTbody.innerHTML = data.data.needsReviewList.length ? data.data.needsReviewList.map(r => `
+        <tr>
+          <td>${r.borrow.sample.name}</td>
+          <td class="text-red">${r.reviewReason}</td>
+          <td class="action-buttons">
+            <button class="btn btn-success" onclick="inspectPass('${r.id}', ${r.version})">重新验收通过</button>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="3" class="empty">暂无需回查</td></tr>';
+
+      const rejectedTbody = document.querySelector('#myRejectedTable tbody');
+      rejectedTbody.innerHTML = data.data.myRejectedList.length ? data.data.myRejectedList.map(b => `
+        <tr>
+          <td>${b.sample.name}</td>
+          <td class="text-red">${b.rejectReason}</td>
+          <td>${b.approvedBy?.name || '-'}</td>
+        </tr>`).join('') : '<tr><td colspan="3" class="empty">暂无驳回记录</td></tr>';
+
+      const timeline = document.getElementById('activityTimeline');
+      timeline.innerHTML = data.data.latestActivities.map(a => `
+        <div class="timeline-item">
+          <div class="timeline-time">${new Date(a.createdAt).toLocaleString()} · ${a.user?.name || '系统'}</div>
+          <div class="timeline-content"><strong>${ACTION_LABELS[a.action] || a.action}</strong> · ${a.remark || ''}</div>
+        </div>`).join('');
+    }
+
+    async function loadSamples() {
+      const keyword = document.getElementById('sampleKeyword').value;
+      const status = document.getElementById('sampleStatus').value;
+      const data = await request(`/samples?keyword=${keyword}&status=${status}`);
+      if (data.code !== 0) return;
+      const tbody = document.querySelector('#samplesTable tbody');
+      tbody.innerHTML = data.data.map(s => `
+        <tr>
+          <td>${s.sku}</td>
+          <td>${s.name}</td>
+          <td>${s.category}</td>
+          <td>${s.location}</td>
+          <td><span class="status-tag ${s.status === 'AVAILABLE' ? 'status-completed' : 'status-borrowed'}">${s.status === 'AVAILABLE' ? '可借出' : '借出中'}</span></td>
+          <td class="action-buttons">
+            <button class="btn btn-primary" onclick="showBorrowFromSample('${s.id}', '${s.name}')">借出</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    async function loadBorrows() {
+      const status = document.getElementById('borrowStatus').value;
+      const my = document.getElementById('myBorrows').checked;
+      const data = await request(`/borrows?status=${status}&my=${my}`);
+      if (data.code !== 0) return;
+      const tbody = document.querySelector('#borrowsTable tbody');
+      tbody.innerHTML = data.data.map(b => `
+        <tr>
+          <td>${b.sample.name} (${b.sample.sku})</td>
+          <td>${b.borrowerName}</td>
+          <td>${b.purpose}</td>
+          <td>${new Date(b.expectedReturn).toLocaleDateString()}</td>
+          <td><span class="status-tag ${STATUS_CLASS[b.status]}">${STATUS_LABELS[b.status]}</span></td>
+          <td class="action-buttons">
+            ${b.status === 'PENDING_APPROVAL' && currentUser.role === 'SHOWROOM_MANAGER' ? `<button class="btn btn-success" onclick="approveBorrow('${b.id}', ${b.version})">审批</button>` : ''}
+            ${b.status === 'APPROVED' ? `<button class="btn btn-success" onclick="confirmBorrow('${b.id}', ${b.version})">确认借出</button>` : ''}
+            ${b.status === 'BORROWED' && (currentUser.role === 'SALES_CONSULTANT' || currentUser.role === 'SHOWROOM_MANAGER') ? `<button class="btn btn-warning" onclick="showReturnModal('${b.id}', ${b.version})">归还</button>` : ''}
+            <button class="btn btn-info" onclick="showBorrowDetail('${b.id}')">详情</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    async function loadReturns() {
+      const data = await request('/returns');
+      if (data.code !== 0) return;
+      const tbody = document.querySelector('#returnsTable tbody');
+      tbody.innerHTML = data.data.map(r => `
+        <tr>
+          <td>${r.borrow.sample.name}</td>
+          <td>${new Date(r.returnDate).toLocaleDateString()}</td>
+          <td>${r.condition === 'GOOD' ? '完好' : r.condition === 'DAMAGED' ? '有损坏' : '其他'}</td>
+          <td><span class="status-tag ${STATUS_CLASS[r.status]}">${STATUS_LABELS[r.status]}</span></td>
+          <td class="action-buttons">
+            ${(r.status === 'PENDING_INSPECTION' || r.status === 'NEEDS_REVIEW') && (currentUser.role === 'SHOWROOM_MANAGER' || currentUser.role === 'INSTALL_COORDINATOR') ? `<button class="btn btn-success" onclick="inspectPass('${r.id}', ${r.version})">验收通过</button>` : ''}
+            ${r.status === 'PENDING_INSPECTION' && currentUser.role === 'SHOWROOM_MANAGER' ? `<button class="btn btn-warning" onclick="showNeedReviewModal('${r.id}', ${r.version})">需回查</button>` : ''}
+            ${r.status === 'INSPECTION_PASSED' && currentUser.role === 'SHOWROOM_MANAGER' ? `<button class="btn btn-primary" onclick="completeReturn('${r.id}', ${r.version})">完成</button>` : ''}
+          </td>
+        </tr>`).join('');
+    }
+
+    async function loadAuditLogs() {
+      const data = await request('/audit-logs?pageSize=50');
+      if (data.code !== 0) return;
+      const tbody = document.querySelector('#auditTable tbody');
+      tbody.innerHTML = data.data.list.map(a => `
+        <tr>
+          <td class="text-sm">${new Date(a.createdAt).toLocaleString()}</td>
+          <td>${a.user?.name || '系统'}</td>
+          <td><span class="status-tag status-approved">${ACTION_LABELS[a.action] || a.action}</span></td>
+          <td>${a.entityType}</td>
+          <td class="text-sm text-muted">${a.remark || '-'}</td>
+        </tr>`).join('');
+    }
+
+    function showModal(title, bodyHtml, footerHtml = '') {
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').innerHTML = bodyHtml;
+      document.getElementById('modalFooter').innerHTML = footerHtml;
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+
+    function showAddSampleModal() {
+      showModal('新增样品', `
+        <div class="form-group"><label>SKU</label><input type="text" id="sampleSku"></div>
+        <div class="form-group"><label>名称</label><input type="text" id="sampleName"></div>
+        <div class="form-group"><label>分类</label><input type="text" id="sampleCategory"></div>
+        <div class="form-group"><label>位置</label><input type="text" id="sampleLocation"></div>
+        <div class="form-group"><label>描述</label><textarea id="sampleDesc"></textarea></div>
+      `, `<button class="btn btn-info" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="addSample()">保存</button>`);
+    }
+
+    async function addSample() {
+      const data = await request('/samples', {
+        method: 'POST',
+        body: {
+          sku: document.getElementById('sampleSku').value,
+          name: document.getElementById('sampleName').value,
+          category: document.getElementById('sampleCategory').value,
+          location: document.getElementById('sampleLocation').value,
+          description: document.getElementById('sampleDesc').value,
+        }
+      });
+      if (data.code === 0) { closeModal(); loadSamples(); }
+      else alert(data.message);
+    }
+
+    function showAddBorrowModal() {
+      showBorrowFromSample('', '');
+    }
+
+    async function showBorrowFromSample(sampleId, sampleName) {
+      const samples = await request('/samples?status=AVAILABLE');
+      const options = samples.code === 0 ? samples.data.map(s => `<option value="${s.id}" ${s.id === sampleId ? 'selected' : ''}>${s.name} (${s.sku})</option>`).join('') : '';
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 7);
+      showModal('申请借出', `
+        <div class="form-group"><label>样品</label><select id="borrowSampleId">${options}</select></div>
+        <div class="form-group"><label>借用人姓名</label><input type="text" id="borrowerName"></div>
+        <div class="form-group"><label>借用人联系方式</label><input type="text" id="borrowerContact"></div>
+        <div class="form-group"><label>借出用途</label><textarea id="borrowPurpose"></textarea></div>
+        <div class="form-group"><label>预计归还日期</label><input type="date" id="expectedReturn" value="${tomorrow.toISOString().split('T')[0]}"></div>
+      `, `<button class="btn btn-info" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="submitBorrow()">提交申请</button>`);
+    }
+
+    async function submitBorrow() {
+      const data = await request('/borrows', {
+        method: 'POST',
+        body: {
+          sampleId: document.getElementById('borrowSampleId').value,
+          borrowerName: document.getElementById('borrowerName').value,
+          borrowerContact: document.getElementById('borrowerContact').value,
+          purpose: document.getElementById('borrowPurpose').value,
+          expectedReturn: document.getElementById('expectedReturn').value,
+        }
+      });
+      if (data.code === 0) { closeModal(); loadBorrows(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    async function approveBorrow(id, version) {
+      const data = await request(`/borrows/${id}/approve`, { method: 'POST', body: { version } });
+      if (data.code === 0) { loadBorrows(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    function showRejectModal(id, version) {
+      showModal('驳回申请', `
+        <div class="form-group"><label>驳回原因</label><textarea id="rejectReason" rows="4"></textarea></div>
+      `, `<button class="btn btn-info" onclick="closeModal()">取消</button><button class="btn btn-danger" onclick="rejectBorrow('${id}', ${version})">确认驳回</button>`);
+    }
+
+    async function rejectBorrow(id, version) {
+      const data = await request(`/borrows/${id}/reject`, {
+        method: 'POST',
+        body: { version, reason: document.getElementById('rejectReason').value }
+      });
+      if (data.code === 0) { closeModal(); loadBorrows(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    async function confirmBorrow(id, version) {
+      const data = await request(`/borrows/${id}/confirm-borrow`, { method: 'POST', body: { version } });
+      if (data.code === 0) { loadBorrows(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    function showReturnModal(id, version) {
+      showModal('归还样品', `
+        <div class="form-group"><label>样品状况</label>
+          <select id="returnCondition">
+            <option value="GOOD">完好</option>
+            <option value="DAMAGED">有损坏</option>
+            <option value="OTHER">其他</option>
+          </select>
+        </div>
+        <div class="form-group"><label>备注</label><textarea id="returnRemarks" rows="3"></textarea></div>
+      `, `<button class="btn btn-info" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="submitReturn('${id}', ${version})">提交归还</button>`);
+    }
+
+    async function submitReturn(id, version) {
+      const data = await request(`/borrows/${id}/return`, {
+        method: 'POST',
+        body: {
+          version,
+          condition: document.getElementById('returnCondition').value,
+          remarks: document.getElementById('returnRemarks').value,
+        }
+      });
+      if (data.code === 0) { closeModal(); loadBorrows(); loadReturns(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    async function inspectPass(id, version) {
+      const data = await request(`/returns/${id}/inspect-pass`, { method: 'POST', body: { version } });
+      if (data.code === 0) { loadReturns(); loadBorrows(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    function showNeedReviewModal(id, version) {
+      showModal('需回查', `
+        <div class="form-group"><label>回查原因</label><textarea id="reviewReason" rows="4"></textarea></div>
+      `, `<button class="btn btn-info" onclick="closeModal()">取消</button><button class="btn btn-warning" onclick="needReview('${id}', ${version})">确认</button>`);
+    }
+
+    async function needReview(id, version) {
+      const data = await request(`/returns/${id}/need-review`, {
+        method: 'POST',
+        body: { version, reason: document.getElementById('reviewReason').value }
+      });
+      if (data.code === 0) { closeModal(); loadReturns(); if (currentTab === 'dashboard') loadDashboard(); }
+      else alert(data.message);
+    }
+
+    async function completeReturn(id, version) {
+      const data = await request(`/returns/${id}/complete`, { method: 'POST', body: { version } });
+      if (data.code === 0) { loadReturns(); }
+      else alert(data.message);
+    }
+
+    async function showBorrowDetail(id) {
+      const data = await request(`/borrows/${id}`);
+      if (data.code !== 0) return;
+      const b = data.data;
+      const auditHtml = b.auditLogs.map(a => `
+        <div class="timeline-item">
+          <div class="timeline-time">${new Date(a.createdAt).toLocaleString()} · ${a.user?.name || '系统'}</div>
+          <div class="timeline-content"><strong>${ACTION_LABELS[a.action] || a.action}</strong> · ${a.remark || ''}</div>
+        </div>`).join('');
+      showModal('借出详情', `
+        <p class="mb-4"><strong>样品：</strong>${b.sample.name} (${b.sample.sku})</p>
+        <p class="mb-4"><strong>状态：</strong><span class="status-tag ${STATUS_CLASS[b.status]}">${STATUS_LABELS[b.status]}</span></p>
+        <p class="mb-4"><strong>借用人：</strong>${b.borrowerName} (${b.borrowerContact})</p>
+        <p class="mb-4"><strong>用途：</strong>${b.purpose}</p>
+        <p class="mb-4"><strong>申请人：</strong>${b.createdBy?.name || '-'}</p>
+        <p class="mb-4"><strong>预计归还：</strong>${new Date(b.expectedReturn).toLocaleDateString()}</p>
+        ${b.actualReturn ? `<p class="mb-4"><strong>实际归还：</strong>${new Date(b.actualReturn).toLocaleDateString()}</p>` : ''}
+        ${b.rejectReason ? `<p class="mb-4 text-red"><strong>驳回原因：</strong>${b.rejectReason}</p>` : ''}
+        <h4 class="mb-4">操作记录</h4>
+        <div class="timeline">${auditHtml}</div>
+      `, `<button class="btn btn-info" onclick="closeModal()">关闭</button>`);
+    }
+
+    (function init() {
+      const savedUser = localStorage.getItem('user');
+      if (token && savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showApp();
+      } else {
+        showLogin();
+      }
+    })();
+  </script>
+</body>
+</html>
