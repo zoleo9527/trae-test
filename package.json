@@ -1,0 +1,44 @@
+{
+  "name": "scrap-station-manager",
+  "version": "1.0.0",
+  "description": "废品回收站-车辆过磅与结算复核系统",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5",
+    "pinia": "^2.1.7",
+    "element-plus": "^2.5.0",
+    "@element-plus/icons-vue": "^2.3.1",
+    "dayjs": "^1.11.10",
+    "xlsx": "^0.18.5",
+    "print-js": "^1.6.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.0.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.scrap.station",
+    "productName": "废品回收站管理系统",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}
