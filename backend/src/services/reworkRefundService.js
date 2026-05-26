@@ -136,7 +136,7 @@ function processRework(id, action, userId, data = {}) {
   const tx = db.transaction(() => {
     const updateFields = ['status = ?', 'approved_by = ?']
     const updateParams = [rule.to, userId]
-    if (action === 'approve' || action === 'complete') {
+    if (action === 'approve') {
       updateFields.push('approved_at = datetime(\"now\")')
     }
     if (action === 'complete') {
@@ -268,7 +268,7 @@ function processRefund(id, action, userId, data = {}) {
   const tx = db.transaction(() => {
     const updateFields = ['status = ?', 'approved_by = ?']
     const updateParams = [rule.to, userId]
-    if (action === 'approve' || action === 'complete') {
+    if (action === 'approve') {
       updateFields.push('approved_at = datetime(\"now\")')
     }
     if (action === 'complete') {

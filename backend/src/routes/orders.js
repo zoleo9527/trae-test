@@ -95,7 +95,17 @@ router.post('/:id/allocate-lens', authRequired, requireOrderAccess, requireRole(
   } catch (e) { next(e) }
 })
 
-router.post('/allocations/:id/receive', authRequired, requireRole(config.roles.ADMIN, config.roles.STORE_MANAGER, config.roles.PROCESSOR), auditMiddleware('receive_lens', 'lens_allocation'), (req, res, next) => {
+router.post('/allocations/:id/receive', authRequired, requireRole(config.roles.ADMIN, config.roles.STORE_MANAGER, config.roles.PROCESSOR),
+  function(req, _res, next) {
+    if (req.user.role === config.roles.ADMIN) return next()
+    const alloc = db.prepare('SELECT to_store_id FROM lens_allocations WHERE id = ?').get(req.params.id)
+    if (!alloc) throw new NotFoundError('调拨单不存在')
+    if (alloc.to_store_id !== req.user.store_id) {
+      throw new PermissionError('只能确认调入本店的调拨单')
+    }
+    next()
+  },
+  auditMiddleware('receive_lens', 'lens_allocation'), (req, res, next) => {
   try {
     res.json(service.receiveLens(req.params.id, req.user.id))
   } catch (e) { next(e) }

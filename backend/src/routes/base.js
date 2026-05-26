@@ -54,7 +54,7 @@ router.get('/customers', authRequired, (req, res) => {
   res.json(rows)
 })
 
-router.post('/customers', authRequired, (req, res, next) => {
+router.post('/customers', authRequired, requireRole(config.roles.ADMIN, config.roles.STORE_MANAGER, config.roles.OPTICIAN, config.roles.SERVICE), (req, res, next) => {
   try {
     const { name, phone, gender, age, store_id } = req.body
     if (!name) throw new ValidationError('客户姓名必填')
