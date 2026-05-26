@@ -89,23 +89,21 @@ func Run(ctx context.Context, db *sql.DB) error {
 			id, fmt.Sprintf(`{"reason":%q,"member_id":%d}`, lv.reason, lv.mid), lv.by, displayOf(lv.by, ownerID, coachID, frontID), lv.start)
 
 		if lv.status == "approved" {
+			oldV := fmt.Sprintf(`{"status":"pending","course_deduct":%d,"approver_id":null,"approved_at":null}`, lv.deduct)
+			newV := fmt.Sprintf(`{"status":"approved","course_deduct":%d,"approver_id":%d,"approved_at":%q,"member_courses_used_old":8,"member_courses_used_add":%d,"member_courses_used_new":%d}`,
+				lv.deduct, *lv.approver, lv.start.Add(24*time.Hour).Format(time.RFC3339), lv.deduct, 8+lv.deduct)
 			_, _ = db.ExecContext(ctx,
 				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
 				 VALUES('leave_request',$1,'approve',$2::jsonb,$3::jsonb,$4,$5,$6)`,
-				id,
-				fmt.Sprintf(`{"status":"pending","course_deduct":%d,"approver_id":null,"approved_at":null}`, lv.deduct),
-				fmt.Sprintf(`{"status":"approved","course_deduct":%d,"approver_id":%d,"approved_at":%q,"member_courses_used_old":8,"member_courses_used_add":%d,"member_courses_used_new":%d}`,
-					lv.deduct, *lv.approver, lv.start.Add(24*time.Hour).Format(time.RFC3339), lv.deduct, 8+lv.deduct),
-				*lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
+				id, oldV, newV, *lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
 		}
 		if lv.status == "rejected" {
+			oldV := fmt.Sprintf(`{"status":"pending","course_deduct":%d,"reject_reason":null}`, lv.deduct)
+			newV := fmt.Sprintf(`{"status":"rejected","course_deduct":%d,"reject_reason":"需在课表登记缺席,暂不批假"}`, lv.deduct)
 			_, _ = db.ExecContext(ctx,
 				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
 				 VALUES('leave_request',$1,'reject',$2::jsonb,$3::jsonb,$4,$5,$6)`,
-				id,
-				fmt.Sprintf(`{"status":"pending","course_deduct":%d,"reject_reason":null}`, lv.deduct),
-				fmt.Sprintf(`{"status":"rejected","course_deduct":%d,"reject_reason":"需在课表登记缺席,暂不批假"}`, lv.deduct),
-				*lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
+				id, oldV, newV, *lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
 		}
 	}
 
@@ -145,19 +143,17 @@ func Run(ctx context.Context, db *sql.DB) error {
 				r.mid, r.exp.Format(time.RFC3339), r.ch),
 			frontID, "前台 王前台", time.Now().Add(-2*time.Hour))
 
-		if r.st == "noticed" && r.assign != nil {
+		if r.st == "noticed" && r.assign != nil && r.note != nil {
+			oldV := `{"status":"open","assigned_to":null,"note":null,"noticed_by":null,"noticed_at":null}`
+			newV := fmt.Sprintf(`{"status":"noticed","assigned_to":%d,"note":%q,"noticed_by":%d,"noticed_at":%q}`,
+				*r.assign, *r.note, *r.assign, time.Now().Add(-1*time.Hour).Format(time.RFC3339))
 			_, _ = db.ExecContext(ctx,
 				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
 				 VALUES('renewal',$1,'update',$2::jsonb,$3::jsonb,$4,$5,$6)`,
-				id,
-				fmt.Sprintf(`{"status":"open","assigned_to":null,"note":null,"noticed_by":null,"noticed_at":null}`,
-				fmt.Sprintf(`{"status":"noticed","assigned_to":%d,"note":%q,"noticed_by":%d,"noticed_at":%q}`,
-					*r.assign, *r.note, *r.assign, time.Now().Add(-1*time.Hour).Format(time.RFC3339)),
-				*r.assign, displayOf(*r.assign, ownerID, coachID, frontID),
+				id, oldV, newV, *r.assign, displayOf(*r.assign, ownerID, coachID, frontID),
 				time.Now().Add(-1*time.Hour))
 		}
 	}
-}
 
 	notes := []struct {
 		target string
@@ -203,15 +199,21 @@ func displayOf(id, owner, coach, front int64) string {
 
 func ptr(s string) *string        { return &s }
 func nullableTime(ok bool) *time.Time {
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	t := time.Now().UTC()
 	return &t
 }
 func nullableInt(ok bool, v int64) *int64 {
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	return &v
 }
 func nullableStr(ok bool, s string) *string {
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	return &s
 }
