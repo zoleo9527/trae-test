@@ -206,6 +206,8 @@ class CourseIn(BaseModel):
 class CourseUpdate(BaseModel):
     status: Optional[CourseStatus] = None
     note: Optional[str] = None
+    member_id: Optional[str] = None
+    consume_amount: Optional[float] = None
 
 
 class LeaveRequestIn(BaseModel):

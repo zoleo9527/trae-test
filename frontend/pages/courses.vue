@@ -68,14 +68,16 @@
 </template>
 
 <script setup lang="ts">
-import type { Course, Coach, CourseStatus } from "~/types";
+import type { Course, Coach, CourseStatus, Member } from "~/types";
 
 const date = ref(new Date().toISOString().slice(0, 10));
 const { data: coaches } = await useApi<Coach[]>("/coaches");
+const { data: members } = await useApi<Member[]>("/members");
 const { data: courses, refresh } = await useApi<Course[]>("/courses", {
   query: computed(() => ({ on_date: date.value })),
 });
 const items = computed(() => courses.value || []);
+const defaultMemberId = computed(() => members.value?.[0]?.id || "");
 
 function coachName(id: string) {
   return coaches.value?.find((c) => c.id === id)?.name || "-";
@@ -102,7 +104,12 @@ function statusLabel(s: string) {
 }
 
 async function updateCourse(c: Course, status: CourseStatus) {
-  await apiPatch(`/courses/${c.id}`, { status, note: `${status} 操作留痕` });
+  const body: Record<string, unknown> = { status, note: `${status} 操作留痕` };
+  if (status === "leave" || status === "cancelled") {
+    body.member_id = defaultMemberId.value;
+    body.consume_amount = 64.0;
+  }
+  await apiPatch(`/courses/${c.id}`, body);
   refresh();
 }
 </script>

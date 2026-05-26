@@ -22,6 +22,7 @@ from .models import (
     StoredValueRecord,
     WaterInspection,
     InspectionStatus,
+    WaterItem,
     WaterReading,
 )
 

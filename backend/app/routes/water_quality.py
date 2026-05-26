@@ -90,6 +90,21 @@ def submit_rectification(rect_id: str) -> Rectification:
     insp = next((i for i in store.inspections.values() if i.rectification_id == rect_id), None)
     if insp:
         insp.status = InspectionStatus.recheck_pending
+
+    existing = next(
+        (rc for rc in store.rechecks.values()
+         if rc.rectification_id == rect_id and rc.status == RecheckStatus.pending),
+        None,
+    )
+    if not existing:
+        rc = Recheck(
+            rectification_id=rect_id,
+            rechecker=r.owner,
+            readings=[],
+            photo_urls=[],
+            status=RecheckStatus.pending,
+        )
+        store.rechecks[rc.id] = rc
     return r
 
 
@@ -106,15 +121,37 @@ def list_rechecks(status: Optional[RecheckStatus] = Query(None)) -> List[Recheck
 
 @router.post("/rechecks", response_model=Recheck)
 def create_recheck(payload: RecheckIn) -> Recheck:
-    rc = Recheck(**payload.model_dump(), rechecked_at=datetime.now())
-    store.rechecks[rc.id] = rc
+    existing = next(
+        (rc for rc in store.rechecks.values()
+         if rc.rectification_id == payload.rectification_id and rc.status == RecheckStatus.pending),
+        None,
+    )
+    if existing:
+        existing.rechecker = payload.rechecker
+        existing.readings = payload.readings
+        existing.photo_urls = payload.photo_urls
+        existing.status = payload.status
+        existing.conclusion = payload.conclusion
+        existing.rechecked_at = datetime.now()
+        rc = existing
+    else:
+        rc = Recheck(**payload.model_dump(), rechecked_at=datetime.now())
+        store.rechecks[rc.id] = rc
+
+    rect = store.rectifications.get(rc.rectification_id)
+    insp = next((i for i in store.inspections.values() if i.rectification_id == rc.rectification_id), None)
+
     if rc.status == RecheckStatus.passed:
-        rect = store.rectifications.get(rc.rectification_id)
         if rect:
             rect.status = "closed"
-        insp = next((i for i in store.inspections.values() if i.rectification_id == rc.rectification_id), None)
         if insp:
             insp.status = InspectionStatus.recheck_passed
+    elif rc.status == RecheckStatus.failed:
+        if rect:
+            rect.status = "rectifying"
+        if insp:
+            insp.status = InspectionStatus.rectifying
+
     return rc
 
 

@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..models import Course, CourseIn, CourseUpdate, CourseStatus
+from ..models import Course, CourseIn, CourseUpdate, CourseStatus, StoredValueRecord
 from ..store import store
 
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -38,8 +38,37 @@ def update_course(course_id: str, payload: CourseUpdate) -> Course:
     c = store.courses.get(course_id)
     if not c:
         raise HTTPException(status_code=404, detail="课程不存在")
+
+    old_status = c.status
     if payload.status is not None:
         c.status = payload.status
+
     if payload.note is not None:
         c.note = payload.note
+
+    if payload.status in (CourseStatus.leave, CourseStatus.cancelled):
+        if payload.member_id and payload.member_id not in store.members:
+            raise HTTPException(status_code=404, detail="会员不存在")
+
+        default_amount = 64.0
+        if payload.status == CourseStatus.leave:
+            note = payload.note or "请假消课"
+            c.note = f"{note} · 已写入储值流水"
+        else:
+            note = payload.note or "课程取消"
+            c.note = f"{note} · 已写入储值流水"
+
+        if payload.member_id:
+            amount = payload.consume_amount or default_amount
+            sv = StoredValueRecord(
+                member_id=payload.member_id,
+                amount=amount,
+                type="consume",
+                note=f"{c.title} · {note}",
+            )
+            store.stored_value[sv.id] = sv
+            member = store.members[payload.member_id]
+            member.balance -= amount
+            member.used_sessions += 1
+
     return c
