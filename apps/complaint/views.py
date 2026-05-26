@@ -24,7 +24,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             return [IsDirector()]
         if self.action in ['assign', 'escalate']:
             return [IsCoachSupervisor()]
-        if self.action in ['update_status', 'add_comment']:
+        if self.action in ['update_status']:
             return [IsCoach()]
         return super().get_permissions()
 
@@ -39,6 +39,15 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         search = request.query_params.get('search')
         overdue = request.query_params.get('overdue') == '1'
         my = request.query_params.get('my') == '1'
+
+        if request.user.role == 'director':
+            pass
+        elif request.user.role == 'coach_supervisor':
+            assigned_to = assigned_to or request.user.id
+        elif request.user.role == 'front_desk':
+            submitted_by = submitted_by or request.user.id
+        elif request.user.role == 'coach':
+            assigned_to = assigned_to or request.user.id
 
         if my:
             assigned_to = request.user.id
@@ -69,6 +78,27 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(page, many=True)
         return self.get_paginated_response(serializer.data)
 
+    def retrieve(self, request, pk=None):
+        complaint = self.get_object()
+        self._check_data_visibility(request, complaint)
+        serializer = self.get_serializer(complaint)
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': serializer.data
+        })
+
+    @staticmethod
+    def _check_data_visibility(request, complaint):
+        if request.user.role == 'director':
+            return
+        if request.user.role in ['coach_supervisor', 'coach']:
+            if complaint.assigned_to_id != request.user.id:
+                raise PermissionDeniedException('无权查看此投诉详情')
+        if request.user.role == 'front_desk':
+            if complaint.submitted_by_id != request.user.id:
+                raise PermissionDeniedException('无权查看此投诉详情')
+
     def create(self, request):
         serializer = ComplaintCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -87,6 +117,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
         complaint = self.get_object()
+        self._check_data_visibility(request, complaint)
         serializer = StatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -104,6 +135,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
         complaint = self.get_object()
+        self._check_data_visibility(request, complaint)
         serializer = AssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -121,6 +153,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def add_comment(self, request, pk=None):
         complaint = self.get_object()
+        self._check_data_visibility(request, complaint)
         serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -138,6 +171,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def escalate(self, request, pk=None):
         complaint = self.get_object()
+        self._check_data_visibility(request, complaint)
         serializer = EscalateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
