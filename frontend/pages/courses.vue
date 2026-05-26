@@ -26,6 +26,7 @@
             <th class="py-2">教练</th>
             <th class="py-2">容量</th>
             <th class="py-2">状态</th>
+            <th class="py-2">扣费会员</th>
             <th class="py-2 text-right">操作</th>
           </tr>
         </thead>
@@ -40,20 +41,41 @@
                 statusLabel(c.status)
               }}</span>
             </td>
+            <td class="py-2">
+              <span
+                v-if="c.consumed_member_id"
+                class="text-xs text-brand-700 bg-brand-50 px-2 py-0.5 rounded"
+              >
+                {{ memberName(c.consumed_member_id) }}
+              </span>
+              <span v-else class="text-xs text-gray-400">-</span>
+            </td>
             <td class="py-2 text-right space-x-1">
-              <button class="btn-ghost" @click="updateCourse(c, 'completed')">
+              <button
+                class="btn-ghost"
+                :disabled="c.consume_record_id"
+                @click="updateCourse(c, 'completed')"
+              >
                 完成
               </button>
-              <button class="btn-ghost" @click="openConsume(c, 'leave')">
+              <button
+                class="btn-ghost"
+                :disabled="c.consume_record_id"
+                @click="openConsume(c, 'leave')"
+              >
                 请假消课
               </button>
-              <button class="btn-ghost" @click="openConsume(c, 'cancelled')">
+              <button
+                class="btn-ghost"
+                :disabled="c.consume_record_id"
+                @click="openConsume(c, 'cancelled')"
+              >
                 取消
               </button>
             </td>
           </tr>
           <tr v-if="items.length === 0">
-            <td colspan="6" class="py-6 text-center text-gray-400">
+            <td colspan="7" class="py-6 text-center text-gray-400">
               当日暂无课程
             </td>
           </tr>
@@ -161,6 +183,9 @@ const consumeDialog = reactive<ConsumeDialog>({
 
 function coachName(id: string) {
   return coaches.value?.find((c) => c.id === id)?.name || "-";
+}
+function memberName(id: string) {
+  return members.value?.find((m) => m.id === id)?.name || "-";
 }
 function statusChip(s: string) {
   const map: Record<string, string> = {

@@ -108,6 +108,7 @@ class Course(BaseModel):
     status: CourseStatus = CourseStatus.scheduled
     note: Optional[str] = None
     consume_record_id: Optional[str] = None
+    consumed_member_id: Optional[str] = None
 
 
 class LeaveRequest(BaseModel):

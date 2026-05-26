@@ -39,20 +39,20 @@ def update_course(course_id: str, payload: CourseUpdate) -> Course:
     if not c:
         raise HTTPException(status_code=404, detail="课程不存在")
 
-    old_status = c.status
-    if payload.status is not None:
-        c.status = payload.status
+    is_consume_action = payload.status in (CourseStatus.leave, CourseStatus.cancelled)
 
-    if payload.note is not None:
-        c.note = payload.note
-
-    if payload.status in (CourseStatus.leave, CourseStatus.cancelled):
+    if is_consume_action:
         if payload.member_id and payload.member_id not in store.members:
             raise HTTPException(status_code=404, detail="会员不存在")
-
         if c.consume_record_id:
             raise HTTPException(status_code=409, detail="该课程已生成过储值流水，不允许重复扣减")
 
+    if payload.status is not None:
+        c.status = payload.status
+    if payload.note is not None:
+        c.note = payload.note
+
+    if is_consume_action:
         default_amount = 64.0
         if payload.status == CourseStatus.leave:
             note = payload.note or "请假消课"
@@ -74,5 +74,6 @@ def update_course(course_id: str, payload: CourseUpdate) -> Course:
             member.balance -= amount
             member.used_sessions += 1
             c.consume_record_id = sv.id
+            c.consumed_member_id = payload.member_id
 
     return c

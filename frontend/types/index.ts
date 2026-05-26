@@ -51,6 +51,8 @@ export interface Course {
   enrolled: number
   status: CourseStatus
   note?: string
+  consume_record_id?: string
+  consumed_member_id?: string
 }
 
 export interface LeaveRequest {

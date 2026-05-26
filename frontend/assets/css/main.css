@@ -30,6 +30,9 @@ body {
 .btn-ghost {
   @apply btn bg-transparent text-brand-700 hover:bg-brand-50;
 }
+.btn-ghost:disabled {
+  @apply text-gray-400 hover:bg-transparent cursor-not-allowed;
+}
 .btn-danger {
   @apply btn bg-rose-500 text-white hover:bg-rose-600;
 }
