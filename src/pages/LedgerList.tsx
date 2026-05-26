@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Eye, CheckCircle, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Filter, Eye, CheckCircle, Clock, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { Card } from '@/components/ui/Card';
@@ -13,10 +13,12 @@ import { cn } from '@/lib/utils';
 
 export default function LedgerList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentRole, currentUser, getFilteredLedger, addLedgerRecord, currentPrices } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRecord, setNewRecord] = useState({
     category: 'paper' as Category,
@@ -24,6 +26,29 @@ export default function LedgerList() {
     supplier: '',
     weightPhoto: '',
   });
+
+  useEffect(() => {
+    const dateParam = searchParams.get('date');
+    const categoryParam = searchParams.get('category');
+    if (dateParam) {
+      setDateFilter(dateParam);
+    }
+    if (categoryParam) {
+      setCategoryFilter(categoryParam);
+    }
+  }, [searchParams]);
+
+  const clearDateFilter = () => {
+    setDateFilter('');
+    searchParams.delete('date');
+    setSearchParams(searchParams);
+  };
+
+  const clearCategoryFilter = () => {
+    setCategoryFilter('all');
+    searchParams.delete('category');
+    setSearchParams(searchParams);
+  };
 
   const ledgerRecords = getFilteredLedger();
 
@@ -33,7 +58,8 @@ export default function LedgerList() {
       record.supplier.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all' || record.status === statusFilter;
     const matchCategory = categoryFilter === 'all' || record.category === categoryFilter;
-    return matchSearch && matchStatus && matchCategory;
+    const matchDate = !dateFilter || record.createdAt.startsWith(dateFilter);
+    return matchSearch && matchStatus && matchCategory && matchDate;
   });
 
   const getStatusBadgeVariant = (status: LedgerStatus) => {
@@ -91,40 +117,63 @@ export default function LedgerList() {
       </div>
 
       <Card>
-        <Card.Header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">全部状态</option>
-              {Object.entries(ledgerStatusLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">全部分类</option>
-              {Object.entries(categoryLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
+        <Card.Header className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Filter className="w-5 h-5 text-gray-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">全部状态</option>
+                {Object.entries(ledgerStatusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">全部分类</option>
+                {Object.entries(categoryLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="搜索编号或供应商..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              />
+            </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="搜索编号或供应商..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-            />
-          </div>
+          {(dateFilter || categoryFilter !== 'all') && (
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
+              <span className="text-sm text-gray-500">已筛选：</span>
+              {dateFilter && (
+                <Badge variant="info" className="flex items-center gap-1">
+                  日期：{dateFilter}
+                  <button onClick={clearDateFilter} className="ml-1 hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {categoryFilter !== 'all' && (
+                <Badge variant="info" className="flex items-center gap-1">
+                  品类：{categoryLabels[categoryFilter as keyof typeof categoryLabels]}
+                  <button onClick={clearCategoryFilter} className="ml-1 hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+            </div>
+          )}
         </Card.Header>
         <Card.Content className="p-0">
           <div className="overflow-x-auto">

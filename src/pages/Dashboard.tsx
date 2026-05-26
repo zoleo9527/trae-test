@@ -109,7 +109,12 @@ export default function Dashboard() {
           <Card.Content>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dailyStats.slice(-7)}>
+                <LineChart data={dailyStats.slice(-7)} onClick={(data: any) => {
+                  if (data && data.activePayload && data.activePayload[0]) {
+                    const date = data.activePayload[0].payload.date;
+                    navigate(`/ledger?date=${date}`);
+                  }
+                }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis
                     dataKey="date"
@@ -122,13 +127,14 @@ export default function Dashboard() {
                       name === 'weight' ? `${value} kg` : `¥${value}`,
                       name === 'weight' ? '重量' : '金额',
                     ]}
+                    labelFormatter={(label) => `日期: ${format(new Date(label), 'yyyy-MM-dd', { locale: zhCN })}`}
                   />
                   <Line
                     type="monotone"
                     dataKey="weight"
                     stroke="#3b82f6"
                     strokeWidth={2}
-                    dot={{ fill: '#3b82f6' }}
+                    dot={{ fill: '#3b82f6', cursor: 'pointer' }}
                     name="weight"
                   />
                   <Line
@@ -136,12 +142,13 @@ export default function Dashboard() {
                     dataKey="amount"
                     stroke="#10b981"
                     strokeWidth={2}
-                    dot={{ fill: '#10b981' }}
+                    dot={{ fill: '#10b981', cursor: 'pointer' }}
                     name="amount"
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-xs text-gray-400 text-center mt-2">点击数据点可查看当日台账</p>
           </Card.Content>
         </Card>
 
@@ -153,20 +160,30 @@ export default function Dashboard() {
           <Card.Content>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryStats.map((s) => ({ ...s, category: categoryLabels[s.category as keyof typeof categoryLabels] }))}>
+                <BarChart
+                  data={categoryStats}
+                  onClick={(data: any) => {
+                    if (data && data.activePayload && data.activePayload[0]) {
+                      const category = data.activePayload[0].payload.category;
+                      navigate(`/ledger?category=${category}`);
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="category" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="category" tick={{ fontSize: 12 }} tickFormatter={(cat) => categoryLabels[cat as keyof typeof categoryLabels]} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
                     formatter={(value: number, name: string) => [
                       name === 'weight' ? `${value} kg` : `¥${value}`,
                       name === 'weight' ? '重量' : '价值',
                     ]}
+                    labelFormatter={(label) => `品类: ${categoryLabels[label as keyof typeof categoryLabels]}`}
                   />
-                  <Bar dataKey="weight" fill="#3b82f6" name="weight" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="weight" fill="#3b82f6" name="weight" radius={[4, 4, 0, 0]} cursor="pointer" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-xs text-gray-400 text-center mt-2">点击柱状图可查看该品类台账</p>
           </Card.Content>
         </Card>
       </div>

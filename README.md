@@ -1,57 +1,128 @@
-# React + TypeScript + Vite
+# 废品回收站-环保台账与异常上报系统
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个面向废品回收站的环保管理系统，覆盖台账记录、异常上报、价格调整和财务结算全流程。
 
-Currently, two official plugins are available:
+## 🚀 快速开始
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 环境要求
+- Node.js >= 18
+- npm >= 9
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### 安装依赖
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 启动开发服务器
+```bash
+npm run dev
+```
+默认运行在 http://localhost:5173/
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 生产构建
+```bash
+npm run build
+```
 
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### 类型检查
+```bash
+npm run check
+```
+
+## 👥 角色切换
+
+系统内置 4 个演示用户，支持多角色视角切换：
+
+### 切换入口
+点击右上角用户头像 → 在下拉菜单中选择不同角色
+
+### 角色权限说明
+
+| 角色 | 用户名 | 权限范围 |
+|------|--------|----------|
+| 站点老板 | 张建国 | 全部功能，审核台账、审批价格、处理异常 |
+| 过磅员 | 李明 | 创建台账、上报异常、查看自己的记录 |
+| 过磅员 | 王芳 | 创建台账、上报异常、查看自己的记录 |
+| 财务 | 赵丽 | 对账结算、申请价格调整 |
+
+## 📋 功能模块
+
+### 1. 汇总看板
+- 今日回收重量/金额统计
+- 近7日回收趋势图（点击数据点可查看当日台账）
+- 品类分布图（点击柱状图可查看该品类台账）
+- 最近台账/异常快速入口
+- 待办事项聚合提醒
+
+### 2. 环保台账
+- 台账记录列表（支持按状态、品类、日期搜索筛选）
+- 新建台账（自动计算金额，同步生成账款记录）
+- 详情页：现场照片、备注、操作日志时间线
+- 状态流转：创建 → 审核 → 对账 → 结算
+
+### 3. 异常上报
+- 异常类型：环保、设备、质量、安全
+- 支持关联台账记录
+- 处理流程：待处理 → 处理中 → 已解决/驳回/关闭
+- 沟通记录 + 操作时间线
+
+### 4. 价格调整
+- 当前价格一览
+- 调价申请（需说明原因）
+- 审批流程（老板审批）
+- 历史记录（变动对比）
+
+### 5. 财务结算
+- 账款状态统计（待对账/待结算/已结算）
+- 对账操作（关联台账未审核时不可操作）
+- 结算（支持差异金额记录）
+
+## 🔄 业务数据流
+
+```
+过磅员创建台账
+    ↓ (自动同步)
+生成对应账款记录
+    ↓
+老板审核通过
+    ↓
+财务对账 → 异常关联（如有问题）
+    ↓
+完成结算
+```
+
+## ⚠️ 已简化边界说明
+
+1. **照片上传**：目前使用默认占位图，未实现真实文件上传功能
+2. **消息推送**：仅在头部显示待办数量红点，无实时通知推送
+3. **打印功能**：磅单打印未实现
+4. **数据持久化**：使用 Zustand 内存存储，刷新页面数据重置
+5. **登录认证**：内置演示用户，无真实登录认证流程
+6. **数据导出**：报表导出功能未实现
+7. **多站点支持**：仅支持单站点运营模式
+
+## 🛠 技术栈
+
+- **框架**：React 18 + TypeScript
+- **构建工具**：Vite
+- **状态管理**：Zustand
+- **路由**：React Router v6
+- **样式**：Tailwind CSS
+- **图表**：Recharts
+- **图标**：Lucide React
+- **日期处理**：date-fns
+
+## 📁 项目结构
+
+```
+src/
+├── components/          # 通用组件
+│   ├── layout/         # 布局组件（Sidebar、Header、Layout）
+│   └── ui/             # UI 组件（Card、Button、Badge 等）
+├── data/               # Mock 数据
+├── pages/              # 页面组件
+├── store/              # Zustand 状态管理
+├── types/              # TypeScript 类型定义
+├── App.tsx             # 应用入口
+└── main.tsx            # 渲染入口
 ```
