@@ -155,7 +155,7 @@ fn init_database(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS lens_inventory (
             id TEXT PRIMARY KEY,
-            sku TEXT NOT NULL UNIQUE,
+            sku TEXT NOT NULL,
             name TEXT NOT NULL,
             brand TEXT NOT NULL,
             sph REAL NOT NULL,
@@ -166,7 +166,8 @@ fn init_database(conn: &Connection) -> rusqlite::Result<()> {
             min_stock INTEGER NOT NULL,
             store TEXT NOT NULL,
             location TEXT NOT NULL,
-            last_updated TEXT NOT NULL
+            last_updated TEXT NOT NULL,
+            UNIQUE(sku, store)
         )",
         [],
     )?;
@@ -256,6 +257,49 @@ fn init_database(conn: &Connection) -> rusqlite::Result<()> {
         )",
         [],
     )?;
+
+    Ok(())
+}
+
+fn migrate_database(conn: &Connection) -> rusqlite::Result<()> {
+    let table_sql: String = conn.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='lens_inventory'"
+    )?
+    .query_row([], |row| row.get::<_, String>(0))
+    .unwrap_or_default();
+
+    if table_sql.contains("sku TEXT NOT NULL UNIQUE") {
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS lens_inventory_new (
+                id TEXT PRIMARY KEY,
+                sku TEXT NOT NULL,
+                name TEXT NOT NULL,
+                brand TEXT NOT NULL,
+                sph REAL NOT NULL,
+                cyl REAL NOT NULL,
+                axis INTEGER NOT NULL,
+                add_power REAL,
+                quantity INTEGER NOT NULL,
+                min_stock INTEGER NOT NULL,
+                store TEXT NOT NULL,
+                location TEXT NOT NULL,
+                last_updated TEXT NOT NULL,
+                UNIQUE(sku, store)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "INSERT INTO lens_inventory_new SELECT * FROM lens_inventory",
+            [],
+        )?;
+
+        conn.execute("DROP TABLE lens_inventory", [])?;
+        conn.execute("ALTER TABLE lens_inventory_new RENAME TO lens_inventory", [])?;
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
+    }
 
     Ok(())
 }
@@ -364,15 +408,12 @@ fn seed_sample_data(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn check_and_create_alerts(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute("DELETE FROM stock_alerts WHERE acknowledged = 0", [])?;
-    
     let mut stmt = conn.prepare(
         "SELECT id, sku, name, store, quantity, min_stock 
-         FROM lens_inventory 
-         WHERE quantity <= min_stock"
+         FROM lens_inventory"
     )?;
     
-    let alerts = stmt.query_map([], |row| {
+    let inventory_items = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
@@ -383,33 +424,52 @@ fn check_and_create_alerts(conn: &Connection) -> rusqlite::Result<()> {
         ))
     })?;
 
-    for alert in alerts {
-        let (lens_id, sku, name, store, qty, min) = alert?;
-        let alert_type = if qty == 0 { "out_of_stock" } else { "low_stock" };
+    for item in inventory_items {
+        let (lens_id, sku, name, store, qty, min) = item?;
         let alert_id = format!("ALERT_{}_{}", sku, store);
         
-        let existing: Option<String> = conn.query_row(
-            "SELECT id FROM stock_alerts WHERE id = ?",
+        let existing_alert: Option<(i32, bool)> = conn.query_row(
+            "SELECT current_quantity, acknowledged FROM stock_alerts WHERE id = ?",
             params![alert_id],
-            |row| row.get(0),
+            |row| Ok((row.get::<_, i32>(0)?, row.get::<_, bool>(1)?)),
         ).optional()?;
-        
-        if existing.is_none() {
-            conn.execute(
-                "INSERT INTO stock_alerts (id, lens_id, sku, lens_name, store, current_quantity, min_stock, alert_type, created_at, acknowledged)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
-                params![
-                    alert_id,
-                    lens_id, sku, name, store, qty, min, alert_type,
-                    Local::now().to_rfc3339()
-                ],
-            )?;
+
+        if qty <= min {
+            let alert_type = if qty == 0 { "out_of_stock" } else { "low_stock" };
+            
+            match existing_alert {
+                None => {
+                    conn.execute(
+                        "INSERT INTO stock_alerts (id, lens_id, sku, lens_name, store, current_quantity, min_stock, alert_type, created_at, acknowledged)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0)",
+                        params![
+                            alert_id,
+                            lens_id, sku, name, store, qty, min, alert_type,
+                            Local::now().to_rfc3339()
+                        ],
+                    )?;
+                }
+                Some((prev_qty, acknowledged)) => {
+                    if prev_qty != qty {
+                        conn.execute(
+                            "UPDATE stock_alerts 
+                             SET current_quantity = ?, min_stock = ?, alert_type = ?, created_at = ?
+                             WHERE id = ?",
+                            params![qty, min, alert_type, Local::now().to_rfc3339(), alert_id],
+                        )?;
+                    }
+                    if !acknowledged && qty == 0 && prev_qty > 0 {
+                        conn.execute(
+                            "UPDATE stock_alerts SET acknowledged = 0 WHERE id = ?",
+                            params![alert_id],
+                        )?;
+                    }
+                }
+            }
         } else {
-            conn.execute(
-                "UPDATE stock_alerts SET current_quantity = ?, min_stock = ?, alert_type = ?, created_at = ?, acknowledged = 0 
-                 WHERE id = ?",
-                params![qty, min, alert_type, Local::now().to_rfc3339(), alert_id],
-            )?;
+            if existing_alert.is_some() {
+                conn.execute("DELETE FROM stock_alerts WHERE id = ?", params![alert_id])?;
+            }
         }
     }
 
@@ -417,12 +477,48 @@ fn check_and_create_alerts(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn update_inventory_quantity(conn: &Connection, sku: &str, store: &str, quantity_change: i32) -> rusqlite::Result<()> {
-    conn.execute(
-        "UPDATE lens_inventory 
-         SET quantity = quantity + ?, last_updated = ? 
-         WHERE sku = ? AND store = ?",
-        params![quantity_change, Local::now().to_rfc3339(), sku, store],
+    let existing_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM lens_inventory WHERE sku = ? AND store = ?",
+        params![sku, store],
+        |row| row.get(0),
     )?;
+
+    if existing_count > 0 {
+        conn.execute(
+            "UPDATE lens_inventory 
+             SET quantity = quantity + ?, last_updated = ? 
+             WHERE sku = ? AND store = ?",
+            params![quantity_change, Local::now().to_rfc3339(), sku, store],
+        )?;
+    } else if quantity_change > 0 {
+        let source_lens: Option<(String, String, f32, f32, i32, Option<f32>)> = conn.query_row(
+            "SELECT name, brand, sph, cyl, axis, add_power FROM lens_inventory WHERE sku = ? LIMIT 1",
+            params![sku],
+            |row| Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            )),
+        ).optional()?;
+
+        if let Some((name, brand, sph, cyl, axis, add_power)) = source_lens {
+            let new_id = format!("{}_{}", sku, store);
+            conn.execute(
+                "INSERT INTO lens_inventory (id, sku, name, brand, sph, cyl, axis, add_power, quantity, min_stock, store, location, last_updated)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10, 'AUTO', ?11)",
+                params![
+                    new_id, sku, name, brand, sph, cyl, axis, add_power,
+                    quantity_change, store, Local::now().to_rfc3339()
+                ],
+            )?;
+        } else {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+    }
+
     check_and_create_alerts(conn)?;
     Ok(())
 }
@@ -705,10 +801,11 @@ fn update_transfer_status(
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     
-    let (lens_sku, from_store, to_store, quantity, current_status): (String, String, String, i32, String) = conn.query_row(
-        "SELECT lens_sku, from_store, to_store, quantity, status FROM transfer_orders WHERE id = ?",
+    let (lens_sku, lens_name, from_store, to_store, quantity, current_status, optometry_id, created_by): 
+        (String, String, String, String, i32, String, Option<String>, String) = conn.query_row(
+        "SELECT lens_sku, lens_name, from_store, to_store, quantity, status, optometry_id, created_by FROM transfer_orders WHERE id = ?",
         params![id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?)),
     ).map_err(|_| "调拨单不存在")?;
     
     if current_status == status {
@@ -737,6 +834,46 @@ fn update_transfer_status(
             }
             conn.execute("UPDATE transfer_orders SET status = ?, lost_at = ? WHERE id = ?",
                 params![status, now, id]).map_err(|e| e.to_string())?;
+
+            if let Some(opto_id) = optometry_id {
+                let existing_repair: Option<String> = conn.query_row(
+                    "SELECT id FROM repair_records WHERE optometry_id = ?",
+                    params![opto_id],
+                    |row| row.get::<_, String>(0),
+                ).optional().map_err(|e| e.to_string())?;
+
+                let existing_refund: Option<String> = conn.query_row(
+                    "SELECT id FROM refund_records WHERE optometry_id = ?",
+                    params![opto_id],
+                    |row| row.get::<_, String>(0),
+                ).optional().map_err(|e| e.to_string())?;
+
+                if existing_repair.is_none() && existing_refund.is_none() {
+                    let repair_id = format!("REP{}", Local::now().format("%Y%m%d%H%M%S"));
+                    let reason = format!("调拨单{}丢失: {} x{}，{}→{}", 
+                        id, lens_name, quantity, from_store, to_store);
+                    
+                    conn.execute(
+                        "INSERT INTO repair_records (id, optometry_id, repair_type, reason, status, created_by, created_at, remarks)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        params![
+                            repair_id,
+                            opto_id,
+                            "镜片补发",
+                            reason,
+                            "in_progress",
+                            created_by,
+                            now,
+                            Some(format!("关联调拨单: {}", id))
+                        ],
+                    ).map_err(|e| format!("创建返修单失败: {}", e))?;
+
+                    conn.execute(
+                        "UPDATE optometry_records SET status = 'repair' WHERE id = ?",
+                        params![opto_id],
+                    ).map_err(|e| e.to_string())?;
+                }
+            }
         }
         _ => {
             conn.execute("UPDATE transfer_orders SET status = ? WHERE id = ?",
@@ -824,6 +961,7 @@ fn main() {
     
     let conn = Connection::open(&db_path).expect("Failed to open database");
     init_database(&conn).expect("Failed to initialize database");
+    migrate_database(&conn).expect("Failed to migrate database");
     seed_sample_data(&conn).expect("Failed to seed sample data");
     
     let state = AppState {
