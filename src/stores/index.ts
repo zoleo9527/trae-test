@@ -172,20 +172,22 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    batchConfirmParts(confirmedBy: string) {
+    batchConfirmParts(confirmedBy: string | null) {
       let totalCount = 0
       for (const ticket of this.afterSalesTickets) {
         let ticketCount = 0
+        const ticketAssignee = ticket.assignee
         for (const part of ticket.parts) {
           if (this.batchSelection.has(part.id) && !part.confirmed) {
             part.confirmed = true
-            part.confirmedBy = confirmedBy
+            part.confirmedBy = confirmedBy || ticketAssignee
             part.confirmedAt = this._now()
             ticketCount++
           }
         }
         if (ticketCount > 0) {
-          this._addTicketHistory(ticket, '批量确认补件', confirmedBy, `本工单批量确认 ${ticketCount} 项补件`)
+          const actualBy = confirmedBy || ticketAssignee
+          this._addTicketHistory(ticket, '批量确认补件', actualBy, `本工单批量确认 ${ticketCount} 项补件`)
           this._updateTicketTimestamp(ticket)
           totalCount += ticketCount
         }
@@ -194,36 +196,38 @@ export const useAppStore = defineStore('app', {
       this.batchSelection.clear()
     },
 
-    returnSample(lendingId: string, returnedBy: string) {
+    returnSample(lendingId: string, returnedBy: string | null) {
       const lending = this.sampleLendings.find(l => l.id === lendingId)
       if (lending) {
+        const actualBy = returnedBy || lending.lentBy
         lending.returned = true
         lending.returnedAt = this._now()
-        lending.returnedBy = returnedBy
+        lending.returnedBy = actualBy
         lending.returnNote = '样品已归还，状态正常'
         lending.history.push({
           action: '归还',
-          by: returnedBy,
+          by: actualBy,
           at: this._now(),
-          detail: `由 ${returnedBy} 登记归还，样品状态正常`
+          detail: `由 ${actualBy} 登记归还，样品状态正常`
         } as SampleLendingHistory)
         this.showToast(`样品「${lending.itemName}」已登记归还`, 'success')
       }
     },
 
-    batchReturnSamples(returnedBy: string) {
+    batchReturnSamples(returnedBy: string | null) {
       let count = 0
       for (const lending of this.sampleLendings) {
         if (this.batchSelection.has(lending.id) && !lending.returned) {
+          const actualBy = returnedBy || lending.lentBy
           lending.returned = true
           lending.returnedAt = this._now()
-          lending.returnedBy = returnedBy
+          lending.returnedBy = actualBy
           lending.returnNote = '批量登记归还'
           lending.history.push({
             action: '归还',
-            by: returnedBy,
+            by: actualBy,
             at: this._now(),
-            detail: `由 ${returnedBy} 批量登记归还`
+            detail: `由 ${actualBy} 批量登记归还`
           } as SampleLendingHistory)
           count++
         }

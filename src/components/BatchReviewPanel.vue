@@ -20,27 +20,17 @@ const availableOperators = computed(() => {
       }
     }
     if (store.batchSelection.size === 0) {
-      operators.add('销售-李明')
-      operators.add('销售-周琳')
-      operators.add('协调-赵芳')
-      operators.add('协调-孙浩')
+      store.afterSalesTickets.forEach(t => operators.add(t.assignee))
     }
   } else {
     for (const lendingId of store.batchSelection) {
       const lending = store.sampleLendings.find(l => l.id === lendingId)
       if (lending) {
-        const order = store.orders.find(o => o.id === lending.orderId)
-        if (order) {
-          operators.add('销售-' + order.salesConsultant)
-          operators.add('协调-' + order.coordinator)
-        }
+        operators.add(lending.lentBy)
       }
     }
     if (store.batchSelection.size === 0) {
-      store.orders.forEach(o => {
-        operators.add('销售-' + o.salesConsultant)
-        operators.add('协调-' + o.coordinator)
-      })
+      store.sampleLendings.forEach(l => operators.add(l.lentBy))
     }
   }
 
@@ -99,7 +89,7 @@ function getOperatorForPart(part: { ticketId: string; assignee: string }): strin
   if (selectedOperator.value) return selectedOperator.value
   const ticket = store.afterSalesTickets.find(t => t.id === part.ticketId)
   if (ticket) return ticket.assignee
-  return '销售-李明'
+  return part.assignee
 }
 
 function getOperatorForLending(lending: { orderId: string; lentBy: string }): string {
@@ -109,12 +99,12 @@ function getOperatorForLending(lending: { orderId: string; lentBy: string }): st
 
 function batchConfirmParts() {
   if (selectedPartIds.value.length === 0) return
-  store.batchConfirmParts(selectedOperator.value || '陈经理')
+  store.batchConfirmParts(selectedOperator.value || null)
 }
 
 function batchReturnSamples() {
   if (selectedLendingIds.value.length === 0) return
-  store.batchReturnSamples(selectedOperator.value || '陈经理')
+  store.batchReturnSamples(selectedOperator.value || null)
 }
 </script>
 
