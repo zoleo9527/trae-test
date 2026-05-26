@@ -14,9 +14,8 @@ import EvidenceTimeline from "@/components/EvidenceTimeline.vue";
 
 const store = useAppStore();
 
-const selectedId = ref<string>("rf1");
 const refund = computed(() =>
-  store.db.refunds.find((r) => r.id === selectedId.value),
+  store.db.refunds.find((r) => r.id === store.selectedRefundId),
 );
 const order = computed(() =>
   refund.value ? store.orderById(refund.value.orderId) : undefined,
@@ -49,7 +48,6 @@ function createRefund() {
   const p = store.pkgOf(o);
   if (!p) return;
   const newRefund = store.createRefund(o.id, p.price, createForm.value.reason.trim());
-  selectedId.value = newRefund.id;
   store.selectedRefundId = newRefund.id;
   createForm.value = { orderId: "", reason: "" };
   showCreateForm.value = false;
@@ -90,7 +88,6 @@ function pad(n: number) {
 }
 
 function selectRefund(id: string) {
-  selectedId.value = id;
   store.selectedRefundId = id;
 }
 
@@ -148,7 +145,7 @@ const refundStatusLabel: Record<string, string> = {
         :key="r.id"
         class="text-left rounded-lg px-3 py-2 transition"
         :class="
-          selectedId === r.id
+          store.selectedRefundId === r.id
             ? 'bg-amber2-500/15 ring-1 ring-amber2-500/40'
             : 'hover:bg-white/5'
         "

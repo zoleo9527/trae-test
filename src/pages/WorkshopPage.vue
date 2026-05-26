@@ -141,6 +141,16 @@ const repairStatusOptions: Array<{ key: 'reported' | 'factory' | 'returned' | 'c
   { key: 'returned', label: '已返回' },
   { key: 'completed', label: '已完成' },
 ];
+
+function transferStatusLabel(s: string) {
+  const map: Record<string, string> = {
+    sent: '已发出',
+    in_transit: '运输中',
+    received: '已签收',
+    lost: '已丢失',
+  };
+  return map[s] ?? s;
+}
 </script>
 
 <template>
@@ -260,7 +270,7 @@ const repairStatusOptions: Array<{ key: 'reported' | 'factory' | 'returned' | 'c
               }}</span>
               <span class="mono">{{ t.trackingNo }}</span>
               <span class="tag border-white/10 text-paper/70 ml-auto">{{
-                t.status
+                transferStatusLabel(t.status)
               }}</span>
               <button
                 v-if="!t.lost && canEditWorkshop"
