@@ -7,7 +7,7 @@
     <div class="p-4">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <el-icon class="is-loading text-3xl text-primary-500">
-          <Loading />
+          <Loader2 />
         </el-icon>
       </div>
 
@@ -34,7 +34,7 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <template v-if="row.status === 'pending'">
+            <template v-if="row.status === 'pending' && authStore.hasRole('manager')">
               <el-button size="small" type="success" @click="handleApprove(row)">
                 批准
               </el-button>
@@ -63,9 +63,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Loading } from 'element-plus';
+import { Loader2 } from 'lucide-vue-next';
 import { compensationApi } from '../api';
+import { useAuthStore } from '../stores/auth';
 import type { Compensation } from '../types';
+
+const authStore = useAuthStore();
 
 const loading = ref(false);
 const compensations = ref<Compensation[]>([]);

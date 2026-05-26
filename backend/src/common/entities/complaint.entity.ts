@@ -3,6 +3,7 @@ import { User } from './user.entity';
 import { Recheck } from './recheck.entity';
 import { Compensation } from './compensation.entity';
 import { StatusLog } from './status-log.entity';
+import { Evidence } from './evidence.entity';
 
 export type ComplaintStatus = 'pending' | 'rechecking' | 'compensating' | 'payment_pending' | 'completed' | 'rejected';
 
@@ -47,6 +48,9 @@ export class Complaint {
 
   @OneToMany(() => StatusLog, log => log.complaint)
   statusLogs: StatusLog[];
+
+  @OneToMany(() => Evidence, evidence => evidence.complaint)
+  evidences: Evidence[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

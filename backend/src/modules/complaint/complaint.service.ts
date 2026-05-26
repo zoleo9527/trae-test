@@ -29,8 +29,13 @@ export class ComplaintService {
       .createQueryBuilder('complaint')
       .leftJoinAndSelect('complaint.creator', 'creator')
       .leftJoinAndSelect('complaint.rechecks', 'rechecks')
+      .leftJoinAndSelect('rechecks.operator', 'recheckOperator')
       .leftJoinAndSelect('complaint.compensations', 'compensations')
-      .orderBy('complaint.createdAt', 'DESC');
+      .leftJoinAndSelect('compensations.approver', 'approver')
+      .leftJoinAndSelect('complaint.statusLogs', 'statusLogs')
+      .leftJoinAndSelect('statusLogs.operator', 'operator')
+      .orderBy('complaint.createdAt', 'DESC')
+      .addOrderBy('statusLogs.createdAt', 'DESC');
 
     if (status) {
       queryBuilder.andWhere('complaint.status = :status', { status });
@@ -63,9 +68,12 @@ export class ComplaintService {
       .leftJoinAndSelect('payments.recorder', 'recorder')
       .leftJoinAndSelect('complaint.statusLogs', 'statusLogs')
       .leftJoinAndSelect('statusLogs.operator', 'operator')
+      .leftJoinAndSelect('complaint.evidences', 'evidences')
+      .leftJoinAndSelect('evidences.uploader', 'uploader')
       .where('complaint.id = :id', { id })
       .orderBy('statusLogs.createdAt', 'DESC')
       .addOrderBy('rechecks.createdAt', 'DESC')
+      .addOrderBy('evidences.createdAt', 'DESC')
       .getOne();
 
     if (!complaint) {

@@ -155,23 +155,130 @@ SELECT comp.id, 200.00, NOW() - INTERVAL '1 day', '账扣', u.id, '已在5月21�
 FROM compensations comp, complaints c, users u
 WHERE comp.complaint_id = c.id AND c.weight_note_no = 'WB20240520005' AND u.username = 'accountant';
 
--- 插入演示状态日志
+-- 插入演示状态日志 - 确保每条客诉都有完整的状态链
+-- 王老板 - pending
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记', u.id
-FROM complaints c, users u WHERE c.status = 'pending' AND u.username = 'manager' LIMIT 3;
+SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520001' AND u.username = 'manager';
+
+-- 李批发 - pending -> rechecking
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520002' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排复检', u.id
-FROM complaints c, users u WHERE c.status = 'rechecking' AND u.username = 'manager';
+SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520002' AND u.username = 'manager';
+
+-- 张零售 - pending -> rechecking -> compensating
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'rechecking', 'compensating', '复检完成，进入赔付审批', u.id
-FROM complaints c, users u WHERE c.status = 'compensating' AND u.username = 'picker';
+SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'compensating', 'payment_pending', '赔付已批准，等待回款', u.id
+SELECT c.id, 'rechecking', 'compensating', '复检完成，确认发错货，进入赔付审批', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'picker';
+
+-- 刘超市 - pending -> rechecking -> compensating -> payment_pending
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'payment_pending', 'completed', '回款完成，案件结案', u.id
+SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'rechecking', 'compensating', '复检完成，西瓜成熟度过高，建议全额赔付', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'picker';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'compensating', 'payment_pending', '张经理批准全额赔付¥3000，等待财务回款', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
+
+-- 陈果行 - pending -> rechecking -> compensating -> payment_pending -> completed
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'rechecking', 'compensating', '复检完成，包装轻微破损，赔付包装费', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'picker';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'compensating', 'payment_pending', '张经理批准赔付¥200，等待财务回款', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'payment_pending', 'completed', '王财务已登记回款¥200（账扣方式）', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'accountant';
+
+-- 周市场 - pending
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，3箱葡萄发霉', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521001' AND u.username = 'manager';
+
+-- 吴配送 - pending -> rejected
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，延迟送达', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521002' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'pending', 'rejected', '延迟在2小时内，按合同不承担责任，驳回客诉', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521002' AND u.username = 'manager';
+
+-- 郑批发 - pending
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，规格不符', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521003' AND u.username = 'manager';
+
+-- 孙零售 - pending -> rechecking
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，芒果有虫眼', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521004' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'pending', 'rechecking', '已安排李配货去冷库E区复检', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521004' AND u.username = 'manager';
+
+-- 钱超市 - pending -> rechecking -> compensating
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, NULL, 'pending', '客诉已登记，数量短缺5箱', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'pending', 'rechecking', '已安排李配货核查出库和过磅记录', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'manager';
+
+INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
+SELECT c.id, 'rechecking', 'compensating', '核查确认出库45箱，少发5箱，进入赔付', u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'picker';
+
+-- 插入演示证据数据
+INSERT INTO evidences (complaint_id, file_name, file_path, file_size, uploaded_by)
+SELECT c.id, 'banana_black_spot_1.jpg', '/uploads/banana_1.jpg', 1024000, u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520001' AND u.username = 'manager';
+
+INSERT INTO evidences (complaint_id, file_name, file_path, file_size, uploaded_by)
+SELECT c.id, 'watermelon_overripe.jpg', '/uploads/watermelon_1.jpg', 2048000, u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
+
+INSERT INTO evidences (complaint_id, file_name, file_path, file_size, uploaded_by)
+SELECT c.id, 'watermelon_overripe_2.jpg', '/uploads/watermelon_2.jpg', 1536000, u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'picker';
+
+INSERT INTO evidences (complaint_id, file_name, file_path, file_size, uploaded_by)
+SELECT c.id, 'package_damaged.jpg', '/uploads/package_1.jpg', 819200, u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
+
+INSERT INTO evidences (complaint_id, file_name, file_path, file_size, uploaded_by)
+SELECT c.id, 'grape_moldy.jpg', '/uploads/grape_1.jpg', 1228800, u.id
+FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521001' AND u.username = 'manager';

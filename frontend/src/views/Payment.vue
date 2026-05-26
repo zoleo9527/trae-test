@@ -7,7 +7,7 @@
     <div class="p-4">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <el-icon class="is-loading text-3xl text-primary-500">
-          <Loading />
+          <Loader2 />
         </el-icon>
       </div>
 
@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Loading } from 'element-plus';
+import { Loader2 } from 'lucide-vue-next';
 import { paymentApi } from '../api';
 import type { Payment } from '../types';
 

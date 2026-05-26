@@ -11,7 +11,7 @@
 
       <div v-if="loading" class="flex-1 flex items-center justify-center">
         <el-icon class="is-loading text-3xl text-primary-500">
-          <Loading />
+          <Loader2 />
         </el-icon>
       </div>
 
@@ -49,6 +49,25 @@
           <div class="bg-gray-50 rounded-lg p-4">
             <p class="text-xs text-gray-500 mb-2">问题描述</p>
             <p class="text-gray-700">{{ complaint.description || '无描述' }}</p>
+          </div>
+
+          <div v-if="complaint.evidences && complaint.evidences.length > 0">
+            <h5 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <component :is="ImageIcon" class="w-5 h-5 text-primary-500" />
+              证据图片
+            </h5>
+            <div class="grid grid-cols-3 gap-3">
+              <div
+                v-for="evidence in complaint.evidences"
+                :key="evidence.id"
+                class="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50"
+              >
+                <div class="aspect-square flex items-center justify-center bg-primary-50">
+                  <component :is="ImageIcon" class="w-8 h-8 text-primary-300" />
+                </div>
+                <p class="text-xs text-gray-600 p-2 truncate">{{ evidence.fileName || '证据图片' }}</p>
+              </div>
+            </div>
           </div>
 
           <div v-if="complaint.rechecks && complaint.rechecks.length > 0">
@@ -159,19 +178,19 @@
         </div>
       </div>
 
-      <div v-if="complaint && authStore.hasRole(['manager', 'picker'])" class="p-6 border-t border-gray-100 space-y-3">
+      <div v-if="complaint && (authStore.hasRole(['manager', 'picker', 'accountant']))" class="p-6 border-t border-gray-100 space-y-3">
         <div class="flex gap-3">
           <el-button
-            v-if="complaint.status === 'pending'"
+            v-if="(complaint.status === 'pending' || complaint.status === 'rechecking') && authStore.hasRole(['manager', 'picker'])"
             type="primary"
             class="flex-1"
             @click="showRecheckDialog = true"
           >
             <component :is="ClipboardCheck" class="w-4 h-4 mr-1" />
-            登记复检
+            {{ complaint.status === 'rechecking' ? '登记复检结果' : '登记复检' }}
           </el-button>
           <el-button
-            v-if="complaint.status === 'compensating'"
+            v-if="complaint.status === 'compensating' && authStore.hasRole('manager')"
             type="warning"
             class="flex-1"
             @click="showCompensationDialog = true"
@@ -220,12 +239,13 @@ import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   X,
-  Loading,
+  Loader2,
   Clock,
   ArrowRight,
   ClipboardCheck,
   DollarSign,
   CheckCircle,
+  Image as ImageIcon,
 } from 'lucide-vue-next';
 import { complaintApi } from '../api';
 import { useAuthStore } from '../stores/auth';

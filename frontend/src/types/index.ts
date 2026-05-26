@@ -24,6 +24,7 @@ export interface Complaint {
   rechecks?: Recheck[];
   compensations?: Compensation[];
   statusLogs?: StatusLog[];
+  evidences?: Evidence[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,6 +80,17 @@ export interface StatusLog {
   remark?: string;
   operatorId?: string;
   operator?: User;
+  createdAt: Date;
+}
+
+export interface Evidence {
+  id: string;
+  complaintId: string;
+  fileName?: string;
+  filePath?: string;
+  fileSize?: number;
+  uploadedBy?: string;
+  uploader?: User;
   createdAt: Date;
 }
 

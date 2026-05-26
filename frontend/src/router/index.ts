@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import type { UserRole } from '../types';
 import Login from '../views/Login.vue';
 import Dashboard from '../views/Dashboard.vue';
 import Layout from '../components/Layout.vue';
@@ -67,7 +68,7 @@ router.beforeEach((to, from, next) => {
     next('/login');
   } else if (to.path === '/login' && authStore.isAuthenticated) {
     next('/dashboard');
-  } else if (to.meta.roles && !authStore.hasRole(to.meta.roles as string[])) {
+  } else if (to.meta.roles && !authStore.hasRole(to.meta.roles as UserRole[])) {
     next('/dashboard');
   } else {
     next();

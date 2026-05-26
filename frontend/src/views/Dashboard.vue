@@ -71,7 +71,7 @@
       <div class="p-4">
         <div v-if="loading" class="flex items-center justify-center py-20">
           <el-icon class="is-loading text-4xl text-primary-500">
-            <Loading />
+            <Loader2 />
           </el-icon>
         </div>
 
@@ -172,8 +172,8 @@ import {
   Clock4,
   DollarSign,
   CheckCircle2,
+  Loader2,
 } from 'lucide-vue-next';
-import { Loading } from 'element-plus';
 import { useComplaintStore } from '../stores/complaint';
 import { useAuthStore } from '../stores/auth';
 import { STATUS_LABELS, STATUS_COLORS } from '../types';
