@@ -205,7 +205,8 @@ npm run demo
 .
 ├── prisma/
 │   ├── schema.prisma      # 数据模型定义
-│   ├── seed.ts            # 初始化数据脚本
+│   ├── seed.ts            # 初始化用户和样品数据脚本
+│   ├── demo-data.ts       # 演示业务数据脚本（待审批/已驳回/需回查等）
 │   └── dev.db             # SQLite 数据库文件（运行后生成）
 ├── public/
 │   └── index.html         # 前端演示页面（单文件）
@@ -216,8 +217,8 @@ npm run demo
 │   ├── routes/
 │   │   ├── auth.ts        # 认证接口
 │   │   ├── samples.ts     # 样品接口
-│   │   ├── borrows.ts     # 借出接口
-│   │   ├── returns.ts     # 归还接口
+│   │   ├── borrows.ts     # 借出接口（申请/审批/借出/归还）
+│   │   ├── returns.ts     # 归还接口（验收/需回查/完成）
 │   │   └── common.ts      # 看板、审计、通知接口
 │   ├── services/
 │   │   └── audit.ts       # 审计日志、通知、冲突检测服务

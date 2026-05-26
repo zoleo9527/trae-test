@@ -307,6 +307,15 @@ router.post('/:id/return', requireRoles(Role.SALES_CONSULTANT, Role.SHOWROOM_MAN
     remark: '提交归还，待验收',
   });
 
+  await createAuditLog({
+    entityType: 'SampleReturn',
+    entityId: returnRecord.id,
+    action: AuditAction.RETURN,
+    newValue: returnRecord,
+    userId: req.user?.userId,
+    remark: '提交归还，待验收',
+  });
+
   const managers = await prisma.user.findMany({
     where: { role: Role.SHOWROOM_MANAGER },
     select: { id: true },
