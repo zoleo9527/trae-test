@@ -29,6 +29,7 @@ import {
     CheckCircle, Clock,
     Edit3,
     FileText,
+    Plus,
     PlusCircle,
     Save,
     Settings,
@@ -52,7 +53,7 @@ export default function OrderDetailPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
-  const [editData, setEditData] = useState<Partial<Order>>({})
+  const [editData, setEditData] = useState<Record<string, any>>({})
 
   const loadOrder = useCallback(async () => {
     try {
@@ -78,13 +79,31 @@ export default function OrderDetailPage() {
   const handleSaveEdit = async () => {
     if (!order) return
     try {
-      const updated = await api.updateOrder(orderId, editData)
+      const payload: any = {}
+      for (const [key, value] of Object.entries(editData)) {
+        payload[key] = value
+      }
+      const updated = await api.updateOrder(orderId, payload)
       setOrder(updated)
       setEditing(false)
       setEditData({})
     } catch (e: any) {
       alert(e.message)
     }
+  }
+
+  const setEditField = (key: string, value: any) => {
+    setEditData(prev => ({ ...prev, [key]: value }))
+  }
+
+  const getEditValue = (key: string, orderVal: any, transform?: (v: any) => string) => {
+    if (key in editData) {
+      const val = editData[key]
+      if (val === null || val === undefined || val === '') return ''
+      return transform ? transform(val) : String(val)
+    }
+    if (orderVal === null || orderVal === undefined || orderVal === '') return ''
+    return transform ? transform(orderVal) : String(orderVal)
   }
 
   if (loading) {
@@ -159,7 +178,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               {!editing ? (
-                <button onClick={() => { setEditing(true); setEditData({ ...order }) }} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">
+                <button onClick={() => { setEditing(true); setEditData({}) }} className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1">
                   <Edit3 className="w-4 h-4" /> 编辑
                 </button>
               ) : (
@@ -176,39 +195,39 @@ export default function OrderDetailPage() {
             <div className="px-5 py-4 grid grid-cols-3 gap-4">
               {editing ? (
                 <>
-                  <EditRow label="客户姓名" value={editData.customer_name || ''} onChange={v => setEditData({ ...editData, customer_name: v })} />
-                  <EditRow label="客户电话" value={editData.customer_phone || ''} onChange={v => setEditData({ ...editData, customer_phone: v })} />
+                  <EditRow label="客户姓名" value={getEditValue('customer_name', order.customer_name)} onChange={v => setEditField('customer_name', v)} />
+                  <EditRow label="客户电话" value={getEditValue('customer_phone', order.customer_phone)} onChange={v => setEditField('customer_phone', v)} />
                   <EditRow
                     label="状态"
-                    value={editData.status || order.status}
-                    onChange={v => setEditData({ ...editData, status: v })}
+                    value={getEditValue('status', order.status)}
+                    onChange={v => setEditField('status', v)}
                     type="select"
                     options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
                   />
-                  <EditRow label="收货地址" value={editData.customer_address || ''} onChange={v => setEditData({ ...editData, customer_address: v })} full />
-                  <EditRow label="总金额" value={editData.total_amount?.toString() || order.total_amount.toString()} onChange={v => setEditData({ ...editData, total_amount: Number(v) })} type="number" />
-                  <EditRow label="定金" value={editData.deposit_amount?.toString() || order.deposit_amount.toString()} onChange={v => setEditData({ ...editData, deposit_amount: Number(v) })} type="number" />
+                  <EditRow label="收货地址" value={getEditValue('customer_address', order.customer_address)} onChange={v => setEditField('customer_address', v)} full />
+                  <EditRow label="总金额" value={getEditValue('total_amount', order.total_amount)} onChange={v => setEditField('total_amount', Number(v) || 0)} type="number" />
+                  <EditRow label="定金" value={getEditValue('deposit_amount', order.deposit_amount)} onChange={v => setEditField('deposit_amount', Number(v) || 0)} type="number" />
                   <EditRow
                     label="预计交付"
-                    value={editData.expected_delivery_date ? new Date(editData.expected_delivery_date).toISOString().slice(0, 10) : (order.expected_delivery_date ? new Date(order.expected_delivery_date).toISOString().slice(0, 10) : '')}
-                    onChange={v => setEditData({ ...editData, expected_delivery_date: v ? new Date(v).toISOString() : null })}
+                    value={getEditValue('expected_delivery_date', order.expected_delivery_date, (v) => new Date(v).toISOString().slice(0, 10))}
+                    onChange={v => setEditField('expected_delivery_date', v ? new Date(v).toISOString() : null)}
                     type="date"
                   />
                   <EditRow
                     label="销售顾问"
-                    value={(editData.sales_consultant_id || order.sales_consultant_id)?.toString() || ''}
-                    onChange={v => setEditData({ ...editData, sales_consultant_id: v ? Number(v) : null })}
+                    value={getEditValue('sales_consultant_id', order.sales_consultant_id)}
+                    onChange={v => setEditField('sales_consultant_id', v ? Number(v) : null)}
                     type="select"
                     options={users.filter(u => u.role === 'sales').map(u => ({ value: u.id.toString(), label: u.display_name }))}
                   />
                   <EditRow
                     label="展厅经理"
-                    value={(editData.showroom_manager_id || order.showroom_manager_id)?.toString() || ''}
-                    onChange={v => setEditData({ ...editData, showroom_manager_id: v ? Number(v) : null })}
+                    value={getEditValue('showroom_manager_id', order.showroom_manager_id)}
+                    onChange={v => setEditField('showroom_manager_id', v ? Number(v) : null)}
                     type="select"
                     options={users.filter(u => u.role === 'manager').map(u => ({ value: u.id.toString(), label: u.display_name }))}
                   />
-                  <EditRow label="备注" value={editData.remarks || ''} onChange={v => setEditData({ ...editData, remarks: v })} full textarea />
+                  <EditRow label="备注" value={getEditValue('remarks', order.remarks || '')} onChange={v => setEditField('remarks', v)} full textarea />
                 </>
               ) : (
                 <>
