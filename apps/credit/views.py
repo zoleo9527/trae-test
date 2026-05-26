@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from datetime import timedelta
 from .models import CreditRecord, RepaymentRecord, CreditReminder
 from .serializers import (
     CreditRecordSerializer, CreditRecordListSerializer,
@@ -41,7 +42,7 @@ class CreditRecordViewSet(viewsets.ModelViewSet):
         log_action(
             user=self.request.user,
             action='create',
-            message=f'创建赊账记录: {instance.record_no}, 金额: {instance.amount}',
+            message=f'创建赊账记录: {instance.record_no}, 金额: {instance.amount}, 客户: {instance.customer.name}',
             instance=instance,
             new_values=model_to_dict(instance),
             request=self.request
@@ -85,6 +86,9 @@ class CreditRecordViewSet(viewsets.ModelViewSet):
         credit.reviewed_by = request.user
         credit.reviewed_at = timezone.now()
         credit.save()
+
+        self._create_due_reminder(credit, request.user)
+
         log_action(
             user=request.user,
             action='approve',
@@ -95,6 +99,37 @@ class CreditRecordViewSet(viewsets.ModelViewSet):
             request=request
         )
         return Response({'status': 'success', 'message': '已确认'})
+
+    def _create_due_reminder(self, credit, user):
+        today = timezone.now().date()
+        due_date = credit.due_date
+
+        if due_date <= today:
+            reminder_type = 'overdue'
+            title = '赊账已逾期提醒'
+            content = f'客户{credit.customer.name}的赊账金额{float(credit.amount)}元已逾期，请立即联系客户回款。'
+            reminder_date = today
+        elif (due_date - today).days <= 7:
+            reminder_type = 'due_soon'
+            title = '赊账即将到期提醒'
+            content = f'客户{credit.customer.name}的赊账金额{float(credit.amount)}元即将到期，请及时联系客户回款。'
+            reminder_date = due_date
+        else:
+            reminder_type = 'due_soon'
+            title = '赊账到期提醒'
+            content = f'客户{credit.customer.name}的赊账金额{float(credit.amount)}元将于{due_date}到期，请提前安排回款。'
+            reminder_date = due_date - timedelta(days=7)
+
+        CreditReminder.objects.create(
+            customer=credit.customer,
+            credit_record=credit,
+            type=reminder_type,
+            title=title,
+            content=content,
+            reminder_date=reminder_date,
+            created_by=user,
+            updated_by=user
+        )
 
     @action(detail=True, methods=['post'], serializer_class=CreditRecordRejectSerializer)
     def reject(self, request, pk=None):
@@ -151,7 +186,7 @@ class RepaymentRecordViewSet(viewsets.ModelViewSet):
         log_action(
             user=self.request.user,
             action='create',
-            message=f'创建回款记录: {instance.record_no}, 金额: {instance.amount}',
+            message=f'创建回款记录: {instance.record_no}, 金额: {instance.amount}, 客户: {instance.customer.name}',
             instance=instance,
             new_values=model_to_dict(instance),
             request=self.request
@@ -195,6 +230,9 @@ class RepaymentRecordViewSet(viewsets.ModelViewSet):
         repayment.reviewed_by = request.user
         repayment.reviewed_at = timezone.now()
         repayment.save()
+
+        self._handle_reminders_after_repayment(repayment, request.user)
+
         log_action(
             user=request.user,
             action='approve',
@@ -205,6 +243,32 @@ class RepaymentRecordViewSet(viewsets.ModelViewSet):
             request=request
         )
         return Response({'status': 'success', 'message': '已确认'})
+
+    def _handle_reminders_after_repayment(self, repayment, user):
+        credit = repayment.credit_record
+        remaining = credit.get_remaining_amount()
+
+        if remaining <= 0:
+            CreditReminder.objects.filter(
+                credit_record=credit,
+                is_handled=False
+            ).update(
+                is_handled=True,
+                handled_by=user,
+                handled_at=timezone.now(),
+                handle_note=f'客户{credit.customer.name}已全额回款{float(credit.amount)}元，欠款已结清'
+            )
+        else:
+            unhandled_reminders = CreditReminder.objects.filter(
+                credit_record=credit,
+                is_handled=False
+            )
+            for reminder in unhandled_reminders:
+                reminder.content = (
+                    f'客户{credit.customer.name}已回款{float(repayment.amount)}元，'
+                    f'剩余欠款{float(remaining)}元，请继续跟进。'
+                )
+                reminder.save()
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):

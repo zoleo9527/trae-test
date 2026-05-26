@@ -12,12 +12,19 @@ class WeightTicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = WeightTicket
         fields = '__all__'
-        read_only_fields = ('created_by', 'updated_by', 'reviewed_by', 'reviewed_at', 'ticket_no')
+        read_only_fields = (
+            'created_by', 'updated_by', 'reviewed_by', 'reviewed_at',
+            'ticket_no', 'net_weight', 'total_amount'
+        )
 
     def validate(self, data):
         if data.get('gross_weight') and data.get('tare_weight'):
             if data['gross_weight'] < data['tare_weight']:
                 raise serializers.ValidationError('毛重不能小于皮重')
+        if not data.get('gross_weight') or not data.get('tare_weight'):
+            raise serializers.ValidationError('毛重和皮重为必填项')
+        if not data.get('unit_price'):
+            raise serializers.ValidationError('单价为必填项')
         return data
 
 
