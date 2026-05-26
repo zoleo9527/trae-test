@@ -353,15 +353,20 @@ func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, op
 		return nil, models.AppErrValidationFailed("拣货明细不能为空")
 	}
 
-	for _, item := range req.PickedItems {
-		if item.PickedQty <= 0 {
-			return nil, models.AppErrValidationFailed("拣货数量必须大于0")
-		}
-	}
-
 	pickedMap := make(map[uuid.UUID]float64)
 	for _, item := range req.PickedItems {
 		pickedMap[item.AllocationItemID] = item.PickedQty
+	}
+
+	for _, allocItem := range allocation.AllocationItems {
+		if pickedQty, ok := pickedMap[allocItem.ID]; ok {
+			if pickedQty > allocItem.Quantity {
+				return nil, models.AppErrValidationFailed(fmt.Sprintf("实拣数量(%.2f)不能超过计划数量(%.2f)", pickedQty, allocItem.Quantity))
+			}
+			if pickedQty < 0 {
+				return nil, models.AppErrValidationFailed("实拣数量不能为负数")
+			}
+		}
 	}
 
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
@@ -369,9 +374,25 @@ func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, op
 			item := &allocation.AllocationItems[i]
 			if pickedQty, ok := pickedMap[item.ID]; ok {
 				item.PickedQty = pickedQty
-				if err := tx.Save(item).Error; err != nil {
-					return err
+			} else {
+				item.PickedQty = 0
+			}
+
+			if item.PickedQty < item.Quantity {
+				unusedQty := item.Quantity - item.PickedQty
+				result := tx.Model(&models.Inventory{}).
+					Where("warehouse_id = ? AND batch_id = ?", allocation.WarehouseID, item.BatchID).
+					Updates(map[string]interface{}{
+						"available_qty": gorm.Expr("available_qty + ?", unusedQty),
+						"locked_qty":    gorm.Expr("locked_qty - ?", unusedQty),
+					})
+				if result.Error != nil {
+					return result.Error
 				}
+			}
+
+			if err := tx.Save(item).Error; err != nil {
+				return err
 			}
 		}
 

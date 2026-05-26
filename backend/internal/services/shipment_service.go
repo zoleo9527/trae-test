@@ -81,8 +81,8 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 
 	for _, allocItem := range allocation.AllocationItems {
 		actualQty := allocItem.PickedQty
-		if actualQty <= 0 {
-			continue
+		if actualQty < 0 {
+			actualQty = 0
 		}
 		actualItems = append(actualItems, allocItem)
 		shipmentItem := models.ShipmentItem{
@@ -93,10 +93,6 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 		}
 		shipment.ShipmentItems = append(shipment.ShipmentItems, shipmentItem)
 		totalQty += actualQty
-	}
-
-	if len(shipment.ShipmentItems) == 0 {
-		return nil, models.AppErrValidationFailed("没有有效的发货明细，请先确认拣货")
 	}
 
 	shipment.TotalQty = totalQty
@@ -161,34 +157,29 @@ func (s *ShipmentService) validateAllocationForShipment(allocationID uuid.UUID) 
 func (s *ShipmentService) consumeInventory(tx *gorm.DB, warehouseID uuid.UUID, items []models.AllocationItem) error {
 	for _, item := range items {
 		actualQty := item.PickedQty
-		if actualQty <= 0 {
-			actualQty = item.Quantity
+		if actualQty < 0 {
+			actualQty = 0
 		}
 
-		result := tx.Model(&models.Inventory{}).
-			Where("warehouse_id = ? AND batch_id = ?", warehouseID, item.BatchID).
-			Updates(map[string]interface{}{
-				"quantity":   gorm.Expr("quantity - ?", actualQty),
-				"locked_qty": gorm.Expr("locked_qty - ?", item.Quantity),
-			})
-
-		if result.Error != nil {
-			return result.Error
-		}
-
-		if item.Quantity > actualQty {
-			unusedQty := item.Quantity - actualQty
-			tx.Model(&models.Inventory{}).
+		if actualQty > 0 {
+			result := tx.Model(&models.Inventory{}).
 				Where("warehouse_id = ? AND batch_id = ?", warehouseID, item.BatchID).
-				Update("available_qty", gorm.Expr("available_qty + ?", unusedQty))
-		}
+				Updates(map[string]interface{}{
+					"quantity":   gorm.Expr("quantity - ?", actualQty),
+					"locked_qty": gorm.Expr("locked_qty - ?", actualQty),
+				})
 
-		result = tx.Model(&models.Batch{}).
-			Where("id = ?", item.BatchID).
-			Update("remaining_qty", gorm.Expr("remaining_qty - ?", actualQty))
+			if result.Error != nil {
+				return result.Error
+			}
 
-		if result.Error != nil {
-			return result.Error
+			result = tx.Model(&models.Batch{}).
+				Where("id = ?", item.BatchID).
+				Update("remaining_qty", gorm.Expr("remaining_qty - ?", actualQty))
+
+			if result.Error != nil {
+				return result.Error
+			}
 		}
 	}
 	return nil
