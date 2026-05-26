@@ -35,11 +35,13 @@ export const tasks: Task[] = [
     expectedAt: h(2),
     durationHours: 5,
     operatorId: 'u_op_01',
-    status: 'assigned',
+    status: 'incident',
+    prevStatus: 'assigned',
     notes: '需在上午完成旋耕，下午要接下一个村。',
     timeline: [
       { at: h(-8), actor: '李调度', action: '创建作业预约' },
-      { at: h(-2), actor: '李调度', action: '派单给张师傅', note: '优先保障东圩村收麦' },
+      { at: h(-2), actor: '李调度', action: '派单给机手', note: '优先保障东圩村收麦' },
+      { at: h(-1), actor: '李调度', action: '标记为异常' },
     ],
   },
   {
@@ -51,13 +53,15 @@ export const tasks: Task[] = [
     expectedAt: h(-4),
     durationHours: 10,
     operatorId: 'u_op_02',
-    status: 'in_progress',
+    status: 'incident',
+    prevStatus: 'in_progress',
     notes: '连续作业，午饭在车上。',
     timeline: [
       { at: h(-30), actor: '李调度', action: '创建作业预约' },
-      { at: h(-10), actor: '李调度', action: '派单给刘师傅' },
+      { at: h(-10), actor: '李调度', action: '派单给机手' },
       { at: h(-4), actor: '刘师傅', action: '开始作业', note: '地块边界清晰' },
       { at: h(-1), actor: '刘师傅', action: '上报地块进度 60%' },
+      { at: h(-1), actor: '刘师傅', action: '标记为异常' },
     ],
   },
   {
@@ -85,10 +89,12 @@ export const tasks: Task[] = [
     durationHours: 3,
     operatorId: 'u_op_03',
     status: 'incident',
+    prevStatus: 'assigned',
     notes: '维修中，可能延误。',
     timeline: [
-      { at: h(-20), actor: '李调度', action: '派单给陈师傅' },
+      { at: h(-20), actor: '李调度', action: '派单给机手' },
       { at: h(-6), actor: '陈师傅', action: '上报维修异常：喷雾泵损坏' },
+      { at: h(-6), actor: '陈师傅', action: '标记为异常' },
     ],
   },
   {

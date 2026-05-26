@@ -101,6 +101,9 @@ export const useTaskStore = defineStore('task', () => {
   function setIncident(taskId: string, actor: string) {
     const t = getTask(taskId);
     if (!t) return;
+    if (t.status !== 'incident') {
+      t.prevStatus = t.status;
+    }
     t.status = 'incident';
     t.timeline.push({ at: new Date().toISOString(), actor, action: '标记为异常' });
   }
@@ -114,23 +117,13 @@ export const useTaskStore = defineStore('task', () => {
   function restoreFromIncident(taskId: string, actor: string): void {
     const t = getTask(taskId);
     if (!t || t.status !== 'incident') return;
-    const statusActions: Record<string, TaskStatus> = {
-      '创建作业预约': 'pending',
-      '派单给机手': 'assigned',
-      '机手确认接受任务': 'confirmed',
-      '开始作业': 'in_progress',
-      '完成作业': 'completed',
-    };
-    let prev: TaskStatus = 'pending';
-    for (const e of t.timeline) {
-      if (e.action === '标记为异常') break;
-      if (statusActions[e.action] !== undefined) prev = statusActions[e.action];
-    }
-    t.status = prev;
+    const target: TaskStatus = t.prevStatus ?? 'pending';
+    t.status = target;
+    t.prevStatus = undefined;
     t.timeline.push({
       at: new Date().toISOString(),
       actor,
-      action: '异常已处理，恢复为' + statusLabel[prev],
+      action: '异常已处理，恢复为' + statusLabel[target],
     });
   }
 

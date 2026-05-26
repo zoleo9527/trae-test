@@ -53,6 +53,7 @@ export interface Task {
   durationHours: number;
   operatorId?: string;
   status: TaskStatus;
+  prevStatus?: TaskStatus;
   notes?: string;
   timeline: TimelineEntry[];
 }
