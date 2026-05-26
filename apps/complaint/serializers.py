@@ -20,13 +20,21 @@ class ComplaintSerializer(serializers.ModelSerializer):
     assigned_to_info = UserSerializer(source='assigned_to', read_only=True)
     submitted_by_info = UserSerializer(source='submitted_by', read_only=True)
     student_info = SimpleStudentSerializer(source='student', read_only=True)
-    comments = ComplaintCommentSerializer(many=True, read_only=True)
+    comments = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
 
     def get_is_overdue(self, obj):
         from django.utils import timezone
         return obj.expected_resolve_time and obj.expected_resolve_time < timezone.now() and \
                obj.status in [Complaint.Status.SUBMITTED, Complaint.Status.ASSIGNED, Complaint.Status.PROCESSING]
+
+    def get_comments(self, obj):
+        user = self.context.get('request').user if self.context.get('request') else None
+        if user and user.role == 'front_desk':
+            comments = obj.comments.filter(is_internal=False)
+        else:
+            comments = obj.comments.all()
+        return ComplaintCommentSerializer(comments, many=True).data
 
     class Meta:
         model = Complaint

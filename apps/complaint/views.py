@@ -111,7 +111,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         return Response({
             'code': 200,
             'message': '问题提交成功',
-            'data': ComplaintSerializer(complaint).data
+            'data': ComplaintSerializer(complaint, context={'request': request}).data
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -129,13 +129,12 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         return Response({
             'code': 200,
             'message': '状态更新成功',
-            'data': ComplaintSerializer(complaint).data
+            'data': ComplaintSerializer(complaint, context={'request': request}).data
         })
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
         complaint = self.get_object()
-        self._check_data_visibility(request, complaint)
         serializer = AssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -147,7 +146,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         return Response({
             'code': 200,
             'message': '分配成功',
-            'data': ComplaintSerializer(complaint).data
+            'data': ComplaintSerializer(complaint, context={'request': request}).data
         })
 
     @action(detail=True, methods=['post'])
@@ -171,7 +170,6 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def escalate(self, request, pk=None):
         complaint = self.get_object()
-        self._check_data_visibility(request, complaint)
         serializer = EscalateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -182,7 +180,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         return Response({
             'code': 200,
             'message': '已升级处理',
-            'data': ComplaintSerializer(complaint).data
+            'data': ComplaintSerializer(complaint, context={'request': request}).data
         })
 
     @action(detail=False, methods=['get'])
