@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, reactive } from "vue";
 import { useAppStore, statusLabel } from "@/store/app";
-import { QrCode, ScanLine, Package2, Eye, Save, Plus } from "lucide-vue-next";
+import { QrCode, ScanLine, Package2, Eye, Save, Plus, Edit3, Check } from "lucide-vue-next";
 import EvidenceTimeline from "@/components/EvidenceTimeline.vue";
 import NotesSidebar from "@/components/NotesSidebar.vue";
+import type { EyeRx } from "@/types";
 
 const store = useAppStore();
 
@@ -20,6 +21,41 @@ const rx = computed(() =>
   order.value ? store.rxOf(order.value.id) : undefined,
 );
 
+const editingRx = ref(false);
+const rxForm = reactive({
+  od: { sphere: 0, cylinder: 0, axis: 0, add: undefined as number | undefined } as EyeRx,
+  os: { sphere: 0, cylinder: 0, axis: 0, add: undefined as number | undefined } as EyeRx,
+  pd: 62,
+  note: "",
+});
+
+function startEditRx() {
+  if (rx.value) {
+    rxForm.od = { ...rx.value.od };
+    rxForm.os = { ...rx.value.os };
+    rxForm.pd = rx.value.pd;
+    rxForm.note = rx.value.note || "";
+  } else {
+    rxForm.od = { sphere: 0, cylinder: 0, axis: 0 };
+    rxForm.os = { sphere: 0, cylinder: 0, axis: 0 };
+    rxForm.pd = 62;
+    rxForm.note = "";
+  }
+  editingRx.value = true;
+}
+
+function saveRx() {
+  if (!order.value || !store.currentActor) return;
+  store.saveRx(order.value.id, {
+    od: rxForm.od,
+    os: rxForm.os,
+    pd: rxForm.pd,
+    note: rxForm.note || undefined,
+    measuredBy: store.currentActor.name,
+  });
+  editingRx.value = false;
+}
+
 const recentCodes = computed(() => store.orders.value.map((o) => o.code));
 
 function scan() {
@@ -29,6 +65,7 @@ function scan() {
   if (hit) {
     selectedId.value = hit.id;
     store.selectedOrderId = hit.id;
+    editingRx.value = false;
   }
   scanInput.value = "";
 }
@@ -36,6 +73,7 @@ function scan() {
 function selectOrder(id: string) {
   selectedId.value = id;
   store.selectedOrderId = id;
+  editingRx.value = false;
 }
 
 const noteContent = ref("");
@@ -55,6 +93,17 @@ function redeem() {
   if (!order.value) return;
   store.redeemOrder(order.value.id);
 }
+
+const canRedeem = computed(() => {
+  if (!order.value) return false;
+  if (order.value.status !== "pending") return false;
+  if (store.currentRole === "optometrist" || store.currentRole === "manager") return true;
+  return false;
+});
+
+const canEditRx = computed(() => {
+  return store.currentRole === "optometrist" || store.currentRole === "manager";
+});
 </script>
 
 <template>
@@ -160,8 +209,9 @@ function redeem() {
           <div class="mt-4 flex items-center gap-2">
             <button
               class="btn-primary"
-              :disabled="order.status !== 'pending'"
+              :disabled="!canRedeem"
               @click="redeem"
+              :title="!canRedeem ? '仅验光师和店经理可核销' : ''"
             >
               <ScanLine class="w-4 h-4" /> 核销此套餐
             </button>
@@ -173,8 +223,23 @@ function redeem() {
           <div class="flex items-center gap-2 mb-3">
             <Eye class="w-4 h-4 text-amber2-500" />
             <div class="section-title">验光数据</div>
+            <button
+              v-if="!editingRx && canEditRx"
+              class="btn-ghost ml-auto text-xs py-1 px-2"
+              @click="startEditRx"
+            >
+              <Edit3 class="w-3.5 h-3.5" /> {{ rx ? '修改' : '录入' }}
+            </button>
+            <button
+              v-if="editingRx"
+              class="btn-primary ml-auto text-xs py-1 px-2"
+              @click="saveRx"
+            >
+              <Check class="w-3.5 h-3.5" /> 保存
+            </button>
           </div>
-          <div v-if="rx" class="grid grid-cols-2 gap-3 text-sm">
+
+          <div v-if="rx && !editingRx" class="grid grid-cols-2 gap-3 text-sm">
             <div class="card-soft p-3">
               <div class="mono">右眼 OD</div>
               <div class="mt-1">
@@ -204,7 +269,75 @@ function redeem() {
               <div class="mt-1 text-sm text-paper/85">{{ rx.note ?? "—" }}</div>
             </div>
           </div>
-          <div v-else class="text-sm text-paper/50">此订单暂无验光记录</div>
+
+          <div v-if="editingRx" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="card-soft p-3">
+                <div class="mono mb-2">右眼 OD</div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div>
+                    <div class="mono text-paper/50 text-xs">球镜</div>
+                    <input v-model.number="rxForm.od.sphere" class="input text-sm" type="number" step="0.25" />
+                  </div>
+                  <div>
+                    <div class="mono text-paper/50 text-xs">柱镜</div>
+                    <input v-model.number="rxForm.od.cylinder" class="input text-sm" type="number" step="0.25" />
+                  </div>
+                  <div>
+                    <div class="mono text-paper/50 text-xs">轴位</div>
+                    <input v-model.number="rxForm.od.axis" class="input text-sm" type="number" min="0" max="180" />
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <div class="mono text-paper/50 text-xs">ADD（渐进用）</div>
+                  <input v-model.number="rxForm.od.add" class="input text-sm" type="number" step="0.25" placeholder="可选" />
+                </div>
+              </div>
+              <div class="card-soft p-3">
+                <div class="mono mb-2">左眼 OS</div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div>
+                    <div class="mono text-paper/50 text-xs">球镜</div>
+                    <input v-model.number="rxForm.os.sphere" class="input text-sm" type="number" step="0.25" />
+                  </div>
+                  <div>
+                    <div class="mono text-paper/50 text-xs">柱镜</div>
+                    <input v-model.number="rxForm.os.cylinder" class="input text-sm" type="number" step="0.25" />
+                  </div>
+                  <div>
+                    <div class="mono text-paper/50 text-xs">轴位</div>
+                    <input v-model.number="rxForm.os.axis" class="input text-sm" type="number" min="0" max="180" />
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <div class="mono text-paper/50 text-xs">ADD（渐进用）</div>
+                  <input v-model.number="rxForm.os.add" class="input text-sm" type="number" step="0.25" placeholder="可选" />
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="card-soft p-3">
+                <div class="mono mb-1">瞳距 PD (mm)</div>
+                <input v-model.number="rxForm.pd" class="input text-sm" type="number" min="50" max="75" />
+              </div>
+              <div class="card-soft p-3">
+                <div class="mono mb-1">验光师</div>
+                <div class="input text-sm bg-ink-800/40">
+                  {{ store.currentActor?.name }}
+                </div>
+              </div>
+            </div>
+            <div class="card-soft p-3">
+              <div class="mono mb-1">备注</div>
+              <textarea v-model="rxForm.note" class="input text-sm min-h-[60px] resize-none" placeholder="顾客用眼习惯、佩戴要求等"></textarea>
+            </div>
+          </div>
+
+          <div v-if="!rx && !editingRx" class="text-sm text-paper/50">
+            此订单暂无验光记录
+            <span v-if="canEditRx">，点击右上角「录入」开始</span>
+            <span v-else>，请联系验光师录入</span>
+          </div>
         </div>
       </div>
 

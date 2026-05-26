@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, reactive } from "vue";
 import { useAppStore, statusLabel } from "@/store/app";
 import {
   Factory,
@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Plus,
   Save,
+  ChevronRight,
 } from "lucide-vue-next";
 import EvidenceTimeline from "@/components/EvidenceTimeline.vue";
 
@@ -42,6 +43,7 @@ function stageIndex(s: string) {
 
 function selectOrder(id: string) {
   selectedId.value = id;
+  showRepairForm.value = false;
 }
 
 const newTransfer = ref({
@@ -95,6 +97,50 @@ function markLost(id: string) {
     });
   }
 }
+
+function advanceStage() {
+  if (!job.value) return;
+  const currentIdx = stageIndex(job.value.stage);
+  if (currentIdx < stages.length - 1) {
+    store.updateJobStage(job.value.id, stages[currentIdx + 1].key);
+  }
+}
+
+const showRepairForm = ref(false);
+const repairForm = reactive({
+  reason: "",
+  owner: "",
+  eta: "",
+});
+
+function registerRepair() {
+  if (!order.value || !repairForm.reason.trim()) return;
+  store.createRepair(
+    order.value.id,
+    repairForm.reason.trim(),
+    repairForm.owner.trim() || "加工",
+    repairForm.eta.trim() || "7天内",
+  );
+  repairForm.reason = "";
+  repairForm.owner = "";
+  repairForm.eta = "";
+  showRepairForm.value = false;
+}
+
+function updateRepairStatus(id: string, status: 'reported' | 'factory' | 'returned' | 'completed') {
+  store.updateRepairStatus(id, status);
+}
+
+const canEditWorkshop = computed(() => {
+  return store.currentRole === "workshop" || store.currentRole === "manager";
+});
+
+const repairStatusOptions: Array<{ key: 'reported' | 'factory' | 'returned' | 'completed'; label: string }> = [
+  { key: 'reported', label: '已登记' },
+  { key: 'factory', label: '返厂中' },
+  { key: 'returned', label: '已返回' },
+  { key: 'completed', label: '已完成' },
+];
 </script>
 
 <template>
@@ -103,7 +149,7 @@ function markLost(id: string) {
       <div class="px-2 py-1 mono text-paper/60">在制订单</div>
       <button
         v-for="o in store.orders.value.filter(
-          (x) => x.status !== 'delivered' && x.status !== 'refunded',
+          (x) => x.status !== 'delivered' && x.status !== 'refunded' && x.status !== 'pending',
         )"
         :key="o.id"
         class="text-left rounded-lg px-3 py-2 transition"
@@ -133,36 +179,57 @@ function markLost(id: string) {
             {{ order.code }} · {{ customer?.name }}
           </div>
         </div>
-        <div v-if="job" class="relative">
-          <div class="grid grid-cols-5 gap-2">
-            <div
-              v-for="(s, i) in stages"
-              :key="s.key"
-              class="relative rounded-xl border p-3 text-sm transition"
-              :class="
-                i <= stageIndex(job.stage)
-                  ? 'border-moss-500/50 bg-moss-500/10'
-                  : 'border-white/10 bg-ink-800/40'
-              "
-            >
-              <div class="mono">{{ i + 1 }}</div>
-              <div class="mt-1 text-paper/90">{{ s.label }}</div>
+        <div v-if="job" class="space-y-4">
+          <div class="relative">
+            <div class="grid grid-cols-5 gap-2">
               <div
-                v-if="i === stageIndex(job.stage)"
-                class="mono mt-1 text-moss-500"
+                v-for="(s, i) in stages"
+                :key="s.key"
+                class="relative rounded-xl border p-3 text-sm transition"
+                :class="
+                  i <= stageIndex(job.stage)
+                    ? 'border-moss-500/50 bg-moss-500/10'
+                    : 'border-white/10 bg-ink-800/40'
+                "
               >
-                进行中
+                <div class="mono">{{ i + 1 }}</div>
+                <div class="mt-1 text-paper/90">{{ s.label }}</div>
+                <div
+                  v-if="i === stageIndex(job.stage)"
+                  class="mono mt-1 text-moss-500"
+                >
+                  进行中
+                </div>
               </div>
             </div>
+            <div
+              class="absolute left-6 right-6 top-[22px] h-px bg-white/10"
+            ></div>
           </div>
-          <div
-            class="absolute left-6 right-6 top-[22px] h-px bg-white/10"
-          ></div>
-          <div class="mt-3 mono">
-            跟单：{{ job.assignee }} · 最近更新 {{ job.updatedAt }}
+          <div class="flex items-center justify-between">
+            <div class="mono">
+              跟单：{{ job.assignee }} · 最近更新 {{ job.updatedAt }}
+            </div>
+            <button
+              v-if="canEditWorkshop && job.stage !== 'done'"
+              class="btn-primary text-xs py-1 px-3"
+              @click="advanceStage"
+            >
+              推进到下一阶段 <ChevronRight class="w-4 h-4" />
+            </button>
           </div>
         </div>
-        <div v-else class="text-sm text-paper/50">该订单尚未进入加工队列</div>
+        <div v-else class="text-sm text-paper/50">
+          该订单尚未进入加工队列
+          <span v-if="order.status === 'pending'">（请先核销套餐）</span>
+          <button
+            v-if="canEditWorkshop && order.status !== 'pending'"
+            class="btn-ghost text-xs py-1 px-2 ml-2"
+            @click="store.createJob(order.id)"
+          >
+            创建加工单
+          </button>
+        </div>
       </div>
 
       <div v-if="order" class="card p-5">
@@ -195,8 +262,12 @@ function markLost(id: string) {
               <span class="tag border-white/10 text-paper/70 ml-auto">{{
                 t.status
               }}</span>
-              <button v-if="!t.lost" class="btn-ghost" @click="markLost(t.id)">
-                <AlertTriangle class="w-4 h-4 text-rose-400" /> 标记丢失
+              <button
+                v-if="!t.lost && canEditWorkshop"
+                class="btn-ghost text-xs py-1 px-2"
+                @click="markLost(t.id)"
+              >
+                <AlertTriangle class="w-3.5 h-3.5 text-rose-400" /> 标记丢失
               </button>
             </div>
             <div v-if="t.note" class="mono mt-1 text-paper/60">
@@ -208,33 +279,33 @@ function markLost(id: string) {
           </li>
         </ul>
 
-        <div class="mt-4 card-soft p-3">
+        <div v-if="canEditWorkshop" class="mt-4 card-soft p-3">
           <div class="mono mb-2 text-paper/60">登记新的调拨</div>
           <div class="grid grid-cols-4 gap-2">
             <input
               v-model="newTransfer.fromStore"
-              class="input"
+              class="input text-sm"
               placeholder="来源仓库"
             />
             <input
               v-model="newTransfer.toStore"
-              class="input"
+              class="input text-sm"
               placeholder="目标加工点"
             />
             <input
               v-model="newTransfer.logistics"
-              class="input"
+              class="input text-sm"
               placeholder="物流"
             />
             <input
               v-model="newTransfer.trackingNo"
-              class="input"
+              class="input text-sm"
               placeholder="运单号"
             />
           </div>
           <div class="mt-2">
-            <button class="btn-primary" @click="registerTransfer">
-              <Plus class="w-4 h-4" /> 登记调拨
+            <button class="btn-primary text-xs py-1 px-3" @click="registerTransfer">
+              <Plus class="w-3.5 h-3.5" /> 登记调拨
             </button>
           </div>
         </div>
@@ -244,25 +315,83 @@ function markLost(id: string) {
         <div class="flex items-center gap-2 mb-3">
           <Wrench class="w-4 h-4 text-violet-400" />
           <div class="section-title">返修进度</div>
-          <div class="ml-auto mono">{{ repairs.length }} 笔</div>
+          <div class="ml-auto flex items-center gap-2">
+            <div class="mono">{{ repairs.length }} 笔</div>
+            <button
+              v-if="canEditWorkshop"
+              class="btn-ghost text-xs py-1 px-2"
+              @click="showRepairForm = !showRepairForm"
+            >
+              <Plus class="w-3.5 h-3.5" /> 登记返修
+            </button>
+          </div>
         </div>
+
+        <div v-if="showRepairForm" class="card-soft p-3 mb-3 space-y-2">
+          <div class="mono text-paper/60">登记返修</div>
+          <input
+            v-model="repairForm.reason"
+            class="input text-sm"
+            placeholder="返修原因（如：镜腿镀层脱落）"
+          />
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              v-model="repairForm.owner"
+              class="input text-sm"
+              placeholder="责任方（如：工厂/物流/门店）"
+            />
+            <input
+              v-model="repairForm.eta"
+              class="input text-sm"
+              placeholder="预计返还（如：2025-05-23）"
+            />
+          </div>
+          <div class="flex gap-2">
+            <button class="btn-primary text-xs py-1 px-3" @click="registerRepair">
+              <Save class="w-3.5 h-3.5" /> 提交
+            </button>
+            <button class="btn-ghost text-xs py-1 px-3" @click="showRepairForm = false">
+              取消
+            </button>
+          </div>
+        </div>
+
         <ul class="space-y-2">
           <li
             v-for="r in repairs"
             :key="r.id"
             class="rounded-xl border border-white/10 bg-ink-900/40 p-3"
           >
-            <div class="flex items-center gap-2">
-              <div class="text-sm text-paper/90">{{ r.reason }}</div>
-              <span class="tag border-white/10 text-paper/70">{{
-                r.status
-              }}</span>
-              <span class="mono ml-auto"
-                >预计 {{ r.eta }} · 责任 {{ r.owner }}</span
-              >
+            <div class="flex items-center gap-2 mb-2">
+              <div class="text-sm text-paper/90 flex-1">{{ r.reason }}</div>
+              <span
+                class="tag"
+                :class="{
+                  'border-amber2-500/40 text-amber2-500': r.status === 'reported',
+                  'border-sky-500/40 text-sky-400': r.status === 'factory',
+                  'border-violet-500/40 text-violet-400': r.status === 'returned',
+                  'border-moss-500/40 text-moss-500': r.status === 'completed',
+                }"
+              >{{ store.repairStatusLabel(r.status) }}</span>
+            </div>
+            <div class="mono text-paper/60">
+              责任：{{ r.owner }} · 预计：{{ r.eta }} · 登记：{{ r.createdAt }}
             </div>
             <div v-if="r.note" class="mono mt-1 text-paper/60">
-              {{ r.note }}
+              备注：{{ r.note }}
+            </div>
+            <div v-if="r.completedAt" class="mono mt-1 text-moss-500">
+              完成时间：{{ r.completedAt }}
+            </div>
+            <div v-if="canEditWorkshop && r.status !== 'completed'" class="mt-2 flex flex-wrap gap-1">
+              <button
+                v-for="opt in repairStatusOptions.filter(o => o.key !== r.status)"
+                :key="opt.key"
+                class="btn-ghost text-xs py-0.5 px-2"
+                @click="updateRepairStatus(r.id, opt.key)"
+              >
+                标记为「{{ opt.label }}」
+              </button>
             </div>
           </li>
           <li v-if="repairs.length === 0" class="text-sm text-paper/50">
