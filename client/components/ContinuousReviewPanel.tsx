@@ -6,7 +6,8 @@ import {
     AlertCircle,
     AlertTriangle,
     Box,
-    CheckCircle, Package,
+    CheckCircle,
+    Package,
     Wrench
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -48,7 +49,7 @@ export default function ContinuousReviewPanel({ orderId }: { orderId: number }) 
   if (data.lost_samples > 0) {
     issues.push({
       type: 'sample_lost',
-      icon: <XCircle className="w-4 h-4" />,
+      icon: <CircleX className="w-4 h-4" />,
       label: '丢失样品',
       count: data.lost_samples,
       color: 'bg-gray-100 text-gray-700 border-gray-300',
