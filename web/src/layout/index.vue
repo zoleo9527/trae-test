@@ -90,26 +90,56 @@
       </el-main>
     </el-container>
     <el-drawer v-model="showNotifications" title="消息通知" size="480px">
-      <div class="notification-list">
-        <div class="notification-actions">
-          <el-button size="small" @click="markAllRead">全部已读</el-button>
-        </div>
-        <el-empty v-if="notifications.length === 0" description="暂无通知" />
-        <div
-          v-for="item in notifications"
-          :key="item.id"
-          class="notification-item"
-          :class="{ unread: !item.isRead }"
-          @click="handleNotificationClick(item)"
-        >
-          <div class="notification-header">
-            <el-tag :type="priorityType(item.priority)" size="small">{{ priorityLabel(item.priority) }}</el-tag>
-            <span class="notification-time">{{ formatDateTime(item.createdAt) }}</span>
+      <el-tabs v-model="activeNotificationTab" @tab-change="handleTabChange">
+        <el-tab-pane label="个人通知" name="personal">
+          <div class="notification-list">
+            <div class="notification-actions">
+              <el-button size="small" @click="markAllRead('personal')">全部已读</el-button>
+              <span class="unread-tip">未读: {{ personalUnreadCount }}</span>
+            </div>
+            <el-empty v-if="personalNotifications.length === 0" description="暂无个人通知" />
+            <div
+              v-for="item in personalNotifications"
+              :key="item.id"
+              class="notification-item"
+              :class="{ unread: !item.isRead }"
+              @click="handleNotificationClick(item, 'personal')"
+            >
+              <div class="notification-header">
+                <el-tag type="primary" size="small">指派</el-tag>
+                <el-tag :type="priorityType(item.priority)" size="small" effect="plain">{{ priorityLabel(item.priority) }}</el-tag>
+                <span class="notification-time">{{ formatDateTime(item.createdAt) }}</span>
+              </div>
+              <div class="notification-title">{{ item.title }}</div>
+              <div class="notification-content">{{ item.content }}</div>
+            </div>
           </div>
-          <div class="notification-title">{{ item.title }}</div>
-          <div class="notification-content">{{ item.content }}</div>
-        </div>
-      </div>
+        </el-tab-pane>
+        <el-tab-pane label="公共通知" name="public">
+          <div class="notification-list">
+            <div class="notification-actions">
+              <el-button size="small" @click="markAllRead('public')">全部已读</el-button>
+              <span class="unread-tip">未读: {{ publicUnreadCount }}</span>
+            </div>
+            <el-empty v-if="publicNotifications.length === 0" description="暂无公共通知" />
+            <div
+              v-for="item in publicNotifications"
+              :key="item.id"
+              class="notification-item"
+              :class="{ unread: !item.isRead }"
+              @click="handleNotificationClick(item, 'public')"
+            >
+              <div class="notification-header">
+                <el-tag type="info" size="small">公共</el-tag>
+                <el-tag :type="priorityType(item.priority)" size="small" effect="plain">{{ priorityLabel(item.priority) }}</el-tag>
+                <span class="notification-time">{{ formatDateTime(item.createdAt) }}</span>
+              </div>
+              <div class="notification-title">{{ item.title }}</div>
+              <div class="notification-content">{{ item.content }}</div>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </el-drawer>
   </el-container>
 </template>
@@ -125,8 +155,12 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const showNotifications = ref(false)
-const notifications = ref<any[]>([])
-const unreadCount = ref(0)
+const activeNotificationTab = ref('personal')
+const personalNotifications = ref<any[]>([])
+const publicNotifications = ref<any[]>([])
+const personalUnreadCount = ref(0)
+const publicUnreadCount = ref(0)
+const unreadCount = computed(() => personalUnreadCount.value + publicUnreadCount.value)
 
 const activeMenu = computed(() => route.path)
 const roleTagType = computed(() => {
@@ -154,30 +188,59 @@ function priorityLabel(priority: string) {
 
 async function loadNotifications() {
   try {
-    const res = await notificationApi.getList({
-      pageSize: 20,
-      isRead: false,
-      recipientRole: userStore.currentUser.role,
-      recipientName: userStore.currentUser.name,
-    })
-    notifications.value = res.items || []
-    unreadCount.value = res.total || 0
+    const [personalRes, publicRes, personalCount, publicCount] = await Promise.all([
+      notificationApi.getList({
+        pageSize: 20,
+        isRead: false,
+        recipientRole: userStore.currentUser.role,
+        recipientName: userStore.currentUser.name,
+      }),
+      notificationApi.getList({
+        pageSize: 20,
+        isRead: false,
+        recipientRole: userStore.currentUser.role,
+      }),
+      notificationApi.getUnreadCount({
+        recipientRole: userStore.currentUser.role,
+        recipientName: userStore.currentUser.name,
+      }),
+      notificationApi.getUnreadCount({
+        recipientRole: userStore.currentUser.role,
+      }),
+    ])
+    personalNotifications.value = personalRes.items || []
+    publicNotifications.value = publicRes.items || []
+    personalUnreadCount.value = personalCount as number || personalRes.total || 0
+    publicUnreadCount.value = publicCount as number || publicRes.total || 0
   } catch (e) {}
 }
 
-async function markAllRead() {
-  await notificationApi.markAllAsRead({
-    recipientRole: userStore.currentUser.role,
-    recipientName: userStore.currentUser.name,
-  })
-  loadNotifications()
+function handleTabChange() {}
+
+async function markAllRead(source: 'personal' | 'public') {
+  const params: any = { recipientRole: userStore.currentUser.role }
+  if (source === 'personal') {
+    params.recipientName = userStore.currentUser.name
+  }
+  await notificationApi.markAllAsRead(params)
+  if (source === 'personal') {
+    personalNotifications.value.forEach(n => n.isRead = true)
+    personalUnreadCount.value = 0
+  } else {
+    publicNotifications.value.forEach(n => n.isRead = true)
+    publicUnreadCount.value = 0
+  }
 }
 
-function handleNotificationClick(item: any) {
+function handleNotificationClick(item: any, source: 'personal' | 'public') {
   if (!item.isRead) {
     notificationApi.markAsRead(item.id)
     item.isRead = true
-    unreadCount.value--
+    if (source === 'personal') {
+      personalUnreadCount.value--
+    } else {
+      publicUnreadCount.value--
+    }
   }
   if (item.relatedOrderId) {
     router.push(`/orders/${item.relatedOrderId}`)

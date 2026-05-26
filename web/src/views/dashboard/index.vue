@@ -31,11 +31,13 @@
             </el-radio-group>
           </div>
           <el-table :data="filteredTasks" stripe style="width: 100%" @row-click="handleTaskClick">
-            <el-table-column prop="title" label="任务名称" min-width="180">
+            <el-table-column prop="title" label="任务名称" min-width="220">
               <template #default="{ row }">
                 <div class="task-title">
                   <el-icon :color="priorityColor(row.priority)"><Flag /></el-icon>
                   <span>{{ row.title }}</span>
+                  <el-tag v-if="row.taskSource === 'personal'" type="primary" size="small" effect="plain">指派</el-tag>
+                  <el-tag v-else type="info" size="small" effect="plain">公共</el-tag>
                   <el-tag v-if="row.priority === 'urgent'" type="danger" size="small" effect="dark">紧急</el-tag>
                   <el-tag v-else-if="row.priority === 'high'" type="warning" size="small">高</el-tag>
                 </div>
@@ -164,7 +166,8 @@ const userStore = useUserStore()
 const activeTaskTab = ref('all')
 
 const orderStats = ref<any>({})
-const tasks = ref<any[]>([])
+const publicTasks = ref<any[]>([])
+const personalTasks = ref<any[]>([])
 const todayInstalls = ref<any[]>([])
 const overdueSamples = ref<any[]>([])
 const openExceptions = ref<any[]>([])
@@ -178,14 +181,23 @@ const stats = computed(() => [
   { label: '已完成', value: orderStats.value.completed || 0, color: '#909399', bgColor: '#f4f4f5', icon: 'CircleCheck' },
 ])
 
+const allTasks = computed(() => [
+  ...personalTasks.value.map(t => ({ ...t, taskSource: 'personal' })),
+  ...publicTasks.value.map(t => ({ ...t, taskSource: 'public' })),
+].sort((a, b) => {
+  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 }
+  const pDiff = (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3)
+  if (pDiff !== 0) return pDiff
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+}))
+
 const filteredTasks = computed(() => {
-  let list = tasks.value
   if (activeTaskTab.value === 'my') {
-    list = list.filter(t => t.recipientRole === userStore.currentUser.role)
+    return personalTasks.value.map(t => ({ ...t, taskSource: 'personal' }))
   } else if (activeTaskTab.value === 'urgent') {
-    list = list.filter(t => t.priority === 'urgent' || t.priority === 'high')
+    return allTasks.value.filter(t => t.priority === 'urgent' || t.priority === 'high')
   }
-  return list
+  return allTasks.value
 })
 
 function priorityColor(priority: string) {
@@ -225,13 +237,21 @@ async function loadData() {
     const statsRes = await orderApi.getStats()
     orderStats.value = statsRes
 
-    const taskRes = await notificationApi.getList({
-      pageSize: 20,
-      isRead: false,
-      recipientRole: userStore.currentUser.role,
-      recipientName: userStore.currentUser.name,
-    })
-    tasks.value = taskRes.items || []
+    const [personalRes, publicRes] = await Promise.all([
+      notificationApi.getList({
+        pageSize: 20,
+        isRead: false,
+        recipientRole: userStore.currentUser.role,
+        recipientName: userStore.currentUser.name,
+      }),
+      notificationApi.getList({
+        pageSize: 20,
+        isRead: false,
+        recipientRole: userStore.currentUser.role,
+      }),
+    ])
+    personalTasks.value = personalRes.items || []
+    publicTasks.value = publicRes.items || []
 
     const today = new Date().toISOString().split('T')[0]
     const installRes = await installationApi.getList({ pageSize: 10, startDate: today, endDate: today })
