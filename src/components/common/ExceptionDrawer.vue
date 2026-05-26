@@ -576,7 +576,7 @@ const canSubmit = computed(() => {
   if (mode.value === "receipt") return rcForm.code.trim().length >= 2;
   if (mode.value === "reconcile") return reconForm.comment.trim().length >= 2;
   if (mode.value === "edit")
-    return editLines.length > 0 && editForm.channelName.trim().length > 0;
+    return editLines.value.length > 0 && editForm.channelName.trim().length > 0;
   return true;
 });
 
@@ -600,8 +600,9 @@ function jumpReturn(id: string) {
 
 function addLine() {
   if (!ret.value || ret.value.status !== "draft") return;
+  const isbn = "9787" + Math.floor(100000000 + Math.random() * 900000000);
   const newLine: ReturnLine = {
-    isbn: "9787" + Math.floor(100000000 + Math.random() * 900000000),
+    isbn,
     title: "",
     author: "",
     category: "",
@@ -610,56 +611,83 @@ function addLine() {
     returnedQty: 0,
     reason: "滞销",
   };
-  editLines.value.push(newLine);
+  editLines.value.push({ ...newLine });
   store.addReturnLine(ret.value.id, newLine);
 }
 
 function removeLine(idx: number) {
   if (!ret.value || ret.value.status !== "draft") return;
-  editLines.value.splice(idx, 1);
+  const removed = editLines.value.splice(idx, 1)[0];
+  if (removed) lineTimers.delete(removed.isbn);
   store.removeReturnLine(ret.value.id, idx);
 }
 
-const pendingSync = new Map<number, number>();
+const lineTimers = new Map<string, number>();
 
-function onLineChange(idx: number) {
-  if (!ret.value || ret.value.status !== "draft") return;
-  const storeLine = ret.value.lines[idx];
-  const localLine = editLines.value[idx];
-  if (!storeLine || !localLine) return;
-  if (!localLine.title || localLine.title.trim().length === 0) return;
-  if (!localLine.returnedQty || localLine.returnedQty <= 0) return;
-
+function diffLines(storeLine: ReturnLine, localLine: ReturnLine): string[] {
   const changed: string[] = [];
   if (storeLine.title !== localLine.title)
-    changed.push(`书名《${storeLine.title}》→《${localLine.title}》`);
+    changed.push(`书名《${storeLine.title || "未填"}》→《${localLine.title}》`);
+  if (storeLine.isbn !== localLine.isbn)
+    changed.push(`ISBN ${storeLine.isbn} → ${localLine.isbn}`);
+  if (storeLine.author !== localLine.author)
+    changed.push(`作者《${storeLine.author || "-"}》→《${localLine.author}》`);
+  if (storeLine.category !== localLine.category)
+    changed.push(
+      `分类《${storeLine.category || "-"}》→《${localLine.category}》`,
+    );
   if (storeLine.price !== localLine.price)
     changed.push(`单价 ¥${storeLine.price} → ¥${localLine.price}`);
-  if (storeLine.returnedQty !== localLine.returnedQty)
-    changed.push(`退货数 ${storeLine.returnedQty} → ${localLine.returnedQty}`);
   if (storeLine.distributedQty !== localLine.distributedQty)
     changed.push(
       `铺货数 ${storeLine.distributedQty} → ${localLine.distributedQty}`,
     );
+  if (storeLine.returnedQty !== localLine.returnedQty)
+    changed.push(`退货数 ${storeLine.returnedQty} → ${localLine.returnedQty}`);
   if (storeLine.reason !== localLine.reason)
     changed.push(`原因《${storeLine.reason}》→《${localLine.reason}》`);
+  return changed;
+}
+
+function onLineChange(idx: number) {
+  if (!ret.value || ret.value.status !== "draft") return;
+  const localLine = editLines.value[idx];
+  if (!localLine) return;
+  if (!localLine.title || localLine.title.trim().length === 0) return;
+  if (!localLine.returnedQty || localLine.returnedQty <= 0) return;
+
+  const storeLine = ret.value.lines.find((l) => l.isbn === localLine.isbn);
+  if (!storeLine) return;
+
+  const changed = diffLines(storeLine, localLine);
   if (changed.length === 0) return;
 
-  if (pendingSync.has(idx)) {
-    clearTimeout(pendingSync.get(idx));
-  }
-  pendingSync.set(
-    idx,
+  Object.assign(storeLine, localLine);
+  ret.value.totalAmount = ret.value.lines.reduce(
+    (s, l) => s + (l.price || 0) * (l.returnedQty || 0),
+    0,
+  );
+
+  const key = localLine.isbn;
+  if (lineTimers.has(key)) clearTimeout(lineTimers.get(key));
+  lineTimers.set(
+    key,
     window.setTimeout(() => {
       if (!ret.value) return;
-      const currentStoreLine = ret.value.lines[idx];
-      const currentLocal = editLines.value[idx];
-      if (!currentStoreLine || !currentLocal) return;
-      store.updateReturnLine(ret.value.id, idx, { ...currentLocal }, [
-        ...changed,
-      ]);
-      pendingSync.delete(idx);
-    }, 600),
+      const sLine = ret.value.lines.find((l) => l.isbn === key);
+      const lLine = editLines.value.find((l) => l.isbn === key);
+      if (!sLine || !lLine) return;
+      const finalChanged = diffLines(sLine, lLine);
+      if (finalChanged.length > 0) {
+        store.appendHistory("return", ret.value.id, {
+          role: "channel",
+          operator: ret.value.manager,
+          action: "修改退货明细",
+          comment: finalChanged.join("；"),
+        });
+      }
+      lineTimers.delete(key);
+    }, 800),
   );
 }
 
@@ -678,12 +706,21 @@ function submit() {
       deadline: editForm.deadline || ret.value.deadline,
       note: editForm.note,
     });
-    pendingSync.forEach((t) => clearTimeout(t));
-    pendingSync.clear();
-    editLines.value.forEach((line, idx) => {
+    lineTimers.forEach((t) => clearTimeout(t));
+    lineTimers.clear();
+    editLines.value.forEach((line) => {
       if (!ret.value) return;
-      store.updateReturnLine(ret.value.id, idx, { ...line }, [], true);
+      const storeLine = ret.value.lines.find((l) => l.isbn === line.isbn);
+      if (storeLine) {
+        Object.assign(storeLine, line);
+      }
     });
+    if (ret.value) {
+      ret.value.totalAmount = ret.value.lines.reduce(
+        (s, l) => s + (l.price || 0) * (l.returnedQty || 0),
+        0,
+      );
+    }
     try {
       store.submitReturn(ret.value.id);
       ElMessage.success("退货申请已提交");
