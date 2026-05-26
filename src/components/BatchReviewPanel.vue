@@ -4,17 +4,55 @@ import { useAppStore } from '../stores'
 
 const store = useAppStore()
 const activeTab = ref<'parts' | 'samples'>('parts')
+const expandedLendingId = ref<string | null>(null)
 
-const currentUser = computed(() => {
-  if (store.currentRole === 'manager') return '陈经理'
-  if (store.currentRole === 'consultant') return '销售-李明'
-  return '协调-赵芳'
+const availableOperators = computed(() => {
+  const operators = new Set<string>()
+  operators.add('陈经理')
+
+  if (activeTab.value === 'parts') {
+    for (const partId of store.batchSelection) {
+      const ticket = store.afterSalesTickets.find(t =>
+        t.parts.some(p => p.id === partId)
+      )
+      if (ticket) {
+        operators.add(ticket.assignee)
+      }
+    }
+    if (store.batchSelection.size === 0) {
+      operators.add('销售-李明')
+      operators.add('销售-周琳')
+      operators.add('协调-赵芳')
+      operators.add('协调-孙浩')
+    }
+  } else {
+    for (const lendingId of store.batchSelection) {
+      const lending = store.sampleLendings.find(l => l.id === lendingId)
+      if (lending) {
+        const order = store.orders.find(o => o.id === lending.orderId)
+        if (order) {
+          operators.add('销售-' + order.salesConsultant)
+          operators.add('协调-' + order.coordinator)
+        }
+      }
+    }
+    if (store.batchSelection.size === 0) {
+      store.orders.forEach(o => {
+        operators.add('销售-' + o.salesConsultant)
+        operators.add('协调-' + o.coordinator)
+      })
+    }
+  }
+
+  return Array.from(operators).sort()
 })
+
+const selectedOperator = ref<string>('')
 
 const unconfirmedParts = computed(() =>
   store.afterSalesTickets
     .filter(t => t.type === 'supplementary')
-    .flatMap(t => t.parts.filter(p => !p.confirmed).map(p => ({ ...p, ticketId: t.id, ticketTitle: t.title })))
+    .flatMap(t => t.parts.filter(p => !p.confirmed).map(p => ({ ...p, ticketId: t.id, ticketTitle: t.title, assignee: t.assignee })))
 )
 
 const unreturnedLendings = computed(() =>
@@ -53,14 +91,30 @@ function toggleAllLendings() {
   }
 }
 
+function toggleExpand(lendingId: string) {
+  expandedLendingId.value = expandedLendingId.value === lendingId ? null : lendingId
+}
+
+function getOperatorForPart(part: { ticketId: string; assignee: string }): string {
+  if (selectedOperator.value) return selectedOperator.value
+  const ticket = store.afterSalesTickets.find(t => t.id === part.ticketId)
+  if (ticket) return ticket.assignee
+  return '销售-李明'
+}
+
+function getOperatorForLending(lending: { orderId: string; lentBy: string }): string {
+  if (selectedOperator.value) return selectedOperator.value
+  return lending.lentBy
+}
+
 function batchConfirmParts() {
   if (selectedPartIds.value.length === 0) return
-  store.batchConfirmParts(currentUser.value)
+  store.batchConfirmParts(selectedOperator.value || '陈经理')
 }
 
 function batchReturnSamples() {
   if (selectedLendingIds.value.length === 0) return
-  store.batchReturnSamples(currentUser.value)
+  store.batchReturnSamples(selectedOperator.value || '陈经理')
 }
 </script>
 
@@ -75,7 +129,7 @@ function batchReturnSamples() {
       <button
         class="tab"
         :class="{ active: activeTab === 'parts' }"
-        @click="activeTab = 'parts'; store.clearBatchSelection()"
+        @click="activeTab = 'parts'; store.clearBatchSelection(); selectedOperator = ''"
       >
         <span>补件确认</span>
         <span class="tab-count" v-if="unconfirmedParts.length > 0">{{ unconfirmedParts.length }}</span>
@@ -83,7 +137,7 @@ function batchReturnSamples() {
       <button
         class="tab"
         :class="{ active: activeTab === 'samples' }"
-        @click="activeTab = 'samples'; store.clearBatchSelection()"
+        @click="activeTab = 'samples'; store.clearBatchSelection(); selectedOperator = ''"
       >
         <span>样品回收</span>
         <span class="tab-count" v-if="unreturnedLendings.length > 0">{{ unreturnedLendings.length }}</span>
@@ -92,6 +146,14 @@ function batchReturnSamples() {
 
     <div class="panel-body">
       <template v-if="activeTab === 'parts'">
+        <div class="operator-selector">
+          <label class="operator-label">操作者</label>
+          <select v-model="selectedOperator" class="operator-select">
+            <option value="">按工单负责人自动分配</option>
+            <option v-for="op in availableOperators" :key="op" :value="op">{{ op }}</option>
+          </select>
+        </div>
+
         <div class="batch-toolbar" v-if="unconfirmedParts.length > 0">
           <div class="select-all" @click="toggleAllParts">
             <div class="checkbox" :class="{ checked: allPartsSelected }"></div>
@@ -126,10 +188,14 @@ function batchReturnSamples() {
               <div class="batch-item-ticket">
                 <span class="ticket-link">📋 {{ part.ticketTitle }}</span>
               </div>
+              <div class="batch-item-assignee">
+                <span class="assignee-label">负责人：</span>
+                <span class="assignee-value">{{ part.assignee }}</span>
+              </div>
             </div>
             <button
               class="btn btn-secondary btn-sm single-btn"
-              @click.stop="store.confirmPart(part.id, currentUser)"
+              @click.stop="store.confirmPart(part.id, getOperatorForPart(part))"
             >
               确认
             </button>
@@ -143,6 +209,14 @@ function batchReturnSamples() {
       </template>
 
       <template v-else>
+        <div class="operator-selector">
+          <label class="operator-label">操作者</label>
+          <select v-model="selectedOperator" class="operator-select">
+            <option value="">按样品借出方自动分配</option>
+            <option v-for="op in availableOperators" :key="op" :value="op">{{ op }}</option>
+          </select>
+        </div>
+
         <div class="batch-toolbar" v-if="unreturnedLendings.length > 0">
           <div class="select-all" @click="toggleAllLendings">
             <div class="checkbox" :class="{ checked: allLendingsSelected }"></div>
@@ -168,7 +242,12 @@ function batchReturnSamples() {
               <div class="checkbox" :class="{ checked: store.batchSelection.has(lending.id) }"></div>
             </div>
             <div class="batch-item-main">
-              <div class="batch-item-title">{{ lending.itemName }}</div>
+              <div class="batch-item-title-row">
+                <div class="batch-item-title">{{ lending.itemName }}</div>
+                <button class="expand-btn" @click.stop="toggleExpand(lending.id)">
+                  {{ expandedLendingId === lending.id ? '收起' : '历史' }}
+                </button>
+              </div>
               <div class="batch-item-meta">
                 <span class="sku">{{ lending.sku }}</span>
                 <span v-if="lending.overdue" class="badge badge-red overdue-badge">逾期</span>
@@ -177,10 +256,28 @@ function batchReturnSamples() {
               <div class="batch-item-ticket">
                 <span class="ticket-link">借出 {{ lending.lentAt }} · 应还 {{ lending.expectedReturn }}</span>
               </div>
+              <div class="batch-item-assignee">
+                <span class="assignee-label">借出方：</span>
+                <span class="assignee-value">{{ lending.lentBy }}</span>
+              </div>
+
+              <div v-if="expandedLendingId === lending.id && lending.history.length > 0" class="lending-history">
+                <div class="history-title">操作记录</div>
+                <div
+                  v-for="(h, hidx) in lending.history"
+                  :key="hidx"
+                  class="history-item"
+                >
+                  <span class="history-action">{{ h.action }}</span>
+                  <span class="history-at">{{ h.at }}</span>
+                  <span class="history-by">{{ h.by }}</span>
+                  <span class="history-detail">{{ h.detail }}</span>
+                </div>
+              </div>
             </div>
             <button
               class="btn btn-secondary btn-sm single-btn"
-              @click.stop="store.returnSample(lending.id, currentUser)"
+              @click.stop="store.returnSample(lending.id, getOperatorForLending(lending))"
             >
               登记归还
             </button>
@@ -200,11 +297,35 @@ function batchReturnSamples() {
             >
               <div class="returned-icon">✓</div>
               <div class="returned-main">
-                <div class="returned-name">{{ lending.itemName }}</div>
+                <div class="returned-name-row">
+                  <span class="returned-name">{{ lending.itemName }}</span>
+                  <button
+                    class="expand-btn expand-btn-sm"
+                    @click="toggleExpand(lending.id)"
+                  >
+                    {{ expandedLendingId === lending.id ? '收起' : '历史' }}
+                  </button>
+                </div>
                 <div class="returned-meta">
                   归还人 {{ lending.returnedBy }} · {{ lending.returnedAt }}
                 </div>
                 <div v-if="lending.returnNote" class="returned-note">{{ lending.returnNote }}</div>
+                <div
+                  v-if="expandedLendingId === lending.id && lending.history.length > 0"
+                  class="lending-history"
+                >
+                  <div class="history-title">操作记录</div>
+                  <div
+                    v-for="(h, hidx) in lending.history"
+                    :key="hidx"
+                    class="history-item"
+                  >
+                    <span class="history-action">{{ h.action }}</span>
+                    <span class="history-at">{{ h.at }}</span>
+                    <span class="history-by">{{ h.by }}</span>
+                    <span class="history-detail">{{ h.detail }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -292,6 +413,40 @@ function batchReturnSamples() {
   padding: 12px;
 }
 
+.operator-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fef3c7;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.operator-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #92400e;
+  flex-shrink: 0;
+}
+
+.operator-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #ffffff;
+  color: #78350f;
+  outline: none;
+  cursor: pointer;
+}
+
+.operator-select:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
 .batch-toolbar {
   display: flex;
   justify-content: space-between;
@@ -358,6 +513,37 @@ function batchReturnSamples() {
   margin-bottom: 2px;
 }
 
+.batch-item-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.expand-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #eef2ff;
+  color: #4f46e5;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.expand-btn:hover {
+  background: #e0e7ff;
+}
+
+.expand-btn-sm {
+  font-size: 10px;
+  padding: 1px 5px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.expand-btn-sm:hover {
+  background: #bbf7d0;
+}
+
 .batch-item-meta {
   display: flex;
   align-items: center;
@@ -391,6 +577,62 @@ function batchReturnSamples() {
 .ticket-link {
   color: #6366f1;
   font-weight: 500;
+}
+
+.batch-item-assignee {
+  margin-top: 2px;
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.assignee-label {
+  color: #9ca3af;
+}
+
+.assignee-value {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.lending-history {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.history-title {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.history-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  padding: 2px 0;
+  font-size: 10px;
+}
+
+.history-action {
+  color: #6366f1;
+  font-weight: 500;
+}
+
+.history-at {
+  color: #9ca3af;
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.history-by {
+  color: #6b7280;
+}
+
+.history-detail {
+  color: #4b5563;
+  flex: 1;
+  min-width: 100%;
 }
 
 .overdue-badge {
@@ -482,6 +724,13 @@ function batchReturnSamples() {
 .returned-main {
   flex: 1;
   min-width: 0;
+}
+
+.returned-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
 }
 
 .returned-name {

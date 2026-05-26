@@ -20,8 +20,16 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 
 const currentUser = computed(() => {
   if (store.currentRole === 'manager') return '陈经理'
-  if (store.currentRole === 'consultant') return '销售-' + (ticket.value?.assignee.includes('李明') ? '李明' : '周琳')
-  return '协调-赵芳'
+  if (store.currentRole === 'consultant') {
+    return ticket.value?.assignee || '销售-李明'
+  }
+  if (store.currentRole === 'coordinator') {
+    if (ticket.value?.relatedOrder) {
+      return '协调-' + ticket.value.relatedOrder.coordinator
+    }
+    return '协调-赵芳'
+  }
+  return '陈经理'
 })
 
 function backToOrder() {
