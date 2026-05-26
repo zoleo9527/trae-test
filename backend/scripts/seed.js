@@ -186,7 +186,7 @@ function seed() {
       created_at: offsetDateTime(-1)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '004',
+      order_no: 'ORD' + orderTs + '004',
       customer: '赵丽丽', store_id: store2Id, optician: 'optician2', processor: 'processor2',
       frame_brand: '古驰', frame_model: 'GG0396O', frame_color: '黑色', frame_price: 1800,
       lens_sku_id: skuMap['ESS-167-CLR'], lens_brand: '依视路', lens_model: '钻晶1.67', lens_coating: '钻晶A4', lens_price: 2200,
@@ -197,7 +197,7 @@ function seed() {
       created_at: offsetDateTime(-5)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '005',
+      order_no: 'ORD' + orderTs + '005',
       customer: '周建军', store_id: store1Id, optician: 'optician1', processor: 'processor1',
       frame_brand: '夏蒙', frame_model: 'CH10925', frame_color: '黑色', frame_price: 1500,
       lens_sku_id: skuMap['ESS-156-ADD'], lens_brand: '依视路', lens_model: '万里路1.56', lens_coating: '钻晶A3', lens_price: 1800,
@@ -208,7 +208,7 @@ function seed() {
       created_at: offsetDateTime(-4)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '006',
+      order_no: 'ORD' + orderTs + '006',
       customer: '郑海涛', store_id: store1Id, optician: null, processor: null,
       frame_brand: null, frame_model: null, frame_color: null, frame_price: 0,
       lens_sku_id: null, lens_brand: null, lens_model: null, lens_coating: null, lens_price: 0,
@@ -218,7 +218,7 @@ function seed() {
       created_at: offsetDateTime(0)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '007',
+      order_no: 'ORD' + orderTs + '007',
       customer: '孙美玲', store_id: store2Id, optician: 'optician2', processor: 'processor2',
       frame_brand: '暴龙', frame_model: 'BJ6036', frame_color: '金色', frame_price: 700,
       lens_sku_id: skuMap['HOK-167-P'], lens_brand: '豪雅', lens_model: '优适1.67', lens_coating: '常规', lens_price: 1800,
@@ -256,13 +256,13 @@ function seed() {
 
   const reworks = [
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '004',
+      order_no: 'ORD' + orderTs + '004',
       reason: '客户反映瞳距测量不准，佩戴后头晕', rework_type: 'measurement', status: 'pending',
       requested_by: 'service1', source: 'customer_complaint',
       requested_at: offsetDateTime(-1)
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '005',
+      order_no: 'ORD' + orderTs + '005',
       reason: '镜片边缘抛光不平整，需要返工', rework_type: 'quality', status: 'approved',
       requested_by: 'processor1', source: 'quality_check',
       requested_at: offsetDateTime(-2), approved_by: 'manager1', approved_at: offsetDateTime(-2)
@@ -279,7 +279,7 @@ function seed() {
 
   const refunds = [
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '007',
+      order_no: 'ORD' + orderTs + '007',
       reason: '豪雅优适1.67镜片缺货，客户同意退款', amount: 2500,
       refund_method: '原路退回', status: 'pending',
       requested_by: 'service1', requested_at: offsetDateTime(-1, -2)
@@ -331,7 +331,7 @@ function seed() {
       quality_check_by: 'manager1', quality_check_result: 'pass', quality_check_notes: '检验合格'
     },
     {
-      order_no: 'ORD' + Date.now().toString().slice(-8) + '005',
+      order_no: 'ORD' + orderTs + '005',
       processor: 'processor1', processing_type: 'standard', status: 'completed',
       started_at: offsetDateTime(-3), completed_at: offsetDateTime(-1),
       quality_check_by: 'manager1', quality_check_result: 'fail', quality_check_notes: '抛光不平整',

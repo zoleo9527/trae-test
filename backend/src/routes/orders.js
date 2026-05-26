@@ -1,8 +1,29 @@
 const express = require('express')
-const { authRequired } = require('../middleware/auth')
+const { authRequired, requireRole, requireOwnership } = require('../middleware/auth')
 const { auditMiddleware } = require('../middleware/audit')
 const service = require('../services/orderService')
 const config = require('../config')
+const { db } = require('../db')
+const { PermissionError, NotFoundError } = require('../errors')
+
+function requireOrderAccess(req, _res, next) {
+  if (!req.user) return next()
+  if (req.user.role === config.roles.ADMIN) return next()
+  const order = db.prepare('SELECT store_id, optician_id, processor_id FROM orders WHERE id = ?').get(req.params.id)
+  if (!order) throw new NotFoundError('订单不存在')
+  if (req.user.role === config.roles.STORE_MANAGER) {
+    if (order.store_id !== req.user.store_id) throw new PermissionError('无权限访问其他门店订单')
+  } else if (req.user.role === config.roles.OPTICIAN) {
+    if (order.optician_id && order.optician_id !== req.user.id && order.store_id !== req.user.store_id) {
+      throw new PermissionError('无权限访问该订单')
+    }
+  } else if (req.user.role === config.roles.PROCESSOR) {
+    if (order.processor_id && order.processor_id !== req.user.id && order.store_id !== req.user.store_id) {
+      throw new PermissionError('无权限访问该订单')
+    }
+  }
+  next()
+}
 
 const router = express.Router()
 
@@ -34,7 +55,7 @@ router.get('/stats', authRequired, (req, res, next) => {
   } catch (e) { next(e) }
 })
 
-router.get('/:id', authRequired, (req, res, next) => {
+router.get('/:id', authRequired, requireOrderAccess, (req, res, next) => {
   try {
     res.json(service.getOrder(req.params.id))
   } catch (e) { next(e) }
@@ -54,13 +75,13 @@ router.post('/', authRequired, auditMiddleware('create', 'order'), (req, res, ne
   } catch (e) { next(e) }
 })
 
-router.put('/:id', authRequired, auditMiddleware('update', 'order'), (req, res, next) => {
+router.put('/:id', authRequired, requireOrderAccess, auditMiddleware('update', 'order'), (req, res, next) => {
   try {
     res.json(service.updateOrder(req.params.id, req.body, req.user.id))
   } catch (e) { next(e) }
 })
 
-router.post('/:id/transition', authRequired, auditMiddleware('transition', 'order'), (req, res, next) => {
+router.post('/:id/transition', authRequired, requireOrderAccess, auditMiddleware('transition', 'order'), (req, res, next) => {
   try {
     const { action, ...extra } = req.body
     if (!action) throw new (require('../errors').ValidationError)('操作类型必填')
@@ -68,13 +89,13 @@ router.post('/:id/transition', authRequired, auditMiddleware('transition', 'orde
   } catch (e) { next(e) }
 })
 
-router.post('/:id/allocate-lens', authRequired, auditMiddleware('allocate_lens', 'order'), (req, res, next) => {
+router.post('/:id/allocate-lens', authRequired, requireOrderAccess, requireRole(config.roles.ADMIN, config.roles.STORE_MANAGER, config.roles.PROCESSOR), auditMiddleware('allocate_lens', 'order'), (req, res, next) => {
   try {
     res.json(service.allocateLens(req.params.id, req.body, req.user.id))
   } catch (e) { next(e) }
 })
 
-router.post('/allocations/:id/receive', authRequired, auditMiddleware('receive_lens', 'lens_allocation'), (req, res, next) => {
+router.post('/allocations/:id/receive', authRequired, requireRole(config.roles.ADMIN, config.roles.STORE_MANAGER, config.roles.PROCESSOR), auditMiddleware('receive_lens', 'lens_allocation'), (req, res, next) => {
   try {
     res.json(service.receiveLens(req.params.id, req.user.id))
   } catch (e) { next(e) }

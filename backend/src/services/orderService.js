@@ -305,8 +305,9 @@ function transitionOrder(id, action, userId, extraData = {}) {
       `).run(uuidv4(), id, existing.processor_id, 'standard', 'in_progress')
     }
 
+    let pr = null
     if (action === 'pass_quality' || action === 'fail_quality') {
-      const pr = db.prepare('SELECT * FROM processing_records WHERE order_id = ? ORDER BY created_at DESC LIMIT 1').get(id)
+      pr = db.prepare('SELECT * FROM processing_records WHERE order_id = ? ORDER BY created_at DESC LIMIT 1').get(id)
       if (pr) {
         db.prepare(`
           UPDATE processing_records SET quality_check_by = ?, quality_check_result = ?, quality_check_notes = ?, completed_at = datetime(\"now\"), status = ?

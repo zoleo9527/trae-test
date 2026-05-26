@@ -134,8 +134,16 @@ function processRework(id, action, userId, data = {}) {
   }
 
   const tx = db.transaction(() => {
-    db.prepare(`UPDATE reworks SET status = ?, approved_by = ?, approved_at = datetime(\"now\"), completed_at = datetime(\"now\") WHERE id = ?`)
-      .run(rule.to, userId, id)
+    const updateFields = ['status = ?', 'approved_by = ?']
+    const updateParams = [rule.to, userId]
+    if (action === 'approve' || action === 'complete') {
+      updateFields.push('approved_at = datetime(\"now\")')
+    }
+    if (action === 'complete') {
+      updateFields.push('completed_at = datetime(\"now\")')
+    }
+    updateParams.push(id)
+    db.prepare(`UPDATE reworks SET ${updateFields.join(', ')} WHERE id = ?`).run(...updateParams)
     if (rule.postProcess) rule.postProcess()
   })
 
@@ -258,8 +266,16 @@ function processRefund(id, action, userId, data = {}) {
   }
 
   const tx = db.transaction(() => {
-    db.prepare(`UPDATE refunds SET status = ?, approved_by = ?, approved_at = datetime(\"now\"), completed_at = datetime(\"now\") WHERE id = ?`)
-      .run(rule.to, userId, id)
+    const updateFields = ['status = ?', 'approved_by = ?']
+    const updateParams = [rule.to, userId]
+    if (action === 'approve' || action === 'complete') {
+      updateFields.push('approved_at = datetime(\"now\")')
+    }
+    if (action === 'complete') {
+      updateFields.push('completed_at = datetime(\"now\")')
+    }
+    updateParams.push(id)
+    db.prepare(`UPDATE refunds SET ${updateFields.join(', ')} WHERE id = ?`).run(...updateParams)
 
     if (action === 'complete') {
       db.prepare('UPDATE orders SET status = ?, updated_at = datetime(\"now\") WHERE id = ?').run(config.orderStatus.REFUNDED, refund.order_id)
