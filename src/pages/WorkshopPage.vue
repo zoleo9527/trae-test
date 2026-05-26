@@ -67,6 +67,7 @@ function registerTransfer() {
     status: "sent" as const,
     sentAt: new Date().toISOString().slice(0, 16).replace("T", " "),
     lost: false,
+    operator: store.currentActor?.name ?? "加工",
   };
   store.db.transfers.push(t);
   store.addNote({
@@ -269,9 +270,18 @@ function transferStatusLabel(s: string) {
                 t.logistics
               }}</span>
               <span class="mono">{{ t.trackingNo }}</span>
-              <span class="tag border-white/10 text-paper/70 ml-auto">{{
+              <span class="tag border-white/10 text-paper/70">{{
                 transferStatusLabel(t.status)
               }}</span>
+              <span
+                v-if="t.lost && t.lostConfirmedBy"
+                class="tag border-rose-500/30 text-rose-400 ml-auto"
+              >
+                丢失确认：{{ t.lostConfirmedBy }}
+              </span>
+              <span v-else-if="t.operator" class="mono text-paper/60 ml-auto">
+                登记人：{{ t.operator }}
+              </span>
               <button
                 v-if="!t.lost && canEditWorkshop"
                 class="btn-ghost text-xs py-1 px-2"

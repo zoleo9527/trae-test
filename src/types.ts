@@ -77,6 +77,8 @@ export interface Transfer {
   receivedAt?: string
   lost?: boolean
   note?: string
+  operator?: string
+  lostConfirmedBy?: string
 }
 
 export type RepairStatus = 'reported' | 'factory' | 'returned' | 'completed'

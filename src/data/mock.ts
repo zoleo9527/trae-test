@@ -56,6 +56,8 @@ export const initialData: Database = {
       logistics: '顺丰速运', trackingNo: 'SF11992233', status: 'lost',
       sentAt: '2025-05-20 10:02', lost: true,
       note: '物流显示签收但加工未收到，仓库与门店已确认丢失。',
+      operator: '陈默',
+      lostConfirmedBy: '陈默',
     },
   ],
   repairs: [

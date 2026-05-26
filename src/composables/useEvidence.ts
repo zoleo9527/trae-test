@@ -54,6 +54,7 @@ export function useEvidence() {
         color: t.lost ? 'rose' : 'sky',
         title: t.lost ? '镜片调拨丢失' : '镜片调拨',
         desc: `${t.fromStore} → ${t.toStore}　${t.logistics} ${t.trackingNo}　状态：${transferStatusLabel(t.status)}`,
+        actor: t.lost ? t.lostConfirmedBy ?? '—' : t.operator ?? '—',
       })
     }
 

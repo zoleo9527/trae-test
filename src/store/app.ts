@@ -78,6 +78,7 @@ export const useAppStore = defineStore('app', () => {
     if (t) {
       t.status = 'lost'
       t.lost = true
+      t.lostConfirmedBy = currentActor.value?.name ?? '加工'
     }
   }
 
