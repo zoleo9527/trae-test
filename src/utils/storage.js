@@ -44,11 +44,57 @@ export const storage = {
   }
 }
 
+const CURRENT_DB_VERSION = 2
+
 export async function initStorage() {
   const initialized = await storage.get('initialized')
   if (!initialized) {
     await initDemoData()
     await storage.set('initialized', true)
+    await storage.set('dbVersion', CURRENT_DB_VERSION)
+  } else {
+    const dbVersion = await storage.get('dbVersion')
+    if (dbVersion !== CURRENT_DB_VERSION) {
+      await migrateData(dbVersion, CURRENT_DB_VERSION)
+      await storage.set('dbVersion', CURRENT_DB_VERSION)
+    }
+  }
+}
+
+async function migrateData(fromVersion, toVersion) {
+  if (fromVersion < 2) {
+    const subsidyRecords = await storage.get('subsidyRecords')
+    if (subsidyRecords) {
+      const REQUIRED_MATERIALS = ['作业单', '验收单', '身份证复印件']
+      const migrated = subsidyRecords.map(record => {
+        if (!record.missingDocs) {
+          record.missingDocs = REQUIRED_MATERIALS.filter(m => !record.materials?.includes(m))
+        }
+        return record
+      })
+      await storage.set('subsidyRecords', migrated)
+    }
+
+    const alerts = await storage.get('alerts')
+    if (alerts) {
+      const typeMap = {
+        'subsidy': 'material',
+        'review': 'bad_review'
+      }
+      const migrated = alerts.map(alert => {
+        if (typeMap[alert.type]) {
+          alert.type = typeMap[alert.type]
+        }
+        if (alert.type === 'material' && !alert.title.includes('材料')) {
+          alert.title = '补贴材料缺失'
+        }
+        if (alert.type === 'bad_review' && !alert.title.includes('差评')) {
+          alert.title = '收到差评回访'
+        }
+        return alert
+      })
+      await storage.set('alerts', migrated)
+    }
   }
 }
 

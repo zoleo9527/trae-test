@@ -41,6 +41,16 @@ export const useAlertStore = defineStore('alert', () => {
     return newAlert
   }
 
+  async function updateAlert(id, updates) {
+    const index = alerts.value.findIndex(a => a.id === id)
+    if (index !== -1) {
+      alerts.value[index] = { ...alerts.value[index], ...updates }
+      await storage.set('alerts', alerts.value)
+      return alerts.value[index]
+    }
+    return null
+  }
+
   async function markAsRead(id, operator = null) {
     const index = alerts.value.findIndex(a => a.id === id)
     if (index !== -1 && alerts.value[index].status === 'unread') {
@@ -132,6 +142,7 @@ export const useAlertStore = defineStore('alert', () => {
     loading,
     loadAlerts,
     addAlert,
+    updateAlert,
     markAsRead,
     markAsHandled,
     markAllAsRead,

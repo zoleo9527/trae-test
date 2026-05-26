@@ -65,11 +65,30 @@
             </td>
             <td style="max-width: 150px;">{{ record.remark || '-' }}</td>
             <td>
-              <div class="action-btns" v-if="record.status === 'pending' && currentUser.role === 'director'">
-                <button class="btn btn-success btn-sm" @click="handleApprove(record.id)">通过</button>
-                <button class="btn btn-danger btn-sm" @click="handleReject(record.id)">驳回</button>
+              <div class="action-btns">
+                <button 
+                  v-if="record.status === 'pending' && currentUser.role === 'director'" 
+                  class="btn btn-success btn-sm" 
+                  @click="handleApprove(record.id)"
+                >
+                  通过
+                </button>
+                <button 
+                  v-if="record.status === 'pending' && currentUser.role === 'director'" 
+                  class="btn btn-danger btn-sm" 
+                  @click="handleReject(record.id)"
+                >
+                  驳回
+                </button>
+                <button 
+                  v-if="currentUser.role === 'dispatcher'" 
+                  class="btn btn-primary btn-sm" 
+                  @click="openSupplementModal(record)"
+                >
+                  补交材料
+                </button>
               </div>
-              <span v-else class="text-muted">-</span>
+              <span v-if="record.status !== 'pending' && currentUser.role !== 'dispatcher'" class="text-muted">-</span>
             </td>
           </tr>
         </tbody>
@@ -129,6 +148,48 @@
         </div>
       </div>
     </div>
+    
+    <div v-if="showSupplementModal" class="modal-overlay" @click.self="showSupplementModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>补交材料 - {{ supplementRecord?.plotName }}</h3>
+          <button class="close-btn" @click="showSupplementModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="material-status">
+            <div class="status-row">
+              <span class="status-label">当前状态:</span>
+              <span :class="['status-tag', `status-${supplementRecord?.status}`]">
+                {{ getStatusText(supplementRecord?.status) }}
+              </span>
+            </div>
+            <div class="status-row" v-if="supplementRecord?.missingDocs?.length > 0">
+              <span class="status-label">缺失材料:</span>
+              <span class="material-tag missing">{{ supplementRecord.missingDocs.join('、') }}</span>
+            </div>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">已提交材料</label>
+            <div class="checkbox-group">
+              <label v-for="m in materialOptions" :key="m" class="checkbox-item">
+                <input type="checkbox" :value="m" v-model="supplementForm.materials" />
+                <span>{{ m }}</span>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-item">
+            <label class="form-label">补充备注</label>
+            <textarea v-model="supplementForm.remark" class="form-textarea" placeholder="说明补交情况（可选）"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" @click="showSupplementModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleSupplement">确认更新</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -152,6 +213,7 @@ const subsidyStats = computed(() => subsidyStore.stats)
 const plots = computed(() => plotStore.plots)
 
 const showAddModal = ref(false)
+const showSupplementModal = ref(false)
 const materialOptions = ['作业单', '验收单', '身份证复印件', '土地承包证', '其他']
 
 const newRecord = ref({
@@ -162,6 +224,12 @@ const newRecord = ref({
   materials: [],
   remark: '',
   applyDate: new Date().toISOString().split('T')[0]
+})
+
+const supplementRecord = ref(null)
+const supplementForm = ref({
+  materials: [],
+  remark: ''
 })
 
 function getStatusText(status) {
@@ -210,6 +278,32 @@ async function handleReject(id) {
     approveDate: new Date().toISOString().split('T')[0]
   }, currentUser.value)
   toastStore.info('已驳回申请')
+}
+
+function openSupplementModal(record) {
+  supplementRecord.value = record
+  supplementForm.value = {
+    materials: [...(record.materials || [])],
+    remark: ''
+  }
+  showSupplementModal.value = true
+}
+
+async function handleSupplement() {
+  if (!supplementRecord.value) return
+  
+  await subsidyStore.updateRecord(
+    supplementRecord.value.id, 
+    { 
+      materials: supplementForm.value.materials,
+      remark: supplementForm.value.remark || supplementRecord.value.remark
+    }, 
+    currentUser.value
+  )
+  
+  toastStore.success('材料已更新')
+  showSupplementModal.value = false
+  supplementRecord.value = null
 }
 
 onMounted(async () => {
@@ -414,5 +508,29 @@ onMounted(async () => {
 .status-pending {
   background: #fff7e6;
   color: #fa8c16;
+}
+
+.material-status {
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-row:last-child {
+  margin-bottom: 0;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
 }
 </style>

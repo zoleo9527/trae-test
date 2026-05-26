@@ -161,10 +161,21 @@ export const useSubsidyStore = defineStore('subsidy', () => {
               operatorName: '系统'
             })
           } else if (existingAlert.status !== 'handled') {
-            existingAlert.content = `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`
-            existingAlert.createTime = new Date().toLocaleString('zh-CN')
-            existingAlert.status = 'unread'
-            await alertStore.addAlert(existingAlert)
+            await alertStore.updateAlert(existingAlert.id, {
+              content: `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
+              status: 'unread',
+              createTime: new Date().toLocaleString('zh-CN')
+            })
+            
+            await addHistoryLog({
+              type: 'alert',
+              action: 'update',
+              targetId: existingAlert.id,
+              targetName: '补贴材料缺失提醒',
+              content: `材料缺失情况更新：仍缺少${missingDocs.length}项材料`,
+              operatorId: operator.id,
+              operatorName: operator.name
+            })
           }
         }
       }
