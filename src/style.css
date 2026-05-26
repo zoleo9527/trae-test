@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #app {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(31,107,90,0.25), transparent 60%),
+    radial-gradient(800px 500px at 110% 10%, rgba(201,139,46,0.12), transparent 60%),
+    linear-gradient(180deg, #0a0f17 0%, #0b1018 100%);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-white/10 bg-ink-900/70 backdrop-blur shadow-soft;
+  }
+  .card-soft {
+    @apply rounded-xl border border-white/10 bg-ink-800/60;
+  }
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs tracking-wide;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition;
+  }
+  .btn-primary {
+    @apply btn bg-moss-500 text-white hover:bg-moss-600 active:translate-y-px shadow-soft;
+  }
+  .btn-ghost {
+    @apply btn border border-white/15 text-paper hover:bg-white/5;
+  }
+  .btn-amber {
+    @apply btn bg-amber2-500 text-ink-950 hover:bg-amber2-600 active:translate-y-px;
+  }
+  .input {
+    @apply w-full rounded-lg border border-white/10 bg-ink-800/70 px-3 py-2 text-sm text-paper placeholder:text-paper/30 focus:border-moss-500/60 focus:outline-none focus:ring-2 focus:ring-moss-500/30;
+  }
+  .section-title {
+    @apply font-display text-lg tracking-wide text-paper/90;
+  }
+  .mono {
+    @apply font-mono text-[12px] tracking-wider text-paper/70;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Subtle grid */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

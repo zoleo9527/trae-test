@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>眼镜连锁 · 套餐核销与退款复核</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ink: { 950:'#0b1018', 900:'#0f1622', 800:'#131a27', 700:'#1a2233', 600:'#222b3e' },
+            moss: { 50:'#effaf4', 100:'#d9f1e1', 500:'#1f6b5a', 600:'#1a584b', 700:'#14483d' },
+            amber2: { 500:'#c98b2e', 600:'#a9721f' },
+            paper: '#f5f1e8',
+          },
+          fontFamily: {
+            display: ['"Noto Serif SC"','Georgia','serif'],
+            body: ['"PingFang SC"','system-ui','sans-serif'],
+            mono: ['ui-monospace','Menlo','monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    html, body, #app { height: 100%; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(31,107,90,0.25), transparent 60%),
+        radial-gradient(800px 500px at 110% 10%, rgba(201,139,46,0.12), transparent 60%),
+        linear-gradient(180deg, #0a0f17 0%, #0b1018 100%);
+      background-attachment: fixed;
+    }
+    .card { @apply rounded-2xl border border-white/10 bg-ink-900/70 backdrop-blur; box-shadow:0 10px 30px -12px rgba(0,0,0,0.55); }
+    .card-soft { @apply rounded-xl border border-white/10 bg-ink-800/60; }
+    .tag { @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs tracking-wide; }
+    .btn { @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition; }
+    .btn-primary { @apply btn bg-moss-500 text-white hover:bg-moss-600 active:translate-y-px; }
+    .btn-ghost { @apply btn border border-white/15 text-paper hover:bg-white/5; }
+    .btn-amber { @apply btn bg-amber2-500 text-ink-950 hover:bg-amber2-600 active:translate-y-px; }
+    .input { @apply w-full rounded-lg border border-white/10 bg-ink-800/70 px-3 py-2 text-sm text-paper placeholder:text-paper/30 focus:border-moss-500/60 focus:outline-none focus:ring-2 focus:ring-moss-500/30; }
+    .section-title { @apply font-display text-lg tracking-wide text-paper/90; }
+    .mono { @apply font-mono text-[12px] tracking-wider text-paper/70; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    .scanline { height:2px; width:100%; background:linear-gradient(90deg, transparent, #1f6b5a, transparent); }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "vue": "https://esm.sh/vue@3.5.13",
+      "vue-router": "https://esm.sh/vue-router@4.5.0?deps=vue@3.5.13",
+      "pinia": "https://esm.sh/pinia@2.3.0?deps=vue@3.5.13",
+      "lucide-vue-next": "https://esm.sh/lucide-vue-next@0.460.0?deps=vue@3.5.13",
+      "vue/server-renderer": "https://esm.sh/vue@3.5.13/server-renderer"
+    }
+  }
+  </script>
+</head>
+<body class="bg-ink-950 text-paper">
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
