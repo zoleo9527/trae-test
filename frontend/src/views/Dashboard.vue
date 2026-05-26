@@ -59,9 +59,9 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="recheck">批量转复检</el-dropdown-item>
-                <el-dropdown-item command="approve">批量推进下一阶段</el-dropdown-item>
-                <el-dropdown-item command="reject">批量驳回</el-dropdown-item>
+                <el-dropdown-item command="recheck">批量标记待复检</el-dropdown-item>
+                <el-dropdown-item command="approve">批量推进到下一待办</el-dropdown-item>
+                <el-dropdown-item command="reject">批量标记驳回</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -265,14 +265,14 @@ function openDetail(complaint: any) {
 
 async function handleBatchAction(action: string) {
   const actionLabels: Record<string, string> = {
-    recheck: '批量转复检',
-    approve: '批量推进下一阶段',
-    reject: '批量驳回',
+    recheck: '批量标记待复检',
+    approve: '批量推进到下一待办',
+    reject: '批量标记驳回',
   };
   const actionWarnings: Record<string, string> = {
-    recheck: '待处理的客诉将被标记为"复检中"',
-    approve: '将根据每条记录的当前状态自动推进到下一阶段（复检→赔付→回款→结案）',
-    reject: '选中的客诉将被标记为"已驳回"',
+    recheck: '待处理的客诉将标记为「待复检」状态',
+    approve: '根据每条记录的业务完成情况自动推进到下一待办状态\n• 待处理 → 待复检\n• 复检中（已有复检记录）→ 待赔付审批\n• 赔付审批中（已有已批准赔付）→ 待登记回款\n• 待回款（已有回款记录）→ 已结案',
+    reject: '未结案的客诉将标记为「已驳回」',
   };
 
   try {
@@ -282,7 +282,7 @@ async function handleBatchAction(action: string) {
       { type: 'warning', confirmButtonText: '确定执行', cancelButtonText: '取消' }
     );
     const result = await complaintStore.batchAction(action);
-    ElMessage.success(`操作成功：${result?.success || 0} 条${result?.failed ? `，失败：${result.failed} 条` : ''}`);
+    ElMessage.success(`操作成功：${result?.success || 0} 条${result?.failed ? `，跳过：${result.failed} 条` : ''}`);
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {
