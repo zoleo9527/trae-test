@@ -111,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from "vue";
 import type { Rectification, Recheck } from "~/types";
 
 const drawer = useDrawerStore();
@@ -138,10 +139,20 @@ function statusLabel(s: string) {
 
 async function submitRect(r: Rectification) {
   await apiPost(`/rectifications/${r.id}/submit`, {});
-  refreshRects();
+  await refreshRects();
+  await refreshRechecks();
 }
 function recheck(r: Rectification) {
   drawer.openDrawer("recheck", "整改回查", { rectification: r });
-  setTimeout(() => refreshRechecks(), 300);
 }
+
+watch(
+  () => drawer.open,
+  (open, wasOpen) => {
+    if (wasOpen && !open) {
+      refreshRects();
+      refreshRechecks();
+    }
+  },
+);
 </script>

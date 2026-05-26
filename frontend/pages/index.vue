@@ -99,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from "vue";
 import type { DashboardResponse, LeaveRequest, Recheck, Coach } from "~/types";
 
 const drawer = useDrawerStore();
@@ -145,4 +146,13 @@ function openRecheck(r: Recheck) {
 function openInspection() {
   drawer.openDrawer("inspection", "新水质巡检");
 }
+
+watch(
+  () => drawer.open,
+  (open, wasOpen) => {
+    if (wasOpen && !open) {
+      refresh();
+    }
+  },
+);
 </script>

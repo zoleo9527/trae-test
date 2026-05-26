@@ -107,6 +107,7 @@ class Course(BaseModel):
     enrolled: int = 0
     status: CourseStatus = CourseStatus.scheduled
     note: Optional[str] = None
+    consume_record_id: Optional[str] = None
 
 
 class LeaveRequest(BaseModel):

@@ -44,10 +44,10 @@
               <button class="btn-ghost" @click="updateCourse(c, 'completed')">
                 完成
               </button>
-              <button class="btn-ghost" @click="updateCourse(c, 'leave')">
+              <button class="btn-ghost" @click="openConsume(c, 'leave')">
                 请假消课
               </button>
-              <button class="btn-ghost" @click="updateCourse(c, 'cancelled')">
+              <button class="btn-ghost" @click="openConsume(c, 'cancelled')">
                 取消
               </button>
             </td>
@@ -65,6 +65,69 @@
       提示：消课后会自动写入储值记录，若已被投诉会在「投诉回看」中留痕。
     </div>
   </div>
+
+  <Teleport to="body">
+    <div
+      v-if="consumeDialog.open"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-black/30"
+      @click.self="consumeDialog.open = false"
+    >
+      <div class="w-[420px] bg-white rounded-xl shadow-xl p-5">
+        <div class="text-base font-semibold text-gray-800 mb-3">
+          选择要消课/扣费的会员
+        </div>
+        <div class="text-xs text-gray-500 mb-3">
+          课程：{{ consumeDialog.course?.title }}<br />
+          操作：{{ consumeDialog.action === "leave" ? "请假消课" : "课程取消" }}
+        </div>
+        <label class="block text-sm text-gray-600 mb-2">会员</label>
+        <select
+          v-model="consumeDialog.memberId"
+          class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+        >
+          <option value="">-- 请选择 --</option>
+          <option v-for="m in members" :key="m.id" :value="m.id">
+            {{ m.name }} · 余额¥{{ m.balance.toFixed(2) }} · 已用{{
+              m.used_sessions
+            }}/{{ m.total_sessions }}
+          </option>
+        </select>
+        <div class="grid grid-cols-2 gap-3 mt-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">扣减金额</label>
+            <input
+              v-model.number="consumeDialog.amount"
+              type="number"
+              step="0.01"
+              class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-600 mb-1">备注</label>
+            <input
+              v-model="consumeDialog.note"
+              class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+              :placeholder="
+                consumeDialog.action === 'leave' ? '请假消课' : '课程取消'
+              "
+            />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-5">
+          <button class="btn-ghost" @click="consumeDialog.open = false">
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="!consumeDialog.memberId || submitting"
+            @click="submitConsume"
+          >
+            {{ submitting ? "提交中..." : "确认" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -77,7 +140,24 @@ const { data: courses, refresh } = await useApi<Course[]>("/courses", {
   query: computed(() => ({ on_date: date.value })),
 });
 const items = computed(() => courses.value || []);
-const defaultMemberId = computed(() => members.value?.[0]?.id || "");
+const submitting = ref(false);
+
+interface ConsumeDialog {
+  open: boolean;
+  course: Course | null;
+  action: "leave" | "cancelled";
+  memberId: string;
+  amount: number;
+  note: string;
+}
+const consumeDialog = reactive<ConsumeDialog>({
+  open: false,
+  course: null,
+  action: "leave",
+  memberId: "",
+  amount: 64.0,
+  note: "",
+});
 
 function coachName(id: string) {
   return coaches.value?.find((c) => c.id === id)?.name || "-";
@@ -104,12 +184,35 @@ function statusLabel(s: string) {
 }
 
 async function updateCourse(c: Course, status: CourseStatus) {
-  const body: Record<string, unknown> = { status, note: `${status} 操作留痕` };
-  if (status === "leave" || status === "cancelled") {
-    body.member_id = defaultMemberId.value;
-    body.consume_amount = 64.0;
-  }
-  await apiPatch(`/courses/${c.id}`, body);
+  await apiPatch(`/courses/${c.id}`, { status, note: `${status} 操作留痕` });
   refresh();
+}
+
+function openConsume(c: Course, action: "leave" | "cancelled") {
+  consumeDialog.open = true;
+  consumeDialog.course = c;
+  consumeDialog.action = action;
+  consumeDialog.memberId = "";
+  consumeDialog.amount = 64.0;
+  consumeDialog.note = "";
+}
+
+async function submitConsume() {
+  if (!consumeDialog.course || !consumeDialog.memberId) return;
+  submitting.value = true;
+  try {
+    await apiPatch(`/courses/${consumeDialog.course.id}`, {
+      status: consumeDialog.action,
+      note:
+        consumeDialog.note ||
+        (consumeDialog.action === "leave" ? "请假消课" : "课程取消"),
+      member_id: consumeDialog.memberId,
+      consume_amount: consumeDialog.amount,
+    });
+    consumeDialog.open = false;
+    refresh();
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
