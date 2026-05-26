@@ -26,6 +26,21 @@ export default function DashboardPage() {
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    customer_address: '',
+    total_amount: '',
+    deposit_amount: '',
+    sales_consultant_id: '',
+    showroom_manager_id: '',
+    expected_delivery_date: '',
+    remarks: '',
+    items: [] as { product_name: string; product_code: string; quantity: number; unit_price: number; remarks?: string }[]
+  })
+  const [newItem, setNewItem] = useState({ product_name: '', product_code: '', quantity: 1, unit_price: 0 })
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -47,6 +62,53 @@ export default function DashboardPage() {
       console.error(e)
     }
     setLoading(false)
+  }
+
+  const handleCreateOrder = async () => {
+    if (!createForm.customer_name || !createForm.customer_phone || !createForm.customer_address) {
+      alert('请填写客户基本信息')
+      return
+    }
+    if (createForm.items.length === 0) {
+      alert('请至少添加一件商品')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const order = await api.createOrder({
+        ...createForm,
+        total_amount: createForm.items.reduce((s, i) => s + i.quantity * i.unit_price, 0),
+        deposit_amount: Number(createForm.deposit_amount || 0),
+        sales_consultant_id: createForm.sales_consultant_id ? Number(createForm.sales_consultant_id) : null,
+        showroom_manager_id: createForm.showroom_manager_id ? Number(createForm.showroom_manager_id) : null,
+        expected_delivery_date: createForm.expected_delivery_date ? new Date(createForm.expected_delivery_date).toISOString() : null,
+      })
+      setShowCreateModal(false)
+      setCreateForm({
+        customer_name: '', customer_phone: '', customer_address: '',
+        total_amount: '', deposit_amount: '', sales_consultant_id: '',
+        showroom_manager_id: '', expected_delivery_date: '', remarks: '', items: []
+      })
+      setNewItem({ product_name: '', product_code: '', quantity: 1, unit_price: 0 })
+      loadData()
+      window.location.href = `/orders/${order.id}`
+    } catch (e: any) {
+      alert(e.message)
+    }
+    setSubmitting(false)
+  }
+
+  const addItem = () => {
+    if (!newItem.product_name || !newItem.product_code || newItem.quantity <= 0 || newItem.unit_price <= 0) {
+      alert('请填写完整商品信息')
+      return
+    }
+    setCreateForm({ ...createForm, items: [...createForm.items, { ...newItem }] })
+    setNewItem({ product_name: '', product_code: '', quantity: 1, unit_price: 0 })
+  }
+
+  const removeItem = (idx: number) => {
+    setCreateForm({ ...createForm, items: createForm.items.filter((_, i) => i !== idx) })
   }
 
   const userName = (id: number | null) =>
@@ -136,7 +198,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
-              onClick={() => { /* TODO: create order modal */ }}
+              onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 transition"
             >
               <Plus className="w-4 h-4" />
@@ -226,6 +288,202 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">新建订单</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto scrollbar-thin flex-1 space-y-6">
+              <div>
+                <h3 className="text-sm font-medium text-slate-900 mb-3">客户信息</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">客户姓名 *</label>
+                    <input
+                      value={createForm.customer_name}
+                      onChange={e => setCreateForm({ ...createForm, customer_name: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="请输入客户姓名"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">联系电话 *</label>
+                    <input
+                      value={createForm.customer_phone}
+                      onChange={e => setCreateForm({ ...createForm, customer_phone: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="请输入联系电话"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-slate-500 mb-1">收货地址 *</label>
+                    <input
+                      value={createForm.customer_address}
+                      onChange={e => setCreateForm({ ...createForm, customer_address: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="请输入完整地址"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-slate-900 mb-3">订单信息</h3>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">定金</label>
+                    <input
+                      type="number"
+                      value={createForm.deposit_amount}
+                      onChange={e => setCreateForm({ ...createForm, deposit_amount: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">销售顾问</label>
+                    <select
+                      value={createForm.sales_consultant_id}
+                      onChange={e => setCreateForm({ ...createForm, sales_consultant_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">请选择</option>
+                      {users.filter(u => u.role === 'sales').map(u => (
+                        <option key={u.id} value={u.id}>{u.display_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">展厅经理</label>
+                    <select
+                      value={createForm.showroom_manager_id}
+                      onChange={e => setCreateForm({ ...createForm, showroom_manager_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">请选择</option>
+                      {users.filter(u => u.role === 'manager').map(u => (
+                        <option key={u.id} value={u.id}>{u.display_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">预计交付</label>
+                    <input
+                      type="date"
+                      value={createForm.expected_delivery_date}
+                      onChange={e => setCreateForm({ ...createForm, expected_delivery_date: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs text-slate-500 mb-1">备注</label>
+                  <textarea
+                    value={createForm.remarks}
+                    onChange={e => setCreateForm({ ...createForm, remarks: e.target.value })}
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="订单备注"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-slate-900 mb-3">商品清单</h3>
+                <div className="bg-slate-50 rounded-lg p-4 mb-3 space-y-2">
+                  <div className="grid grid-cols-12 gap-2">
+                    <input
+                      value={newItem.product_name}
+                      onChange={e => setNewItem({ ...newItem, product_name: e.target.value })}
+                      className="col-span-4 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="商品名称"
+                    />
+                    <input
+                      value={newItem.product_code}
+                      onChange={e => setNewItem({ ...newItem, product_code: e.target.value })}
+                      className="col-span-3 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="商品编码"
+                    />
+                    <input
+                      type="number"
+                      value={newItem.quantity}
+                      onChange={e => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                      className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="数量"
+                      min={1}
+                    />
+                    <input
+                      type="number"
+                      value={newItem.unit_price}
+                      onChange={e => setNewItem({ ...newItem, unit_price: Number(e.target.value) })}
+                      className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="单价"
+                      min={0}
+                    />
+                    <button
+                      onClick={addItem}
+                      className="col-span-1 px-3 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 flex items-center justify-center"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                {createForm.items.length === 0 ? (
+                  <p className="text-sm text-slate-400 py-4 text-center">暂未添加商品</p>
+                ) : (
+                  <div className="space-y-2">
+                    {createForm.items.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{item.product_name}</p>
+                          <p className="text-xs text-slate-500 font-mono">{item.product_code} · {item.quantity} × ¥{item.unit_price.toLocaleString()}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-slate-900">¥{(item.quantity * item.unit_price).toLocaleString()}</span>
+                          <button onClick={() => removeItem(idx)} className="text-slate-400 hover:text-red-500">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {createForm.items.length > 0 && (
+                  <div className="mt-3 flex justify-end text-sm">
+                    <span className="text-slate-500 mr-3">合计:</span>
+                    <span className="font-bold text-slate-900">¥{createForm.items.reduce((s, i) => s + i.quantity * i.unit_price, 0).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                disabled={submitting}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateOrder}
+                disabled={submitting}
+                className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {submitting ? '保存中...' : '创建订单'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

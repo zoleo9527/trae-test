@@ -174,19 +174,59 @@ export default function OrderDetailPage() {
               )}
             </div>
             <div className="px-5 py-4 grid grid-cols-3 gap-4">
-              <InfoRow label="订单号" value={order.order_no} mono />
-              <InfoRow label="总金额" value={`¥${order.total_amount.toLocaleString()}`} />
-              <InfoRow label="定金" value={`¥${order.deposit_amount.toLocaleString()}`} />
-              <InfoRow label="收货地址" value={order.customer_address} full />
-              <InfoRow
-                label="预计交付"
-                value={order.expected_delivery_date
-                  ? new Date(order.expected_delivery_date).toLocaleDateString('zh-CN')
-                  : '-'}
-              />
-              <InfoRow label="销售顾问" value={userName(order.sales_consultant_id)} />
-              <InfoRow label="展厅经理" value={userName(order.showroom_manager_id)} />
-              <InfoRow label="备注" value={order.remarks || '-'} full />
+              {editing ? (
+                <>
+                  <EditRow label="客户姓名" value={editData.customer_name || ''} onChange={v => setEditData({ ...editData, customer_name: v })} />
+                  <EditRow label="客户电话" value={editData.customer_phone || ''} onChange={v => setEditData({ ...editData, customer_phone: v })} />
+                  <EditRow
+                    label="状态"
+                    value={editData.status || order.status}
+                    onChange={v => setEditData({ ...editData, status: v })}
+                    type="select"
+                    options={Object.entries(STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))}
+                  />
+                  <EditRow label="收货地址" value={editData.customer_address || ''} onChange={v => setEditData({ ...editData, customer_address: v })} full />
+                  <EditRow label="总金额" value={editData.total_amount?.toString() || order.total_amount.toString()} onChange={v => setEditData({ ...editData, total_amount: Number(v) })} type="number" />
+                  <EditRow label="定金" value={editData.deposit_amount?.toString() || order.deposit_amount.toString()} onChange={v => setEditData({ ...editData, deposit_amount: Number(v) })} type="number" />
+                  <EditRow
+                    label="预计交付"
+                    value={editData.expected_delivery_date ? new Date(editData.expected_delivery_date).toISOString().slice(0, 10) : (order.expected_delivery_date ? new Date(order.expected_delivery_date).toISOString().slice(0, 10) : '')}
+                    onChange={v => setEditData({ ...editData, expected_delivery_date: v ? new Date(v).toISOString() : null })}
+                    type="date"
+                  />
+                  <EditRow
+                    label="销售顾问"
+                    value={(editData.sales_consultant_id || order.sales_consultant_id)?.toString() || ''}
+                    onChange={v => setEditData({ ...editData, sales_consultant_id: v ? Number(v) : null })}
+                    type="select"
+                    options={users.filter(u => u.role === 'sales').map(u => ({ value: u.id.toString(), label: u.display_name }))}
+                  />
+                  <EditRow
+                    label="展厅经理"
+                    value={(editData.showroom_manager_id || order.showroom_manager_id)?.toString() || ''}
+                    onChange={v => setEditData({ ...editData, showroom_manager_id: v ? Number(v) : null })}
+                    type="select"
+                    options={users.filter(u => u.role === 'manager').map(u => ({ value: u.id.toString(), label: u.display_name }))}
+                  />
+                  <EditRow label="备注" value={editData.remarks || ''} onChange={v => setEditData({ ...editData, remarks: v })} full textarea />
+                </>
+              ) : (
+                <>
+                  <InfoRow label="订单号" value={order.order_no} mono />
+                  <InfoRow label="总金额" value={`¥${order.total_amount.toLocaleString()}`} />
+                  <InfoRow label="定金" value={`¥${order.deposit_amount.toLocaleString()}`} />
+                  <InfoRow label="收货地址" value={order.customer_address} full />
+                  <InfoRow
+                    label="预计交付"
+                    value={order.expected_delivery_date
+                      ? new Date(order.expected_delivery_date).toLocaleDateString('zh-CN')
+                      : '-'}
+                  />
+                  <InfoRow label="销售顾问" value={userName(order.sales_consultant_id)} />
+                  <InfoRow label="展厅经理" value={userName(order.showroom_manager_id)} />
+                  <InfoRow label="备注" value={order.remarks || '-'} full />
+                </>
+              )}
             </div>
           </div>
 
@@ -215,7 +255,7 @@ export default function OrderDetailPage() {
             </div>
 
             <div className="p-5">
-              {activeTab === 'overview' && <OverviewTab order={order} />}
+              {activeTab === 'overview' && <OverviewTab order={order} onUpdate={loadOrder} />}
               {activeTab === 'configs' && <ConfigsTab order={order} onUpdate={loadOrder} />}
               {activeTab === 'arrivals' && <ArrivalsTab order={order} onUpdate={loadOrder} />}
               {activeTab === 'installations' && <InstallationsTab order={order} onUpdate={loadOrder} />}
@@ -253,26 +293,220 @@ function InfoRow({ label, value, full, mono }: { label: string; value: string; f
   )
 }
 
-function OverviewTab({ order }: { order: Order }) {
+function EditRow({
+  label, value, onChange, full, type = 'text', options, textarea
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  full?: boolean
+  type?: 'text' | 'number' | 'date' | 'select'
+  options?: { value: string; label: string }[]
+  textarea?: boolean
+}) {
+  const baseCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500'
+  return (
+    <div className={cn(full && 'col-span-3')}>
+      <label className="block text-xs text-slate-500 mb-1">{label}</label>
+      {textarea ? (
+        <textarea value={value} onChange={e => onChange(e.target.value)} rows={2} className={baseCls} />
+      ) : type === 'select' ? (
+        <select value={value} onChange={e => onChange(e.target.value)} className={baseCls}>
+          <option value="">请选择</option>
+          {options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} className={baseCls} />
+      )}
+    </div>
+  )
+}
+
+function OverviewTab({ order, onUpdate }: { order: Order; onUpdate: () => void }) {
+  const [adding, setAdding] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  const [newItem, setNewItem] = useState({ product_name: '', product_code: '', quantity: 1, unit_price: 0, remarks: '' })
+  const [editItem, setEditItem] = useState({ product_name: '', product_code: '', quantity: 1, unit_price: 0, status: '', remarks: '' })
+
+  const handleAdd = async () => {
+    if (!newItem.product_name || !newItem.product_code || newItem.quantity <= 0 || newItem.unit_price <= 0) {
+      alert('请填写完整商品信息')
+      return
+    }
+    try {
+      await api.addItem(order.id, newItem)
+      setAdding(false)
+      setNewItem({ product_name: '', product_code: '', quantity: 1, unit_price: 0, remarks: '' })
+      onUpdate()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItemId(item.id)
+    setEditItem({
+      product_name: item.product_name,
+      product_code: item.product_code,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      status: item.status,
+      remarks: item.remarks || '',
+    })
+  }
+
+  const handleSaveEdit = async (itemId: number) => {
+    try {
+      await api.updateItem(order.id, itemId, editItem)
+      setEditingItemId(null)
+      onUpdate()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  const handleDelete = async (itemId: number) => {
+    if (!confirm('确认删除此商品？')) return
+    try {
+      await api.deleteItem(order.id, itemId)
+      onUpdate()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
   return (
     <div>
-      <h3 className="text-sm font-medium text-slate-900 mb-3">商品清单</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-slate-900">商品清单</h3>
+        <button
+          onClick={() => setAdding(!adding)}
+          className="text-sm text-brand-600 hover:text-brand-700 flex items-center gap-1"
+        >
+          <PlusCircle className="w-4 h-4" /> {adding ? '取消' : '添加商品'}
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-4 p-4 bg-slate-50 rounded-lg space-y-3">
+          <div className="grid grid-cols-12 gap-2">
+            <input
+              placeholder="商品名称"
+              value={newItem.product_name}
+              onChange={e => setNewItem({ ...newItem, product_name: e.target.value })}
+              className="col-span-4 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <input
+              placeholder="商品编码"
+              value={newItem.product_code}
+              onChange={e => setNewItem({ ...newItem, product_code: e.target.value })}
+              className="col-span-3 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <input
+              type="number" placeholder="数量" min={1}
+              value={newItem.quantity}
+              onChange={e => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+              className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <input
+              type="number" placeholder="单价" min={0}
+              value={newItem.unit_price || ''}
+              onChange={e => setNewItem({ ...newItem, unit_price: Number(e.target.value) })}
+              className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button
+              onClick={handleAdd}
+              className="col-span-1 px-3 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 flex items-center justify-center"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          <input
+            placeholder="备注（可选）"
+            value={newItem.remarks}
+            onChange={e => setNewItem({ ...newItem, remarks: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
         {order.items.map(item => (
-          <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-lg">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-900">{item.product_name}</p>
-              <p className="text-xs text-slate-500 font-mono">{item.product_code} · 数量 {item.quantity}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium text-slate-900">¥{item.subtotal.toLocaleString()}</p>
-              <span className={cn(
-                'inline-block mt-1 px-2 py-0.5 text-xs rounded',
-                ITEM_STATUS_MAP[item.status]?.color
-              )}>
-                {ITEM_STATUS_MAP[item.status]?.label}
-              </span>
-            </div>
+          <div key={item.id} className="px-4 py-3 bg-slate-50 rounded-lg">
+            {editingItemId === item.id ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-12 gap-2">
+                  <input
+                    value={editItem.product_name}
+                    onChange={e => setEditItem({ ...editItem, product_name: e.target.value })}
+                    className="col-span-4 px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  />
+                  <input
+                    value={editItem.product_code}
+                    onChange={e => setEditItem({ ...editItem, product_code: e.target.value })}
+                    className="col-span-3 px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  />
+                  <input
+                    type="number" min={1}
+                    value={editItem.quantity}
+                    onChange={e => setEditItem({ ...editItem, quantity: Number(e.target.value) })}
+                    className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  />
+                  <input
+                    type="number" min={0}
+                    value={editItem.unit_price}
+                    onChange={e => setEditItem({ ...editItem, unit_price: Number(e.target.value) })}
+                    className="col-span-2 px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <input
+                  placeholder="备注"
+                  value={editItem.remarks}
+                  onChange={e => setEditItem({ ...editItem, remarks: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                />
+                <div className="flex items-center justify-between">
+                  <select
+                    value={editItem.status}
+                    onChange={e => setEditItem({ ...editItem, status: e.target.value })}
+                    className="text-sm border border-slate-200 rounded-lg px-3 py-2"
+                  >
+                    {Object.entries(ITEM_STATUS_MAP).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingItemId(null)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-md">取消</button>
+                    <button onClick={() => handleSaveEdit(item.id)} className="px-3 py-1.5 text-sm bg-brand-600 text-white rounded-md hover:bg-brand-700">保存</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-900">{item.product_name}</p>
+                  <p className="text-xs text-slate-500 font-mono">{item.product_code} · 数量 {item.quantity} × ¥{item.unit_price.toLocaleString()}</p>
+                  {item.remarks && <p className="text-xs text-slate-400 mt-1">{item.remarks}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-right mr-2">
+                    <p className="text-sm font-medium text-slate-900">¥{item.subtotal.toLocaleString()}</p>
+                    <span className={cn(
+                      'inline-block mt-1 px-2 py-0.5 text-xs rounded',
+                      ITEM_STATUS_MAP[item.status]?.color
+                    )}>
+                      {ITEM_STATUS_MAP[item.status]?.label}
+                    </span>
+                  </div>
+                  <button onClick={() => handleEdit(item)} className="text-slate-400 hover:text-brand-600 p-1">
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-500 p-1">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

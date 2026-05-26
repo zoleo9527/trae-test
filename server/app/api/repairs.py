@@ -24,9 +24,22 @@ def get_after_sales_summary(order_id: int, db: Session = Depends(get_db)):
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
 
+    now = datetime.now()
     samples = db.query(SampleLending).filter(SampleLending.order_id == order_id).all()
-    overdue_samples = [s for s in samples if s.status in ("overdue", "lost")]
-    unreturned_samples = [s for s in samples if s.status in ("lent", "overdue")]
+    overdue_samples = []
+    unreturned_samples = []
+    for s in samples:
+        if s.returned_date is None and s.status != "lost":
+            unreturned_samples.append(s)
+            if s.due_date < now and s.status != "overdue":
+                s.status = "overdue"
+                db.flush()
+            if s.status == "overdue":
+                overdue_samples.append(s)
+        elif s.status == "lost":
+            overdue_samples.append(s)
+    if overdue_samples:
+        db.commit()
 
     arrivals = db.query(Arrival).filter(Arrival.order_id == order_id).all()
     damaged_arrivals = [a for a in arrivals if a.damaged_qty > 0]
