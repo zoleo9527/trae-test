@@ -53,6 +53,8 @@ export interface ExceptionRecord {
   updatedAt: string;
   processingAt?: string;
   resolvedAt?: string;
+  rejectedAt?: string;
+  closedAt?: string;
   comments: Comment[];
   operationLogs: OperationLog[];
 }

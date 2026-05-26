@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useStore } from '@/store/useStore';
-import { financeTypeLabels, financeStatusLabels, type FinanceStatus } from '@/types';
+import { financeTypeLabels, financeStatusLabels, type FinanceStatus, type FinanceRecord } from '@/types';
 
 export default function FinanceSettlement() {
-  const { currentRole, currentUser, financeRecords, reconcileFinance, settleFinance } = useStore();
+  const { currentRole, currentUser, financeRecords, ledgerRecords, reconcileFinance, settleFinance } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showSettleModal, setShowSettleModal] = useState(false);
@@ -22,6 +22,23 @@ export default function FinanceSettlement() {
 
   const canReconcile = currentRole === 'accountant' || currentRole === 'owner';
   const canSettle = currentRole === 'accountant' || currentRole === 'owner';
+
+  const getRelatedLedger = (ledgerId?: string) => {
+    if (!ledgerId) return undefined;
+    return ledgerRecords.find((r) => r.id === ledgerId);
+  };
+
+  const canReconcileRecord = (record: FinanceRecord) => {
+    if (!canReconcile || record.status !== 'pending') return false;
+    const relatedLedger = getRelatedLedger(record.ledgerId);
+    return relatedLedger && relatedLedger.status !== 'pending';
+  };
+
+  const canSettleRecord = (record: FinanceRecord) => {
+    if (!canSettle || record.status !== 'reconciled') return false;
+    const relatedLedger = getRelatedLedger(record.ledgerId);
+    return relatedLedger && (relatedLedger.status === 'reconciled' || relatedLedger.status === 'settled');
+  };
 
   const filteredRecords = financeRecords.filter((record) => {
     const matchSearch =
@@ -189,17 +206,29 @@ export default function FinanceSettlement() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {record.status === 'pending' && canReconcile && (
-                        <Button variant="ghost" size="sm" onClick={() => handleReconcile(record.id)}>
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          对账
-                        </Button>
+                      {record.status === 'pending' && (
+                        canReconcileRecord(record) ? (
+                          <Button variant="ghost" size="sm" onClick={() => handleReconcile(record.id)}>
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            对账
+                          </Button>
+                        ) : (
+                          <div className="text-xs text-gray-400">
+                            等待台账审核
+                          </div>
+                        )
                       )}
-                      {record.status === 'reconciled' && canSettle && (
-                        <Button variant="ghost" size="sm" onClick={() => { setSelectedId(record.id); setShowSettleModal(true); }}>
-                          <DollarSign className="w-4 h-4 mr-1" />
-                          结算
-                        </Button>
+                      {record.status === 'reconciled' && (
+                        canSettleRecord(record) ? (
+                          <Button variant="ghost" size="sm" onClick={() => { setSelectedId(record.id); setShowSettleModal(true); }}>
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            结算
+                          </Button>
+                        ) : (
+                          <div className="text-xs text-gray-400">
+                            等待台账对账
+                          </div>
+                        )
                       )}
                     </td>
                   </tr>

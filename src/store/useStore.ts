@@ -131,43 +131,41 @@ export const useStore = create<AppState>((set, get) => ({
 
       const relatedFinance = state.financeRecords.find((f) => f.ledgerId === id);
       
-      const updateLedger = (r: LedgerRecord) => ({
-        ...r,
-        status,
-        verifiedAt: status === 'verified' ? now : r.verifiedAt,
-        reconciledAt: status === 'reconciled' ? now : r.reconciledAt,
-        settledAt: status === 'settled' ? now : r.settledAt,
-        operationLogs: [
-          ...r.operationLogs,
-          {
-            id: `log-${Date.now()}`,
-            action: `状态更新为${status}`,
-            userId,
-            userName,
-            oldValue: r.status,
-            newValue: status,
-            createdAt: now,
-          },
-        ],
-      });
-
-      const updateFinance = relatedFinance ? (f: FinanceRecord) => {
-        if (f.ledgerId !== id) return f;
-        if (status === 'verified' && f.status === 'pending') {
-          return { ...f, status: 'pending' as const };
-        }
-        if (status === 'reconciled') {
-          return { ...f, status: 'reconciled' as const, reconciledBy: userName, reconciledAt: now };
-        }
-        if (status === 'settled') {
-          return { ...f, status: 'settled' as const, settledAt: now };
-        }
-        return f;
-      } : undefined;
-
       return {
-        ledgerRecords: state.ledgerRecords.map(updateLedger),
-        financeRecords: updateFinance ? state.financeRecords.map(updateFinance) : state.financeRecords,
+        ledgerRecords: state.ledgerRecords.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                status,
+                verifiedAt: status === 'verified' ? now : r.verifiedAt,
+                reconciledAt: status === 'reconciled' ? now : r.reconciledAt,
+                settledAt: status === 'settled' ? now : r.settledAt,
+                operationLogs: [
+                  ...r.operationLogs,
+                  {
+                    id: `log-${Date.now()}`,
+                    action: `状态更新为${status}`,
+                    userId,
+                    userName,
+                    oldValue: r.status,
+                    newValue: status,
+                    createdAt: now,
+                  },
+                ],
+              }
+            : r
+        ),
+        financeRecords: relatedFinance
+          ? state.financeRecords.map((f) =>
+              f.ledgerId === id
+                ? status === 'reconciled'
+                  ? { ...f, status: 'reconciled' as const, reconciledBy: userName, reconciledAt: now }
+                  : status === 'settled'
+                    ? { ...f, status: 'settled' as const, settledAt: now }
+                    : f
+                : f
+            )
+          : state.financeRecords,
       };
     });
   },
@@ -223,6 +221,8 @@ export const useStore = create<AppState>((set, get) => ({
               updatedAt: now,
               processingAt: status === 'processing' ? now : e.processingAt,
               resolvedAt: status === 'resolved' ? now : e.resolvedAt,
+              rejectedAt: status === 'rejected' ? now : e.rejectedAt,
+              closedAt: status === 'closed' ? now : e.closedAt,
               comments: comment
                 ? [
                     ...e.comments,
