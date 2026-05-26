@@ -91,6 +91,7 @@ router.get('/warehouses', authMiddleware, (req, res) => {
 
 router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'), (req, res) => {
   const { warehouseId, productId, lowStock } = req.query;
+  const user = req.user;
   let sql = `
     SELECT 
       p.id as product_id,
@@ -110,6 +111,11 @@ router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'),
     WHERE b.available_quantity > 0
   `;
   const params = [];
+  
+  if (user.role !== 'manager') {
+    sql += ' AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+    params.push(user.id);
+  }
   
   if (warehouseId) {
     sql += ' AND b.warehouse_id = ?';
@@ -134,6 +140,7 @@ router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'),
 
 router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory:view'), (req, res) => {
   const { warehouseId, productId, expiringSoon } = req.query;
+  const user = req.user;
   let sql = `
     SELECT 
       b.*,
@@ -149,6 +156,11 @@ router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory
     WHERE 1=1
   `;
   const params = [];
+  
+  if (user.role !== 'manager') {
+    sql += ' AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+    params.push(user.id);
+  }
   
   if (warehouseId) {
     sql += ' AND b.warehouse_id = ?';
@@ -170,6 +182,7 @@ router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory
 
 router.get('/stock-take', authMiddleware, permissionMiddleware('stock_take:view'), (req, res) => {
   const { status, warehouseId } = req.query;
+  const user = req.user;
   let sql = `
     SELECT 
       sp.*,
@@ -188,6 +201,11 @@ router.get('/stock-take', authMiddleware, permissionMiddleware('stock_take:view'
     WHERE 1=1
   `;
   const params = [];
+  
+  if (user.role !== 'manager') {
+    sql += ' AND sp.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+    params.push(user.id);
+  }
   
   if (status) {
     sql += ' AND sp.status = ?';
@@ -231,11 +249,15 @@ router.get('/stock-take/:id', authMiddleware, permissionMiddleware('stock_take:v
       p.sku,
       p.category,
       p.spec,
-      p.unit
+      p.unit,
+      b.batch_no,
+      b.production_date,
+      b.expiry_date
     FROM stock_take_items si
     LEFT JOIN products p ON si.product_id = p.id
+    LEFT JOIN inventory_batches b ON si.batch_id = b.id
     WHERE si.plan_id = ?
-    ORDER BY si.id
+    ORDER BY si.product_id, si.id
   `).all(req.params.id);
   
   const relatedLosses = db.prepare(`
@@ -268,18 +290,20 @@ router.post('/stock-take', authMiddleware, permissionMiddleware('stock_take:crea
   
   if (product_ids && product_ids.length > 0) {
     const itemInsert = db.prepare(`
-      INSERT INTO stock_take_items (plan_id, product_id, system_quantity, unit_price, check_result, remark)
-      VALUES (?, ?, ?, ?, 'pending', '待盘点')
+      INSERT INTO stock_take_items (plan_id, product_id, batch_id, system_quantity, unit_price, check_result, remark)
+      VALUES (?, ?, ?, ?, ?, 'pending', '待盘点')
     `);
     
-    product_ids.forEach(pid => {
-      const inv = db.prepare(`
-        SELECT SUM(available_quantity) as qty, AVG(unit_price) as price
-        FROM inventory_batches 
-        WHERE product_id = ? AND warehouse_id = ?
-      `).get(pid, warehouse_id);
-      
-      itemInsert.run(planId, pid, inv?.qty || 0, inv?.price || 0);
+    const placeholders = product_ids.map(() => '?').join(',');
+    const batches = db.prepare(`
+      SELECT id, product_id, available_quantity, unit_price
+      FROM inventory_batches 
+      WHERE product_id IN (${placeholders}) AND warehouse_id = ? AND available_quantity > 0
+      ORDER BY product_id, id
+    `).all(...product_ids, warehouse_id);
+    
+    batches.forEach(batch => {
+      itemInsert.run(planId, batch.product_id, batch.id, batch.available_quantity, batch.unit_price);
     });
   }
   
@@ -341,6 +365,7 @@ router.put('/stock-take/:id/items/:itemId', authMiddleware, permissionMiddleware
 
 router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:view'), (req, res) => {
   const { status, loss_type, warehouseId } = req.query;
+  const user = req.user;
   let sql = `
     SELECT 
       lr.*,
@@ -358,6 +383,11 @@ router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:vi
     WHERE 1=1
   `;
   const params = [];
+  
+  if (user.role !== 'manager') {
+    sql += ' AND lr.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+    params.push(user.id);
+  }
   
   if (status) {
     sql += ' AND lr.status = ?';
@@ -511,32 +541,40 @@ router.put('/loss-reports/:id/approve', authMiddleware, permissionMiddleware('lo
 });
 
 router.get('/dashboard/summary', authMiddleware, (req, res) => {
+  const user = req.user;
+  const warehouseFilter = user.role === 'manager' ? '' : 'AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+  const warehouseParams = user.role === 'manager' ? [] : [user.id];
+  
   const totalInventory = db.prepare(`
     SELECT 
       COUNT(DISTINCT product_id) as product_count,
       SUM(available_quantity) as total_quantity,
       SUM(available_quantity * unit_price) as total_value
-    FROM inventory_batches
-  `).get();
+    FROM inventory_batches b
+    WHERE 1=1 ${warehouseFilter}
+  `).get(...warehouseParams);
   
   const lowStock = db.prepare(`
     SELECT COUNT(*) as count
     FROM (
       SELECT product_id, warehouse_id, SUM(available_quantity) as qty
-      FROM inventory_batches 
+      FROM inventory_batches b
+      WHERE 1=1 ${warehouseFilter}
       GROUP BY product_id, warehouse_id
       HAVING qty < 20
     )
-  `).get();
+  `).get(...warehouseParams);
   
   const expiring = db.prepare(`
     SELECT COUNT(*) as count
-    FROM inventory_batches 
+    FROM inventory_batches b
     WHERE expiry_date <= DATE("now", "+6 month") AND available_quantity > 0
-  `).get();
+    ${warehouseFilter}
+  `).get(...warehouseParams);
   
-  const pendingTake = db.prepare("SELECT COUNT(*) as count FROM stock_take_plans WHERE status IN ('pending', 'in_progress')").get();
-  const pendingLoss = db.prepare("SELECT COUNT(*) as count FROM loss_reports WHERE status IN ('pending', 'reviewed')").get();
+  const planFilter = user.role === 'manager' ? '' : 'AND warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
+  const pendingTake = db.prepare(`SELECT COUNT(*) as count FROM stock_take_plans WHERE status IN ('pending', 'in_progress') ${planFilter}`).get(...warehouseParams);
+  const pendingLoss = db.prepare(`SELECT COUNT(*) as count FROM loss_reports WHERE status IN ('pending', 'reviewed') ${planFilter}`).get(...warehouseParams);
   
   const thisMonthLoss = db.prepare(`
     SELECT 
@@ -544,7 +582,8 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       COALESCE(SUM(total_amount), 0) as total_amount
     FROM loss_reports 
     WHERE status = 'approved' AND strftime('%Y-%m', approved_at) = strftime('%Y-%m', 'now')
-  `).get();
+    ${planFilter}
+  `).get(...warehouseParams);
   
   const lossByType = db.prepare(`
     SELECT 
@@ -553,9 +592,9 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       SUM(total_quantity) as total_quantity,
       SUM(total_amount) as total_amount
     FROM loss_reports 
-    WHERE status = 'approved'
+    WHERE status = 'approved' ${planFilter}
     GROUP BY loss_type
-  `).all();
+  `).all(...warehouseParams);
   
   const lossByResponsibility = db.prepare(`
     SELECT 
@@ -565,9 +604,9 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       SUM(li.amount) as total_amount
     FROM loss_items li
     LEFT JOIN loss_reports lr ON li.report_id = lr.id
-    WHERE lr.status = 'approved'
+    WHERE lr.status = 'approved' ${planFilter}
     GROUP BY li.responsibility
-  `).all();
+  `).all(...warehouseParams);
   
   const recentActivities = db.prepare(`
     SELECT * FROM operation_logs 
@@ -638,7 +677,7 @@ router.get('/dashboard/loss-trend', authMiddleware, (req, res) => {
   res.json(data);
 });
 
-router.get('/operation-logs', authMiddleware, (req, res) => {
+router.get('/operation-logs', authMiddleware, permissionMiddleware('log:view'), (req, res) => {
   const { module, recordId, limit = 50 } = req.query;
   let sql = 'SELECT * FROM operation_logs WHERE 1=1';
   const params = [];
@@ -659,7 +698,7 @@ router.get('/operation-logs', authMiddleware, (req, res) => {
   res.json(logs);
 });
 
-router.get('/price-adjustments', authMiddleware, (req, res) => {
+router.get('/price-adjustments', authMiddleware, permissionMiddleware('price:view'), (req, res) => {
   const { productId, status } = req.query;
   let sql = `
     SELECT 

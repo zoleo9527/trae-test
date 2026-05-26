@@ -95,11 +95,12 @@ export default function StockTakeDetail({ user }) {
     
     const lossItems = shortageItems.map(item => ({
       product_id: item.product_id,
+      batch_id: item.batch_id,
       quantity: Math.abs(item.difference),
       unit_price: item.unit_price,
       amount: Math.abs(item.difference_amount),
       responsibility: 'company',
-      remark: `盘点盘亏: ${item.product_name}`
+      remark: `盘点盘亏: ${item.product_name}${item.batch_no ? ` (批次: ${item.batch_no})` : ''}`
     }));
 
     const lossData = {
@@ -231,7 +232,7 @@ export default function StockTakeDetail({ user }) {
 
       <div className="card">
         <div className="card-header">
-          <h3 className="font-semibold text-gray-800">盘点明细</h3>
+          <h3 className="font-semibold text-gray-800">盘点明细（按批次）</h3>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>系统库存合计: {formatNumber(items.reduce((s, i) => s + i.system_quantity, 0))}</span>
             <span>|</span>
@@ -243,6 +244,8 @@ export default function StockTakeDetail({ user }) {
             <thead>
               <tr>
                 <th>产品信息</th>
+                <th>批次号</th>
+                <th>生产日期</th>
                 <th>分类</th>
                 <th className="text-right">系统库存</th>
                 <th className="text-right">实际库存</th>
@@ -261,6 +264,12 @@ export default function StockTakeDetail({ user }) {
                     <td>
                       <div className="font-medium text-gray-800">{item.product_name}</div>
                       <div className="text-xs text-gray-500">{item.sku} · {item.spec}</div>
+                    </td>
+                    <td>
+                      <span className="font-mono text-sm text-tea-600">{item.batch_no || '-'}</span>
+                    </td>
+                    <td className="text-gray-600 text-sm">
+                      {item.production_date ? formatDate(item.production_date) : '-'}
                     </td>
                     <td>
                       <span className="badge badge-info">{item.category}</span>

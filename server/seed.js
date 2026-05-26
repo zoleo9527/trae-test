@@ -141,42 +141,48 @@ function seed() {
 
     const stockTakeItems = [];
     const takeResults = [
-      { plan: 1, prod: 1, sys: 150, actual: 148, diff: -2, result: 'shortage', remark: '盘亏2盒，待查原因' },
-      { plan: 1, prod: 2, sys: 200, actual: 200, diff: 0, result: 'normal', remark: '账实相符' },
-      { plan: 1, prod: 3, sys: 100, actual: 98, diff: -2, result: 'shortage', remark: '盘亏2盒，确认破损' },
-      { plan: 1, prod: 4, sys: 90, actual: 90, diff: 0, result: 'normal', remark: '账实相符' },
-      { plan: 1, prod: 5, sys: 50, actual: 50, diff: 0, result: 'normal', remark: '账实相符' },
-      { plan: 1, prod: 6, sys: 150, actual: 149, diff: -1, result: 'shortage', remark: '盘亏1饼，仓库人员误拿' },
-      { plan: 2, prod: 3, sys: 98, actual: 98, diff: 0, result: 'normal', remark: '专项核对无误' },
-      { plan: 2, prod: 4, sys: 90, actual: 90, diff: 0, result: 'normal', remark: '专项核对无误' },
-      { plan: 3, prod: 1, sys: 148, actual: 145, diff: -3, result: 'shortage', remark: '盘亏3盒，其中2盒为试饮消耗，1盒待查' },
-      { plan: 3, prod: 2, sys: 200, actual: 198, diff: -2, result: 'shortage', remark: '盘亏2盒，客户样品' },
-      { plan: 3, prod: 3, sys: 98, actual: 98, diff: 0, result: 'normal', remark: '账实相符' },
-      { plan: 3, prod: 7, sys: 30, actual: 29, diff: -1, result: 'shortage', remark: '盘亏1饼，包装破损' },
-      { plan: 4, prod: 1, sys: 25, actual: 25, diff: 0, result: 'normal', remark: '账实相符' },
-      { plan: 5, prod: 5, sys: 50, actual: null, diff: null, result: null, remark: '待盘点' },
-      { plan: 5, prod: 7, sys: 29, actual: null, diff: null, result: null, remark: '待盘点' },
-      { plan: 5, prod: 3, sys: 98, actual: null, diff: null, result: null, remark: '待盘点' }
+      { plan: 1, prod: 1, batch: 1, sys: 120, actual: 118, diff: -2, result: 'shortage', remark: '盘亏2盒，客户品鉴用茶' },
+      { plan: 1, prod: 1, batch: 2, sys: 80, actual: 80, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 1, prod: 2, batch: 3, sys: 200, actual: 200, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 1, prod: 3, batch: 4, sys: 60, actual: 58, diff: -2, result: 'shortage', remark: '盘亏2盒，仓储破损' },
+      { plan: 1, prod: 3, batch: 5, sys: 40, actual: 40, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 1, prod: 4, batch: 6, sys: 90, actual: 90, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 1, prod: 5, batch: 7, sys: 50, actual: 50, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 1, prod: 6, batch: 8, sys: 150, actual: 149, diff: -1, result: 'shortage', remark: '盘亏1饼，仓库人员误拿' },
+      { plan: 2, prod: 3, batch: 4, sys: 58, actual: 58, diff: 0, result: 'normal', remark: '专项核对无误' },
+      { plan: 2, prod: 3, batch: 5, sys: 40, actual: 40, diff: 0, result: 'normal', remark: '专项核对无误' },
+      { plan: 2, prod: 4, batch: 6, sys: 90, actual: 90, diff: 0, result: 'normal', remark: '专项核对无误' },
+      { plan: 3, prod: 1, batch: 1, sys: 118, actual: 115, diff: -3, result: 'shortage', remark: '盘亏3盒，2盒试饮1盒待查' },
+      { plan: 3, prod: 1, batch: 2, sys: 80, actual: 80, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 3, prod: 2, batch: 3, sys: 200, actual: 198, diff: -2, result: 'shortage', remark: '盘亏2盒，客户样品' },
+      { plan: 3, prod: 3, batch: 4, sys: 58, actual: 58, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 3, prod: 7, batch: 9, sys: 30, actual: 29, diff: -1, result: 'shortage', remark: '盘亏1饼，包装破损' },
+      { plan: 4, prod: 1, batch: 13, sys: 25, actual: 25, diff: 0, result: 'normal', remark: '账实相符' },
+      { plan: 5, prod: 5, batch: 7, sys: 50, actual: null, diff: null, result: null, remark: '待盘点' },
+      { plan: 5, prod: 7, batch: 9, sys: 29, actual: null, diff: null, result: null, remark: '待盘点' },
+      { plan: 5, prod: 3, batch: 4, sys: 58, actual: null, diff: null, result: null, remark: '待盘点' }
     ];
 
     takeResults.forEach((item, idx) => {
       const product = products[item.prod - 1];
-      const diffAmount = item.diff ? (item.diff * product.base_price).toFixed(2) : null;
+      const batch = batches[item.batch - 1];
+      const diffAmount = item.diff ? (item.diff * batch.unit_price).toFixed(2) : null;
       stockTakeItems.push({
         plan_id: item.plan,
         product_id: item.prod,
+        batch_id: item.batch,
         system_quantity: item.sys,
         actual_quantity: item.actual,
         difference: item.diff,
-        unit_price: product.base_price,
+        unit_price: batch.unit_price,
         difference_amount: diffAmount,
         check_result: item.result,
         remark: item.remark
       });
     });
 
-    const takeItemInsert = db.prepare('INSERT INTO stock_take_items (plan_id, product_id, system_quantity, actual_quantity, difference, unit_price, difference_amount, check_result, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    stockTakeItems.forEach(i => takeItemInsert.run(i.plan_id, i.product_id, i.system_quantity, i.actual_quantity, i.difference, i.unit_price, i.difference_amount, i.check_result, i.remark));
+    const takeItemInsert = db.prepare('INSERT INTO stock_take_items (plan_id, product_id, batch_id, system_quantity, actual_quantity, difference, unit_price, difference_amount, check_result, remark) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stockTakeItems.forEach(i => takeItemInsert.run(i.plan_id, i.product_id, i.batch_id, i.system_quantity, i.actual_quantity, i.difference, i.unit_price, i.difference_amount, i.check_result, i.remark));
 
     const lossReports = [
       {

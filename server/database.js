@@ -84,6 +84,7 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       plan_id INTEGER NOT NULL,
       product_id INTEGER NOT NULL,
+      batch_id INTEGER,
       system_quantity INTEGER NOT NULL DEFAULT 0,
       actual_quantity INTEGER,
       difference INTEGER,
@@ -93,7 +94,8 @@ function initDatabase() {
       remark TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (plan_id) REFERENCES stock_take_plans(id),
-      FOREIGN KEY (product_id) REFERENCES products(id)
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (batch_id) REFERENCES inventory_batches(id)
     );
 
     CREATE TABLE IF NOT EXISTS loss_reports (

@@ -58,7 +58,7 @@ export default function StockTake({ user }) {
     }
   }
 
-  const canCreate = user.role === 'manager' || user.role === 'warehouse';
+  const canCreate = user.role === 'manager';
   const canExecute = user.role === 'manager' || user.role === 'warehouse';
 
   async function handleCreate() {
