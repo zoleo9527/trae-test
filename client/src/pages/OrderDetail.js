@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Descriptions, Tag, Button, Space, List, Input, Form, message, Timeline, Avatar, Modal, Select, Steps } from 'antd';
+import { Card, Descriptions, Tag, Button, Space, List, Input, Form, message, Timeline, Avatar, Modal, Select, Steps, Checkbox } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, TruckOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { orderAPI, approvalAPI } from '../services/api';
@@ -298,7 +298,7 @@ function OrderDetail() {
                   <Input placeholder="添加备注..." style={{ width: 300 }} />
                 </Form.Item>
                 <Form.Item name="is_supplement" valuePropName="checked" style={{ marginBottom: 0 }}>
-                  <Button type="text">补录</Button>
+                  <Checkbox>补录</Checkbox>
                 </Form.Item>
                 <Form.Item style={{ marginBottom: 0 }}>
                   <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>添加</Button>

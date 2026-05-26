@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -6,6 +6,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -59,7 +60,7 @@ function SortableFollowupItem({ item, onComplete, onDelete }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id });
+  } = useSortable({ id: item.id, data: { type: 'followup', item } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -134,6 +135,43 @@ function SortableFollowupItem({ item, onComplete, onDelete }) {
   );
 }
 
+function DroppableColumn({ date, dateStr, items, onAddClick, children }) {
+  return (
+    <Col span={24 / 7}>
+      <Card
+        size="small"
+        title={
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: '#999' }}>{date.format('MM/DD')}</div>
+            <div style={{ fontSize: 12 }}>
+              {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.day()]}
+            </div>
+            {date.isSame(dayjs(), 'day') && <Tag color="blue" size="small">今天</Tag>}
+          </div>
+        }
+        style={{ height: '100%' }}
+        bodyStyle={{ minHeight: 400, padding: 8 }}
+        extra={
+          <Button
+            type="text"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => onAddClick(date)}
+          />
+        }
+      >
+        <SortableContext
+          id={dateStr}
+          items={items.map(f => f.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {children}
+        </SortableContext>
+      </Card>
+    </Col>
+  );
+}
+
 function Followups() {
   const [followups, setFollowups] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -144,11 +182,14 @@ function Followups() {
   const [modalVisible, setModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [completingItem, setCompletingItem] = useState(null);
+  const [activeId, setActiveId] = useState(null);
   const [form] = Form.useForm();
   const [completeForm] = Form.useForm();
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -175,7 +216,7 @@ function Followups() {
   };
 
   const loadTrials = async () => {
-    const data = await trialAPI.getAll({ status: 'completed' });
+    const data = await trialAPI.getAll();
     setTrials(data);
   };
 
@@ -198,25 +239,100 @@ function Followups() {
     }
   };
 
+  const findContainer = (id) => {
+    if (id in getFollowupsByDateGroup()) return id;
+    const item = followups.find(f => f.id === id);
+    return item ? item.scheduled_date : null;
+  };
+
+  const getFollowupsByDateGroup = useCallback(() => {
+    const groups = {};
+    const start = dateRange[0];
+    const days = dateRange[1].diff(dateRange[0], 'day') + 1;
+    for (let i = 0; i < days; i++) {
+      const date = start.add(i, 'day');
+      const dateStr = date.format('YYYY-MM-DD');
+      groups[dateStr] = followups.filter(f => f.scheduled_date === dateStr);
+    }
+    return groups;
+  }, [followups, dateRange]);
+
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
   const handleDragEnd = async (event) => {
     const { active, over } = event;
+    setActiveId(null);
 
-    if (active.id !== over?.id) {
-      const oldIndex = followups.findIndex((item) => item.id === active.id);
-      const newIndex = followups.findIndex((item) => item.id === over?.id);
+    if (!over) return;
 
-      const newItems = arrayMove(followups, oldIndex, newIndex);
-      setFollowups(newItems);
+    const activeId = active.id;
+    const overId = over.id;
+
+    const activeItem = followups.find(f => f.id === activeId);
+    if (!activeItem) return;
+
+    const activeContainer = activeItem.scheduled_date;
+    const overContainer = findContainer(overId);
+
+    if (!overContainer) return;
+
+    if (activeContainer === overContainer) {
+      const items = getFollowupsByDateGroup()[activeContainer] || [];
+      const oldIndex = items.findIndex(item => item.id === activeId);
+      const overIndex = items.findIndex(item => item.id === overId);
+
+      if (oldIndex !== overIndex) {
+        const newItems = arrayMove(items, oldIndex, overIndex);
+        const newFollowups = followups.map(f => {
+          const idx = newItems.findIndex(item => item.id === f.id);
+          if (idx !== -1) {
+            return { ...f, scheduled_time: newItems[idx].scheduled_time };
+          }
+          return f;
+        });
+        setFollowups(newFollowups);
+      }
+    } else {
+      const newScheduledDate = overContainer;
+
+      try {
+        await followupAPI.update(activeId, {
+          scheduled_date: newScheduledDate,
+          scheduled_time: activeItem.scheduled_time,
+        });
+        
+        const newFollowups = followups.map(f => {
+          if (f.id === activeId) {
+            return { ...f, scheduled_date: newScheduledDate };
+          }
+          return f;
+        });
+        setFollowups(newFollowups);
+        message.success('已更新回访日期');
+      } catch (error) {
+        message.error('更新失败');
+        console.error(error);
+      }
     }
   };
 
   const handleCreate = async (values) => {
     try {
+      const trial = trials.find(t => t.id === values.trial_id);
+      if (trial && trial.customer_id !== values.customer_id) {
+        message.error('所选试饮记录与客户不匹配');
+        return;
+      }
+
       await followupAPI.create({
-        ...values,
+        trial_id: values.trial_id,
+        customer_id: values.customer_id,
         assigned_staff_id: selectedStaff,
         scheduled_date: values.scheduled_date.format('YYYY-MM-DD'),
         scheduled_time: values.scheduled_time,
+        followup_type: values.followup_type,
       });
       message.success('创建成功');
       setModalVisible(false);
@@ -239,7 +355,6 @@ function Followups() {
       message.success('回访完成');
       setCompleteModalVisible(false);
       completeForm.resetFields();
-      loadFollowups();
 
       if (values.next_followup_date) {
         await followupAPI.create({
@@ -250,6 +365,7 @@ function Followups() {
           followup_type: completingItem.followup_type,
         });
       }
+      loadFollowups();
     } catch (error) {
       message.error('操作失败');
     }
@@ -265,9 +381,15 @@ function Followups() {
     }
   };
 
-  const getFollowupsByDate = (date) => {
-    return followups.filter(f => f.scheduled_date === date);
+  const handleCustomerChange = (customerId) => {
+    form.setFieldValue('trial_id', undefined);
   };
+
+  const filteredTrials = trials.filter(t => 
+    !form.getFieldValue('customer_id') || t.customer_id === form.getFieldValue('customer_id')
+  );
+
+  const activeItem = activeId ? followups.find(f => f.id === activeId) : null;
 
   const generateDateColumns = () => {
     const columns = [];
@@ -277,60 +399,31 @@ function Followups() {
     for (let i = 0; i < days; i++) {
       const date = start.add(i, 'day');
       const dateStr = date.format('YYYY-MM-DD');
-      const dayFollowups = getFollowupsByDate(dateStr);
-      const isToday = date.isSame(dayjs(), 'day');
+      const dayFollowups = getFollowupsByDateGroup()[dateStr] || [];
 
       columns.push(
-        <Col key={dateStr} span={24 / Math.min(days, 7)}>
-          <Card
-            size="small"
-            title={
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 12, color: '#999' }}>{date.format('MM/DD')}</div>
-                <div style={{ fontSize: 12 }}>
-                  {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.day()]}
-                </div>
-                {isToday && <Tag color="blue" size="small">今天</Tag>}
-              </div>
-            }
-            style={{ height: '100%' }}
-            bodyStyle={{ minHeight: 400, padding: 8 }}
-            extra={
-              <Button
-                type="text"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  form.setFieldsValue({ scheduled_date: date });
-                  setModalVisible(true);
-                }}
-              />
-            }
-          >
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={dayFollowups.map(f => f.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {dayFollowups.map(item => (
-                  <SortableFollowupItem
-                    key={item.id}
-                    item={item}
-                    onComplete={(item) => {
-                      setCompletingItem(item);
-                      setCompleteModalVisible(true);
-                    }}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          </Card>
-        </Col>
+        <DroppableColumn
+          key={dateStr}
+          date={date}
+          dateStr={dateStr}
+          items={dayFollowups}
+          onAddClick={(d) => {
+            form.setFieldsValue({ scheduled_date: d });
+            setModalVisible(true);
+          }}
+        >
+          {dayFollowups.map(item => (
+            <SortableFollowupItem
+              key={item.id}
+              item={item}
+              onComplete={(item) => {
+                setCompletingItem(item);
+                setCompleteModalVisible(true);
+              }}
+              onDelete={handleDelete}
+            />
+          ))}
+        </DroppableColumn>
       );
     }
     return columns;
@@ -365,9 +458,32 @@ function Followups() {
         </Space>
       </Card>
 
-      <Row gutter={8}>
-        {generateDateColumns()}
-      </Row>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <Row gutter={8}>
+          {generateDateColumns()}
+        </Row>
+        <DragOverlay>
+          {activeItem ? (
+            <div className="drag-item" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+              <Space>
+                <Avatar size="small" style={{ backgroundColor: '#1890ff' }}>{activeItem.customer_name?.[0]}</Avatar>
+                <strong>{activeItem.customer_name}</strong>
+                <Tag color={followupTypeColors[activeItem.followup_type]} size="small">
+                  {followupTypeLabels[activeItem.followup_type]}
+                </Tag>
+              </Space>
+              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                {activeItem.product_name}
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       <Modal
         title="新建回访任务"
@@ -385,7 +501,7 @@ function Followups() {
             name="customer_id"
             rules={[{ required: true, message: '请选择客户' }]}
           >
-            <Select placeholder="选择客户">
+            <Select placeholder="选择客户" onChange={handleCustomerChange}>
               {customers.map(c => (
                 <Option key={c.id} value={c.id}>{c.name} - {c.company}</Option>
               ))}
@@ -397,7 +513,7 @@ function Followups() {
             rules={[{ required: true, message: '请选择试饮记录' }]}
           >
             <Select placeholder="选择试饮记录">
-              {trials.map(t => (
+              {filteredTrials.map(t => (
                 <Option key={t.id} value={t.id}>{t.customer_name} - {t.product_name}</Option>
               ))}
             </Select>
@@ -413,7 +529,7 @@ function Followups() {
             label="回访时间"
             name="scheduled_time"
           >
-            <Select placeholder="选择时间（可选）">
+            <Select placeholder="选择时间（可选）" allowClear>
               <Option value="09:00">09:00</Option>
               <Option value="10:00">10:00</Option>
               <Option value="11:00">11:00</Option>

@@ -101,6 +101,15 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const { trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type } = req.body;
+
+    const trial = db.prepare('SELECT customer_id FROM trial_records WHERE id = ?').get(trial_id);
+    if (!trial) {
+      return res.status(400).json({ error: '试饮记录不存在' });
+    }
+    if (trial.customer_id !== customer_id) {
+      return res.status(400).json({ error: '试饮记录与所选客户不匹配' });
+    }
+
     const id = uuidv4();
     const now = new Date().toISOString();
     
@@ -169,6 +178,34 @@ router.delete('/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM followup_tasks WHERE id = ?').run(req.params.id);
     res.json({ message: '删除成功' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/batch-update', (req, res) => {
+  try {
+    const { updates } = req.body;
+    const now = new Date().toISOString();
+
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ error: 'updates必须是数组' });
+    }
+
+    const updateStmt = db.prepare(`
+      UPDATE followup_tasks 
+      SET scheduled_date = ?, scheduled_time = ?, updated_at = ?
+      WHERE id = ?
+    `);
+
+    const updateMany = db.transaction((items) => {
+      for (const item of items) {
+        updateStmt.run(item.scheduled_date, item.scheduled_time || null, now, item.id);
+      }
+    });
+
+    updateMany(updates);
+    res.json({ success: true, updated: updates.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

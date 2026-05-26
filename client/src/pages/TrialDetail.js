@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Descriptions, Tag, Button, Space, List, Input, Form, message, Rate, Avatar } from 'antd';
+import { Card, Descriptions, Tag, Button, Space, List, Input, Form, message, Rate, Avatar, Checkbox } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, PhoneOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { trialAPI } from '../services/api';
@@ -172,7 +172,7 @@ function TrialDetail() {
                   <Input placeholder="添加备注..." style={{ width: 300 }} />
                 </Form.Item>
                 <Form.Item name="is_supplement" valuePropName="checked" style={{ marginBottom: 0 }}>
-                  <Button type="text">补录</Button>
+                  <Checkbox>补录</Checkbox>
                 </Form.Item>
                 <Form.Item style={{ marginBottom: 0 }}>
                   <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>添加</Button>
