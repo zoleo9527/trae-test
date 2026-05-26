@@ -161,6 +161,48 @@ class ActivitySubmissionSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class PriceApprovalToActivitySerializer(serializers.Serializer):
+    activity_type = serializers.ChoiceField(choices=ActivitySubmission.ACTIVITY_TYPE_CHOICES)
+    activity_name = serializers.CharField(max_length=128)
+    activity_period_from = serializers.DateField()
+    activity_period_to = serializers.DateField()
+    target_sales_quantity = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, default=0,
+    )
+    budget = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, default=0,
+    )
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate(self, attrs):
+        if attrs['activity_period_to'] < attrs['activity_period_from']:
+            raise serializers.ValidationError('活动结束日不能早于开始日')
+        return attrs
+
+    def create(self, validated_data):
+        price_approval = self.context['price_approval']
+        user = self.context['request'].user
+        if price_approval.status != 'approved':
+            raise serializers.ValidationError('只有已通过的价格审批可以生成活动提报')
+        if hasattr(price_approval, 'activity') and price_approval.activity:
+            raise serializers.ValidationError('该价格审批已关联活动提报')
+        activity = ActivitySubmission.objects.create(
+            price_approval=price_approval,
+            code=f'AS-{price_approval.code}',
+            activity_type=validated_data['activity_type'],
+            activity_name=validated_data['activity_name'],
+            activity_period_from=validated_data['activity_period_from'],
+            activity_period_to=validated_data['activity_period_to'],
+            target_sales_quantity=validated_data.get('target_sales_quantity', 0),
+            budget=validated_data.get('budget', 0),
+            description=validated_data.get('description', ''),
+            submitter=user,
+            created_by=user,
+            updated_by=user,
+        )
+        return activity
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_sku = serializers.CharField(source='product.sku', read_only=True)

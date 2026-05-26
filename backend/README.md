@@ -94,6 +94,7 @@ GET    /api/price-approvals/{id}/         # 详情
 PUT    /api/price-approvals/{id}/         # 修改（待审批状态）
 POST   /api/price-approvals/{id}/approve/ # 审批通过（审批人）
 POST   /api/price-approvals/{id}/reject/  # 驳回（审批人）
+POST   /api/price-approvals/{id}/create_activity/ # 生成活动提报（销售，价格审批已通过时）
 ```
 
 ### 活动提报（必须关联已通过的价格审批）

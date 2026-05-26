@@ -18,8 +18,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'django_filters',
     'apps.tea',
 ]
+
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

@@ -21,6 +21,7 @@ from apps.tea.serializers import (
     AuditLogSerializer, BatchSerializer, InventoryRecordSerializer,
     OrderItemSerializer, OrderListSerializer, OrderSerializer,
     PriceApprovalListSerializer, PriceApprovalSerializer,
+    PriceApprovalToActivitySerializer,
     ProductSerializer, ShipmentItemSerializer, ShipmentListSerializer,
     ShipmentSerializer, StoreSerializer, TrialFollowUpSerializer,
     WarehouseSerializer,
@@ -88,7 +89,7 @@ class PriceApprovalViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('approve', 'reject'):
             return [CanApprovePrice()]
-        if self.action in ('create', 'update', 'partial_update'):
+        if self.action in ('create', 'update', 'partial_update', 'create_activity'):
             return [CanSubmitPrice()]
         return super().get_permissions()
 
@@ -138,6 +139,34 @@ class PriceApprovalViewSet(viewsets.ModelViewSet):
         AuditService.log(approval, 'REJECT', operator=request.user,
                          field_name='status', old_value='pending', new_value='rejected')
         return Response(PriceApprovalSerializer(approval, context={'request': request}).data)
+
+    @transaction.atomic
+    @action(detail=True, methods=['post'])
+    def create_activity(self, request, pk=None):
+        approval = self.get_object()
+        if approval.status != 'approved':
+            return Response(
+                {'detail': '只有已通过的价格审批可以生成活动提报'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        if hasattr(approval, 'activity') and approval.activity:
+            return Response(
+                {'detail': '该价格审批已关联活动提报，无法重复创建'},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = PriceApprovalToActivitySerializer(
+            data=request.data,
+            context={'request': request, 'price_approval': approval},
+        )
+        serializer.is_valid(raise_exception=True)
+        activity = serializer.save()
+        AuditService.log(activity, 'CREATE', operator=request.user)
+        AuditService.log(approval, 'SUBMIT', operator=request.user,
+                         field_name='activity', old_value='', new_value=activity.code)
+        return Response(
+            ActivitySubmissionSerializer(activity, context={'request': request}).data,
+            status=http_status.HTTP_201_CREATED,
+        )
 
 
 class ActivitySubmissionViewSet(viewsets.ModelViewSet):
