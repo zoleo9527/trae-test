@@ -21,6 +21,30 @@
       </div>
 
       <div v-if="traceData" style="margin-top: 20px">
+        <el-descriptions v-if="traceData.vehicles && traceData.vehicles.length > 0" :column="3" border size="small" style="margin-bottom: 20px">
+          <template #title>
+            <span style="font-weight: bold">关联车辆信息 ({{ traceData.vehicles.length }}车)</span>
+          </template>
+          <el-descriptions-item 
+            v-for="v in traceData.vehicles" 
+            :key="v.id" 
+            :label="v.plate_number"
+            :span="1"
+          >
+            <p>司机: {{ v.driver_name || '-' }}</p>
+            <p>皮重: {{ v.tare_weight || 0 }} kg</p>
+            <p>累计过磅: {{ v.weighing_count }} 次</p>
+            <el-button 
+              link 
+              type="primary" 
+              size="small"
+              @click="goToVehicle(v.id, v.plate_number)"
+            >
+              查看历史
+            </el-button>
+          </el-descriptions-item>
+        </el-descriptions>
+
         <el-steps direction="vertical" :active="currentStep" finish-status="success">
           <el-step title="过磅登记">
             <template #description>
@@ -109,10 +133,15 @@
             :timestamp="log.created_at"
             :type="getLogType(log.operation)"
           >
+            <el-tag size="small" :type="getTableTagType(log.table_name)" style="margin-right: 8px;">
+              {{ getTableLabel(log.table_name) }}
+            </el-tag>
             <strong>{{ log.user_name }}</strong> {{ getOperationText(log.operation) }}
             <p style="color: #909399; font-size: 12px; margin-top: 5px">
-              {{ log.table_name }} #{{ log.record_id }}
-              <span v-if="log.old_value" style="margin-left: 10px;">原值变更</span>
+              记录ID: {{ log.record_id }}
+              <span v-if="log.old_value" style="margin-left: 15px;">
+                <el-icon><Refresh /></el-icon> 值变更
+              </span>
             </p>
           </el-timeline-item>
         </el-timeline>
@@ -190,6 +219,24 @@ function getLogType(op) {
   return ''
 }
 
+function getTableLabel(tableName) {
+  const labels = {
+    vehicles: '车辆',
+    weighings: '磅单',
+    settlements: '结算'
+  }
+  return labels[tableName] || tableName
+}
+
+function getTableTagType(tableName) {
+  const types = {
+    vehicles: 'primary',
+    weighings: 'success',
+    settlements: 'warning'
+  }
+  return types[tableName] || 'info'
+}
+
 function getOperationText(op) {
   const texts = {
     create: '创建了记录',
@@ -237,10 +284,11 @@ async function searchTrace() {
   try {
     let weighings = []
     let settlement = null
+    let vehicles = []
     
     if (searchNo.value.startsWith('WB')) {
       const wResult = await db.query(`
-        SELECT w.*, v.plate_number, m.name as material_name, u.name as weigher_name
+        SELECT w.*, v.plate_number, v.driver_name, m.name as material_name, u.name as weigher_name
         FROM weighings w
         LEFT JOIN vehicles v ON w.vehicle_id = v.id
         LEFT JOIN materials m ON w.material_id = m.id
@@ -263,7 +311,7 @@ async function searchTrace() {
           settlement = sResult.data[0]
           
           const allWResult = await db.query(`
-            SELECT w.*, v.plate_number, m.name as material_name, u.name as weigher_name
+            SELECT w.*, v.plate_number, v.driver_name, m.name as material_name, u.name as weigher_name
             FROM weighings w
             LEFT JOIN vehicles v ON w.vehicle_id = v.id
             LEFT JOIN materials m ON w.material_id = m.id
@@ -287,7 +335,7 @@ async function searchTrace() {
         settlement = sResult.data[0]
         
         const wResult = await db.query(`
-          SELECT w.*, v.plate_number, m.name as material_name, u.name as weigher_name
+          SELECT w.*, v.plate_number, v.driver_name, m.name as material_name, u.name as weigher_name
           FROM weighings w
           LEFT JOIN vehicles v ON w.vehicle_id = v.id
           LEFT JOIN materials m ON w.material_id = m.id
@@ -316,20 +364,56 @@ async function searchTrace() {
         }
       }
       
-      const recordIds = weighings.map(w => w.id)
-      if (settlement) recordIds.push(settlement.id)
+      const vehicleIds = [...new Set(weighings.map(w => w.vehicle_id).filter(id => id))]
+      if (vehicleIds.length > 0) {
+        const vResult = await db.query(`
+          SELECT v.*,
+            (SELECT COUNT(*) FROM weighings w WHERE w.vehicle_id = v.id) as weighing_count
+          FROM vehicles v
+          WHERE v.id IN (${vehicleIds.join(',')})
+        `)
+        if (vResult.success) {
+          vehicles = vResult.data
+        }
+      }
       
-      const logsResult = await db.query(`
-        SELECT l.*, u.name as user_name
-        FROM operation_logs l
-        LEFT JOIN users u ON l.user_id = u.id
-        WHERE l.record_id IN (${recordIds.join(',')})
-        ORDER BY l.created_at DESC
-      `)
+      const weighingIds = weighings.map(w => w.id)
+      
+      let logConditions = []
+      let logParams = []
+      
+      if (weighingIds.length > 0) {
+        const placeholders = weighingIds.map(() => '?').join(',')
+        logConditions.push(`(l.table_name = 'weighings' AND l.record_id IN (${placeholders}))`)
+        logParams.push(...weighingIds)
+      }
+      
+      if (settlement) {
+        logConditions.push(`(l.table_name = 'settlements' AND l.record_id = ?)`)
+        logParams.push(settlement.id)
+      }
+      
+      if (vehicleIds.length > 0) {
+        const placeholders = vehicleIds.map(() => '?').join(',')
+        logConditions.push(`(l.table_name = 'vehicles' AND l.record_id IN (${placeholders}))`)
+        logParams.push(...vehicleIds)
+      }
+      
+      let logsResult = { data: [] }
+      if (logConditions.length > 0) {
+        logsResult = await db.query(`
+          SELECT l.*, u.name as user_name
+          FROM operation_logs l
+          LEFT JOIN users u ON l.user_id = u.id
+          WHERE ${logConditions.join(' OR ')}
+          ORDER BY l.created_at DESC
+        `, logParams)
+      }
       
       traceData.value = {
         weighings,
         settlement,
+        vehicles,
         accountant,
         reviewer,
         logs: logsResult.data || []
