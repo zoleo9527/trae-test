@@ -68,41 +68,71 @@ const Workbench = () => {
         lost: { type: 'lost', title: '调拨丢失' },
       }
       const status = statusMap[t.status] || statusMap.pending
+      
+      const transferTime = t.status === 'shipped' ? t.shipped_at : 
+                          t.status === 'received' ? t.received_at : 
+                          t.status === 'lost' ? t.lost_at : t.created_at
+      
       timeline.push({
         type: status.type,
         title: status.title,
         description: `${t.from_store} → ${t.to_store} | ${t.lens_name} x${t.quantity}${t.tracking_no ? ` | 单号: ${t.tracking_no}` : ''}`,
-        time: t.status === 'shipped' ? t.shipped_at : 
-              t.status === 'received' ? t.received_at : 
-              t.status === 'lost' ? t.lost_at : t.created_at,
+        time: transferTime,
         handler: t.created_by,
         progress: status.title,
+        transferId: t.id,
       })
+
+      if (t.status === 'lost') {
+        const relatedRepair = repairRecords.find(r => r.transfer_id === t.id)
+        if (relatedRepair) {
+          timeline.push({
+            type: relatedRepair.status === 'completed' ? 'completed' : 'processing',
+            title: '🔧 返修' + (relatedRepair.status === 'completed' ? '完成' : '中'),
+            description: `${relatedRepair.repair_type}: ${relatedRepair.reason}${relatedRepair.lens_replaced ? ` | 更换镜片: ${relatedRepair.lens_replaced}` : ''}${relatedRepair.cost ? ` | 费用: ¥${relatedRepair.cost}` : ''}`,
+            time: relatedRepair.status === 'completed' ? relatedRepair.completed_at : relatedRepair.created_at,
+            handler: relatedRepair.created_by,
+            progress: relatedRepair.status === 'completed' ? '已完成' : '处理中',
+          })
+        }
+
+        const relatedRefund = refundRecords.find(r => r.transfer_id === t.id)
+        if (relatedRefund) {
+          timeline.push({
+            type: relatedRefund.status === 'approved' ? 'completed' : 'pending',
+            title: '💰 退款' + (relatedRefund.status === 'approved' ? '已批准' : '待审批'),
+            description: `¥${relatedRefund.amount} | ${relatedRefund.reason}${relatedRefund.approved_by ? ` | 审批人: ${relatedRefund.approved_by}` : ''}`,
+            time: relatedRefund.status === 'approved' ? relatedRefund.approved_at : relatedRefund.created_at,
+            handler: relatedRefund.created_by,
+            progress: relatedRefund.status === 'approved' ? '已批准' : '等待店经理审批',
+          })
+        }
+      }
     })
 
-    const repair = repairRecords.find(r => r.optometry_id === customer.id)
-    if (repair) {
+    const standaloneRepairs = repairRecords.filter(r => r.optometry_id === customer.id && !r.transfer_id)
+    standaloneRepairs.forEach(repair => {
       timeline.push({
         type: repair.status === 'completed' ? 'completed' : 'processing',
-        title: '返修' + (repair.status === 'completed' ? '完成' : '中'),
+        title: '🔧 返修' + (repair.status === 'completed' ? '完成' : '中'),
         description: `${repair.repair_type}: ${repair.reason}${repair.lens_replaced ? ` | 更换镜片: ${repair.lens_replaced}` : ''}${repair.cost ? ` | 费用: ¥${repair.cost}` : ''}`,
         time: repair.status === 'completed' ? repair.completed_at : repair.created_at,
         handler: repair.created_by,
         progress: repair.status === 'completed' ? '已完成' : '处理中',
       })
-    }
+    })
 
-    const refund = refundRecords.find(r => r.optometry_id === customer.id)
-    if (refund) {
+    const standaloneRefunds = refundRecords.filter(r => r.optometry_id === customer.id && !r.transfer_id)
+    standaloneRefunds.forEach(refund => {
       timeline.push({
         type: refund.status === 'approved' ? 'completed' : 'pending',
-        title: '退款' + (refund.status === 'approved' ? '已批准' : '待审批'),
+        title: '💰 退款' + (refund.status === 'approved' ? '已批准' : '待审批'),
         description: `¥${refund.amount} | ${refund.reason}${refund.approved_by ? ` | 审批人: ${refund.approved_by}` : ''}`,
         time: refund.status === 'approved' ? refund.approved_at : refund.created_at,
         handler: refund.created_by,
         progress: refund.status === 'approved' ? '已批准' : '等待店经理审批',
       })
-    }
+    })
 
     return timeline.sort((a, b) => new Date(a.time || 0) - new Date(b.time || 0))
   }
@@ -371,12 +401,22 @@ const Workbench = () => {
             <div className="empty-state">暂无问题单</div>
           ) : (
             [...repairRecords.map(r => ({ ...r, type: 'repair' })), 
-              ...refundRecords.map(r => ({ ...r, type: 'refund' }))].map(record => (
+              ...refundRecords.map(r => ({ ...r, type: 'refund' }))].map(record => {
+              const relatedTransfer = record.transfer_id 
+                ? transferOrders.find(t => t.id === record.transfer_id)
+                : null
+              
+              return (
               <div key={record.id} className="list-item">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                     <div className="item-title">
                       {record.type === 'repair' ? '🔧 返修单' : '💰 退款单'} - {record.id}
+                      {relatedTransfer && (
+                        <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>
+                          关联调拨: {relatedTransfer.id} ({relatedTransfer.from_store}→{relatedTransfer.to_store})
+                        </span>
+                      )}
                       <span className={`status-badge ${
                         record.status === 'in_progress' || record.status === 'pending' 
                           ? 'status-pending' : 'status-completed'
@@ -403,7 +443,7 @@ const Workbench = () => {
                   )}
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
       </div>

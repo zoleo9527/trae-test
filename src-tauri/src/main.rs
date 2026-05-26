@@ -87,6 +87,7 @@ struct ProcessingRecord {
 struct RepairRecord {
     id: String,
     optometry_id: String,
+    transfer_id: Option<String>,
     repair_type: String,
     reason: String,
     status: String,
@@ -102,6 +103,7 @@ struct RepairRecord {
 struct RefundRecord {
     id: String,
     optometry_id: String,
+    transfer_id: Option<String>,
     amount: f32,
     reason: String,
     status: String,
@@ -213,6 +215,7 @@ fn init_database(conn: &Connection) -> rusqlite::Result<()> {
         "CREATE TABLE IF NOT EXISTS repair_records (
             id TEXT PRIMARY KEY,
             optometry_id TEXT NOT NULL,
+            transfer_id TEXT,
             repair_type TEXT NOT NULL,
             reason TEXT NOT NULL,
             status TEXT NOT NULL,
@@ -230,6 +233,7 @@ fn init_database(conn: &Connection) -> rusqlite::Result<()> {
         "CREATE TABLE IF NOT EXISTS refund_records (
             id TEXT PRIMARY KEY,
             optometry_id TEXT NOT NULL,
+            transfer_id TEXT,
             amount REAL NOT NULL,
             reason TEXT NOT NULL,
             status TEXT NOT NULL,
@@ -301,6 +305,32 @@ fn migrate_database(conn: &Connection) -> rusqlite::Result<()> {
         conn.execute("PRAGMA foreign_keys = ON", [])?;
     }
 
+    let repair_column_count: i32 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('repair_records')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    if repair_column_count < 12 {
+        conn.execute(
+            "ALTER TABLE repair_records ADD COLUMN transfer_id TEXT",
+            [],
+        ).ok();
+    }
+
+    let refund_column_count: i32 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('refund_records')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    if refund_column_count < 11 {
+        conn.execute(
+            "ALTER TABLE refund_records ADD COLUMN transfer_id TEXT",
+            [],
+        ).ok();
+    }
+
     Ok(())
 }
 
@@ -356,7 +386,7 @@ fn seed_sample_data(conn: &Connection) -> rusqlite::Result<()> {
 
     let transfers = vec![
         ("TR001", Some("OPT002"), "总店", "分店A", "L003", "依视路钻晶A4 1.61", 1, "shipped", "张经理", None, None, Some("SF123456789")),
-        ("TR002", None, "分店A", "分店B", "L009", "依视路钻晶A+ 1.56", 5, "lost", "李经理", None, Some(Local::now().to_rfc3339()), None),
+        ("TR002", Some("OPT004"), "分店A", "分店B", "L009", "依视路钻晶A+ 1.56", 5, "lost", "李经理", None, Some(Local::now().to_rfc3339()), None),
         ("TR003", Some("OPT001"), "分店A", "总店", "L006", "依视路钻晶A+ 1.56", 1, "pending", "王店长", None, None, None),
     ];
 
@@ -387,11 +417,12 @@ fn seed_sample_data(conn: &Connection) -> rusqlite::Result<()> {
     }
 
     conn.execute(
-        "INSERT INTO repair_records (id, optometry_id, repair_type, reason, status, created_by, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO repair_records (id, optometry_id, transfer_id, repair_type, reason, status, created_by, created_at, remarks)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
-            "REP001", "OPT004", "镜片更换", "镜片划痕严重", "in_progress", "王店长",
-            Local::now().to_rfc3339()
+            "REP001", "OPT004", Some("TR002"), "镜片补发", "调拨单TR002丢失: 依视路钻晶A+ 1.56 x5，分店A→分店B，库存计入异常", "in_progress", "李经理",
+            Local::now().to_rfc3339(),
+            Some("关联调拨单: TR002 | 丢失库存: 依视路钻晶A+ 1.56 x5")
         ],
     )?;
 
@@ -667,22 +698,36 @@ fn get_repair_records(state: tauri::State<AppState>) -> Result<Vec<RepairRecord>
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     
-    let mut stmt = conn.prepare("SELECT * FROM repair_records ORDER BY created_at DESC")
-        .map_err(|e| e.to_string())?;
+    let repair_column_count: i32 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('repair_records')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+    
+    let has_transfer_id = repair_column_count >= 12;
+    
+    let sql = if has_transfer_id {
+        "SELECT id, optometry_id, transfer_id, repair_type, reason, status, created_by, created_at, completed_at, lens_replaced, cost, remarks FROM repair_records ORDER BY created_at DESC"
+    } else {
+        "SELECT id, optometry_id, NULL as transfer_id, repair_type, reason, status, created_by, created_at, completed_at, lens_replaced, cost, remarks FROM repair_records ORDER BY created_at DESC"
+    };
+    
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     
     let records = stmt.query_map([], |row| {
         Ok(RepairRecord {
             id: row.get(0)?,
             optometry_id: row.get(1)?,
-            repair_type: row.get(2)?,
-            reason: row.get(3)?,
-            status: row.get(4)?,
-            created_by: row.get(5)?,
-            created_at: row.get(6)?,
-            completed_at: row.get(7)?,
-            lens_replaced: row.get(8)?,
-            cost: row.get(9)?,
-            remarks: row.get(10)?,
+            transfer_id: row.get(2)?,
+            repair_type: row.get(3)?,
+            reason: row.get(4)?,
+            status: row.get(5)?,
+            created_by: row.get(6)?,
+            created_at: row.get(7)?,
+            completed_at: row.get(8)?,
+            lens_replaced: row.get(9)?,
+            cost: row.get(10)?,
+            remarks: row.get(11)?,
         })
     }).map_err(|e| e.to_string())?;
     
@@ -698,21 +743,35 @@ fn get_refund_records(state: tauri::State<AppState>) -> Result<Vec<RefundRecord>
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     
-    let mut stmt = conn.prepare("SELECT * FROM refund_records ORDER BY created_at DESC")
-        .map_err(|e| e.to_string())?;
+    let refund_column_count: i32 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('refund_records')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+    
+    let has_transfer_id = refund_column_count >= 11;
+    
+    let sql = if has_transfer_id {
+        "SELECT id, optometry_id, transfer_id, amount, reason, status, created_by, approved_by, created_at, approved_at, remarks FROM refund_records ORDER BY created_at DESC"
+    } else {
+        "SELECT id, optometry_id, NULL as transfer_id, amount, reason, status, created_by, approved_by, created_at, approved_at, remarks FROM refund_records ORDER BY created_at DESC"
+    };
+    
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     
     let records = stmt.query_map([], |row| {
         Ok(RefundRecord {
             id: row.get(0)?,
             optometry_id: row.get(1)?,
-            amount: row.get(2)?,
-            reason: row.get(3)?,
-            status: row.get(4)?,
-            created_by: row.get(5)?,
-            approved_by: row.get(6)?,
-            created_at: row.get(7)?,
-            approved_at: row.get(8)?,
-            remarks: row.get(9)?,
+            transfer_id: row.get(2)?,
+            amount: row.get(3)?,
+            reason: row.get(4)?,
+            status: row.get(5)?,
+            created_by: row.get(6)?,
+            approved_by: row.get(7)?,
+            created_at: row.get(8)?,
+            approved_at: row.get(9)?,
+            remarks: row.get(10)?,
         })
     }).map_err(|e| e.to_string())?;
     
@@ -835,22 +894,21 @@ fn update_transfer_status(
                 params![status, now, id]).map_err(|e| e.to_string())?;
 
             if let Some(opto_id) = optometry_id {
-                let existing_repair: Option<String> = conn.query_row(
-                    "SELECT id FROM repair_records WHERE optometry_id = ?",
-                    params![opto_id],
+                let existing_repair_for_transfer: Option<String> = conn.query_row(
+                    "SELECT id FROM repair_records WHERE transfer_id = ?",
+                    params![id],
                     |row| row.get::<_, String>(0),
                 ).optional().map_err(|e| e.to_string())?;
 
-                let existing_refund: Option<String> = conn.query_row(
-                    "SELECT id FROM refund_records WHERE optometry_id = ?",
-                    params![opto_id],
+                let existing_refund_for_transfer: Option<String> = conn.query_row(
+                    "SELECT id FROM refund_records WHERE transfer_id = ?",
+                    params![id],
                     |row| row.get::<_, String>(0),
                 ).optional().map_err(|e| e.to_string())?;
 
-                if existing_repair.is_none() && existing_refund.is_none() {
+                if existing_repair_for_transfer.is_none() && existing_refund_for_transfer.is_none() {
                     let reason = format!("调拨单{}丢失: {} x{}，{}→{}，库存计入异常", 
                         id, lens_name, quantity, from_store, to_store);
-                    let issue_remarks = format!("关联调拨单: {} | 丢失库存: {} x{}", id, lens_name, quantity);
                     
                     let issue_type = issue_type.unwrap_or_else(|| "repair".to_string());
                     
@@ -858,17 +916,18 @@ fn update_transfer_status(
                         "refund" => {
                             let refund_id = format!("REF{}", Local::now().format("%Y%m%d%H%M%S"));
                             conn.execute(
-                                "INSERT INTO refund_records (id, optometry_id, amount, reason, status, created_by, created_at, remarks)
-                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                "INSERT INTO refund_records (id, optometry_id, transfer_id, amount, reason, status, created_by, created_at, remarks)
+                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                                 params![
                                     refund_id,
                                     opto_id,
+                                    Some(&id),
                                     0.0,
                                     reason,
                                     "pending",
                                     created_by,
                                     now,
-                                    Some(issue_remarks)
+                                    Some(format!("调拨单{}丢失导致退款", id))
                                 ],
                             ).map_err(|e| format!("创建退款单失败: {}", e))?;
 
@@ -880,17 +939,18 @@ fn update_transfer_status(
                         _ => {
                             let repair_id = format!("REP{}", Local::now().format("%Y%m%d%H%M%S"));
                             conn.execute(
-                                "INSERT INTO repair_records (id, optometry_id, repair_type, reason, status, created_by, created_at, remarks)
-                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                "INSERT INTO repair_records (id, optometry_id, transfer_id, repair_type, reason, status, created_by, created_at, remarks)
+                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                                 params![
                                     repair_id,
                                     opto_id,
+                                    Some(&id),
                                     "镜片补发",
                                     reason,
                                     "in_progress",
                                     created_by,
                                     now,
-                                    Some(issue_remarks)
+                                    Some(format!("调拨单{}丢失，需补发镜片", id))
                                 ],
                             ).map_err(|e| format!("创建返修单失败: {}", e))?;
 
