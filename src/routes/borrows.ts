@@ -48,10 +48,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       createdBy: { select: { name: true, role: true } },
       approvedBy: { select: { name: true } },
       returnRecord: true,
-      auditLogs: {
-        orderBy: { createdAt: 'desc' },
-        include: { user: { select: { name: true } } },
-      },
     },
   });
 
@@ -59,7 +55,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     return res.status(404).json({ code: 404, message: '记录不存在' });
   }
 
-  res.json({ code: 0, data: borrow });
+  const auditLogs = await prisma.auditLog.findMany({
+    where: { entityType: 'SampleBorrow', entityId: req.params.id },
+    orderBy: { createdAt: 'desc' },
+    include: { user: { select: { name: true } } },
+  });
+
+  res.json({ code: 0, data: { ...borrow, auditLogs } });
 });
 
 router.post('/', requireRoles(Role.SALES_CONSULTANT, Role.SHOWROOM_MANAGER), async (req: Request, res: Response) => {
@@ -141,11 +143,6 @@ router.post('/:id/approve', requireRoles(Role.SHOWROOM_MANAGER), async (req: Req
       version: { increment: 1 },
     },
     include: { sample: true, createdBy: true },
-  });
-
-  await prisma.sample.update({
-    where: { id: borrow.sampleId },
-    data: { status: 'BORROWED' },
   });
 
   await createAuditLog({
@@ -241,6 +238,11 @@ router.post('/:id/confirm-borrow', requireRoles(Role.SALES_CONSULTANT, Role.SHOW
       version: { increment: 1 },
     },
     include: { sample: true, createdBy: true },
+  });
+
+  await prisma.sample.update({
+    where: { id: borrow.sampleId },
+    data: { status: 'BORROWED' },
   });
 
   await createAuditLog({

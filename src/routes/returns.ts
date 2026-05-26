@@ -58,16 +58,6 @@ router.post('/:id/inspect-pass', requireRoles(Role.SHOWROOM_MANAGER, Role.INSTAL
     include: { borrow: { include: { sample: true } } },
   });
 
-  await prisma.sampleBorrow.update({
-    where: { id: returnRecord.borrowId },
-    data: { status: BorrowStatus.COMPLETED, version: { increment: 1 } },
-  });
-
-  await prisma.sample.update({
-    where: { id: returnRecord.borrow.sampleId },
-    data: { status: 'AVAILABLE' },
-  });
-
   await createAuditLog({
     entityType: 'SampleReturn',
     entityId: id,
@@ -176,6 +166,16 @@ router.post('/:id/complete', requireRoles(Role.SHOWROOM_MANAGER), async (req: Re
       status: ReturnStatus.COMPLETED,
       version: { increment: 1 },
     },
+  });
+
+  await prisma.sampleBorrow.update({
+    where: { id: returnRecord.borrowId },
+    data: { status: BorrowStatus.COMPLETED, version: { increment: 1 } },
+  });
+
+  await prisma.sample.update({
+    where: { id: returnRecord.borrow.sampleId },
+    data: { status: 'AVAILABLE' },
   });
 
   await createAuditLog({

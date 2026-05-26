@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "seed": "ts-node prisma/seed.ts",
-    "init": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run seed"
+    "demo": "npx ts-node prisma/demo-data.ts",
+    "init": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run seed && npm run demo"
   },
   "dependencies": {
     "@prisma/client": "^5.7.0",
