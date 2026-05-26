@@ -116,6 +116,8 @@ export interface Appeal {
   related_locker_id?: number
   related_course_id?: number
   related_transaction_id?: number
+  related_patrol_id?: number
+  related_assignment_id?: number
   reporter_id?: number
   assignee_id?: number
   status: AppealStatus
@@ -125,7 +127,21 @@ export interface Appeal {
   reporter_name?: string
   assignee_name?: string
   locker_no?: string
+  locker_zone?: string
   course_name?: string
+  transaction_id?: number
+  transaction_amount?: number
+  transaction_type?: string
+  transaction_member_id?: number
+  transaction_member_name?: string
+  patrol_location?: string
+  patrol_description?: string
+  assignment_assigned_at?: number
+  assignment_operator_id?: number
+  assignment_operator_name?: string
+  assignment_member_id?: number
+  assignment_member_name?: string
+  assignment_guest_name?: string
 }
 
 export interface AppealTimeline {

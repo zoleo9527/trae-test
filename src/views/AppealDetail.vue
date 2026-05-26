@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div class="header-right">
+      <div class="header-right" v-if="canUpdateStatus">
         <select v-model="newStatus" class="select" style="width: 140px;">
           <option v-for="(label, value) in statusLabels" :key="value" :value="value">{{ label }}</option>
         </select>
@@ -86,11 +86,35 @@
           <div class="card-body">
             <div class="related-item" v-if="appeal?.locker_no">
               <span class="related-label">储物柜:</span>
-              <span class="tag">{{ appeal.locker_no }}</span>
+              <span class="tag">{{ appeal.locker_no }} ({{ appeal.locker_zone }}区)</span>
+            </div>
+            <div class="related-item" v-if="appeal?.assignment_operator_name">
+              <span class="related-label">分配操作人:</span>
+              <span>{{ appeal.assignment_operator_name }}</span>
+            </div>
+            <div class="related-item" v-if="appeal?.assignment_assigned_at">
+              <span class="related-label">分配时间:</span>
+              <span>{{ formatDateTime(appeal.assignment_assigned_at) }}</span>
+            </div>
+            <div class="related-item" v-if="appeal?.assignment_member_name || appeal?.assignment_guest_name">
+              <span class="related-label">使用人:</span>
+              <span>{{ appeal.assignment_member_name || appeal.assignment_guest_name }}</span>
             </div>
             <div class="related-item" v-if="appeal?.course_name">
               <span class="related-label">课程:</span>
               <span class="tag">{{ appeal.course_name }}</span>
+            </div>
+            <div class="related-item" v-if="appeal?.transaction_member_name">
+              <span class="related-label">储值记录:</span>
+              <span>{{ appeal.transaction_member_name }} ¥{{ Math.abs(appeal.transaction_amount || 0) }} ({{ appeal.transaction_type === 'recharge' ? '充值' : appeal.transaction_type === 'consume' ? '消费' : '退款' }})</span>
+            </div>
+            <div class="related-item" v-if="appeal?.patrol_location">
+              <span class="related-label">巡场位置:</span>
+              <span>{{ appeal.patrol_location }}</span>
+            </div>
+            <div class="related-item" v-if="appeal?.patrol_description">
+              <span class="related-label">巡场描述:</span>
+              <span class="patrol-desc">{{ appeal.patrol_description }}</span>
             </div>
             <div class="related-item">
               <span class="related-label">报告人:</span>
@@ -107,7 +131,7 @@
           </div>
         </div>
         
-        <div class="card assign-card" v-if="userStore.hasRole(['director'])">
+        <div class="card assign-card" v-if="canAssign">
           <div class="card-header">
             <h3>分配处理</h3>
           </div>
@@ -132,19 +156,19 @@
             <h3>快捷操作</h3>
           </div>
           <div class="card-body">
-            <button class="action-btn" @click="quickAction('start')">
+            <button class="action-btn" @click="quickAction('start')" :disabled="!canUpdateStatus">
               <span class="action-icon">🔍</span>
               <span>开始调查</span>
             </button>
-            <button class="action-btn" @click="quickAction('resolve')">
+            <button class="action-btn" @click="quickAction('resolve')" :disabled="!canResolve">
               <span class="action-icon">✅</span>
               <span>标记已解决</span>
             </button>
-            <button class="action-btn" @click="quickAction('escalate')">
+            <button class="action-btn" @click="quickAction('escalate')" :disabled="!canEscalate">
               <span class="action-icon">⬆️</span>
               <span>升级处理</span>
             </button>
-            <button class="action-btn" @click="quickAction('reject')">
+            <button class="action-btn" @click="quickAction('reject')" :disabled="!canReject">
               <span class="action-icon">❌</span>
               <span>驳回申诉</span>
             </button>
@@ -180,6 +204,35 @@ const roleLabels = ROLE_LABELS
 
 const typeClass = computed(() => 'badge-info')
 
+const canUpdateStatus = computed(() => {
+  if (!userStore.currentUser) return false
+  if (userStore.hasRole(['director'])) return true
+  if (userStore.hasRole(['head_coach'])) return appeal.value?.assignee_id === userStore.currentUser.id
+  if (userStore.hasRole(['reception'])) return appeal.value?.status === 'pending'
+  return false
+})
+
+const canResolve = computed(() => {
+  if (!userStore.currentUser) return false
+  if (userStore.hasRole(['director'])) return true
+  if (userStore.hasRole(['head_coach'])) return appeal.value?.assignee_id === userStore.currentUser.id && appeal.value?.status === 'investigating'
+  return false
+})
+
+const canEscalate = computed(() => {
+  if (!userStore.currentUser) return false
+  return userStore.hasRole(['director'])
+})
+
+const canReject = computed(() => {
+  if (!userStore.currentUser) return false
+  return userStore.hasRole(['director'])
+})
+
+const canAssign = computed(() => {
+  return userStore.hasRole(['director'])
+})
+
 function priorityClass(priority?: string): string {
   const map: Record<string, string> = {
     urgent: 'badge-urgent',
@@ -207,6 +260,7 @@ function formatDateTime(ts: number): string {
 
 async function handleStatusChange() {
   if (!appeal.value || newStatus.value === appeal.value.status) return
+  if (!canUpdateStatus.value) return
   await dbApi.updateAppealStatus(appeal.value.id, newStatus.value as any, userStore.currentUser?.id)
   await loadAppeal()
 }
@@ -219,7 +273,7 @@ async function handleAddTimeline() {
 }
 
 async function handleAssign() {
-  if (!appeal.value) return
+  if (!appeal.value || !canAssign.value) return
   await dbApi.assignAppeal(appeal.value.id, selectedAssignee.value!, userStore.currentUser?.id)
   await loadAppeal()
 }
@@ -451,8 +505,9 @@ watch(() => route.params.id, () => {
 
 .related-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   padding: 8px 0;
   font-size: 13px;
 }
@@ -463,6 +518,19 @@ watch(() => route.params.id, () => {
 
 .related-label {
   color: #64748b;
+  flex-shrink: 0;
+}
+
+.related-item span:last-child {
+  color: #e2e8f0;
+  text-align: right;
+}
+
+.patrol-desc {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-side {
@@ -496,10 +564,15 @@ watch(() => route.params.id, () => {
   transition: all 0.15s ease;
 }
 
-.action-btn:hover {
+.action-btn:hover:not(:disabled) {
   background: rgba(30, 41, 59, 0.8);
   border-color: rgba(59, 130, 246, 0.3);
   color: #e2e8f0;
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .action-icon {

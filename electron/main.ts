@@ -133,6 +133,8 @@ function initDatabase(): void {
       related_locker_id INTEGER,
       related_course_id INTEGER,
       related_transaction_id INTEGER,
+      related_patrol_id INTEGER,
+      related_assignment_id INTEGER,
       reporter_id INTEGER,
       assignee_id INTEGER,
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'investigating', 'resolved', 'rejected', 'escalated')),
@@ -142,9 +144,15 @@ function initDatabase(): void {
       FOREIGN KEY (related_locker_id) REFERENCES lockers(id),
       FOREIGN KEY (related_course_id) REFERENCES courses(id),
       FOREIGN KEY (related_transaction_id) REFERENCES transactions(id),
+      FOREIGN KEY (related_patrol_id) REFERENCES patrol_photos(id),
+      FOREIGN KEY (related_assignment_id) REFERENCES locker_assignments(id),
       FOREIGN KEY (reporter_id) REFERENCES users(id),
       FOREIGN KEY (assignee_id) REFERENCES users(id)
     );
+
+    -- 迁移：添加新字段（如果已存在表）
+    ALTER TABLE appeals ADD COLUMN IF NOT EXISTS related_patrol_id INTEGER REFERENCES patrol_photos(id);
+    ALTER TABLE appeals ADD COLUMN IF NOT EXISTS related_assignment_id INTEGER REFERENCES locker_assignments(id);
 
     CREATE TABLE IF NOT EXISTS appeal_timeline (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

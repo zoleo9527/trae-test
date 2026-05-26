@@ -156,7 +156,7 @@ export async function seedDatabase() {
       id: 4, appeal_no: 'AP20260523002', type: 'water_quality',
       title: '儿童池水质问题',
       description: '下午4点左右在儿童池游泳时发现水质浑浊，有异味。孩子皮肤出现轻微发红，希望能重视水质检测和处理。',
-      status: 'escalated', priority: 'urgent',
+      related_patrol_id: 1, status: 'escalated', priority: 'urgent',
       reporter_id: 2, assignee_id: 1,
       hoursAgo: 26,
       timeline: [
@@ -208,8 +208,8 @@ export async function seedDatabase() {
   appeals.forEach(a => {
     const createdAt = today.subtract(a.hoursAgo, 'hour').valueOf()
     statements.push({
-      sql: 'INSERT INTO appeals (id, appeal_no, type, title, description, related_locker_id, related_course_id, related_transaction_id, reporter_id, assignee_id, status, priority, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      params: [a.id, a.appeal_no, a.type, a.title, a.description, a.related_locker_id || null, a.related_course_id || null, a.related_transaction_id || null, a.reporter_id, a.assignee_id, a.status, a.priority, createdAt, createdAt]
+      sql: 'INSERT INTO appeals (id, appeal_no, type, title, description, related_locker_id, related_course_id, related_transaction_id, related_patrol_id, related_assignment_id, reporter_id, assignee_id, status, priority, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      params: [a.id, a.appeal_no, a.type, a.title, a.description, a.related_locker_id || null, a.related_course_id || null, a.related_transaction_id || null, (a as any).related_patrol_id || null, (a as any).related_assignment_id || null, a.reporter_id, a.assignee_id, a.status, a.priority, createdAt, createdAt]
     })
 
     a.timeline.forEach(tl => {

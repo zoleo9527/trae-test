@@ -89,9 +89,14 @@
             <td>{{ formatDateTime(assignment.assigned_at) }}</td>
             <td>{{ assignment.operator_name || '-' }}</td>
             <td>
-              <button class="btn btn-sm btn-secondary" @click="handleRelease(assignment.id)">
-                释放
-              </button>
+              <div class="row-actions">
+                <button class="btn btn-sm btn-secondary" @click="handleAppeal(assignment)">
+                  申诉
+                </button>
+                <button class="btn btn-sm btn-secondary" @click="handleRelease(assignment.id)">
+                  释放
+                </button>
+              </div>
             </td>
           </tr>
           <tr v-if="!activeAssignments.length">
@@ -164,10 +169,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import dbApi from '@/db'
 import { useUserStore } from '@/store/user'
 import dayjs from 'dayjs'
 
+const router = useRouter()
 const userStore = useUserStore()
 
 const lockers = ref<any[]>([])
@@ -266,6 +273,13 @@ async function handleRelease(assignmentId: number) {
   if (!confirm('确认释放该储物柜?')) return
   await dbApi.releaseLocker(assignmentId)
   await loadData()
+}
+
+function handleAppeal(assignment: any) {
+  router.push({
+    path: '/appeals/new',
+    query: { locker_id: String(assignment.locker_id) }
+  })
 }
 
 function resetAssignForm() {
@@ -490,5 +504,10 @@ onMounted(loadData)
   background: rgba(59, 130, 246, 0.15);
   border-color: #3b82f6;
   color: #fff;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
 }
 </style>

@@ -94,7 +94,7 @@ export const dbApi = {
 
   async getActiveLockerAssignments(): Promise<LockerAssignment[]> {
     return db.query(`
-      SELECT la.*, l.locker_no, m.name as member_name, u.name as operator_name
+      SELECT la.*, l.locker_no, l.zone, m.name as member_name, m.phone as member_phone, u.name as operator_name
       FROM locker_assignments la
       LEFT JOIN lockers l ON la.locker_id = l.id
       LEFT JOIN members m ON la.member_id = m.id
@@ -102,6 +102,18 @@ export const dbApi = {
       WHERE la.status = 'active'
       ORDER BY la.assigned_at DESC
     `)
+  },
+
+  async getLockerAssignmentById(id: number): Promise<LockerAssignment | null> {
+    const rows = await db.query(`
+      SELECT la.*, l.locker_no, l.zone, l.status as locker_status, m.name as member_name, m.phone as member_phone, u.name as operator_name
+      FROM locker_assignments la
+      LEFT JOIN lockers l ON la.locker_id = l.id
+      LEFT JOIN members m ON la.member_id = m.id
+      LEFT JOIN users u ON la.operator_id = u.id
+      WHERE la.id = ?
+    `, [id])
+    return rows[0] || null
   },
 
   async assignLocker(lockerId: number, assignType: 'member' | 'guest' | 'temporary', operatorId: number, memberId?: number, guestName?: string, expiredAt?: number): Promise<number> {
@@ -157,12 +169,31 @@ export const dbApi = {
              reporter.name as reporter_name,
              assignee.name as assignee_name,
              l.locker_no,
-             c.name as course_name
+             l.zone as locker_zone,
+             c.name as course_name,
+             t.amount as transaction_amount,
+             t.type as transaction_type,
+             t.member_id as transaction_member_id,
+             m.name as transaction_member_name,
+             p.location as patrol_location,
+             p.description as patrol_description,
+             la.assigned_at as assignment_assigned_at,
+             la.operator_id as assignment_operator_id,
+             op.name as assignment_operator_name,
+             la.member_id as assignment_member_id,
+             lm.name as assignment_member_name,
+             la.guest_name as assignment_guest_name
       FROM appeals a
       LEFT JOIN users reporter ON a.reporter_id = reporter.id
       LEFT JOIN users assignee ON a.assignee_id = assignee.id
       LEFT JOIN lockers l ON a.related_locker_id = l.id
       LEFT JOIN courses c ON a.related_course_id = c.id
+      LEFT JOIN transactions t ON a.related_transaction_id = t.id
+      LEFT JOIN members m ON t.member_id = m.id
+      LEFT JOIN patrol_photos p ON a.related_patrol_id = p.id
+      LEFT JOIN locker_assignments la ON a.related_assignment_id = la.id
+      LEFT JOIN users op ON la.operator_id = op.id
+      LEFT JOIN members lm ON la.member_id = lm.id
       WHERE a.id = ?
     `, [id])
     return rows[0] || null
@@ -178,18 +209,32 @@ export const dbApi = {
     `, [appealId])
   },
 
-  async createAppeal(data: Partial<Appeal>, reporterId?: number): Promise<number> {
+  async createAppeal(data: Partial<Appeal> & { related_patrol_id?: number; related_assignment_id?: number }, reporterId?: number): Promise<number> {
     const now = Date.now()
     const appealNo = `AP${now.toString().slice(-8)}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
     const result = await db.run(
-      `INSERT INTO appeals (appeal_no, type, title, description, related_locker_id, related_course_id, related_transaction_id, reporter_id, status, priority, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-      [appealNo, data.type, data.title, data.description, data.related_locker_id || null, data.related_course_id || null, data.related_transaction_id || null, reporterId || null, data.priority || 'normal', now, now]
+      `INSERT INTO appeals (appeal_no, type, title, description, related_locker_id, related_course_id, related_transaction_id, related_patrol_id, related_assignment_id, reporter_id, status, priority, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      [appealNo, data.type, data.title, data.description, 
+        data.related_locker_id || null, 
+        data.related_course_id || null, 
+        data.related_transaction_id || null, 
+        data.related_patrol_id || null,
+        data.related_assignment_id || null,
+        reporterId || null, 
+        data.priority || 'normal', 
+        now, 
+        now]
     )
+    
+    const timelineNote = data.related_assignment_id 
+      ? `${data.description}\n\n---\n关联分配记录ID: ${data.related_assignment_id}`
+      : data.description
+    
     await db.run(
       `INSERT INTO appeal_timeline (appeal_id, actor_id, action, note, created_at)
        VALUES (?, ?, '创建申诉', ?, ?)`,
-      [result.lastInsertRowid, reporterId || null, data.description, now]
+      [result.lastInsertRowid, reporterId || null, timelineNote, now]
     )
     return result.lastInsertRowid
   },

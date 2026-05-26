@@ -36,6 +36,12 @@ const routes = [
         meta: { title: '异常申诉' }
       },
       {
+        path: 'appeals/new',
+        name: 'AppealNew',
+        component: () => import('@/views/Appeals.vue'),
+        meta: { title: '新建申诉' }
+      },
+      {
         path: 'appeals/:id',
         name: 'AppealDetail',
         component: () => import('@/views/AppealDetail.vue'),
