@@ -21,7 +21,6 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 const currentUser = computed(() => {
   if (store.currentRole === 'manager') return '陈经理'
   if (store.currentRole === 'consultant') {
-    if (ticket.value?.assignee) return ticket.value.assignee
     if (ticket.value?.relatedOrder) return '销售-' + ticket.value.relatedOrder.salesConsultant
     return '销售顾问'
   }
