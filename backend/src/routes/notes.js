@@ -3,6 +3,48 @@ const { requireRoles } = require('../middleware/auth')
 
 const router = express.Router()
 
+async function getEntityStationId(prisma, entityType, entityId) {
+  switch (entityType) {
+    case 'COLLECTION_ORDER': {
+      const r = await prisma.collectionOrder.findUnique({
+        where: { id: entityId },
+        select: { stationId: true },
+      })
+      return r?.stationId
+    }
+    case 'PRICE_ADJUSTMENT': {
+      const r = await prisma.priceAdjustment.findUnique({
+        where: { id: entityId },
+        select: { order: { select: { stationId: true } } },
+      })
+      return r?.order?.stationId
+    }
+    case 'SORTING_RECORD': {
+      const r = await prisma.sortingRecord.findUnique({
+        where: { id: entityId },
+        select: { order: { select: { stationId: true } } },
+      })
+      return r?.order?.stationId
+    }
+    case 'SETTLEMENT': {
+      const r = await prisma.settlementRecord.findUnique({
+        where: { id: entityId },
+        select: { order: { select: { stationId: true } } },
+      })
+      return r?.order?.stationId
+    }
+    default:
+      return null
+  }
+}
+
+async function checkEntityPermission(req, entityType, entityId) {
+  if (!req.user?.stationId) return true
+  const entityStationId = await getEntityStationId(req.prisma, entityType, entityId)
+  if (!entityStationId) return false
+  return entityStationId === req.user.stationId
+}
+
 router.post('/rejections', requireRoles('STATION_OWNER', 'FINANCE'), async (req, res) => {
   const { entityType, entityId, reason } = req.body
 
@@ -13,6 +55,11 @@ router.post('/rejections', requireRoles('STATION_OWNER', 'FINANCE'), async (req,
   const validTypes = ['COLLECTION_ORDER', 'PRICE_ADJUSTMENT', 'SORTING_RECORD', 'SETTLEMENT']
   if (!validTypes.includes(entityType)) {
     return res.status(400).json({ error: `实体类型必须是: ${validTypes.join(', ')}` })
+  }
+
+  const hasPermission = await checkEntityPermission(req, entityType, entityId)
+  if (!hasPermission) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
   }
 
   const note = await req.prisma.rejectionNote.create({
@@ -43,6 +90,13 @@ router.get('/rejections', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), a
   if (entityType) where.entityType = entityType
   if (entityId) where.entityId = entityId
 
+  if (req.user.stationId && entityType && entityId) {
+    const hasPermission = await checkEntityPermission(req, entityType, entityId)
+    if (!hasPermission) {
+      return res.status(403).json({ error: '无权查看其他站点的数据' })
+    }
+  }
+
   const [items, total] = await Promise.all([
     req.prisma.rejectionNote.findMany({
       where,
@@ -69,6 +123,11 @@ router.post('/supplemental', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE')
     return res.status(400).json({ error: `实体类型必须是: ${validTypes.join(', ')}` })
   }
 
+  const hasPermission = await checkEntityPermission(req, entityType, entityId)
+  if (!hasPermission) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
+
   const note = await req.prisma.supplementalNote.create({
     data: {
       entityType,
@@ -87,6 +146,13 @@ router.get('/supplemental', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'),
   const where = {}
   if (entityType) where.entityType = entityType
   if (entityId) where.entityId = entityId
+
+  if (req.user.stationId && entityType && entityId) {
+    const hasPermission = await checkEntityPermission(req, entityType, entityId)
+    if (!hasPermission) {
+      return res.status(403).json({ error: '无权查看其他站点的数据' })
+    }
+  }
 
   const [items, total] = await Promise.all([
     req.prisma.supplementalNote.findMany({
@@ -108,6 +174,11 @@ router.get('/history/:entityType/:entityId', requireRoles('STATION_OWNER', 'WEIG
   const validTypes = ['COLLECTION_ORDER', 'PRICE_ADJUSTMENT', 'SORTING_RECORD', 'SETTLEMENT']
   if (!validTypes.includes(entityType)) {
     return res.status(400).json({ error: `实体类型必须是: ${validTypes.join(', ')}` })
+  }
+
+  const hasPermission = await checkEntityPermission(req, entityType, entityId)
+  if (!hasPermission) {
+    return res.status(403).json({ error: '无权查看其他站点的数据' })
   }
 
   const [rejections, supplementals, auditLogs] = await Promise.all([

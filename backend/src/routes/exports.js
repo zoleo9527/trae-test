@@ -15,6 +15,9 @@ function buildWhere(req) {
     if (startDate) where.createdAt.gte = new Date(startDate)
     if (endDate) where.createdAt.lte = new Date(endDate + 'T23:59:59')
   }
+  if (req.user?.stationId) {
+    where.stationId = req.user.stationId
+  }
   return where
 }
 
@@ -83,6 +86,10 @@ router.get('/settlements', requireRoles('STATION_OWNER', 'FINANCE'), async (req,
     where.settledAt = {}
     if (startDate) where.settledAt.gte = new Date(startDate)
     if (endDate) where.settledAt.lte = new Date(endDate + 'T23:59:59')
+  }
+
+  if (req.user?.stationId) {
+    where.order = { stationId: req.user.stationId }
   }
 
   const records = await req.prisma.settlementRecord.findMany({

@@ -2,54 +2,54 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
-const ENTITY_TYPE_MAP = {
-  'collections': 'COLLECTION_ORDER',
-  'sortings': 'SORTING_RECORD',
-  'price-adjustments': 'PRICE_ADJUSTMENT',
-  'settlements': 'SETTLEMENT',
-  'notes': 'NOTE',
-  'exports': 'EXPORT',
-  'auth': 'AUTH',
-}
-
-function auditMiddleware(req, res, next) {
-  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    return next()
-  }
-
-  const startTime = Date.now()
-  const originalJson = res.json.bind(res)
-  let responseData = null
-
-  res.json = function (data) {
-    responseData = data
-    return originalJson(data)
-  }
-
-  res.on('finish', () => {
-    const duration = Date.now() - startTime
-    let entityType = 'UNKNOWN'
-    let entityId = null
-
-    const pathParts = req.path.split('/').filter(Boolean)
-    if (pathParts.length >= 1) {
-      entityType = ENTITY_TYPE_MAP[pathParts[0]] || pathParts[0].toUpperCase()
-    }
-    if (pathParts.length >= 2 && /^[a-z0-9]{20,}$/i.test(pathParts[1])) {
-      entityId = pathParts[1]
+function createAuditMiddleware(entityType) {
+  return function auditMiddleware(req, res, next) {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      return next()
     }
 
-    if (responseData?.data?.id && !entityId) {
-      entityId = responseData.data.id
+    const startTime = Date.now()
+    const originalJson = res.json.bind(res)
+    let responseData = null
+
+    res.json = function (data) {
+      responseData = data
+      return originalJson(data)
     }
 
-    const isSuccess = res.statusCode >= 200 && res.statusCode < 400
+    res.on('finish', () => {
+      const duration = Date.now() - startTime
+      let logEntityType = entityType || 'UNKNOWN'
+      let entityId = null
 
-    prisma.auditLog.create({
-      data: {
+      const pathParts = req.path.split('/').filter(Boolean)
+      if (pathParts.length >= 1 && /^[a-z0-9]{20,}$/i.test(pathParts[0])) {
+        entityId = pathParts[0]
+      }
+
+      if (req.body && Object.keys(req.body).length > 0) {
+        if (req.body.collectionOrderId && /^[a-z0-9]{20,}$/i.test(req.body.collectionOrderId)) {
+          entityId = req.body.collectionOrderId
+        } else if (req.body.orderId && /^[a-z0-9]{20,}$/i.test(req.body.orderId)) {
+          entityId = req.body.orderId
+        }
+      }
+
+      if (responseData?.data?.id && !entityId) {
+        entityId = responseData.data.id
+      }
+
+      if (responseData?.data?.order?.id && !entityId) {
+        entityId = responseData.data.order.id
+      }
+
+      const isSuccess = res.statusCode >= 200 && res.statusCode < 400
+
+      prisma.auditLog.create({
+        data: {
         userId: req.user?.id || null,
-        action: `${req.method} ${req.path}`,
-        entityType,
+        action: `${req.method} ${req.baseUrl}${req.path}`,
+        entityType: logEntityType,
         entityId,
         changes: {
           method: req.method,
@@ -74,5 +74,6 @@ function auditMiddleware(req, res, next) {
 
   next()
 }
+}
 
-module.exports = { auditMiddleware }
+module.exports = { createAuditMiddleware, auditMiddleware: createAuditMiddleware() }

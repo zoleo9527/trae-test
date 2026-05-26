@@ -11,7 +11,7 @@ const noteRoutes = require('./routes/notes')
 const exportRoutes = require('./routes/exports')
 const { authMiddleware } = require('./middleware/auth')
 const { idempotencyMiddleware } = require('./middleware/idempotency')
-const { auditMiddleware } = require('./middleware/audit')
+const { createAuditMiddleware } = require('./middleware/audit')
 
 const prisma = new PrismaClient()
 const app = express()
@@ -32,12 +32,12 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes)
 
-app.use('/api/collections', authMiddleware, auditMiddleware, collectionRoutes)
-app.use('/api/sortings', authMiddleware, auditMiddleware, sortingRoutes)
-app.use('/api/price-adjustments', authMiddleware, auditMiddleware, priceAdjustmentRoutes)
-app.use('/api/settlements', authMiddleware, auditMiddleware, settlementRoutes)
-app.use('/api/notes', authMiddleware, auditMiddleware, noteRoutes)
-app.use('/api/exports', authMiddleware, auditMiddleware, exportRoutes)
+app.use('/api/collections', authMiddleware, createAuditMiddleware('COLLECTION_ORDER'), collectionRoutes)
+app.use('/api/sortings', authMiddleware, createAuditMiddleware('SORTING_RECORD'), sortingRoutes)
+app.use('/api/price-adjustments', authMiddleware, createAuditMiddleware('PRICE_ADJUSTMENT'), priceAdjustmentRoutes)
+app.use('/api/settlements', authMiddleware, createAuditMiddleware('SETTLEMENT'), settlementRoutes)
+app.use('/api/notes', authMiddleware, createAuditMiddleware('NOTE'), noteRoutes)
+app.use('/api/exports', authMiddleware, createAuditMiddleware('EXPORT'), exportRoutes)
 
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err.message, err.stack)
