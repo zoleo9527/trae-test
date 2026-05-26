@@ -29,7 +29,7 @@ export const useAuthStore = defineStore('auth', {
     canManageSales: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
     canManagePayments: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
     canManageExceptions: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
-    canViewDashboard: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
+    canViewDashboard: (s) => s.user?.role === 'stall_manager',
     defaultRoute: (s): string => {
       switch (s.user?.role) {
         case 'picker': return '/gradings'

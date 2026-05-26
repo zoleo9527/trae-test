@@ -56,12 +56,12 @@ const auth = useAuthStore();
 const route = useRoute();
 
 const allMenu = [
-  { path: "/", label: "概览", icon: "📊", roles: ["stall_manager", "finance"] },
+  { path: "/", label: "概览", icon: "📊", roles: ["stall_manager"] },
   {
     path: "/purchases",
     label: "进货单",
     icon: "📥",
-    roles: ["stall_manager", "picker", "finance"],
+    roles: ["stall_manager", "picker"],
   },
   {
     path: "/gradings",

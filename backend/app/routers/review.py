@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/review", tags=["review"])
 
 
 @router.get("/dashboard", response_model=DashboardStats)
-def dashboard(db: Session = Depends(get_db), _: User = Depends(require_roles("stall_manager", "finance"))):
+def dashboard(db: Session = Depends(get_db), _: User = Depends(require_roles("stall_manager"))):
     purchase_count = db.query(Purchase).count()
     total_net = db.query(func.sum(Purchase.net_kg)).scalar() or 0
     total_amount = db.query(func.sum(Purchase.total_amount)).scalar() or 0
