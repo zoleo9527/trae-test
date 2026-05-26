@@ -84,7 +84,9 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 		if actualQty < 0 {
 			actualQty = 0
 		}
-		actualItems = append(actualItems, allocItem)
+		if actualQty > 0 {
+			actualItems = append(actualItems, allocItem)
+		}
 		shipmentItem := models.ShipmentItem{
 			ProductID:   allocItem.ProductID,
 			BatchID:     allocItem.BatchID,
@@ -93,6 +95,10 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 		}
 		shipment.ShipmentItems = append(shipment.ShipmentItems, shipmentItem)
 		totalQty += actualQty
+	}
+
+	if totalQty <= 0 {
+		return nil, models.AppErrValidationFailed("所有分仓单项实拣数量全部为0，无法发货")
 	}
 
 	shipment.TotalQty = totalQty
