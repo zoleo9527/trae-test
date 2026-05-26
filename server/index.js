@@ -11,6 +11,7 @@ const orderRoutes = require('./routes/orders');
 const approvalRoutes = require('./routes/approvals');
 const staffRoutes = require('./routes/staff');
 const dashboardRoutes = require('./routes/dashboard');
+const productRoutes = require('./routes/products');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/products', productRoutes);
 
 app.use(express.static(path.join(__dirname, '../client/build')));
 

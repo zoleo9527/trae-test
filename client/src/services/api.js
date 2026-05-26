@@ -69,4 +69,8 @@ export const approvalAPI = {
   updateException: (exceptionId, data) => api.put(`/approvals/exceptions/${exceptionId}`, data),
 };
 
+export const productAPI = {
+  getAll: () => api.get('/products'),
+};
+
 export default api;
