@@ -265,25 +265,32 @@ function DayDetail({ date }) {
               {a.credit_id && <div>赊销 #{a.credit_id}</div>}
               {a.picking_id && <div>配货 #{a.picking_id}</div>}
               {a.claim_batch_code && a.type === 'loss' && (
-                <div style={{ marginTop: 2 }}>
-                  <span className="tag red">客诉批次</span>
-                  <span style={{ marginLeft: 4 }}>{a.claim_batch_code}</span>
+                <div style={{ marginTop: 6 }}>
+                  <div className="muted small">关联客诉 · {a.claim_customer || ''}</div>
+                  <div style={{ marginTop: 2 }}>
+                    <span className="tag red">{a.claim_batch_code}</span>
+                    <span style={{ marginLeft: 6 }} className="small">
+                      {a.claim_reason || ''}
+                    </span>
+                  </div>
                 </div>
               )}
-              {a.linked_loss_summary && a.type === 'claim' && (
-                <div style={{ marginTop: 4 }}>
-                  <div className="muted">关联损耗：</div>
-                  {a.linked_loss_summary.split(';').map((s, j) => {
+              {a.type === 'claim' && (
+                <div style={{ marginTop: 6 }}>
+                  <div className="muted small">关联损耗：</div>
+                  {a.linked_loss_summary ? a.linked_loss_summary.split(';').map((s, j) => {
                     const [code, qty, status] = s.split(':')
                     return (
                       <div key={j} style={{ marginTop: 2 }}>
                         <span className={`tag ${status === 'confirmed' ? 'green' : 'red'}`}>
                           {code}
                         </span>
-                        <span style={{ marginLeft: 4 }}>{qty}</span>
+                        <span style={{ marginLeft: 6 }} className="small">
+                          {qty} · {status === 'confirmed' ? '已确认' : '待复核'}
+                        </span>
                       </div>
                     )
-                  })}
+                  }) : <span className="muted small">暂无关联损耗</span>}
                 </div>
               )}
             </td>
