@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Plus, Search, AlertCircle, ChevronRight, CheckCircle2, Clock } from 'lucide-vue-next';
+import { Plus, Search, AlertCircle, ChevronRight, CheckCircle2, Clock, AlertTriangle, Layers } from 'lucide-vue-next';
 import { useTaskStore } from '@/stores/task';
 import { useIncidentStore } from '@/stores/incident';
 import { useOperatorStore } from '@/stores/operator';
@@ -19,6 +19,7 @@ const auth = useAuthStore();
 
 const keyword = ref('');
 const statusFilter = ref<TaskStatus | 'all'>('all');
+const expandedIncidentTask = ref<string | null>(null);
 
 const filtered = computed(() => {
   const list = taskStore.tasksSorted.filter(t => {
@@ -54,6 +55,44 @@ const statusChipClass: Record<TaskStatus, string> = {
   completed: 'border-ink-900/20 text-ink-900/70',
   incident: 'border-danger-500/40 text-danger-500',
 };
+
+function getIncidentsForTask(taskId: string) {
+  return incidentStore.forTask(taskId);
+}
+
+function incidentSummary(instances: ReturnType<typeof getIncidentsForTask>) {
+  if (instances.length === 0) return null;
+  const unresolved = instances.filter(i => !i.resolved);
+  if (unresolved.length > 0) {
+    const worst = unresolved.reduce((a, b) => {
+      const order = { high: 0, medium: 1, low: 2 } as const;
+      return order[a.severity] <= order[b.severity] ? a : b;
+    });
+    return {
+      label: unresolved.length === 1
+        ? `${incidentStore.typeLabel(worst.type)} · 待处理`
+        : `${unresolved.length} 条未处理`,
+      tone: 'unresolved' as const,
+      firstId: unresolved[0].id,
+    };
+  }
+  return {
+    label: instances.length === 1
+      ? `${incidentStore.resolutionLabel(instances[0].resolution)}`
+      : `${instances.length} 条已归档`,
+    tone: 'resolved' as const,
+    firstId: instances[0].id,
+  };
+}
+
+function toggleIncident(taskId: string) {
+  expandedIncidentTask.value = expandedIncidentTask.value === taskId ? null : taskId;
+}
+
+function openIncident(id: string) {
+  expandedIncidentTask.value = null;
+  drawer.openIncident(id);
+}
 </script>
 
 <template>
@@ -92,7 +131,7 @@ const statusChipClass: Record<TaskStatus, string> = {
       </div>
     </div>
 
-    <div class="surface overflow-hidden">
+    <div class="surface">
       <table class="w-full text-sm">
         <thead class="bg-black/[0.02] text-xs text-ink-900/60">
           <tr>
@@ -131,15 +170,53 @@ const statusChipClass: Record<TaskStatus, string> = {
               </span>
             </td>
             <td class="px-5 py-3">
-              <div class="flex items-center gap-1">
-                <button
-                  v-if="incidentStore.forTask(t.id).length"
-                  class="btn-ghost !px-2 !py-1 text-xs"
-                  @click="drawer.openIncident(incidentStore.forTask(t.id)[0].id)"
-                >
-                  异常
-                  <AlertCircle :size="12" class="text-danger-500" />
-                </button>
+              <div class="flex items-center gap-1 relative">
+                <template v-if="getIncidentsForTask(t.id).length">
+                  <button
+                    v-if="getIncidentsForTask(t.id).length === 1"
+                    class="btn-ghost !px-2 !py-1 text-xs"
+                    :class="incidentSummary(getIncidentsForTask(t.id))?.tone === 'resolved' ? '!text-success-500' : '!text-danger-500'"
+                    @click="openIncident(getIncidentsForTask(t.id)[0].id)"
+                  >
+                    异常
+                    <AlertCircle v-if="incidentSummary(getIncidentsForTask(t.id))?.tone !== 'resolved'" :size="12" class="text-danger-500" />
+                    <CheckCircle2 v-else :size="12" class="text-success-500" />
+                  </button>
+                  <button
+                    v-else
+                    class="btn-ghost !px-2 !py-1 text-xs flex items-center gap-1"
+                    @click="toggleIncident(t.id)"
+                  >
+                    异常 x{{ getIncidentsForTask(t.id).length }}
+                    <Layers :size="12" />
+                    <ChevronRight :size="10" :class="['transition-transform', expandedIncidentTask === t.id ? 'rotate-90' : '']" />
+                  </button>
+                  <div
+                    v-if="expandedIncidentTask === t.id"
+                    class="absolute top-full left-0 mt-1 w-64 rounded-[10px] border border-black/10 bg-white shadow-lg z-10 p-2"
+                  >
+                    <div
+                      v-for="inc in getIncidentsForTask(t.id)"
+                      :key="inc.id"
+                      class="flex items-center gap-2 px-2 py-1.5 rounded-[8px] hover:bg-black/5 cursor-pointer"
+                      @click="openIncident(inc.id)"
+                    >
+                      <span
+                        class="w-1.5 h-1.5 rounded-full"
+                        :class="inc.resolved ? 'bg-success-500' : inc.severity === 'high' ? 'bg-danger-500' : inc.severity === 'medium' ? 'bg-amber-450' : 'bg-ink-900/30'"
+                      />
+                      <span class="flex-1 text-xs text-ink-900">
+                        {{ incidentStore.typeLabel(inc.type) }} · {{ inc.title }}
+                      </span>
+                      <span
+                        class="text-[10px] px-1.5 py-0.5 rounded"
+                        :class="inc.resolved ? 'bg-success-500/10 text-success-500' : 'bg-amber-450/10 text-amber-450'"
+                      >
+                        {{ inc.resolved ? incidentStore.resolutionLabel(inc.resolution) : '待处理' }}
+                      </span>
+                    </div>
+                  </div>
+                </template>
                 <button
                   v-if="t.status === 'assigned' && auth.role === 'operator' && t.operatorId === auth.currentUser?.id"
                   class="btn-ghost !px-2 !py-1 text-xs"

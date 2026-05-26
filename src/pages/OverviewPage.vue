@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { AlertTriangle, AlertCircle, CheckCircle2, Clock, ChevronRight } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { AlertTriangle, AlertCircle, CheckCircle2, Clock, ChevronRight, Filter } from 'lucide-vue-next';
 import { useTaskStore } from '@/stores/task';
 import { useIncidentStore } from '@/stores/incident';
 import { useOperatorStore } from '@/stores/operator';
@@ -20,6 +20,16 @@ const stats = computed(() => ({
   incident: taskStore.statusGroups.incident.length,
   completed: taskStore.statusGroups.completed.length,
 }));
+
+const incidentFilter = ref<'unresolved' | 'resolved' | 'all'>('unresolved');
+
+const filteredIncidents = computed(() => {
+  if (incidentFilter.value === 'unresolved') return incidentStore.unresolved;
+  if (incidentFilter.value === 'resolved') return incidentStore.incidents.filter(i => i.resolved);
+  return incidentStore.incidents;
+});
+
+const resolvedCount = computed(() => incidentStore.incidents.filter(i => i.resolved).length);
 
 function openFirstIncident(taskId: string) {
   const inc = incidentStore.forTask(taskId);
@@ -138,18 +148,43 @@ function openFirstIncident(taskId: string) {
       <div class="flex items-center justify-between">
         <div>
           <div class="text-sm font-semibold text-ink-950">异常处理清单</div>
-          <div class="text-xs text-ink-900/50">点击右侧"处理"进入异常抽屉</div>
+          <div class="text-xs text-ink-900/50">未处理 / 已归档全部可查，点击进入抽屉查看详情</div>
         </div>
-        <div class="flex items-center gap-2 text-xs text-ink-900/50">
-          <span class="chip border-danger-500/30 text-danger-500">高 {{ incidentStore.counts.high }}</span>
-          <span class="chip border-amber-450/40 text-amber-450">中 {{ incidentStore.counts.medium }}</span>
-          <span class="chip border-ink-900/20 text-ink-900/70">低 {{ incidentStore.counts.low }}</span>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1 mr-2">
+            <span class="chip border-danger-500/30 text-danger-500">高 {{ incidentStore.counts.high }}</span>
+            <span class="chip border-amber-450/40 text-amber-450">中 {{ incidentStore.counts.medium }}</span>
+            <span class="chip border-ink-900/20 text-ink-900/70">低 {{ incidentStore.counts.low }}</span>
+          </div>
+          <div class="flex items-center rounded-[10px] border border-black/10 bg-white/60 p-0.5 text-xs">
+            <button
+              class="px-2.5 py-1 rounded-[8px] transition-colors"
+              :class="incidentFilter === 'unresolved' ? 'bg-ink-900 text-white' : 'text-ink-900/60 hover:text-ink-900'"
+              @click="incidentFilter = 'unresolved'"
+            >
+              未处理 {{ incidentStore.counts.unresolved }}
+            </button>
+            <button
+              class="px-2.5 py-1 rounded-[8px] transition-colors"
+              :class="incidentFilter === 'resolved' ? 'bg-ink-900 text-white' : 'text-ink-900/60 hover:text-ink-900'"
+              @click="incidentFilter = 'resolved'"
+            >
+              已归档 {{ resolvedCount }}
+            </button>
+            <button
+              class="px-2.5 py-1 rounded-[8px] transition-colors"
+              :class="incidentFilter === 'all' ? 'bg-ink-900 text-white' : 'text-ink-900/60 hover:text-ink-900'"
+              @click="incidentFilter = 'all'"
+            >
+              全部 {{ incidentStore.counts.total }}
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="mt-4 divide-y divide-black/5">
         <div
-          v-for="inc in incidentStore.unresolved"
+          v-for="inc in filteredIncidents"
           :key="inc.id"
           class="py-3 flex items-center gap-4"
         >
@@ -160,19 +195,33 @@ function openFirstIncident(taskId: string) {
           <div class="flex-1">
             <div class="text-sm text-ink-950">
               {{ incidentStore.typeLabel(inc.type) }} · {{ inc.title }}
+              <span
+                v-if="inc.resolved"
+                class="ml-2 chip border-success-500/20 text-success-500 !py-0"
+              >
+                {{ incidentStore.resolutionLabel(inc.resolution) }}
+              </span>
             </div>
             <div class="text-[11px] text-ink-900/60 mt-0.5">{{ inc.description }}</div>
+            <div class="text-[10px] text-ink-900/40 mt-1 flex items-center gap-3">
+              <span>上报：{{ formatDateTime(inc.reportedAt) }}</span>
+              <span v-if="inc.handlerId">处理人：{{ inc.handlerId }}</span>
+              <span v-if="inc.resolved && inc.resolvedAt">归档：{{ formatDateTime(inc.resolvedAt) }}</span>
+            </div>
           </div>
           <div class="text-xs text-ink-900/50">
             对应任务 {{ inc.taskId }}
           </div>
-          <button class="btn-amber" @click="drawer.openIncident(inc.id)">
-            处理
+          <button
+            class="btn-amber"
+            @click="drawer.openIncident(inc.id)"
+          >
+            {{ inc.resolved ? '查看' : '处理' }}
             <ChevronRight :size="14" />
           </button>
         </div>
-        <div v-if="!incidentStore.unresolved.length" class="py-8 text-center text-sm text-ink-900/40">
-          当前没有未处理的异常
+        <div v-if="!filteredIncidents.length" class="py-8 text-center text-sm text-ink-900/40">
+          {{ incidentFilter === 'resolved' ? '暂无已归档的异常' : incidentFilter === 'all' ? '暂无异常记录' : '当前没有未处理的异常' }}
         </div>
       </div>
     </div>
