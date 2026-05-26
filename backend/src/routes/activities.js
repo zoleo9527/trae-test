@@ -135,7 +135,9 @@ router.patch('/:id', authRequired, (req, res) => {
   }
   const body = req.body || {}
   const prevStatus = a.status
-  Object.assign(a, body)
+  const allowed = { ...body }
+  delete allowed.ownerId
+  Object.assign(a, allowed)
   if (body.status && body.status !== prevStatus) {
     a.timeline.push({
       time: new Date().toISOString().slice(0, 16).replace('T', ' '),

@@ -412,7 +412,7 @@ function DistributionsPage() {
                     defaultValue=""
                   >
                     <option value="">变更状态…</option>
-                    {meta.distributionStatuses.map((s) => <option key={s}>{s}</option>)}
+                    {meta.distributionStatuses.filter(s => s !== '已回款').map((s) => <option key={s}>{s}</option>)}
                   </select>
                 )}
               </div>

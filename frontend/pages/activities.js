@@ -321,13 +321,15 @@ function ActivitiesPage() {
                 {meta.activityStatuses.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
-            {(role === 'admin' || role === 'channel_manager') && (
+            {(role === 'admin' || role === 'channel_manager') ? (
               <div className="form-row"><label>责任人</label>
                 <select name="ownerId" defaultValue={auth?.user?.id}>
                   <option value="">请选择</option>
                   {owners.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.roleName}</option>)}
                 </select>
               </div>
+            ) : (
+              <input type="hidden" name="ownerId" value={auth?.user?.id} />
             )}
             <div className="form-row"><label>备注</label><textarea name="remarks" rows={3} /></div>
             <div className="form-actions">

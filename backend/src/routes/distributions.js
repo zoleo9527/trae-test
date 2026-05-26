@@ -189,17 +189,18 @@ router.patch('/:id', authRequired, (req, res) => {
   if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
   const body = req.body || {}
 
-  const isSettleAction = body.status === '已回款' && d.status !== '已回款'
-  if (isSettleAction && !canSettle(req.user)) {
-    return res.status(403).json({ error: '当前角色无权标记回款' })
+  if (body.status === '已回款' && d.status !== '已回款') {
+    return res.status(400).json({ error: '请使用「登记回款」功能完成回款登记，不可直接修改状态' })
   }
 
-  if (!canEditDistribution(req.user, d) && !isSettleAction) {
+  if (!canEditDistribution(req.user, d)) {
     return res.status(403).json({ error: '无权修改铺货单' })
   }
 
   const prevStatus = d.status
-  Object.assign(d, body)
+  const allowed = { ...body }
+  delete allowed.ownerId
+  Object.assign(d, allowed)
   if (body.status && body.status !== prevStatus) {
     d.records.push({
       time: new Date().toISOString().slice(0, 16).replace('T', ' '),
