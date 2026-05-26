@@ -171,11 +171,17 @@ app.post('/api/subsidies/:id/complete', requireAuth, requireRole(['director', 'd
 
 app.post('/api/subsidies/:id/report', requireAuth, (req, res) => {
   const { progress_pct, area_done, issue_type, issue_note } = req.body;
+  const appId = req.params.id;
+  const current = db.prepare('SELECT status FROM subsidy_applications WHERE id = ?').get(appId);
+  if (current && ['scheduled', 'submitted'].includes(current.status)) {
+    db.prepare("UPDATE subsidy_applications SET status = 'in_progress' WHERE id = ?")
+      .run(appId);
+  }
   db.prepare(`
     INSERT INTO task_reports(application_id, operator_id, reported_at,
       progress_pct, area_done, issue_type, issue_note)
     VALUES(?,?,?,?,?,?,?)
-  `).run(req.params.id, req.user.id, new Date().toISOString(),
+  `).run(appId, req.user.id, new Date().toISOString(),
     progress_pct, area_done, issue_type, issue_note);
   res.json({ ok: true });
 });

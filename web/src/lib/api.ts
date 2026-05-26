@@ -111,6 +111,7 @@ export const api = {
     body: JSON.stringify({ username })
   }),
   getMe: () => fetchApi('/api/me'),
+  getUsers: (): Promise<User[]> => fetchApi('/api/users'),
   getDashboard: (): Promise<DashboardData> => fetchApi('/api/dashboard'),
   getReviewBoard: (): Promise<ReviewBoardItem[]> => fetchApi('/api/review-board'),
   getSubsidies: () => fetchApi('/api/subsidies'),
@@ -128,6 +129,9 @@ export const api = {
     body: JSON.stringify({ note })
   }),
   resubmitSubsidy: (id: number) => fetchApi(`/api/subsidies/${id}/resubmit`, {
+    method: 'POST'
+  }),
+  completeSubsidy: (id: number) => fetchApi(`/api/subsidies/${id}/complete`, {
     method: 'POST'
   }),
   reportProgress: (id: number, data: any) => fetchApi(`/api/subsidies/${id}/report`, {
