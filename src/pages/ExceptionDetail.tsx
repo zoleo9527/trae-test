@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 export default function ExceptionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentUser, currentRole, getExceptionById, updateExceptionStatus, addExceptionComment } = useStore();
+  const { currentUser, currentRole, getExceptionById, getLedgerById, updateExceptionStatus, addExceptionComment } = useStore();
   const [comment, setComment] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'timeline'>('info');
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -156,12 +156,17 @@ export default function ExceptionDetail() {
                 {exception.relatedLedgerId && (
                   <div className="pt-4 border-t border-gray-100">
                     <p className="text-sm text-gray-500">关联台账</p>
-                    <button
-                      onClick={() => navigate(`/ledger/${exception.relatedLedgerId}`)}
-                      className="text-blue-600 hover:underline font-medium"
-                    >
-                      {exception.relatedLedgerId}
-                    </button>
+                    {(() => {
+                      const relatedLedger = getLedgerById(exception.relatedLedgerId);
+                      return (
+                        <button
+                          onClick={() => navigate(`/ledger/${exception.relatedLedgerId}`)}
+                          className="text-blue-600 hover:underline font-medium"
+                        >
+                          {relatedLedger?.recordNo || exception.relatedLedgerId}
+                        </button>
+                      );
+                    })()}
                   </div>
                 )}
               </Card.Content>

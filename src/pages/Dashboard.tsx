@@ -100,9 +100,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <Card.Header>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/ledger')}>
+          <Card.Header className="flex items-center justify-between">
             <Card.Title>近7日回收趋势</Card.Title>
+            <span className="text-sm text-blue-600">查看台账 →</span>
           </Card.Header>
           <Card.Content>
             <div className="h-64">
@@ -143,9 +144,10 @@ export default function Dashboard() {
           </Card.Content>
         </Card>
 
-        <Card>
-          <Card.Header>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/ledger')}>
+          <Card.Header className="flex items-center justify-between">
             <Card.Title>品类分布</Card.Title>
+            <span className="text-sm text-blue-600">查看台账 →</span>
           </Card.Header>
           <Card.Content>
             <div className="h-64">

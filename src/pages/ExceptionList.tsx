@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useStore } from '@/store/useStore';
-import { exceptionTypeLabels, exceptionStatusLabels, type ExceptionType, type ExceptionStatus } from '@/types';
+import { categoryLabels, exceptionTypeLabels, exceptionStatusLabels, type ExceptionType, type ExceptionStatus } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function ExceptionList() {
   const navigate = useNavigate();
-  const { currentRole, currentUser, getFilteredExceptions, addException } = useStore();
+  const { currentRole, currentUser, getFilteredExceptions, addException, ledgerRecords } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -26,6 +26,7 @@ export default function ExceptionList() {
   });
 
   const exceptions = getFilteredExceptions();
+  const recentLedgers = ledgerRecords.slice(0, 20);
 
   const filteredExceptions = exceptions.filter((e) => {
     const matchSearch =
@@ -245,13 +246,18 @@ export default function ExceptionList() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">关联台账（可选）</label>
-              <input
-                type="text"
+              <select
                 value={newException.relatedLedgerId}
                 onChange={(e) => setNewException({ ...newException, relatedLedgerId: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="输入台账编号"
-              />
+              >
+                <option value="">不关联台账</option>
+                {recentLedgers.map((ledger) => (
+                  <option key={ledger.id} value={ledger.id}>
+                    {ledger.recordNo} - {categoryLabels[ledger.category]} - {ledger.weight}kg
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div>

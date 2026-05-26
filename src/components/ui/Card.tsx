@@ -3,11 +3,17 @@ import { cn } from '@/lib/utils';
 interface CardProps {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
-export function Card({ children, className }: CardProps) {
+export function Card({ children, className, onClick }: CardProps) {
   return (
-    <div className={cn('bg-white rounded-xl shadow-sm border border-gray-200', className)}>
+    <div 
+      className={cn('bg-white rounded-xl shadow-sm border border-gray-200', className)}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       {children}
     </div>
   );
