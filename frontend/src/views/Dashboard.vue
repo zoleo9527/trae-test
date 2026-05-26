@@ -60,7 +60,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="recheck">批量转复检</el-dropdown-item>
-                <el-dropdown-item command="approve">批量通过</el-dropdown-item>
+                <el-dropdown-item command="approve">批量推进下一阶段</el-dropdown-item>
                 <el-dropdown-item command="reject">批量驳回</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -264,14 +264,25 @@ function openDetail(complaint: any) {
 }
 
 async function handleBatchAction(action: string) {
+  const actionLabels: Record<string, string> = {
+    recheck: '批量转复检',
+    approve: '批量推进下一阶段',
+    reject: '批量驳回',
+  };
+  const actionWarnings: Record<string, string> = {
+    recheck: '待处理的客诉将被标记为"复检中"',
+    approve: '将根据每条记录的当前状态自动推进到下一阶段（复检→赔付→回款→结案）',
+    reject: '选中的客诉将被标记为"已驳回"',
+  };
+
   try {
     await ElMessageBox.confirm(
-      `确定对选中的 ${selectedIds.value.length} 条记录执行此操作吗？`,
-      '确认操作',
-      { type: 'warning' }
+      `${actionWarnings[action] || ''}\n\n确定对选中的 ${selectedIds.value.length} 条记录执行「${actionLabels[action] || action}」吗？`,
+      '确认批量操作',
+      { type: 'warning', confirmButtonText: '确定执行', cancelButtonText: '取消' }
     );
     const result = await complaintStore.batchAction(action);
-    ElMessage.success(`操作成功：${result?.success || 0} 条`);
+    ElMessage.success(`操作成功：${result?.success || 0} 条${result?.failed ? `，失败：${result.failed} 条` : ''}`);
     fetchData();
   } catch (error) {
     if (error !== 'cancel') {

@@ -166,25 +166,47 @@ export class ComplaintService {
     
     for (const id of ids) {
       try {
+        const complaint = await this.complaintRepository.findOne({ where: { id } });
+        if (!complaint) {
+          results.failed++;
+          continue;
+        }
+
         let newStatus: ComplaintStatus | null = null;
+        let remark: string | undefined;
         
         switch (action) {
           case 'recheck':
-            newStatus = 'rechecking';
+            if (complaint.status === 'pending') {
+              newStatus = 'rechecking';
+              remark = '批量安排复检';
+            }
             break;
           case 'approve':
-            newStatus = 'completed';
+            if (complaint.status === 'pending') {
+              newStatus = 'rechecking';
+              remark = '批量推进：安排复检';
+            } else if (complaint.status === 'rechecking') {
+              newStatus = 'compensating';
+              remark = '批量推进：复检完成，进入赔付审批';
+            } else if (complaint.status === 'compensating') {
+              newStatus = 'payment_pending';
+              remark = '批量推进：赔付已批准，等待回款';
+            } else if (complaint.status === 'payment_pending') {
+              newStatus = 'completed';
+              remark = '批量推进：回款完成，案件结案';
+            }
             break;
           case 'reject':
-            newStatus = 'rejected';
-            break;
-          case 'compensate':
-            newStatus = 'compensating';
+            if (complaint.status !== 'completed' && complaint.status !== 'rejected') {
+              newStatus = 'rejected';
+              remark = '批量驳回客诉';
+            }
             break;
         }
 
-        if (newStatus) {
-          await this.updateStatus(id, newStatus, userId);
+        if (newStatus && newStatus !== complaint.status) {
+          await this.updateStatus(id, newStatus, userId, remark);
           results.success++;
         } else {
           results.failed++;
