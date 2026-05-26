@@ -68,12 +68,6 @@ export const useAppStore = defineStore('app', () => {
     return n < 10 ? '0' + n : String(n)
   }
 
-  function redeemOrder(orderId: string) {
-    const o = orderById(orderId)
-    if (!o) return
-    o.status = 'redeemed'
-  }
-
   function updateRefund(id: string, patch: Partial<Refund>) {
     const r = db.value.refunds.find(x => x.id === id)
     if (r) Object.assign(r, patch)

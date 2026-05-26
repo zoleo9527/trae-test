@@ -48,7 +48,9 @@ function createRefund() {
   if (!o) return;
   const p = store.pkgOf(o);
   if (!p) return;
-  store.createRefund(o.id, p.price, createForm.value.reason.trim());
+  const newRefund = store.createRefund(o.id, p.price, createForm.value.reason.trim());
+  selectedId.value = newRefund.id;
+  store.selectedRefundId = newRefund.id;
   createForm.value = { orderId: "", reason: "" };
   showCreateForm.value = false;
 }

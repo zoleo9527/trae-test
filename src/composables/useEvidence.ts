@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { useAppStore, roleLabel } from '@/store/app'
+import type { Transfer, Refund } from '@/types'
 
 export function useEvidence() {
   const store = useAppStore()
@@ -53,7 +54,7 @@ export function useEvidence() {
         color: t.lost ? 'rose' : 'sky',
         title: t.lost ? '镜片调拨丢失' : '镜片调拨',
         desc: `${t.fromStore} → ${t.toStore}　${t.logistics} ${t.trackingNo}`,
-        actor: t.status,
+        actor: transferStatusLabel(t.status),
       })
     }
 
@@ -73,8 +74,8 @@ export function useEvidence() {
         id: 'rf-' + rf.id,
         time: rf.requestedAt,
         type: 'refund',
-        color: 'amber',
-        title: '退款申请：' + rf.status,
+        color: refundStatusColor(rf.status),
+        title: '退款申请：' + refundStatusLabel(rf.status),
         desc: `¥${rf.amount}　原因：${rf.reason}`,
         actor: rf.requestedBy,
       })
@@ -108,6 +109,36 @@ export function useEvidence() {
       case 'evidence': return '证据附件'
       default: return '备注'
     }
+  }
+
+  function transferStatusLabel(s: Transfer['status']) {
+    const map: Record<string, string> = {
+      sent: '已发出',
+      in_transit: '运输中',
+      received: '已签收',
+      lost: '已丢失',
+    }
+    return map[s] ?? s
+  }
+
+  function refundStatusLabel(s: Refund['status']) {
+    const map: Record<string, string> = {
+      requested: '已申请',
+      reviewing: '审核中',
+      approved: '已通过',
+      rejected: '已驳回',
+    }
+    return map[s] ?? s
+  }
+
+  function refundStatusColor(s: Refund['status']) {
+    const map: Record<string, string> = {
+      requested: 'slate',
+      reviewing: 'amber',
+      approved: 'moss',
+      rejected: 'rose',
+    }
+    return map[s] ?? 'slate'
   }
 
   type NoteKind = 'note' | 'reject' | 'supplement' | 'evidence'
