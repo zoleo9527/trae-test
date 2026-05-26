@@ -200,6 +200,7 @@ func (s *OrderService) Submit(id uuid.UUID, operatorID uuid.UUID, operatorName s
 			if err := tx.Create(priceApproval).Error; err != nil {
 				return err
 			}
+			order.PriceApprovalID = &priceApproval.ID
 		} else {
 			order.Status = models.OrderStatusApproved
 			now := time.Now()
@@ -238,8 +239,29 @@ func (s *OrderService) Approve(id uuid.UUID, operatorID uuid.UUID, operatorName 
 	order.ApprovedAt = &now
 	order.ApprovedBy = &operatorID
 
-	if err := db.DB.Save(order).Error; err != nil {
-		return nil, models.AppErrInternal("审批订单失败")
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(order).Error; err != nil {
+			return err
+		}
+
+		if order.PriceApprovalID != nil {
+			if err := tx.Model(&models.PriceApproval{}).
+				Where("id = ?", *order.PriceApprovalID).
+				Updates(map[string]interface{}{
+					"status":          models.ApprovalStatusApproved,
+					"approver_id":     operatorID,
+					"approval_opinion": approvalRemark,
+					"approved_at":     now,
+				}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, models.AppErrInternal("审批订单失败: " + err.Error())
 	}
 
 	s.auditService.LogStatusChange("order", order.ID, oldStatus, order.Status, operatorID, operatorName, approvalRemark)
@@ -260,8 +282,30 @@ func (s *OrderService) Reject(id uuid.UUID, operatorID uuid.UUID, operatorName s
 	oldStatus := order.Status
 	order.Status = models.OrderStatusRejected
 
-	if err := db.DB.Save(order).Error; err != nil {
-		return nil, models.AppErrInternal("驳回订单失败")
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(order).Error; err != nil {
+			return err
+		}
+
+		if order.PriceApprovalID != nil {
+			now := time.Now()
+			if err := tx.Model(&models.PriceApproval{}).
+				Where("id = ?", *order.PriceApprovalID).
+				Updates(map[string]interface{}{
+					"status":          models.ApprovalStatusRejected,
+					"approver_id":     operatorID,
+					"approval_opinion": rejectReason,
+					"approved_at":     now,
+				}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, models.AppErrInternal("驳回订单失败: " + err.Error())
 	}
 
 	s.auditService.LogStatusChange("order", order.ID, oldStatus, order.Status, operatorID, operatorName, rejectReason)

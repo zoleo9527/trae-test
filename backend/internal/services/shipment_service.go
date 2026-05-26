@@ -77,12 +77,14 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 	}
 
 	var totalQty float64
+	var actualItems []models.AllocationItem
 
 	for _, allocItem := range allocation.AllocationItems {
 		actualQty := allocItem.PickedQty
 		if actualQty <= 0 {
-			actualQty = allocItem.Quantity
+			continue
 		}
+		actualItems = append(actualItems, allocItem)
 		shipmentItem := models.ShipmentItem{
 			ProductID:   allocItem.ProductID,
 			BatchID:     allocItem.BatchID,
@@ -91,6 +93,10 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 		}
 		shipment.ShipmentItems = append(shipment.ShipmentItems, shipmentItem)
 		totalQty += actualQty
+	}
+
+	if len(shipment.ShipmentItems) == 0 {
+		return nil, models.AppErrValidationFailed("没有有效的发货明细，请先确认拣货")
 	}
 
 	shipment.TotalQty = totalQty
@@ -114,7 +120,7 @@ func (s *ShipmentService) Create(req *CreateShipmentRequest, operatorID uuid.UUI
 			return err
 		}
 
-		if err := s.consumeInventory(tx, allocation.WarehouseID, allocation.AllocationItems); err != nil {
+		if err := s.consumeInventory(tx, allocation.WarehouseID, actualItems); err != nil {
 			return err
 		}
 

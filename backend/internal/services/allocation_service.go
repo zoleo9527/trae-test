@@ -173,15 +173,19 @@ func (s *AllocationService) validateAllocationItems(order *models.Order, req *Cr
 		return models.AppErrInternal("查询已分配数量失败")
 	}
 
+	requestQtyMap := make(map[uuid.UUID]float64)
 	for _, itemReq := range req.Items {
-		orderItem, exists := orderItemMap[itemReq.OrderItemID]
-		if !exists {
+		if _, exists := orderItemMap[itemReq.OrderItemID]; !exists {
 			return models.AppErrValidationFailed(fmt.Sprintf("订单项不存在: %s", itemReq.OrderItemID))
 		}
+		requestQtyMap[itemReq.OrderItemID] += itemReq.Quantity
+	}
 
-		totalAllocated := alreadyAllocated[itemReq.OrderItemID] + itemReq.Quantity
+	for orderItemID, reqQty := range requestQtyMap {
+		orderItem := orderItemMap[orderItemID]
+		totalAllocated := alreadyAllocated[orderItemID] + reqQty
 		if totalAllocated > orderItem.Quantity {
-			return models.AppErrValidationFailed(fmt.Sprintf("产品 %s 分配数量(%.2f)超过订货数量(%.2f)，已分配: %.2f", orderItem.ProductID, totalAllocated, orderItem.Quantity, alreadyAllocated[itemReq.OrderItemID]))
+			return models.AppErrValidationFailed(fmt.Sprintf("产品 %s 分配数量(%.2f)超过订货数量(%.2f)，已分配: %.2f", orderItem.ProductID, totalAllocated, orderItem.Quantity, alreadyAllocated[orderItemID]))
 		}
 	}
 
@@ -343,6 +347,16 @@ func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, op
 
 	if allocation.Status != models.AllocationStatusPicking {
 		return nil, models.AppErrStatusConflict("只有拣货中状态的分仓单才能确认打包")
+	}
+
+	if len(req.PickedItems) == 0 {
+		return nil, models.AppErrValidationFailed("拣货明细不能为空")
+	}
+
+	for _, item := range req.PickedItems {
+		if item.PickedQty <= 0 {
+			return nil, models.AppErrValidationFailed("拣货数量必须大于0")
+		}
 	}
 
 	pickedMap := make(map[uuid.UUID]float64)
