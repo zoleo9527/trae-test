@@ -63,7 +63,11 @@
         </el-table-column>
         <el-table-column label="操作">
           <template #default="{ row }">
-            <el-button link type="primary" @click="$router.push(`/settlement/detail/${row.id}`)">
+            <el-button 
+              v-if="['owner', 'accountant'].includes(authStore.user?.role)" 
+              link type="primary" 
+              @click="$router.push(`/settlement/detail/${row.id}`)"
+            >
               查看
             </el-button>
           </template>
@@ -78,9 +82,19 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import db from '@/utils/db'
+import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
+
+const authStore = useAuthStore()
+const router = useRouter()
 
 const route = useRoute()
 const id = route.params.id
+
+if (!['owner', 'weigher', 'accountant'].includes(authStore.user?.role)) {
+  ElMessage.error('无权限访问此页面')
+  router.replace('/')
+}
 
 const weighing = ref(null)
 const vehicle = ref(null)

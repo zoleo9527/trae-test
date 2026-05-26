@@ -67,7 +67,12 @@
                   <el-table-column prop="weigher_name" label="过磅员" width="80" />
                   <el-table-column label="操作" width="80">
                     <template #default="{ row }">
-                      <el-button link type="primary" size="small" @click="$router.push(`/weighing/detail/${row.id}`)">
+                      <el-button 
+                        v-if="canViewWeighingDetail" 
+                        link type="primary" 
+                        size="small" 
+                        @click="$router.push(`/weighing/detail/${row.id}`)"
+                      >
                         详情
                       </el-button>
                     </template>
@@ -90,7 +95,11 @@
                 <p>实付: <strong style="font-size: 18px; color: #f56c6c;">¥{{ traceData.settlement.actual_amount.toFixed(2) }}</strong></p>
                 <p>财务: {{ traceData.accountant?.name }}</p>
                 <p>时间: {{ traceData.settlement.created_at }}</p>
-                <el-button link type="primary" @click="$router.push(`/settlement/detail/${traceData.settlement.id}`)">
+                <el-button 
+                  v-if="canViewSettlementDetail" 
+                  link type="primary" 
+                  @click="$router.push(`/settlement/detail/${traceData.settlement.id}`)"
+                >
                   查看结算详情
                 </el-button>
               </div>
@@ -196,6 +205,8 @@ const statusText = {
 }
 
 const canAccessVehicles = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
+const canViewWeighingDetail = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
+const canViewSettlementDetail = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
 
 const currentStep = computed(() => {
   if (!traceData.value) return 0

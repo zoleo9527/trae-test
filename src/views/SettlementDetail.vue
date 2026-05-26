@@ -74,11 +74,21 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import db from '@/utils/db'
+import { useAuthStore } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
+
+const authStore = useAuthStore()
+const router = useRouter()
 
 const route = useRoute()
 const id = route.params.id
+
+if (!['owner', 'accountant'].includes(authStore.user?.role)) {
+  ElMessage.error('无权限访问此页面')
+  router.replace('/')
+}
 
 const settlement = ref(null)
 const weighings = ref([])

@@ -386,6 +386,10 @@ async function confirmSettlement() {
     
     for (const w of selectedWeighings.value) {
       await db.query('UPDATE weighings SET status = ? WHERE id = ?', ['settled', w.id])
+      await db.log('update', 'weighings', w.id, 
+        { status: 'pending' }, 
+        { status: 'settled', settlement_no: settlementNo }
+      )
     }
     
     await db.log('create', 'settlements', result.data.lastInsertRowid, null, {
@@ -470,6 +474,10 @@ async function rejectSettlement(row) {
     const weighingIds = row.weighing_ids.split(',')
     for (const id of weighingIds) {
       await db.query('UPDATE weighings SET status = ? WHERE id = ?', ['pending', id])
+      await db.log('update', 'weighings', Number(id),
+        { status: 'settled' },
+        { status: 'pending', settlement_rejected: row.settlement_no }
+      )
     }
     
     ElMessage.success('已驳回')

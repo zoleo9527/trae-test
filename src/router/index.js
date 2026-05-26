@@ -26,7 +26,8 @@ const routes = [
       {
         path: 'weighing/detail/:id',
         name: 'WeighingDetail',
-        component: () => import('@/views/WeighingDetail.vue')
+        component: () => import('@/views/WeighingDetail.vue'),
+        meta: { roles: ['owner', 'weigher', 'accountant'] }
       },
       {
         path: 'settlement',
@@ -37,7 +38,8 @@ const routes = [
       {
         path: 'settlement/detail/:id',
         name: 'SettlementDetail',
-        component: () => import('@/views/SettlementDetail.vue')
+        component: () => import('@/views/SettlementDetail.vue'),
+        meta: { roles: ['owner', 'accountant'] }
       },
       {
         path: 'trace',
