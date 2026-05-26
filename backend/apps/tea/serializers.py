@@ -217,8 +217,30 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, required=False)
     store_name = serializers.CharField(source='store.name', read_only=True)
+    store_region = serializers.CharField(source='store.region', read_only=True)
     activity_name = serializers.CharField(source='activity.activity_name', read_only=True, default=None)
     activity_code = serializers.CharField(source='activity.code', read_only=True, default=None)
+    activity_status = serializers.CharField(source='activity.status', read_only=True, default=None)
+    activity_type = serializers.CharField(source='activity.activity_type', read_only=True, default=None)
+    price_approval_code = serializers.CharField(
+        source='activity.price_approval.code', read_only=True, default=None,
+    )
+    price_approval_product = serializers.CharField(
+        source='activity.price_approval.product.name', read_only=True, default=None,
+    )
+    price_approval_unit_price = serializers.DecimalField(
+        source='activity.price_approval.proposed_unit_price',
+        max_digits=10, decimal_places=2, read_only=True, default=None,
+    )
+    price_approval_store = serializers.CharField(
+        source='activity.price_approval.store.name', read_only=True, default=None,
+    )
+    price_approval_effective_from = serializers.DateField(
+        source='activity.price_approval.effective_from', read_only=True, default=None,
+    )
+    price_approval_effective_to = serializers.DateField(
+        source='activity.price_approval.effective_to', read_only=True, default=None,
+    )
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     submitter_name = serializers.CharField(source='submitter.username', read_only=True, default=None)
 
@@ -227,18 +249,67 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('created_at', 'created_by', 'updated_at', 'updated_by', 'confirmed_at', 'cancelled_at')
 
+    def _get_activity_price_approval(self, activity):
+        if not activity:
+            return None
+        try:
+            return activity.price_approval
+        except PriceApproval.DoesNotExist:
+            return None
+
     def validate(self, attrs):
         if attrs.get('status') == 'confirmed' and not attrs.get('items'):
             raise serializers.ValidationError('确认订货单时必须包含物料明细')
+        activity = attrs.get('activity') or (self.instance.activity if self.instance else None)
+        if activity:
+            price_approval = self._get_activity_price_approval(activity)
+            if price_approval and price_approval.status != 'approved':
+                raise serializers.ValidationError(
+                    f'关联活动的价格审批状态为 {price_approval.get_status_display()}，不可用于订货'
+                )
+            if price_approval and price_approval.store:
+                order_store = attrs.get('store') or (self.instance.store if self.instance else None)
+                if order_store and price_approval.store_id != order_store.id:
+                    raise serializers.ValidationError(
+                        f'该活动仅适用于门店 {price_approval.store.name}，与订货门店不一致'
+                    )
         return attrs
+
+    def _validate_and_prepare_items(self, items_data, activity):
+        price_approval = self._get_activity_price_approval(activity) if activity else None
+        prepared_items = []
+        for item_data in items_data:
+            product = item_data.get('product')
+            unit_price = item_data.get('unit_price')
+            if price_approval:
+                if product and price_approval.product_id != product.id:
+                    raise serializers.ValidationError(
+                        f'活动仅适用于商品 {price_approval.product.name}，不可订购 {product.name}'
+                    )
+                if unit_price and abs(float(unit_price) - float(price_approval.proposed_unit_price)) > 0.001:
+                    raise serializers.ValidationError(
+                        f'商品单价必须与价格审批一致 ({price_approval.proposed_unit_price})，'
+                        f'不可提交 {unit_price}'
+                    )
+                item_data['product'] = price_approval.product
+                item_data['unit_price'] = price_approval.proposed_unit_price
+                item_data['activity_price_applied'] = True
+            else:
+                item_data['activity_price_applied'] = False
+            if item_data.get('quantity', 0) <= 0:
+                raise serializers.ValidationError('订货数量必须大于 0')
+            prepared_items.append(item_data)
+        return prepared_items
 
     @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         validated_data['submitter'] = self.context['request'].user
         validated_data['created_by'] = self.context['request'].user
+        activity = validated_data.get('activity')
+        prepared_items = self._validate_and_prepare_items(items_data, activity)
         order = super().create(validated_data)
-        for item_data in items_data:
+        for item_data in prepared_items:
             OrderItem.objects.create(
                 order=order,
                 created_by=self.context['request'].user,
@@ -254,10 +325,12 @@ class OrderSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
         validated_data['updated_by'] = self.context['request'].user
+        activity = validated_data.get('activity', instance.activity)
         order = super().update(instance, validated_data)
         if items_data is not None:
             order.items.all().delete()
-            for item_data in items_data:
+            prepared_items = self._validate_and_prepare_items(items_data, activity)
+            for item_data in prepared_items:
                 OrderItem.objects.create(
                     order=order,
                     created_by=self.context['request'].user,
@@ -273,13 +346,27 @@ class OrderSerializer(serializers.ModelSerializer):
 class OrderListSerializer(serializers.ModelSerializer):
     store_name = serializers.CharField(source='store.name', read_only=True)
     activity_name = serializers.CharField(source='activity.activity_name', read_only=True, default=None)
+    activity_code = serializers.CharField(source='activity.code', read_only=True, default=None)
+    activity_status = serializers.CharField(source='activity.status', read_only=True, default=None)
+    price_approval_code = serializers.CharField(
+        source='activity.price_approval.code', read_only=True, default=None,
+    )
+    price_approval_product = serializers.CharField(
+        source='activity.price_approval.product.name', read_only=True, default=None,
+    )
+    price_approval_unit_price = serializers.DecimalField(
+        source='activity.price_approval.proposed_unit_price',
+        max_digits=10, decimal_places=2, read_only=True, default=None,
+    )
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     submitter_name = serializers.CharField(source='submitter.username', read_only=True, default=None)
 
     class Meta:
         model = Order
         fields = (
-            'id', 'code', 'store', 'store_name', 'activity', 'activity_name',
+            'id', 'code', 'store', 'store_name', 'activity', 'activity_code',
+            'activity_name', 'activity_status', 'price_approval_code',
+            'price_approval_product', 'price_approval_unit_price',
             'status', 'status_display', 'total_amount', 'submitter',
             'submitter_name', 'note', 'confirmed_at', 'created_at',
         )

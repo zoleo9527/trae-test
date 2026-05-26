@@ -110,13 +110,21 @@ POST   /api/activity-submissions/{id}/reject/  # 驳回（审批人）
 ### 订货 & 发货
 
 ```
-GET    /api/orders/                          # 列表
-POST   /api/orders/                          # 创建（含 items 明细）
+GET    /api/orders/                          # 列表（含活动价来源信息）
+POST   /api/orders/                          # 创建（含 items 明细，关联活动后自动带出商品和活动价）
+GET    /api/orders/{id}/                     # 详情（含价格审批、活动价、门店口径全链路）
 POST   /api/orders/{id}/confirm/             # 确认订货
 POST   /api/orders/{id}/cancel/              # 取消订货
 POST   /api/shipments/{id}/ship/             # 发货（自动生成库存变动记录）
 POST   /api/shipments/{id}/receive/          # 签收
 ```
+
+**活动价自动承接规则**（订单关联已通过活动后）：
+- `items.product` 自动锁定为价格审批的商品，传入其他商品将被拒绝
+- `items.unit_price` 自动使用审批的 `proposed_unit_price`，传入不一致价格将被拒绝
+- `items.activity_price_applied` 自动标记为 `true`
+- 若价格审批指定了门店，订单 `store` 必须匹配，否则拒绝提交
+- 订单详情返回字段包含 `price_approval_code`、`price_approval_product`、`price_approval_unit_price`、`price_approval_store` 等，活动价来源一目了然
 
 ### 仪表盘
 
