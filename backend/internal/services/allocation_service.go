@@ -134,17 +134,32 @@ func (s *AllocationService) validateOrderForAllocation(orderID uuid.UUID) (*mode
 		return nil, models.AppErrInternal("查询订单失败")
 	}
 
-	if order.Status != models.OrderStatusApproved {
-		return nil, models.AppErrStatusConflict("只有已审批状态的订单才能分仓")
-	}
-
-	var existingAllocations int64
-	db.DB.Model(&models.Allocation{}).Where("order_id = ?", orderID).Count(&existingAllocations)
-	if existingAllocations > 0 {
-		return nil, models.AppErrStatusConflict("该订单已生成分仓单")
+	if order.Status != models.OrderStatusApproved && order.Status != models.OrderStatusAllocated {
+		return nil, models.AppErrStatusConflict("只有已审批或已分仓状态的订单才能分仓")
 	}
 
 	return &order, nil
+}
+
+func (s *AllocationService) getAlreadyAllocatedQty(orderID uuid.UUID) (map[uuid.UUID]float64, error) {
+	allocatedMap := make(map[uuid.UUID]float64)
+
+	var allocations []models.Allocation
+	if err := db.DB.Where("order_id = ? AND status IN (?)", orderID, []string{models.AllocationStatusPending, models.AllocationStatusPicking, models.AllocationStatusPacked, models.AllocationStatusShipped}).Find(&allocations).Error; err != nil {
+		return nil, err
+	}
+
+	for _, alloc := range allocations {
+		var allocItems []models.AllocationItem
+		if err := db.DB.Where("allocation_id = ?", alloc.ID).Find(&allocItems).Error; err != nil {
+			continue
+		}
+		for _, item := range allocItems {
+			allocatedMap[item.OrderItemID] += item.Quantity
+		}
+	}
+
+	return allocatedMap, nil
 }
 
 func (s *AllocationService) validateAllocationItems(order *models.Order, req *CreateAllocationRequest) error {
@@ -153,7 +168,10 @@ func (s *AllocationService) validateAllocationItems(order *models.Order, req *Cr
 		orderItemMap[order.OrderItems[i].ID] = &order.OrderItems[i]
 	}
 
-	allocatedQtyMap := make(map[uuid.UUID]float64)
+	alreadyAllocated, err := s.getAlreadyAllocatedQty(order.ID)
+	if err != nil {
+		return models.AppErrInternal("查询已分配数量失败")
+	}
 
 	for _, itemReq := range req.Items {
 		orderItem, exists := orderItemMap[itemReq.OrderItemID]
@@ -161,17 +179,9 @@ func (s *AllocationService) validateAllocationItems(order *models.Order, req *Cr
 			return models.AppErrValidationFailed(fmt.Sprintf("订单项不存在: %s", itemReq.OrderItemID))
 		}
 
-		allocatedQtyMap[itemReq.OrderItemID] += itemReq.Quantity
-
-		if allocatedQtyMap[itemReq.OrderItemID] > orderItem.Quantity {
-			return models.AppErrValidationFailed(fmt.Sprintf("产品 %s 分配数量超过订货数量", orderItem.ProductID))
-		}
-	}
-
-	for orderItemID, allocated := range allocatedQtyMap {
-		orderItem := orderItemMap[orderItemID]
-		if allocated < orderItem.Quantity {
-			return models.AppErrValidationFailed(fmt.Sprintf("产品 %s 分配数量不足订货数量", orderItem.ProductID))
+		totalAllocated := alreadyAllocated[itemReq.OrderItemID] + itemReq.Quantity
+		if totalAllocated > orderItem.Quantity {
+			return models.AppErrValidationFailed(fmt.Sprintf("产品 %s 分配数量(%.2f)超过订货数量(%.2f)，已分配: %.2f", orderItem.ProductID, totalAllocated, orderItem.Quantity, alreadyAllocated[itemReq.OrderItemID]))
 		}
 	}
 
@@ -316,7 +326,16 @@ func (s *AllocationService) StartPicking(id uuid.UUID, operatorID uuid.UUID, ope
 	return allocation, nil
 }
 
-func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, operatorName string, pickedItems []map[string]interface{}) (*models.Allocation, error) {
+type ConfirmPackedRequest struct {
+	PickedItems []PickedItemRequest `json:"picked_items"`
+}
+
+type PickedItemRequest struct {
+	AllocationItemID uuid.UUID `json:"allocation_item_id" validate:"required"`
+	PickedQty        float64   `json:"picked_qty" validate:"required,gte=0"`
+}
+
+func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, operatorName string, req *ConfirmPackedRequest) (*models.Allocation, error) {
 	allocation, err := s.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -326,18 +345,20 @@ func (s *AllocationService) ConfirmPacked(id uuid.UUID, operatorID uuid.UUID, op
 		return nil, models.AppErrStatusConflict("只有拣货中状态的分仓单才能确认打包")
 	}
 
+	pickedMap := make(map[uuid.UUID]float64)
+	for _, item := range req.PickedItems {
+		pickedMap[item.AllocationItemID] = item.PickedQty
+	}
+
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		for i := range allocation.AllocationItems {
 			item := &allocation.AllocationItems[i]
-			for _, picked := range pickedItems {
-				if picked["allocation_item_id"] == item.ID.String() {
-					item.PickedQty = picked["picked_qty"].(float64)
+			if pickedQty, ok := pickedMap[item.ID]; ok {
+				item.PickedQty = pickedQty
+				if err := tx.Save(item).Error; err != nil {
+					return err
 				}
 			}
-		}
-
-		if err := tx.Save(allocation).Error; err != nil {
-			return err
 		}
 
 		oldStatus := allocation.Status

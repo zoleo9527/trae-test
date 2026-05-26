@@ -173,8 +173,36 @@ func (s *TaskService) exportOrders(task *models.AsyncTask) (string, error) {
 		f.SetCellValue(sheetName, cell, header)
 	}
 
+	var payload ExportOrdersPayload
+	if task.Payload != "" {
+		json.Unmarshal([]byte(task.Payload), &payload)
+	}
+
+	query := db.DB.Preload("Store").Preload("Sales").Model(&models.Order{})
+
+	if payload.StoreID != uuid.Nil {
+		query = query.Where("store_id = ?", payload.StoreID)
+	}
+	if payload.SalesID != uuid.Nil {
+		query = query.Where("sales_id = ?", payload.SalesID)
+	}
+	if payload.Status != "" {
+		query = query.Where("status = ?", payload.Status)
+	}
+	if payload.StartDate != "" {
+		query = query.Where("created_at >= ?", payload.StartDate)
+	}
+	if payload.EndDate != "" {
+		query = query.Where("created_at <= ?", payload.EndDate)
+	}
+	if payload.Keyword != "" {
+		keyword := "%" + payload.Keyword + "%"
+		query = query.Joins("JOIN stores ON stores.id = orders.store_id").
+			Where("orders.order_no LIKE ? OR stores.name LIKE ?", keyword, keyword)
+	}
+
 	var orders []models.Order
-	db.DB.Preload("Store").Preload("Sales").Find(&orders)
+	query.Find(&orders)
 
 	for i, order := range orders {
 		row := i + 2
@@ -218,8 +246,25 @@ func (s *TaskService) exportShipments(task *models.AsyncTask) (string, error) {
 		f.SetCellValue(sheetName, cell, header)
 	}
 
+	var payload ExportShipmentsPayload
+	if task.Payload != "" {
+		json.Unmarshal([]byte(task.Payload), &payload)
+	}
+
+	query := db.DB.Preload("Allocation.Order.Store").Model(&models.Shipment{})
+
+	if payload.Status != "" {
+		query = query.Where("status = ?", payload.Status)
+	}
+	if payload.StartDate != "" {
+		query = query.Where("created_at >= ?", payload.StartDate)
+	}
+	if payload.EndDate != "" {
+		query = query.Where("created_at <= ?", payload.EndDate)
+	}
+
 	var shipments []models.Shipment
-	db.DB.Preload("Allocation.Order.Store").Find(&shipments)
+	query.Find(&shipments)
 
 	for i, shipment := range shipments {
 		row := i + 2

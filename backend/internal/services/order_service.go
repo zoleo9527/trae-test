@@ -103,10 +103,6 @@ func (s *OrderService) Create(req *CreateOrderRequest, operatorID uuid.UUID, ope
 	order.DiscountAmount = discountAmount
 	order.FinalAmount = finalAmount
 
-	if discountAmount > 0 && discountAmount/totalAmount > 0.1 {
-		order.Status = models.OrderStatusPending
-	}
-
 	err := db.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(order).Error; err != nil {
 			return err
@@ -191,17 +187,34 @@ func (s *OrderService) Submit(id uuid.UUID, operatorID uuid.UUID, operatorName s
 	oldStatus := order.Status
 	needsApproval := order.DiscountAmount > 0 && (order.DiscountAmount/order.TotalAmount > 0.1)
 
-	if needsApproval {
-		order.Status = models.OrderStatusPending
-	} else {
-		order.Status = models.OrderStatusApproved
-		now := time.Now()
-		order.ApprovedAt = &now
-		order.ApprovedBy = &operatorID
-	}
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		if needsApproval {
+			order.Status = models.OrderStatusPending
+			priceApproval := &models.PriceApproval{
+				OrderID:     order.ID,
+				Status:      models.ApprovalStatusPending,
+				ApplicantID: operatorID,
+				Reason:      fmt.Sprintf("订单折扣率超过10%%，实际折扣率: %.2f%%", (order.DiscountAmount/order.TotalAmount)*100),
+				SubmittedAt: time.Now(),
+			}
+			if err := tx.Create(priceApproval).Error; err != nil {
+				return err
+			}
+		} else {
+			order.Status = models.OrderStatusApproved
+			now := time.Now()
+			order.ApprovedAt = &now
+			order.ApprovedBy = &operatorID
+		}
 
-	if err := db.DB.Save(order).Error; err != nil {
-		return nil, models.AppErrInternal("提交订单失败")
+		if err := tx.Save(order).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, models.AppErrInternal("提交订单失败: " + err.Error())
 	}
 
 	s.auditService.LogStatusChange("order", order.ID, oldStatus, order.Status, operatorID, operatorName, "提交订单")

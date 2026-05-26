@@ -116,12 +116,15 @@ func (ctrl *AllocationController) ConfirmPacked(c *fiber.Ctx) error {
 		})
 	}
 
-	var req struct {
-		PickedItems []map[string]interface{} `json:"picked_items"`
+	var req services.ConfirmPackedRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{
+			"code":    "VALIDATION_FAILED",
+			"message": "请求参数错误: " + err.Error(),
+		})
 	}
-	c.BodyParser(&req)
 
-	allocation, err := ctrl.allocationService.ConfirmPacked(id, user.UserID, user.Name, req.PickedItems)
+	allocation, err := ctrl.allocationService.ConfirmPacked(id, user.UserID, user.Name, &req)
 	if err != nil {
 		return handleAppError(c, err)
 	}
