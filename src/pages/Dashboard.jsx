@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 const fmt = (n) => n ? Math.round(n * 100) / 100 : 0
 
 export default function Dashboard() {
+  const [search, setSearch] = useSearchParams()
   const [kpis, setKpis] = useState(null)
   const [losses, setLosses] = useState([])
   const [claims, setClaims] = useState([])
@@ -12,7 +13,7 @@ export default function Dashboard() {
   const today = new Date(2026, 4, 25)
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [events, setEvents] = useState([])
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(search.get('date') || null)
 
   useEffect(() => {
     fetch('/api/kpis').then(r => r.json()).then(setKpis)
@@ -44,6 +45,13 @@ export default function Dashboard() {
     const c = new Date(cursor)
     c.setMonth(c.getMonth() + n)
     setCursor(c)
+  }
+
+  const pickDay = (date) => {
+    setSelected(date)
+    const params = new URLSearchParams(search)
+    params.set('date', date)
+    setSearch(params)
   }
 
   return (
@@ -107,7 +115,7 @@ export default function Dashboard() {
             ) : (
               <div key={i}
                 className={`day ${c.isToday ? 'today' : ''} ${selected === c.date ? 'selected' : ''}`}
-                onClick={() => setSelected(c.date)}>
+                onClick={() => pickDay(c.date)}>
                 <div className="num">{c.day}</div>
                 <div className="dots">
                   {(eventsByDate[c.date] || []).slice(0, 3).map((e, j) => (
@@ -118,7 +126,7 @@ export default function Dashboard() {
             ))}
           </div>
           <div className="muted small" style={{ marginTop: 10 }}>
-            选中日期可在右侧查看当日所有动作（出入库、损耗、结算、客诉、回款）。
+            选中日期可在右侧查看当日所有动作。关联记录可直接点击跳转。
           </div>
         </div>
 
@@ -248,7 +256,7 @@ function DayDetail({ date }) {
   return (
     <table>
       <thead>
-        <tr><th style={{ width: 70 }}>时间</th><th style={{ width: 80 }}>类型</th><th>动作详情</th><th style={{ width: 100 }}>关联</th></tr>
+        <tr><th style={{ width: 70 }}>时间</th><th style={{ width: 80 }}>类型</th><th>动作详情</th><th style={{ width: 170 }}>关联跳转</th></tr>
       </thead>
       <tbody>
         {data.map(a => (
@@ -260,37 +268,39 @@ function DayDetail({ date }) {
               {a.note && <div className="muted" style={{ marginTop: 2 }}>备注：{a.note}</div>}
               {a.ref && <div className="muted" style={{ marginTop: 2 }}>凭证：{a.ref}</div>}
             </td>
-            <td className="small muted">
-              {a.claim_id && <div>客诉 #{a.claim_id}</div>}
-              {a.credit_id && <div>赊销 #{a.credit_id}</div>}
-              {a.picking_id && <div>配货 #{a.picking_id}</div>}
-              {a.claim_batch_code && a.type === 'loss' && (
+            <td className="small">
+              {a.claim_id && <div className="muted" style={{ fontSize: 11 }}>客诉 #{a.claim_id}</div>}
+              {a.credit_id && <div className="muted" style={{ fontSize: 11 }}>赊销 #{a.credit_id}</div>}
+              {a.picking_id && <div className="muted" style={{ fontSize: 11 }}>配货 #{a.picking_id}</div>}
+              {a.claim_batch_id && a.type === 'loss' && (
                 <div style={{ marginTop: 6 }}>
-                  <div className="muted small">关联客诉 · {a.claim_customer || ''}</div>
-                  <div style={{ marginTop: 2 }}>
-                    <span className="tag red">{a.claim_batch_code}</span>
-                    <span style={{ marginLeft: 6 }} className="small">
-                      {a.claim_reason || ''}
-                    </span>
-                  </div>
+                  <div style={{ fontSize: 11 }}>关联客诉 · {a.claim_customer || ''}</div>
+                  <Link
+                    to={`/batches?batchId=${a.claim_batch_id}&date=${a.claim_reported_at?.slice(0, 10) || ''}`}
+                    className="btn ghost" style={{ padding: '3px 8px', fontSize: 12, marginTop: 2 }}>
+                    查看 {a.claim_batch_code}
+                  </Link>
                 </div>
               )}
               {a.type === 'claim' && (
                 <div style={{ marginTop: 6 }}>
-                  <div className="muted small">关联损耗：</div>
+                  <div style={{ fontSize: 11 }}>关联损耗：</div>
                   {a.linked_loss_summary ? a.linked_loss_summary.split(';').map((s, j) => {
-                    const [code, qty, status] = s.split(':')
+                    const [lossId, lossBatchId, lossBatchCode, lossQty, lossStatus, lossDate] = s.split(':')
                     return (
                       <div key={j} style={{ marginTop: 2 }}>
-                        <span className={`tag ${status === 'confirmed' ? 'green' : 'red'}`}>
-                          {code}
-                        </span>
-                        <span style={{ marginLeft: 6 }} className="small">
-                          {qty} · {status === 'confirmed' ? '已确认' : '待复核'}
+                        <Link
+                          to={`/batches?batchId=${lossBatchId}&date=${lossDate?.slice(0, 10) || ''}`}
+                          className={`btn ${lossStatus === 'confirmed' ? '' : 'ghost'}`}
+                          style={{ padding: '3px 8px', fontSize: 12 }}>
+                          {lossBatchCode} {lossQty}
+                        </Link>
+                        <span className="muted" style={{ marginLeft: 4, fontSize: 11 }}>
+                          {lossStatus === 'confirmed' ? '已确认' : '待复核'}
                         </span>
                       </div>
                     )
-                  }) : <span className="muted small">暂无关联损耗</span>}
+                  }) : <span style={{ fontSize: 11 }} className="muted">暂无关联损耗</span>}
                 </div>
               )}
             </td>

@@ -1,13 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 export default function Batches() {
+  const [search] = useSearchParams()
   const [rows, setRows] = useState([])
   const [detail, setDetail] = useState(null)
   const [timeline, setTimeline] = useState([])
   useEffect(() => {
-    fetch('/api/batches').then(r => r.json()).then(setRows)
-  }, [])
+    fetch('/api/batches').then(r => r.json()).then(d => {
+      setRows(d)
+      const bid = search.get('batchId')
+      if (bid) {
+        const target = d.find(b => String(b.id) === String(bid))
+        if (target) loadDetail(target.id)
+      }
+    })
+  }, [search])
 
   const loadDetail = (id) => {
     fetch(`/api/batches/${id}`).then(r => r.json()).then(d => {
@@ -20,7 +28,7 @@ export default function Batches() {
     <div>
       <div className="head">
         <h1>批次 · 冷库</h1>
-        <div className="sub">每个批次关联：入库称重、分级、配货、损耗、客诉、回款，整条线可回看</div>
+        <div className="sub">每个批次关联：入库称重、分级、配货、损耗、客诉、回款，整条线可回看。关联记录可点击跳转。</div>
       </div>
 
       <div className="split">
@@ -76,9 +84,9 @@ export default function Batches() {
                 <div className="kpi"><div className="label">分级规则</div><div className="value" style={{ fontSize: 14 }}>{detail.grade_rule}</div></div>
               </div>
               <div className="sep" />
-              <h3 style={{ fontSize: 13, color: 'var(--ink-3)', margin: 0 }}>时间线（含客诉、赊销、回款）</h3>
-              <div className="timeline" style={{ marginTop: 6, gridTemplateColumns: '140px 110px 1fr 100px' }}>
-                <div className="h">时间</div><div className="h">动作</div><div className="h">详情</div><div className="h">关联 ID</div>
+              <h3 style={{ fontSize: 13, color: 'var(--ink-3)', margin: 0 }}>时间线（含客诉、赊销、回款，关联可跳转）</h3>
+              <div className="timeline" style={{ marginTop: 6, gridTemplateColumns: '140px 110px 1fr 160px' }}>
+                <div className="h">时间</div><div className="h">动作</div><div className="h">详情</div><div className="h">关联跳转</div>
                 {timeline.map((t, i) => {
                   let tagClass = 'tag'
                   if (t.type === 'move' && t.title === '入库') tagClass = 'tag green'
@@ -95,38 +103,50 @@ export default function Batches() {
                       <div className="c small">{t.at}</div>
                       <div className="c"><span className={tagClass}>{t.title}</span></div>
                       <div className="c notes small">{t.detail}</div>
-                      <div className="c small muted">
-                        {t.picking_id && <div>配货 #{t.picking_id}</div>}
-                        {t.claim_id && <div>客诉 #{t.claim_id}</div>}
-                        {t.credit_id && <div>赊销 #{t.credit_id}</div>}
-                        {t.payment_id && <div>回款 #{t.payment_id}</div>}
-                        {t.ref && <div>凭证 {t.ref}</div>}
+                      <div className="c small">
+                        {t.picking_id && <div className="muted" style={{ fontSize: 11 }}>配货 #{t.picking_id}</div>}
+                        {t.claim_id && <div className="muted" style={{ fontSize: 11 }}>客诉 #{t.claim_id}</div>}
+                        {t.credit_id && (
+                          <Link
+                            to={`/?date=${t.at?.slice(0, 10) || ''}`}
+                            className="muted" style={{ fontSize: 11, textDecoration: 'none' }}>
+                            赊销 #{t.credit_id}
+                          </Link>
+                        )}
+                        {t.payment_id && (
+                          <Link
+                            to={`/?date=${t.at?.slice(0, 10) || ''}`}
+                            className="muted" style={{ fontSize: 11, textDecoration: 'none' }}>
+                            回款 #{t.payment_id}
+                          </Link>
+                        )}
+                        {t.ref && <div className="muted" style={{ fontSize: 11 }}>凭证 {t.ref}</div>}
                         {t.type === 'claim' && t.linked_losses?.length > 0 && (
                           <div style={{ marginTop: 6 }}>
-                            <div className="muted" style={{ fontSize: 11 }}>关联损耗：</div>
+                            <div style={{ fontSize: 11 }}>关联损耗：</div>
                             {t.linked_losses.map((l, j) => (
                               <div key={j} style={{ marginTop: 2 }}>
-                                <span className={`tag ${l.status === 'confirmed' ? 'green' : 'red'}`}>
-                                  {l.batch_code}
-                                </span>
-                                <span style={{ marginLeft: 4, fontSize: 11 }}>
-                                  {l.qty_kg} · {l.status === 'confirmed' ? '已确认' : '待复核'}
+                                <Link
+                                  to={`/batches?batchId=${l.batch_id}&date=${l.found_at?.slice(0, 10) || ''}`}
+                                  className={`btn ${l.status === 'confirmed' ? '' : 'ghost'}`}
+                                  style={{ padding: '3px 8px', fontSize: 12 }}>
+                                  {l.batch_code} {l.qty_kg}
+                                </Link>
+                                <span className="muted" style={{ marginLeft: 4, fontSize: 11 }}>
+                                  {l.status === 'confirmed' ? '已确认' : '待复核'}
                                 </span>
                               </div>
                             ))}
                           </div>
                         )}
-                        {t.type === 'loss' && t.claim_batch_code && (
+                        {t.type === 'loss' && t.claim_batch_id && (
                           <div style={{ marginTop: 6 }}>
-                            <div className="muted" style={{ fontSize: 11 }}>
-                              关联客诉 · {t.claim_customer || ''}
-                            </div>
-                            <div style={{ marginTop: 2 }}>
-                              <span className="tag red">{t.claim_batch_code}</span>
-                              <span style={{ marginLeft: 4, fontSize: 11 }}>
-                                {t.claim_reason || ''}
-                              </span>
-                            </div>
+                            <div style={{ fontSize: 11 }}>关联客诉 · {t.claim_customer || ''}</div>
+                            <Link
+                              to={`/batches?batchId=${t.claim_batch_id}&date=${t.claim_reported_at?.slice(0, 10) || ''}`}
+                              className="btn ghost" style={{ padding: '3px 8px', fontSize: 12, marginTop: 2 }}>
+                              查看 {t.claim_batch_code}
+                            </Link>
                           </div>
                         )}
                       </div>
@@ -139,6 +159,7 @@ export default function Batches() {
                 <Link className="btn" to="/losses">去损耗复核</Link>
                 <Link className="btn" to="/claims">去客诉复核</Link>
                 <Link className="btn" to="/credits">去赊销结算</Link>
+                <Link className="btn" to="/">回到工作台</Link>
               </div>
             </>
           )}

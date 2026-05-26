@@ -245,7 +245,8 @@ app.get('/api/day-actions', (req, res) => {
       note: p.note, batch_id: p.batch_id, picking_id: p.id
     }))
   q(`SELECT l.*, b.code batch_code, b.fruit,
-    cl.customer claim_customer, cl.reason claim_reason, cb.code claim_batch_code
+    cl.customer claim_customer, cl.reason claim_reason, cb.code claim_batch_code,
+    cb.id claim_batch_id, cl.reported_at claim_reported_at
     FROM losses l
     LEFT JOIN batches b ON b.id=l.batch_id
     LEFT JOIN claims cl ON cl.id=l.claim_id
@@ -259,17 +260,19 @@ app.get('/api/day-actions', (req, res) => {
         title: `损耗 · ${l.kind}`,
         detail: `${l.batch_code} ${l.fruit} ${l.qty_kg}kg · 状态:${l.status}${claimLink}`,
         note: l.note, batch_id: l.batch_id, claim_id: l.claim_id,
-        claim_customer: l.claim_customer, claim_reason: l.claim_reason, claim_batch_code: l.claim_batch_code
+        claim_customer: l.claim_customer, claim_reason: l.claim_reason,
+        claim_batch_code: l.claim_batch_code, claim_batch_id: l.claim_batch_id,
+        claim_reported_at: l.claim_reported_at
       })
     })
-  q(`SELECT cl.*, p.order_no, p.customer, b.code batch_code, b.fruit,
-    (SELECT GROUP_CONCAT(lb.code || ':' || l.qty_kg || 'kg:' || l.status, ';')
+  q(`SELECT cl.*, p.order_no, p.customer, b.code batch_code, b.fruit, b.id claim_batch_id,
+    (SELECT GROUP_CONCAT(l.id || ':' || l.batch_id || ':' || lb.code || ':' || l.qty_kg || 'kg:' || l.status || ':' || l.found_at, ';')
      FROM losses l LEFT JOIN batches lb ON lb.id=l.batch_id WHERE l.claim_id=cl.id) linked_loss_summary
     FROM claims cl
     LEFT JOIN picking p ON p.id=cl.picking_id
     LEFT JOIN batches b ON b.id=p.batch_id WHERE date(cl.reported_at)=?`, [date])
     .forEach(cl => {
-      const lossLink = cl.linked_loss_summary ? ` · 关联损耗:${cl.linked_loss_summary.split(';').map(s => { const [c,q,st] = s.split(':'); return `${c} ${q}(${st})`; }).join(', ')}` : ''
+      const lossLink = cl.linked_loss_summary ? ` · 关联损耗:${cl.linked_loss_summary.split(';').map(s => { const [,id,code,qty,st] = s.split(':'); return `${code} ${qty}(${st})`; }).join(', ')}` : ''
       actions.push({
         id: 'cl-' + cl.id, type: 'claim', at: cl.reported_at, kind: 'claim',
         title: '客诉',
@@ -352,15 +355,15 @@ app.get('/api/timeline/:batchId', (req, res) => {
     detail: `${p.customer} ${p.qty_kg}kg ${p.grade || ''} · ${p.driver || ''}`,
     picking_id: p.id
   }))
-  q(`SELECT c.*, p.id pid FROM credits c
+  q(`SELECT c.*, p.id pid, p.batch_id batch_id FROM credits c
     LEFT JOIN picking p ON p.id=c.picking_id WHERE p.batch_id=? ORDER BY c.issued_at`, [id])
     .forEach(c => rows.push({
       at: c.issued_at, type: 'credit', title: '赊销开单',
       detail: `${c.customer} ¥${c.amount} · 到期${c.due_at} · 状态:${c.status}`,
-      credit_id: c.id
+      credit_id: c.id, batch_id: c.batch_id
     }))
-  q(`SELECT cl.*, b.code claim_batch_code, b.fruit claim_fruit,
-    (SELECT GROUP_CONCAT(l.id || ':' || l.batch_id || ':' || lb.code || ':' || l.qty_kg || 'kg:' || l.status, ';')
+  q(`SELECT cl.*, b.code claim_batch_code, b.fruit claim_fruit, b.id claim_batch_id,
+    (SELECT GROUP_CONCAT(l.id || ':' || l.batch_id || ':' || lb.code || ':' || l.qty_kg || 'kg:' || l.status || ':' || l.found_at, ';')
      FROM losses l LEFT JOIN batches lb ON lb.id=l.batch_id WHERE l.claim_id=cl.id) linked_loss_detail
     FROM claims cl
     LEFT JOIN picking p ON p.id=cl.picking_id
@@ -370,19 +373,20 @@ app.get('/api/timeline/:batchId', (req, res) => {
       const losses = []
       if (cl.linked_loss_detail) {
         cl.linked_loss_detail.split(';').forEach(s => {
-          const [lid, lbid, lbcode, lqty, lstatus] = s.split(':')
-          losses.push({ id: lid, batch_id: lbid, batch_code: lbcode, qty_kg: lqty, status: lstatus })
+          const [lid, lbid, lbcode, lqty, lstatus, lfound] = s.split(':')
+          losses.push({ id: lid, batch_id: lbid, batch_code: lbcode, qty_kg: lqty, status: lstatus, found_at: lfound })
         })
       }
       rows.push({
         at: cl.reported_at, type: 'claim', title: '客诉',
         detail: `${cl.customer} ${cl.reason} · ${cl.qty_kg || '-'}kg · 争议¥${cl.amount || '-'} · 状态:${cl.status}`,
         claim_id: cl.id, claim_batch_code: cl.claim_batch_code, claim_fruit: cl.claim_fruit,
+        claim_batch_id: cl.claim_batch_id, reported_at: cl.reported_at,
         linked_losses: losses
       })
     })
   q(`SELECT l.*, cl.customer claim_customer, cl.reason claim_reason, cl.status claim_status,
-    cb.code claim_batch_code, cb.fruit claim_fruit
+    cb.code claim_batch_code, cb.fruit claim_fruit, cb.id claim_batch_id, cl.reported_at claim_reported_at
     FROM losses l
     LEFT JOIN claims cl ON cl.id=l.claim_id
     LEFT JOIN picking cp ON cp.id=cl.picking_id
@@ -396,7 +400,9 @@ app.get('/api/timeline/:batchId', (req, res) => {
         at: l.found_at, type: 'loss', title: `损耗 · ${l.kind}`,
         detail: `${l.qty_kg}kg · ${l.cause || ''} · 状态:${l.status}${claimLink}`,
         loss_id: l.id, claim_id: l.claim_id,
-        claim_customer: l.claim_customer, claim_reason: l.claim_reason, claim_batch_code: l.claim_batch_code
+        claim_customer: l.claim_customer, claim_reason: l.claim_reason,
+        claim_batch_code: l.claim_batch_code, claim_batch_id: l.claim_batch_id,
+        claim_reported_at: l.claim_reported_at
       })
     })
   q(`SELECT py.*, c.customer, p.batch_id FROM payments py
