@@ -291,6 +291,19 @@ function DistributionsPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <button className="close" onClick={() => setSelected(null)}>×</button>
             <h2>{selected.batch} · {selected.bookTitle}</h2>
+            {selected.status === '已回款' && (
+              <div style={{
+                background: '#dcfce7',
+                border: '1px solid #86efac',
+                color: '#166534',
+                padding: '8px 14px',
+                borderRadius: 6,
+                fontSize: 13,
+                marginTop: 8
+              }}>
+                该单据已完成回款登记，财务数据已锁定，仅可查看过程记录。
+              </div>
+            )}
             <div className="kv">
               <div className="k">渠道</div><div className="v">{selected.channelName} · {selected.channelType}</div>
               <div className="k">发货</div><div className="v">{selected.shippedAt} · {selected.qty} 册</div>
@@ -311,7 +324,7 @@ function DistributionsPage() {
                   : '无'}
               </div>
               <div className="k">回款</div>
-              <div className="v">
+              <div className="v" style={selected.status === '已回款' ? { background: '#f3f4f6', padding: '4px 10px', borderRadius: 4 } : {}}>
                 {selected.status === '已回款'
                   ? <>{money(selected.settledAmount)} · {selected.settledAt}</>
                   : '待回款'}
@@ -358,7 +371,7 @@ function DistributionsPage() {
             <div className="form-row">
               <label>快速处理</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {canEdit(role, selected.ownerId, userId) && !selected.sampleReceived && (
+                {canEdit(role, selected.ownerId, userId) && selected.status !== '已回款' && !selected.sampleReceived && (
                   <button
                     className="btn"
                     onClick={() => {
@@ -375,7 +388,7 @@ function DistributionsPage() {
                     确认样书回执
                   </button>
                 )}
-                {canEdit(role, selected.ownerId, userId) && selected.returnedQty === 0 && (
+                {canEdit(role, selected.ownerId, userId) && selected.status !== '已回款' && selected.returnedQty === 0 && (
                   <button
                     className="btn"
                     onClick={() => {
@@ -403,7 +416,7 @@ function DistributionsPage() {
                     登记回款
                   </button>
                 )}
-                {canEdit(role, selected.ownerId, userId) && (
+                {canEdit(role, selected.ownerId, userId) && selected.status !== '已回款' && (
                   <select
                     onChange={(e) => {
                       if (e.target.value) changeStatus(e.target.value)

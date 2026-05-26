@@ -189,7 +189,11 @@ router.patch('/:id', authRequired, (req, res) => {
   if (!d) return res.status(404).json({ error: '铺货单不存在或无权查看' })
   const body = req.body || {}
 
-  if (body.status === '已回款' && d.status !== '已回款') {
+  if (d.status === '已回款') {
+    return res.status(400).json({ error: '该铺货单已完成回款登记，财务数据已锁定，不可编辑' })
+  }
+
+  if (body.status === '已回款') {
     return res.status(400).json({ error: '请使用「登记回款」功能完成回款登记，不可直接修改状态' })
   }
 
@@ -200,6 +204,8 @@ router.patch('/:id', authRequired, (req, res) => {
   const prevStatus = d.status
   const allowed = { ...body }
   delete allowed.ownerId
+  delete allowed.settledAmount
+  delete allowed.settledAt
   Object.assign(d, allowed)
   if (body.status && body.status !== prevStatus) {
     d.records.push({
