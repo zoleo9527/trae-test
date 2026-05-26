@@ -1,20 +1,26 @@
 import { useAuthStore } from '@/stores/auth'
 
+function hasElectron() {
+  return typeof window !== 'undefined' && window.electron && window.electron.ipcRenderer
+}
+
 const db = {
   async query(sql, params = []) {
-    if (window.electron) {
+    if (hasElectron()) {
       return await window.electron.ipcRenderer.invoke('db-query', sql, params)
     } else {
       console.warn('Electron not available, using mock')
+      console.log('SQL:', sql, params)
       return { success: true, data: [] }
     }
   },
 
   async exec(sql) {
-    if (window.electron) {
+    if (hasElectron()) {
       return await window.electron.ipcRenderer.invoke('db-exec', sql)
     } else {
       console.warn('Electron not available, using mock')
+      console.log('SQL:', sql)
       return { success: true }
     }
   },
@@ -38,6 +44,10 @@ const db = {
        VALUES (?, ?, ?, ?)`,
       [type, relatedId, description, severity]
     )
+  },
+
+  findInSet(value, csvField) {
+    return `',' || ${csvField} || ',' LIKE '%,' || ${value} || ',%'`
   }
 }
 

@@ -3,7 +3,7 @@
     <el-tabs v-model="activeTab">
       <el-tab-pane label="待结算过磅单" name="pending">
         <div class="toolbar no-print">
-          <el-button type="primary" @click="batchSettle" :disabled="selectedWeighings.length === 0">
+          <el-button v-if="canSettle" type="primary" @click="batchSettle" :disabled="selectedWeighings.length === 0">
             <el-icon><Money /></el-icon>
             批量结算 ({{ selectedWeighings.length }}单)
           </el-button>
@@ -32,7 +32,13 @@
           >
             <el-table-column type="selection" width="55" />
             <el-table-column prop="weighing_no" label="磅单号" width="150" />
-            <el-table-column prop="plate_number" label="车牌号" width="100" />
+            <el-table-column prop="plate_number" label="车牌号" width="120">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="goToVehicle(row.vehicle_id)">
+                  {{ row.plate_number }}
+                </el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="material_name" label="物料" width="100" />
             <el-table-column prop="net_weight" label="净重(kg)" width="100" />
             <el-table-column prop="unit_price" label="单价(元)" width="100" />
@@ -122,7 +128,7 @@
                 <el-button link type="primary" @click="viewSettlementDetail(row)">查看</el-button>
                 <el-button v-if="row.status === 'pending' && isOwner" link type="success" @click="approveSettlement(row)">复核通过</el-button>
                 <el-button v-if="row.status === 'pending' && isOwner" link type="danger" @click="rejectSettlement(row)">驳回</el-button>
-                <el-button v-if="row.status === 'approved'" link type="primary" @click="markPaid(row)">标记付款</el-button>
+                <el-button v-if="row.status === 'approved' && canPay" link type="primary" @click="markPaid(row)">标记付款</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -222,6 +228,12 @@ const settlementForm = reactive({
 })
 
 const isOwner = computed(() => authStore.user?.role === 'owner')
+const canSettle = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
+const canPay = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
+
+function goToVehicle(vehicleId) {
+  router.push({ path: '/vehicles', query: { highlight: vehicleId } })
+}
 
 const settlementStatusText = {
   pending: '待复核',

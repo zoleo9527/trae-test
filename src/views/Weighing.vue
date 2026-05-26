@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="toolbar no-print">
-      <el-button type="primary" @click="showAddDialog">
+      <el-button v-if="canWeigh" type="primary" @click="showAddDialog">
         <el-icon><Plus /></el-icon>
         新增过磅
       </el-button>
@@ -35,7 +35,13 @@
       <el-table :data="tableData" border stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="weighing_no" label="磅单号" width="150" />
-        <el-table-column prop="plate_number" label="车牌号" width="100" />
+        <el-table-column prop="plate_number" label="车牌号" width="120">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="goToVehicle(row.vehicle_id)">
+              {{ row.plate_number }}
+            </el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="material_name" label="物料" width="100" />
         <el-table-column prop="gross_weight" label="毛重(kg)" width="100" />
         <el-table-column prop="tare_weight" label="皮重(kg)" width="100" />
@@ -61,7 +67,7 @@
             <el-button link type="primary" @click="viewDetail(row)">查看</el-button>
             <el-button link type="primary" @click="printReceipt(row)">打印</el-button>
             <el-button 
-              v-if="row.status === 'pending'" 
+              v-if="row.status === 'pending' && canCancel" 
               link type="danger" 
               @click="cancelWeighing(row)"
             >
@@ -203,6 +209,13 @@ const statusText = {
   pending: '待结算',
   settled: '已结算',
   cancelled: '已作废'
+}
+
+const canWeigh = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
+const canCancel = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
+
+function goToVehicle(vehicleId) {
+  router.push({ path: '/vehicles', query: { highlight: vehicleId } })
 }
 
 const weighingForm = reactive({

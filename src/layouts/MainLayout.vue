@@ -43,7 +43,7 @@
           <span>环保台账</span>
         </el-menu-item>
         
-        <el-menu-item index="/exceptions">
+        <el-menu-item v-if="showExceptions" index="/exceptions">
           <el-icon><Warning /></el-icon>
           <span>异常处理</span>
         </el-menu-item>
@@ -106,6 +106,7 @@ const activeMenu = computed(() => route.path)
 const isOwner = computed(() => authStore.user?.role === 'owner')
 const showWeighing = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
 const showSettlement = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
+const showExceptions = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
 
 const roleText = computed(() => {
   const roles = {

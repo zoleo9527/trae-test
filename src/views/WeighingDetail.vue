@@ -117,7 +117,7 @@ async function loadData() {
     
     const sResult = await db.query(`
       SELECT * FROM settlements 
-      WHERE FIND_IN_SET(?, weighing_ids)
+      WHERE ',' || weighing_ids || ',' LIKE '%,' || ? || ',%'
       ORDER BY created_at DESC LIMIT 1
     `, [id])
     settlement.value = sResult.data?.[0]
