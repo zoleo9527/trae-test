@@ -115,12 +115,11 @@ export interface TimelineEntry {
 }
 
 export interface FilterState {
-  roleView: Role;
   status: RelayStatus | 'all';
   exceptionType: ExceptionType | 'all';
   operatorId: string | 'all';
   machineId: string | 'all';
   keyword: string;
-  dateFrom?: string;
-  dateTo?: string;
+  dateFrom: string;
+  dateTo: string;
 }

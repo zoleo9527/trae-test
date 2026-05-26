@@ -1,13 +1,12 @@
 <script lang="ts">
   import { currentRole, filteredRelays, exceptionStats } from '$lib/stores/app';
-  import { ROLES, STATUS_LABELS } from '$lib/data/seed';
+  import { ROLES } from '$lib/data/seed';
   import FilterPanel from '$lib/components/FilterPanel.svelte';
   import RelayList from '$lib/components/RelayList.svelte';
   import ExceptionBanner from '$lib/components/ExceptionBanner.svelte';
   import { goto } from '$app/navigation';
 
-  const roleInfo = ROLES.find((r) => r.id === $currentRole);
-
+  $: roleInfo = ROLES.find((r) => r.id === $currentRole);
   $: directorView = $currentRole === 'director';
   $: dispatcherView = $currentRole === 'dispatcher';
   $: operatorView = $currentRole === 'operator';

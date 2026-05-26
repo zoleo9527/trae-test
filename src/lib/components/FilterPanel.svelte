@@ -14,14 +14,13 @@
 
   function reset() {
     filters.set({
-      roleView: $filters.roleView,
       status: 'all',
       exceptionType: 'all',
       operatorId: 'all',
       machineId: 'all',
       keyword: '',
-      dateFrom: undefined,
-      dateTo: undefined
+      dateFrom: '',
+      dateTo: ''
     });
   }
 </script>

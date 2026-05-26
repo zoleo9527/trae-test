@@ -1,19 +1,18 @@
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import type { FilterState, RelayItem, Role } from '../types';
-import { SEED_RELAYS } from '../data/seed';
+import { SEED_RELAYS, PLOTS, MACHINES, OPERATORS } from '../data/seed';
 
 export const currentRole = writable<Role>('dispatcher');
 export const relays = writable<RelayItem[]>(JSON.parse(JSON.stringify(SEED_RELAYS)));
 
 export const filters = writable<FilterState>({
-  roleView: 'dispatcher',
   status: 'all',
   exceptionType: 'all',
   operatorId: 'all',
   machineId: 'all',
   keyword: '',
-  dateFrom: undefined,
-  dateTo: undefined
+  dateFrom: '',
+  dateTo: ''
 });
 
 export const filteredRelays = derived(
@@ -24,11 +23,29 @@ export const filteredRelays = derived(
       if ($f.exceptionType !== 'all' && r.exceptionType !== $f.exceptionType) return false;
       if ($f.operatorId !== 'all' && r.operatorId !== $f.operatorId) return false;
       if ($f.machineId !== 'all' && r.machineId !== $f.machineId) return false;
+      if ($f.dateFrom) {
+        if (r.updatedAt < new Date($f.dateFrom + 'T00:00:00Z').toISOString()) return false;
+      }
+      if ($f.dateTo) {
+        if (r.updatedAt > new Date($f.dateTo + 'T23:59:59Z').toISOString()) return false;
+      }
       if ($f.keyword) {
-        const kw = $f.keyword.toLowerCase();
-        if (!r.id.toLowerCase().includes(kw) && !r.taskType.toLowerCase().includes(kw)) {
-          return false;
-        }
+        const kw = $f.keyword.toLowerCase().trim();
+        if (!kw) return true;
+        const plot = PLOTS.find((p) => p.id === r.plotId);
+        const machine = MACHINES.find((m) => m.id === r.machineId);
+        const operator = OPERATORS.find((o) => o.id === r.operatorId);
+        const haystack = [
+          r.id,
+          r.taskType,
+          r.exceptionDesc ?? '',
+          plot?.name ?? '',
+          plot?.code ?? '',
+          machine?.plate ?? '',
+          machine?.model ?? '',
+          operator?.name ?? ''
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(kw)) return false;
       }
       return true;
     });

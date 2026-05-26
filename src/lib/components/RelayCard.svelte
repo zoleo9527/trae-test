@@ -15,7 +15,7 @@
   let showRepair = false;
   let expanded = false;
 
-  const hasException = relay.exceptionType !== 'none';
+  $: hasException = relay.exceptionType !== 'none';
 
   function actionLabel(status) {
     const role = $currentRole;
