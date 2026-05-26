@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { storage } from '../utils/storage'
 import { addHistoryLog } from './history'
+import { useAlertStore } from './alert'
 
 export const useSubsidyStore = defineStore('subsidy', () => {
   const records = ref([])
@@ -37,6 +38,36 @@ export const useSubsidyStore = defineStore('subsidy', () => {
       operatorName: operator.name
     })
 
+    const alertStore = useAlertStore()
+    
+    if (record.missingDocs && record.missingDocs.length > 0) {
+      await alertStore.loadAlerts()
+      
+      const existingAlert = alertStore.alerts.find(
+        a => a.type === 'material' && a.relatedId === newRecord.id
+      )
+      if (!existingAlert) {
+        await alertStore.addAlert({
+          type: 'material',
+          title: '补贴材料缺失',
+          content: `${record.plotName}的补贴申请缺少以下材料：${record.missingDocs.join('、')}`,
+          relatedId: newRecord.id,
+          relatedType: 'subsidy',
+          assignee: operator.id
+        })
+        
+        await addHistoryLog({
+          type: 'alert',
+          action: 'create',
+          targetId: `material-${newRecord.id}`,
+          targetName: '补贴材料缺失提醒',
+          content: `系统自动生成材料缺失提醒：${record.plotName}`,
+          operatorId: 'system',
+          operatorName: '系统'
+        })
+      }
+    }
+
     return newRecord
   }
 
@@ -58,6 +89,55 @@ export const useSubsidyStore = defineStore('subsidy', () => {
           operatorId: operator.id,
           operatorName: operator.name
         })
+
+        if (updates.status === 'approved') {
+          await addHistoryLog({
+            type: 'subsidy',
+            action: 'approve',
+            targetId: id,
+            targetName: `${oldRecord.plotName}补贴申请`,
+            content: `理事${operator.name}审批通过，补贴金额：${oldRecord.amount}元`,
+            operatorId: operator.id,
+            operatorName: operator.name
+          })
+          
+          const alertStore = useAlertStore()
+          await alertStore.loadAlerts()
+          const pendingAlerts = alertStore.alerts.filter(
+            a => a.type === 'material' && a.relatedId === id && a.status === 'unread'
+          )
+          for (const alert of pendingAlerts) {
+            await alertStore.markAsRead(alert.id)
+          }
+        }
+      }
+
+      if (operator && updates.missingDocs) {
+        const alertStore = useAlertStore()
+        await alertStore.loadAlerts()
+        
+        if (updates.missingDocs.length === 0) {
+          const existingAlert = alertStore.alerts.find(
+            a => a.type === 'material' && a.relatedId === id && a.status === 'unread'
+          )
+          if (existingAlert) {
+            await alertStore.markAsRead(existingAlert.id)
+          }
+        } else {
+          const existingAlert = alertStore.alerts.find(
+            a => a.type === 'material' && a.relatedId === id
+          )
+          if (!existingAlert) {
+            await alertStore.addAlert({
+              type: 'material',
+              title: '补贴材料仍缺失',
+              content: `${oldRecord.plotName}的补贴申请仍缺少：${updates.missingDocs.join('、')}`,
+              relatedId: id,
+              relatedType: 'subsidy',
+              assignee: operator.id
+            })
+          }
+        }
       }
     }
   }

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { storage } from '../utils/storage'
 import { addHistoryLog } from './history'
+import { usePlotStore } from './plot'
+import { useAlertStore } from './alert'
 
 export const useTaskStore = defineStore('task', () => {
   const tasks = ref([])
@@ -38,6 +40,10 @@ export const useTaskStore = defineStore('task', () => {
       operatorId: operator.id,
       operatorName: operator.name
     })
+
+    const plotStore = usePlotStore()
+    await plotStore.loadPlots()
+    await plotStore.updatePlot(task.plotId, { status: 'pending' })
     
     return newTask
   }
@@ -49,17 +55,82 @@ export const useTaskStore = defineStore('task', () => {
       tasks.value[index] = { ...oldTask, ...updates }
       await storage.set('tasks', tasks.value)
 
-      if (operator && updates.status && updates.status !== oldTask.status) {
+      const plotStore = usePlotStore()
+      const alertStore = useAlertStore()
+
+      if (updates.status && updates.status !== oldTask.status) {
         const statusMap = { pending: '待执行', progress: '进行中', completed: '已完成', delayed: '已延误' }
-        await addHistoryLog({
-          type: 'task',
-          action: 'status_change',
-          targetId: id,
-          targetName: `${oldTask.plotName}-${oldTask.type}任务`,
-          content: `任务状态从【${statusMap[oldTask.status]}】变为【${statusMap[updates.status]}】`,
-          operatorId: operator.id,
-          operatorName: operator.name
-        })
+        
+        if (operator) {
+          await addHistoryLog({
+            type: 'task',
+            action: 'status_change',
+            targetId: id,
+            targetName: `${oldTask.plotName}-${oldTask.type}任务`,
+            content: `任务状态从【${statusMap[oldTask.status]}】变为【${statusMap[updates.status]}】`,
+            operatorId: operator.id,
+            operatorName: operator.name
+          })
+        }
+
+        await plotStore.loadPlots()
+        
+        if (updates.status === 'delayed') {
+          await plotStore.updatePlot(oldTask.plotId, { status: 'delayed' })
+          
+          const existingAlert = alertStore.alerts.find(
+            a => a.type === 'delay' && a.relatedId === id
+          )
+          if (!existingAlert) {
+            await alertStore.loadAlerts()
+            await alertStore.addAlert({
+              type: 'delay',
+              title: '作业进度延误',
+              content: `${oldTask.plotName}${oldTask.type}作业已延误，机手：${oldTask.operatorName}`,
+              relatedId: id,
+              relatedType: 'task',
+              assignee: operator?.id || 'u2'
+            })
+            
+            await addHistoryLog({
+              type: 'alert',
+              action: 'create',
+              targetId: `delay-${id}`,
+              targetName: '作业进度延误提醒',
+              content: `系统自动生成延误提醒：${oldTask.plotName}-${oldTask.type}`,
+              operatorId: 'system',
+              operatorName: '系统'
+            })
+          }
+        } else if (updates.status === 'progress') {
+          await plotStore.updatePlot(oldTask.plotId, { status: 'progress' })
+        } else if (updates.status === 'completed') {
+          const plotTasks = tasks.value.filter(t => t.plotId === oldTask.plotId)
+          const allCompleted = plotTasks.every(t => t.status === 'completed' || t.id === id)
+          await plotStore.updatePlot(oldTask.plotId, { status: allCompleted ? 'completed' : 'progress' })
+          
+          const pendingAlerts = alertStore.alerts.filter(
+            a => a.type === 'delay' && a.relatedId === id && a.status === 'unread'
+          )
+          for (const alert of pendingAlerts) {
+            await alertStore.markAsRead(alert.id)
+          }
+        }
+      }
+
+      if (updates.progress && updates.progress !== oldTask.progress) {
+        await plotStore.loadPlots()
+        const plotTasks = tasks.value.filter(t => t.plotId === oldTask.plotId)
+        const avgProgress = plotTasks.reduce((sum, t) => sum + (t.progress || 0), 0) / plotTasks.length
+        
+        const plot = plotStore.plots.find(p => p.id === oldTask.plotId)
+        if (plot && plot.status !== 'delayed') {
+          if (avgProgress >= 100) {
+            await plotStore.updatePlot(oldTask.plotId, { status: 'completed' })
+          } else if (avgProgress > 0) {
+            await plotStore.updatePlot(oldTask.plotId, { status: 'progress' })
+          }
+        }
       }
 
       if (operator && updates.remark) {

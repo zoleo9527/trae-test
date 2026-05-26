@@ -159,6 +159,8 @@ function onTaskChange() {
   if (task) {
     newRecord.value.operatorId = task.operatorId
     newRecord.value.operatorName = task.operatorName
+    newRecord.value.plotId = task.plotId
+    newRecord.value.plotName = task.plotName
   }
 }
 

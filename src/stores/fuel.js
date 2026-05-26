@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { storage } from '../utils/storage'
+import { addHistoryLog } from './history'
+import { useTaskStore } from './task'
+import { usePlotStore } from './plot'
 
 export const useFuelStore = defineStore('fuel', () => {
   const records = ref([])
@@ -25,6 +28,27 @@ export const useFuelStore = defineStore('fuel', () => {
     }
     records.value.push(newRecord)
     await storage.set('fuelRecords', records.value)
+
+    await addHistoryLog({
+      type: 'fuel',
+      action: 'create',
+      targetId: newRecord.id,
+      targetName: `${record.plotName}油料登记`,
+      content: `登记加油：${record.amount}升，单价${record.unitPrice}元/升，合计${newRecord.totalPrice}元`,
+      operatorId: operator.id,
+      operatorName: operator.name
+    })
+
+    if (record.taskId) {
+      const taskStore = useTaskStore()
+      await taskStore.loadTasks()
+      const task = taskStore.tasks.find(t => t.id === record.taskId)
+      if (task) {
+        const totalFuel = (task.fuelUsed || 0) + record.amount
+        await taskStore.updateTask(record.taskId, { fuelUsed: totalFuel }, operator)
+      }
+    }
+
     return newRecord
   }
 
@@ -34,6 +58,10 @@ export const useFuelStore = defineStore('fuel', () => {
 
   function getRecordsByOperatorId(operatorId) {
     return computed(() => records.value.filter(r => r.operatorId === operatorId))
+  }
+
+  function getRecordsByPlotId(plotId) {
+    return computed(() => records.value.filter(r => r.plotId === plotId))
   }
 
   const stats = computed(() => {
@@ -50,6 +78,7 @@ export const useFuelStore = defineStore('fuel', () => {
     addRecord,
     getRecordsByTaskId,
     getRecordsByOperatorId,
+    getRecordsByPlotId,
     stats
   }
 })
