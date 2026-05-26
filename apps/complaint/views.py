@@ -8,7 +8,7 @@ from .serializers import (
     AssignSerializer, CommentSerializer, EscalateSerializer
 )
 from .services import ComplaintService
-from apps.core.permissions import IsDirector, IsCoachSupervisor, IsFrontDesk
+from apps.core.permissions import IsDirector, IsCoachSupervisor, IsFrontDesk, IsCoach
 from apps.core.services import ExportService
 from apps.core.exceptions import PermissionDeniedException
 

@@ -87,7 +87,12 @@ class ReconciliationService:
 
                 success_count += s_count
                 fail_count += f_count
-                total_amount += s_count * 100
+
+                from apps.membership.models import ConsumptionRecord
+                schedule_amount = ConsumptionRecord.objects.filter(
+                    related_schedule_id=schedule.id
+                ).aggregate(total=models.Sum('amount'))['total'] or 0
+                total_amount += schedule_amount
 
             except Exception as e:
                 ReconciliationRecord.objects.create(

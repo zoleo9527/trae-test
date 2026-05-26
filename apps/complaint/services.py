@@ -3,7 +3,7 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
 from .models import Complaint, ComplaintComment
-from apps.core.exceptions import StatusConflictException, ResourceNotFoundException, ValidationException
+from apps.core.exceptions import StatusConflictException, ResourceNotFoundException, ValidationException, PermissionDeniedException
 from apps.core.services import AuditService
 from apps.core.models_audit import AuditLog
 
@@ -92,11 +92,11 @@ class ComplaintService:
 
         if new_status in [Complaint.Status.RESOLVED, Complaint.Status.CLOSED]:
             if not is_supervisor and not is_assignee:
-                raise ValidationException('只有处理人或主管可以关闭或标记解决')
+                raise PermissionDeniedException('只有处理人或主管可以关闭或标记解决')
 
         if new_status in [Complaint.Status.PROCESSING]:
             if not is_supervisor and not is_assignee:
-                raise ValidationException('只有处理人或主管可以标记为处理中')
+                raise PermissionDeniedException('只有处理人或主管可以标记为处理中')
 
         old_status = complaint.status
 
@@ -129,7 +129,7 @@ class ComplaintService:
             raise StatusConflictException('已关闭或已解决的投诉无法分配')
 
         if user.role not in ['director', 'coach_supervisor']:
-            raise ValidationException('只有馆长或教练主管可以分配投诉')
+            raise PermissionDeniedException('只有馆长或教练主管可以分配投诉')
 
         from apps.core.models import User
         assignee = User.objects.filter(id=assigned_to_id).first()
@@ -164,6 +164,16 @@ class ComplaintService:
         if complaint.status == Complaint.Status.CLOSED:
             raise StatusConflictException('已关闭的投诉无法添加评论')
 
+        is_supervisor = user.role in ['director', 'coach_supervisor']
+        is_assignee = complaint.assigned_to_id == user.id
+        is_submitter = complaint.submitted_by_id == user.id
+
+        if not is_supervisor and not is_assignee and not is_submitter:
+            raise PermissionDeniedException('只有处理人、主管或提交人可以添加评论')
+
+        if is_internal and not is_supervisor and not is_assignee:
+            raise PermissionDeniedException('只有处理人或主管可以添加内部评论')
+
         comment = ComplaintComment.objects.create(
             complaint=complaint,
             author=user,
@@ -178,7 +188,7 @@ class ComplaintService:
             raise StatusConflictException('已关闭或已解决的投诉无法升级')
 
         if user.role not in ['director', 'coach_supervisor']:
-            raise ValidationException('只有馆长或教练主管可以升级投诉')
+            raise PermissionDeniedException('只有馆长或教练主管可以升级投诉')
 
         old_priority = complaint.priority
         old_status = complaint.status
