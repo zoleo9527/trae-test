@@ -260,7 +260,12 @@ class OrderSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs.get('status') == 'confirmed' and not attrs.get('items'):
             raise serializers.ValidationError('确认订货单时必须包含物料明细')
-        activity = attrs.get('activity') or (self.instance.activity if self.instance else None)
+        activity = attrs.get('activity')
+        if activity is not None:
+            if activity.status != 'approved':
+                raise serializers.ValidationError(
+                    f'只能关联已通过的活动提报，当前活动状态为 {activity.get_status_display()}'
+                )
         if activity:
             price_approval = self._get_activity_price_approval(activity)
             if price_approval and price_approval.status != 'approved':
@@ -301,6 +306,27 @@ class OrderSerializer(serializers.ModelSerializer):
             prepared_items.append(item_data)
         return prepared_items
 
+    def _validate_existing_items_against_activity(self, order, activity):
+        if not activity:
+            return
+        price_approval = self._get_activity_price_approval(activity)
+        if not price_approval:
+            return
+        errors = []
+        for i, item in enumerate(order.items.all()):
+            if price_approval.product_id != item.product_id:
+                errors.append(
+                    f'第 {i+1} 条明细：商品 {item.product.name} 与活动指定商品 '
+                    f'{price_approval.product.name} 不一致，请重传 items 修正'
+                )
+            if abs(float(item.unit_price) - float(price_approval.proposed_unit_price)) > 0.001:
+                errors.append(
+                    f'第 {i+1} 条明细：单价 {item.unit_price} 与活动审批价 '
+                    f'{price_approval.proposed_unit_price} 不一致，请重传 items 修正'
+                )
+        if errors:
+            raise serializers.ValidationError({'items': errors})
+
     @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
@@ -325,11 +351,19 @@ class OrderSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
         validated_data['updated_by'] = self.context['request'].user
-        activity = validated_data.get('activity', instance.activity)
+        new_activity = validated_data.get('activity', instance.activity)
+        old_activity = instance.activity
+        activity_changed = (
+            (new_activity is None and old_activity is not None)
+            or (new_activity is not None and old_activity is None)
+            or (new_activity is not None and old_activity is not None and new_activity.id != old_activity.id)
+        )
+        if activity_changed and items_data is None:
+            self._validate_existing_items_against_activity(instance, new_activity)
         order = super().update(instance, validated_data)
         if items_data is not None:
             order.items.all().delete()
-            prepared_items = self._validate_and_prepare_items(items_data, activity)
+            prepared_items = self._validate_and_prepare_items(items_data, new_activity)
             for item_data in prepared_items:
                 OrderItem.objects.create(
                     order=order,
@@ -340,6 +374,18 @@ class OrderSerializer(serializers.ModelSerializer):
                 item.quantity * item.unit_price for item in order.items.all()
             )
             order.save(update_fields=['total_amount', 'updated_at'])
+        elif activity_changed and new_activity is not None:
+            price_approval = self._get_activity_price_approval(new_activity)
+            if price_approval:
+                for item in order.items.all():
+                    item.product = price_approval.product
+                    item.unit_price = price_approval.proposed_unit_price
+                    item.activity_price_applied = True
+                    item.save()
+                order.total_amount = sum(
+                    item.quantity * item.unit_price for item in order.items.all()
+                )
+                order.save(update_fields=['total_amount', 'updated_at'])
         return order
 
 
