@@ -349,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { orderApi, installationApi, acceptanceApi, exceptionApi, sampleApi } from '@/api'
@@ -455,26 +455,34 @@ async function loadOrder() {
   appointmentForm.value.orderId = orderId.value
   acceptanceForm.value.orderId = orderId.value
   exceptionForm.value.orderId = orderId.value
+}
 
-  if (route.query.openException === 'true') {
-    const recordId = Number(route.query.recordId)
-    if (recordId) {
-      const record = order.value?.acceptanceRecords?.find((r: any) => r.id === recordId)
-      if (record) {
-        exceptionForm.value.title = `验收未通过 - ${record.missingItems || record.qualityIssues || record.installationIssues}`.slice(0, 50)
-        if (record.missingItems) {
-          exceptionForm.value.type = 'missing_parts'
-          exceptionForm.value.description = `缺件: ${record.missingItems}`
-        } else if (record.qualityIssues) {
-          exceptionForm.value.type = 'quality_issue'
-          exceptionForm.value.description = `质量问题: ${record.qualityIssues}`
-        } else if (record.installationIssues) {
-          exceptionForm.value.type = 'installation_issue'
-          exceptionForm.value.description = `安装问题: ${record.installationIssues}`
-        }
-      }
-    }
-    showExceptionDialog.value = true
+function prefillExceptionFromRecord(record: any) {
+  const issues: string[] = []
+  const descriptions: string[] = []
+  if (record.missingItems) {
+    issues.push('缺件')
+    descriptions.push(`缺件: ${record.missingItems}`)
+  }
+  if (record.qualityIssues) {
+    issues.push('质量问题')
+    descriptions.push(`质量问题: ${record.qualityIssues}`)
+  }
+  if (record.installationIssues) {
+    issues.push('安装问题')
+    descriptions.push(`安装问题: ${record.installationIssues}`)
+  }
+  const issueSummary = issues.join('、') || '验收未通过'
+  exceptionForm.value.title = `验收未通过 - ${issueSummary}`.slice(0, 50)
+  exceptionForm.value.description = descriptions.join('\n') || '验收未通过，请补充描述'
+  if (record.missingItems && !record.qualityIssues && !record.installationIssues) {
+    exceptionForm.value.type = 'missing_parts'
+  } else if (record.qualityIssues && !record.missingItems && !record.installationIssues) {
+    exceptionForm.value.type = 'quality_issue'
+  } else if (record.installationIssues && !record.missingItems && !record.qualityIssues) {
+    exceptionForm.value.type = 'installation_issue'
+  } else {
+    exceptionForm.value.type = 'other'
   }
 }
 
@@ -564,6 +572,29 @@ function goBack() {
   router.back()
 }
 
+watch(
+  () => route.query,
+  async () => {
+    if (route.query.openAcceptance === 'true') {
+      const aptId = Number(route.query.appointmentId)
+      if (aptId) {
+        acceptanceForm.value.appointmentId = aptId
+      }
+      showAcceptanceDialog.value = true
+    }
+    if (route.query.openException === 'true') {
+      const recordId = Number(route.query.recordId)
+      if (recordId && order.value) {
+        const record = order.value.acceptanceRecords?.find((r: any) => r.id === recordId)
+        if (record) {
+          prefillExceptionFromRecord(record)
+        }
+      }
+      showExceptionDialog.value = true
+    }
+  },
+)
+
 onMounted(async () => {
   await loadOrder()
   if (route.query.openAcceptance === 'true') {
@@ -572,6 +603,16 @@ onMounted(async () => {
       acceptanceForm.value.appointmentId = aptId
     }
     showAcceptanceDialog.value = true
+  }
+  if (route.query.openException === 'true') {
+    const recordId = Number(route.query.recordId)
+    if (recordId) {
+      const record = order.value?.acceptanceRecords?.find((r: any) => r.id === recordId)
+      if (record) {
+        prefillExceptionFromRecord(record)
+      }
+    }
+    showExceptionDialog.value = true
   }
 })
 </script>

@@ -18,19 +18,20 @@ export class NotificationService {
     recipientRole?: string,
     recipientName?: string,
   ): Promise<PaginatedResult<Notification>> {
-    const where: any = {};
-    if (isRead !== undefined) {
-      where.isRead = isRead;
-    }
-    if (recipientRole) {
-      where.recipientRole = recipientRole;
-    }
-    if (recipientName) {
-      where.recipientName = recipientName;
+    const where: any[] = [];
+    if (recipientRole && recipientName) {
+      where.push(
+        { isRead, recipientRole, recipientName },
+        { isRead, recipientRole, recipientName: null },
+      );
+    } else if (recipientRole) {
+      where.push({ isRead, recipientRole });
+    } else if (isRead !== undefined) {
+      where.push({ isRead });
     }
 
     const [items, total] = await this.notificationRepository.findAndCount({
-      where,
+      where: where.length ? where : undefined,
       order: { createdAt: 'DESC', priority: 'DESC' },
       skip: (pagination.page - 1) * pagination.pageSize,
       take: pagination.pageSize,
@@ -44,12 +45,16 @@ export class NotificationService {
   }
 
   async getUnreadCount(recipientRole?: string, recipientName?: string): Promise<number> {
-    const where: any = { isRead: false };
-    if (recipientRole) {
-      where.recipientRole = recipientRole;
-    }
-    if (recipientName) {
-      where.recipientName = recipientName;
+    const where: any[] = [];
+    if (recipientRole && recipientName) {
+      where.push(
+        { isRead: false, recipientRole, recipientName },
+        { isRead: false, recipientRole, recipientName: null },
+      );
+    } else if (recipientRole) {
+      where.push({ isRead: false, recipientRole });
+    } else {
+      where.push({ isRead: false });
     }
     return this.notificationRepository.count({ where });
   }
@@ -67,12 +72,16 @@ export class NotificationService {
   }
 
   async markAllAsRead(recipientRole?: string, recipientName?: string): Promise<void> {
-    const where: any = { isRead: false };
-    if (recipientRole) {
-      where.recipientRole = recipientRole;
-    }
-    if (recipientName) {
-      where.recipientName = recipientName;
+    const where: any[] = [];
+    if (recipientRole && recipientName) {
+      where.push(
+        { isRead: false, recipientRole, recipientName },
+        { isRead: false, recipientRole, recipientName: null },
+      );
+    } else if (recipientRole) {
+      where.push({ isRead: false, recipientRole });
+    } else {
+      where.push({ isRead: false });
     }
     await this.notificationRepository.update(where, { isRead: true, readAt: new Date() });
   }
