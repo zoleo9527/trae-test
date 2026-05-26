@@ -3,16 +3,26 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getOrder, fmtTime } from '../../lib/api';
+  import { currentUser } from '../../lib/user';
   import ExceptionDrawer from '../../components/ExceptionDrawer.svelte';
-  import type { Order } from '../../lib/types';
+  import type { Order, User } from '../../lib/types';
 
   let order: Order | null = null;
   let loading = true;
   let drawerOpen = false;
   let drawerMode: 'new' | 'view' = 'new';
   let activeExceptionId: string | null = null;
+  let user: User | null = null;
+
+  currentUser.subscribe(u => { user = u; });
 
   $: orderId = $page.params.id;
+
+  $: canManageSlot = user?.role === 'manager' || user?.role === 'service';
+  $: canManageSelection = user?.role === 'manager' || user?.role === 'editor';
+  $: canManagePayment = user?.role === 'manager' || user?.role === 'service';
+  $: canManageException = user?.role === 'manager' || user?.role === 'service';
+  $: canViewAll = user?.role === 'manager';
 
   onMount(async () => {
     try { order = await getOrder(orderId); } catch (e: any) { alert(e.message || '加载失败'); }
@@ -25,7 +35,6 @@
 
   function openNewExc() { drawerMode = 'new'; activeExceptionId = null; drawerOpen = true; }
   function viewExc(id: string) { drawerMode = 'view'; activeExceptionId = id; drawerOpen = true; }
-
   function closeDrawer() { drawerOpen = false; }
 </script>
 
@@ -35,7 +44,9 @@
   <div class="state">订单不存在</div>
 {:else}
   <div class="crumb">
-    <button class="link" on:click={() => goto('/orders')}>订单列表</button>
+    <button class="link" on:click={() => goto('/orders')}>
+      {user?.role === 'manager' ? '全部订单' : '我的订单'}
+    </button>
     <span class="sep">/</span>
     <span>{order.no}</span>
   </div>
@@ -47,103 +58,115 @@
       <div class="cust">{order.customerName} · {order.customerPhone}</div>
       <div class="pkg">{order.package}</div>
       <div class="roles">
-        <span>店长 <b>{order.managerName}</b></span>
+        {#if canViewAll}
+          <span>店长 <b>{order.managerName}</b></span>
+        {/if}
         <span>选片师 <b>{order.editorName}</b></span>
         <span>客服 <b>{order.serviceName}</b></span>
       </div>
     </div>
     <div class="hero-right">
       <div class="status">{order.status}</div>
-      <button class="primary" on:click={openNewExc}>+ 发起异常</button>
+      {#if canManageException}
+        <button class="primary" on:click={openNewExc}>+ 发起异常</button>
+      {/if}
     </div>
   </div>
 
   <div class="sections">
-    <section class="card">
-      <header><h2 class="serif">档期</h2><span class="muted">{order.slots.length} 段</span></header>
-      {#if order.slots.length === 0}
-        <p class="empty">尚未排期</p>
-      {:else}
-        <ul class="slots">
-          {#each order.slots as s}
-            <li>
-              <div class="dot" />
-              <div class="slot-main">
-                <div class="time">{fmtTime(s.at)}</div>
-                <div class="meta">{s.place} · 摄影 {s.photographer}</div>
+    {#if canViewAll || canManageSlot}
+      <section class="card">
+        <header><h2 class="serif">档期</h2><span class="muted">{order.slots.length} 段</span></header>
+        {#if order.slots.length === 0}
+          <p class="empty">尚未排期</p>
+        {:else}
+          <ul class="slots">
+            {#each order.slots as s}
+              <li>
+                <div class="dot" />
+                <div class="slot-main">
+                  <div class="time">{fmtTime(s.at)}</div>
+                  <div class="meta">{s.place} · 摄影 {s.photographer}</div>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    {/if}
+
+    {#if canViewAll || canManageSelection}
+      <section class="card">
+        <header><h2 class="serif">选片版本</h2><span class="muted">{order.selections.length} 个版本</span></header>
+        {#if order.selections.length === 0}
+          <p class="empty">还未上传选片</p>
+        {:else}
+          <div class="versions">
+            {#each order.selections as sel}
+              <div class="version" class:confirmed={sel.confirmed}>
+                <div class="v-top">
+                  <span class="v-tag serif">v{sel.version}</span>
+                  <span class="v-time">{fmtTime(sel.createdAt)}</span>
+                  <span class="v-badge" class:on={sel.confirmed}>{sel.confirmed ? '客户已确认' : '待确认'}</span>
+                </div>
+                <div class="v-by">选片师：{sel.editorName}</div>
+                <div class="v-note">{sel.note || '—'}</div>
+                <div class="v-photos">
+                  {#each sel.photos.slice(0, 8) as p}
+                    <span class="chip">{p}</span>
+                  {/each}
+                  {#if sel.photos.length > 8}
+                    <span class="chip more">+{sel.photos.length - 8}</span>
+                  {/if}
+                </div>
               </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    {/if}
+
+    {#if canViewAll || canManagePayment}
+      <section class="card">
+        <header><h2 class="serif">尾款催收</h2><span class="muted">{order.payments.length} 笔</span></header>
+        <ul class="pays">
+          {#each order.payments as p}
+            <li class:paid={p.paid}>
+              <div class="stage">{p.stage}</div>
+              <div class="amt">¥{p.amount}</div>
+              <div class="meta">到期 {fmtTime(p.dueAt)}</div>
+              <div class="badge" class:paid={p.paid}>{p.paid ? '已付' : '待催收'}</div>
             </li>
           {/each}
         </ul>
-      {/if}
-    </section>
+      </section>
+    {/if}
 
-    <section class="card">
-      <header><h2 class="serif">选片版本</h2><span class="muted">{order.selections.length} 个版本</span></header>
-      {#if order.selections.length === 0}
-        <p class="empty">还未上传选片</p>
-      {:else}
-        <div class="versions">
-          {#each order.selections as sel}
-            <div class="version" class:confirmed={sel.confirmed}>
-              <div class="v-top">
-                <span class="v-tag serif">v{sel.version}</span>
-                <span class="v-time">{fmtTime(sel.createdAt)}</span>
-                <span class="v-badge" class:on={sel.confirmed}>{sel.confirmed ? '客户已确认' : '待确认'}</span>
-              </div>
-              <div class="v-by">选片师：{sel.editorName}</div>
-              <div class="v-note">{sel.note || '—'}</div>
-              <div class="v-photos">
-                {#each sel.photos.slice(0, 8) as p}
-                  <span class="chip">{p}</span>
-                {/each}
-                {#if sel.photos.length > 8}
-                  <span class="chip more">+{sel.photos.length - 8}</span>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    <section class="card">
-      <header><h2 class="serif">尾款催收</h2><span class="muted">{order.payments.length} 笔</span></header>
-      <ul class="pays">
-        {#each order.payments as p}
-          <li class:paid={p.paid}>
-            <div class="stage">{p.stage}</div>
-            <div class="amt">¥{p.amount}</div>
-            <div class="meta">到期 {fmtTime(p.dueAt)}</div>
-            <div class="badge" class:paid={p.paid}>{p.paid ? '已付' : '待催收'}</div>
-          </li>
-        {/each}
-      </ul>
-    </section>
-
-    <section class="card">
-      <header>
-        <h2 class="serif">异常</h2>
-        <span class="muted">{order.exceptions.filter(e => e.status !== '已关闭').length} 个进行中 / {order.exceptions.length} 总计</span>
-      </header>
-      {#if order.exceptions.length === 0}
-        <p class="empty">暂无异常</p>
-      {:else}
-        <ul class="excs">
-          {#each order.exceptions as e}
-            <li class:open={e.status !== '已关闭'} on:click={() => viewExc(e.id)}>
-              <div class="sev sev-{e.severity}">{e.severity}</div>
-              <div class="exc-main">
-                <div class="kind">{e.kind} <span class="stat">· {e.status}</span></div>
-                <div class="sum">{e.summary}</div>
-                <div class="muted">{fmtTime(e.createdAt)} {#if e.handledBy}· 处理人 {e.handledBy}{/if}</div>
-              </div>
-              <span class="arrow">→</span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
+    {#if canViewAll || canManageException}
+      <section class="card">
+        <header>
+          <h2 class="serif">异常</h2>
+          <span class="muted">{order.exceptions.filter(e => e.status !== '已关闭').length} 个进行中 / {order.exceptions.length} 总计</span>
+        </header>
+        {#if order.exceptions.length === 0}
+          <p class="empty">暂无异常</p>
+        {:else}
+          <ul class="excs">
+            {#each order.exceptions as e}
+              <li class:open={e.status !== '已关闭'} on:click={() => viewExc(e.id)}>
+                <div class="sev sev-{e.severity}">{e.severity}</div>
+                <div class="exc-main">
+                  <div class="kind">{e.kind} <span class="stat">· {e.status}</span></div>
+                  <div class="sum">{e.summary}</div>
+                  <div class="muted">{fmtTime(e.createdAt)} {#if e.handledBy}· 处理人 {e.handledBy}{/if}</div>
+                </div>
+                <span class="arrow">→</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    {/if}
 
     <section class="card full">
       <header><h2 class="serif">追踪链 · 时间线</h2><span class="muted">每一次动作都有记录</span></header>
@@ -171,6 +194,10 @@
     {order}
     mode={drawerMode}
     exceptionId={activeExceptionId}
+    {canManageSlot}
+    {canManageSelection}
+    {canManagePayment}
+    {canManageException}
     on:refresh={refresh}
     on:close={closeDrawer} />
 {/if}

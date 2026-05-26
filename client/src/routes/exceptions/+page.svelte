@@ -2,16 +2,29 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { listOrders, fmtTime } from '../../lib/api';
-  import type { Order } from '../../lib/types';
+  import { currentUser } from '../../lib/user';
+  import type { Order, User } from '../../lib/types';
 
   let orders: Order[] = [];
+  let allOrders: Order[] = [];
   let loading = true;
   let filter = 'all';
+  let user: User | null = null;
+
+  currentUser.subscribe(u => { user = u; });
 
   onMount(async () => {
-    try { orders = await listOrders(); } catch { /* ignore */ }
+    try { allOrders = await listOrders(); } catch { /* ignore */ }
     loading = false;
   });
+
+  $: if (user) {
+    if (user.role === 'manager') {
+      orders = allOrders;
+    } else {
+      orders = allOrders.filter(o => o.serviceId === user.id);
+    }
+  }
 
   $: all = orders.flatMap(o => o.exceptions.map(e => ({ o, e })));
   $: list = filter === 'all' ? all : all.filter(x => x.e.status === filter);

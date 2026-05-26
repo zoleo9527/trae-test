@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from './components/AppShell.svelte';
+  import { currentUser } from './lib/user';
   import type { User } from './lib/types';
 
   let user: User | null = null;
@@ -10,12 +11,9 @@
 
   $: isLogin = $page.url.pathname === '/login';
 
+  currentUser.subscribe(u => { user = u; });
+
   onMount(async () => {
-    const token = localStorage.getItem('token');
-    const raw = localStorage.getItem('user');
-    if (token && raw) {
-      try { user = JSON.parse(raw) as User; } catch { /* ignore */ }
-    }
     if (!user && !isLogin) {
       await goto('/login');
     } else if (user && isLogin) {
@@ -23,10 +21,6 @@
     }
     ready = true;
   });
-
-  function onUserChange(u: User | null) {
-    user = u;
-  }
 </script>
 
 <svelte:head>
@@ -64,7 +58,7 @@
   {#if isLogin || !user}
     <slot />
   {:else}
-    <AppShell {user} on:userChange>
+    <AppShell {user}>
       <slot />
     </AppShell>
   {/if}

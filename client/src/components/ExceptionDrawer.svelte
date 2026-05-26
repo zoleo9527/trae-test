@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import {
     createException, closeException,
-    addSlot, rescheduleSlot,
+    addSlot,
     addSelection, confirmSelection,
     payPayment, fmtTime
   } from '../lib/api';
@@ -12,6 +12,10 @@
   export let order: Order;
   export let mode: 'new' | 'view';
   export let exceptionId: string | null;
+  export let canManageSlot: boolean = true;
+  export let canManageSelection: boolean = true;
+  export let canManagePayment: boolean = true;
+  export let canManageException: boolean = true;
 
   const dispatch = createEventDispatcher();
 
@@ -23,7 +27,6 @@
     active = null;
   }
 
-  // form states
   let kind = '改期漏改';
   let severity = '高';
   let summary = '';
@@ -32,7 +35,6 @@
   let err = '';
   let busy = false;
 
-  // quick actions
   let showSlotForm = false;
   let slotForm = { at: '', place: '', photographer: '' };
   let showSelForm = false;
@@ -100,7 +102,7 @@
   <aside class="drawer" on:click|stopPropagation>
     <header>
       <h3 class="serif">
-        {#if mode === 'new'}发起异常 / 常用动作{:else}异常详情{/if}
+        {#if mode === 'view'}异常详情{:else}发起异常 / 常用动作{/if}
       </h3>
       <button class="x" on:click={() => dispatch('close')}>×</button>
     </header>
@@ -118,7 +120,7 @@
           <div class="bd">{active.detail || '—'}</div>
         </div>
 
-        {#if active.status !== '已关闭'}
+        {#if canManageException && active.status !== '已关闭'}
           <div class="block">
             <div class="bl">关闭备注</div>
             <textarea bind:value={note} rows="3" placeholder="关闭异常的处理说明" />
@@ -129,82 +131,98 @@
       </div>
     {:else}
       <div class="quick">
-        <div class="q-title">一线常用动作 · 一键提交</div>
-        <div class="q-grid">
-          <button class="q-btn" on:click={() => showSlotForm = !showSlotForm}>
-            <div class="q-icon">📅</div><div class="q-label">新增 / 改期</div>
-          </button>
-          <button class="q-btn" on:click={() => showSelForm = !showSelForm}>
-            <div class="q-icon">🖼️</div><div class="q-label">上传选片版本</div>
-          </button>
-        </div>
+        {#if canManageSlot || canManageSelection}
+          <div class="q-title">一线常用动作 · 一键提交</div>
+          <div class="q-grid">
+            {#if canManageSlot}
+              <button class="q-btn" on:click={() => showSlotForm = !showSlotForm}>
+                <div class="q-icon">📅</div><div class="q-label">新增档期</div>
+              </button>
+            {/if}
+            {#if canManageSelection}
+              <button class="q-btn" on:click={() => showSelForm = !showSelForm}>
+                <div class="q-icon">🖼️</div><div class="q-label">上传选片版本</div>
+              </button>
+            {/if}
+          </div>
 
-        {#if showSlotForm}
-          <div class="mini-form">
-            <label>日期时间<input type="datetime-local" bind:value={slotForm.at} /></label>
-            <label>地点<input bind:value={slotForm.place} /></label>
-            <label>摄影师<input bind:value={slotForm.photographer} /></label>
-            <button class="primary" on:click={submitSlot}>提交档期</button>
+          {#if canManageSlot && showSlotForm}
+            <div class="mini-form">
+              <label>日期时间<input type="datetime-local" bind:value={slotForm.at} /></label>
+              <label>地点<input bind:value={slotForm.place} /></label>
+              <label>摄影师<input bind:value={slotForm.photographer} /></label>
+              <button class="primary" on:click={submitSlot}>提交档期</button>
+            </div>
+          {/if}
+
+          {#if canManageSelection && showSelForm}
+            <div class="mini-form">
+              <label>照片编号（逗号或空格分隔）<input bind:value={selForm.photos} placeholder="IMG_1001, IMG_1002" /></label>
+              <label>备注<input bind:value={selForm.note} /></label>
+              <button class="primary" on:click={submitSel}>上传新版本</button>
+            </div>
+          {/if}
+        {/if}
+
+        {#if canManageSelection}
+          <div class="sub">待确认版本</div>
+          {#each order.selections.filter(s => !s.confirmed) as s}
+            <div class="sel-row">
+              <div>
+                <div class="s-v">v{s.version} · {s.photos.length} 张</div>
+                <div class="s-note">{s.note}</div>
+              </div>
+              <button class="primary sm" on:click={() => confirmSel(s.id, s.version, s.confirmed)}>确认</button>
+            </div>
+          {:else}
+            <div class="empty-sm">全部已确认</div>
+          {/each}
+        {/if}
+
+        {#if canManagePayment}
+          <div class="sub">待收款项</div>
+          {#each order.payments.filter(p => !p.paid) as p}
+            <div class="sel-row">
+              <div>
+                <div class="s-v">{p.stage} · ¥{p.amount}</div>
+                <div class="s-note">到期 {fmtTime(p.dueAt)}</div>
+              </div>
+              <button class="primary sm" on:click={() => pay(p.id)}>登记到账</button>
+            </div>
+          {:else}
+            <div class="empty-sm">全部已付</div>
+          {/each}
+        {/if}
+
+        {#if canManageException}
+          <div class="sub">发起异常</div>
+          <div class="form">
+            <label>类型
+              <select bind:value={kind}>
+                <option>改期漏改</option>
+                <option>修片版本混乱</option>
+                <option>尾款催收</option>
+                <option>客户投诉</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label>严重程度
+              <select bind:value={severity}>
+                <option>高</option><option>中</option><option>低</option>
+              </select>
+            </label>
+            <label>摘要<input bind:value={summary} placeholder="一句话描述问题" /></label>
+            <label>详细描述
+              <textarea bind:value={detail} rows="4" placeholder="具体情况、影响、涉及的聊天/证据"></textarea>
+            </label>
+            {#if err}<div class="error">{err}</div>{/if}
+            <button class="primary full" on:click={submit} disabled={busy}>发起并写入追踪链</button>
           </div>
         {/if}
 
-        {#if showSelForm}
-          <div class="mini-form">
-            <label>照片编号（逗号或空格分隔）<input bind:value={selForm.photos} placeholder="IMG_1001, IMG_1002" /></label>
-            <label>备注<input bind:value={selForm.note} /></label>
-            <button class="primary" on:click={submitSel}>上传新版本</button>
-          </div>
+        {#if !canManageSlot && !canManageSelection && !canManagePayment && !canManageException}
+          <div class="no-perm">当前账号在本订单上没有操作权限</div>
         {/if}
-
-        <div class="sub">待确认版本</div>
-        {#each order.selections.filter(s => !s.confirmed) as s}
-          <div class="sel-row">
-            <div>
-              <div class="s-v">v{s.version} · {s.photos.length} 张</div>
-              <div class="s-note">{s.note}</div>
-            </div>
-            <button class="primary sm" on:click={() => confirmSel(s.id, s.version, s.confirmed)}>确认</button>
-          </div>
-        {:else}
-          <div class="empty-sm">全部已确认</div>
-        {/each}
-
-        <div class="sub">待收款项</div>
-        {#each order.payments.filter(p => !p.paid) as p}
-          <div class="sel-row">
-            <div>
-              <div class="s-v">{p.stage} · ¥{p.amount}</div>
-              <div class="s-note">到期 {fmtTime(p.dueAt)}</div>
-            </div>
-            <button class="primary sm" on:click={() => pay(p.id)}>登记到账</button>
-          </div>
-        {:else}
-          <div class="empty-sm">全部已付</div>
-        {/each}
-
-        <div class="sub">发起异常</div>
-        <div class="form">
-          <label>类型
-            <select bind:value={kind}>
-              <option>改期漏改</option>
-              <option>修片版本混乱</option>
-              <option>尾款催收</option>
-              <option>客户投诉</option>
-              <option>其他</option>
-            </select>
-          </label>
-          <label>严重程度
-            <select bind:value={severity}>
-              <option>高</option><option>中</option><option>低</option>
-            </select>
-          </label>
-          <label>摘要<input bind:value={summary} placeholder="一句话描述问题" /></label>
-          <label>详细描述
-            <textarea bind:value={detail} rows="4" placeholder="具体情况、影响、涉及的聊天/证据"></textarea>
-          </label>
-          {#if err}<div class="error">{err}</div>{/if}
-          <button class="primary full" on:click={submit} disabled={busy}>发起并写入追踪链</button>
-        </div>
       </div>
     {/if}
   </aside>
@@ -277,6 +295,7 @@
   .s-v { font-size: 13px; font-weight: 600; }
   .s-note { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
   .empty-sm { font-size: 12px; color: var(--ink-2); font-style: italic; padding: 4px 0; }
+  .no-perm { padding: 20px; text-align: center; color: var(--ink-2); font-size: 13px; }
 
   .form { display: grid; gap: 10px; margin-top: 8px; }
   .form label { font-size: 12px; color: var(--ink-2); display: grid; gap: 4px; }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { currentUser } from '../lib/user';
   import type { User } from '../lib/types';
 
   export let user: User;
@@ -11,28 +12,36 @@
     service: '客服管家'
   };
 
-  const navItems: Record<string, { label: string; roles: string[] }[]> = {
+  interface NavItem { label: string; path: string; roles: string[]; }
+
+  const navMap: Record<string, NavItem[]> = {
     manager: [
-      { label: '订单列表', roles: ['manager', 'editor', 'service'] },
-      { label: '异常队列', roles: ['manager', 'service'] },
-      { label: '团队看板', roles: ['manager'] }
+      { label: '全部订单', path: '/orders', roles: ['manager'] },
+      { label: '异常队列', path: '/exceptions', roles: ['manager', 'service'] },
+      { label: '团队看板', path: '/board', roles: ['manager'] }
     ],
     editor: [
-      { label: '我的订单', roles: ['manager', 'editor', 'service'] },
-      { label: '待确认版本', roles: ['editor', 'service'] }
+      { label: '我的订单', path: '/orders', roles: ['editor'] },
+      { label: '待确认版本', path: '/pending', roles: ['editor', 'service'] }
     ],
     service: [
-      { label: '订单列表', roles: ['manager', 'editor', 'service'] },
-      { label: '尾款催收', roles: ['service'] },
-      { label: '异常队列', roles: ['manager', 'service'] }
+      { label: '我的订单', path: '/orders', roles: ['service'] },
+      { label: '尾款催收', path: '/collections', roles: ['service'] },
+      { label: '异常队列', path: '/exceptions', roles: ['manager', 'service'] }
     ]
   };
 
-  $: items = navItems[user.role] || [];
+  $: items = navMap[user.role] || [];
+
+  function isActive(path: string) {
+    if (path === '/orders') {
+      return $page.url.pathname === '/orders' || $page.url.pathname.startsWith('/orders/');
+    }
+    return $page.url.pathname === path;
+  }
 
   function logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    currentUser.clear();
     goto('/login');
   }
 </script>
@@ -58,20 +67,8 @@
       {#each items as item}
         <button
           class="nav-item"
-          class:active={$page.url.pathname.includes(item.label === '订单列表' ? '/orders'
-            : item.label === '异常队列' ? '/exceptions'
-            : item.label === '团队看板' ? '/board'
-            : item.label === '我的订单' ? '/orders'
-            : item.label === '待确认版本' ? '/pending'
-            : '/collections')}
-          on:click={() => goto(
-            item.label === '订单列表' ? '/orders'
-            : item.label === '异常队列' ? '/exceptions'
-            : item.label === '团队看板' ? '/board'
-            : item.label === '我的订单' ? '/orders'
-            : item.label === '待确认版本' ? '/pending'
-            : '/collections'
-          )}>
+          class:active={isActive(item.path)}
+          on:click={() => goto(item.path)}>
           {item.label}
         </button>
       {/each}

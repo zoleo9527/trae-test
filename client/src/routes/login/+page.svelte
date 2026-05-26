@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { login } from '../lib/api';
+  import { currentUser } from '../lib/user';
 
   let username = 'manager';
   let password = '123456';
@@ -18,7 +19,7 @@
     try {
       const r = await login(username, password);
       localStorage.setItem('token', r.token);
-      localStorage.setItem('user', JSON.stringify(r.user));
+      currentUser.set(r.user);
       await goto('/orders');
     } catch (e: any) {
       error = e.message || '登录失败';
