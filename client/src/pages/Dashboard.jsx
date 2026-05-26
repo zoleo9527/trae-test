@@ -8,7 +8,7 @@ import {
     SyncOutlined,
     WarningOutlined,
 } from '@ant-design/icons'
-import { Card, Col, Row, Spin, Statistic, Table, Tag } from 'antd'
+import { Card, Col, Row, Spin, Statistic, Table, Tabs, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -36,9 +36,57 @@ const labelMap = {
   total_today: '今日新增',
 }
 
+const repairColumns = [
+  { title: '返修单号', dataIndex: 'repair_no', width: 140 },
+  { title: '客户', dataIndex: 'customer_name', width: 100 },
+  { title: '门店', dataIndex: 'store_name', width: 120 },
+  { title: '返修类型', dataIndex: 'repair_type', width: 100 },
+  {
+    title: '状态',
+    dataIndex: 'status',
+    width: 100,
+    render: (status) => <StatusTag status={status} />,
+  },
+  {
+    title: '优先级',
+    dataIndex: 'priority',
+    width: 80,
+    render: (p) => p === '加急' ? <Tag color="red">加急</Tag> : <Tag>普通</Tag>,
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'created_at',
+    width: 160,
+    render: (val) => dayjs(val).format('YYYY-MM-DD HH:mm'),
+  },
+]
+
+const visitColumns = [
+  { title: '回访单号', dataIndex: 'visit_no', width: 140 },
+  { title: '回访类型', dataIndex: 'visit_type', width: 100 },
+  {
+    title: '计划日期',
+    dataIndex: 'planned_date',
+    width: 120,
+    render: (val) => dayjs(val).format('YYYY-MM-DD'),
+  },
+  { title: '回访员', dataIndex: 'visitor', width: 100, render: (val) => val || '-' },
+  {
+    title: '状态',
+    dataIndex: 'status',
+    width: 100,
+    render: (status) => {
+      const colors = { '待回访': 'orange', '已回访': 'green', '回访失败': 'red', '已改期': 'blue' }
+      return <Tag color={colors[status]}>{status}</Tag>
+    },
+  },
+]
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
-  const [recentRepairs, setRecentRepairs] = useState([])
+  const [pendingRepairs, setPendingRepairs] = useState([])
+  const [rejectedRepairs, setRejectedRepairs] = useState([])
+  const [needReviewRepairs, setNeedReviewRepairs] = useState([])
   const [pendingVisits, setPendingVisits] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -50,13 +98,17 @@ export default function Dashboard() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [statsData, repairsData, visitsData] = await Promise.all([
+      const [statsData, pendingData, rejectedData, reviewData, visitsData] = await Promise.all([
         dashboardApi.getStats(),
-        repairApi.list({ limit: 10 }),
+        repairApi.list({ status: '待处理', limit: 20 }),
+        repairApi.list({ status: '已驳回', limit: 20 }),
+        repairApi.list({ status: '需回查', limit: 20 }),
         visitApi.list({ status: '待回访', limit: 10 }),
       ])
       setStats(statsData)
-      setRecentRepairs(repairsData || [])
+      setPendingRepairs(pendingData || [])
+      setRejectedRepairs(rejectedData || [])
+      setNeedReviewRepairs(reviewData || [])
       setPendingVisits(visitsData || [])
     } catch (error) {
       console.error('加载数据失败:', error)
@@ -66,51 +118,25 @@ export default function Dashboard() {
   }
 
   const handleStatClick = (key) => {
-    const routeMap = {
-      visit_pending_count: '/visits',
+    if (key === 'visit_pending_count') {
+      navigate('/visits')
+    } else {
+      navigate('/repairs')
     }
-    navigate(routeMap[key] || '/repairs')
   }
 
-  const repairColumns = [
-    { title: '返修单号', dataIndex: 'repair_no', width: 140 },
-    { title: '客户', dataIndex: 'customer_name', width: 100 },
-    { title: '门店', dataIndex: 'store_name', width: 120 },
-    { title: '返修类型', dataIndex: 'repair_type', width: 100 },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (status) => <StatusTag status={status} />,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      width: 160,
-      render: (val) => dayjs(val).format('YYYY-MM-DD HH:mm'),
-    },
-  ]
-
-  const visitColumns = [
-    { title: '回访单号', dataIndex: 'visit_no', width: 140 },
-    { title: '回访类型', dataIndex: 'visit_type', width: 100 },
-    {
-      title: '计划日期',
-      dataIndex: 'planned_date',
-      width: 120,
-      render: (val) => dayjs(val).format('YYYY-MM-DD'),
-    },
-    { title: '回访员', dataIndex: 'visitor', width: 100, render: (val) => val || '-' },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (status) => {
-        const colors = { '待回访': 'orange', '已回访': 'green', '回访失败': 'red', '已改期': 'blue' }
-        return <Tag color={colors[status]}>{status}</Tag>
-      },
-    },
-  ]
+  const repairTableProps = (dataSource, emptyText) => ({
+    columns: repairColumns,
+    dataSource,
+    rowKey: 'id',
+    size: 'small',
+    pagination: false,
+    locale: { emptyText },
+    onRow: (record) => ({
+      onClick: () => navigate(`/repairs/${record.id}`),
+      style: { cursor: 'pointer' },
+    }),
+  })
 
   return (
     <Spin spinning={loading}>
@@ -133,23 +159,43 @@ export default function Dashboard() {
         ))}
       </Row>
 
+      <Card style={{ marginTop: 16 }} size="small">
+        <Tabs
+          defaultActiveKey="pending"
+          items={[
+            {
+              key: 'pending',
+              label: `待处理 (${pendingRepairs.length})`,
+              children: (
+                <Table
+                  {...repairTableProps(pendingRepairs, '暂无待处理返修单')}
+                />
+              ),
+            },
+            {
+              key: 'rejected',
+              label: `已驳回 (${rejectedRepairs.length})`,
+              children: (
+                <Table
+                  {...repairTableProps(rejectedRepairs, '暂无已驳回返修单')}
+                />
+              ),
+            },
+            {
+              key: 'review',
+              label: `需回查 (${needReviewRepairs.length})`,
+              children: (
+                <Table
+                  {...repairTableProps(needReviewRepairs, '暂无需回查返修单')}
+                />
+              ),
+            },
+          ]}
+        />
+      </Card>
+
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card title="最近返修单" size="small">
-            <Table
-              columns={repairColumns}
-              dataSource={recentRepairs}
-              rowKey="id"
-              size="small"
-              pagination={false}
-              onRow={(record) => ({
-                onClick: () => navigate(`/repairs/${record.id}`),
-                style: { cursor: 'pointer' },
-              })}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
+        <Col xs={24}>
           <Card title="待回访提醒" size="small">
             <Table
               columns={visitColumns}
@@ -157,6 +203,7 @@ export default function Dashboard() {
               rowKey="id"
               size="small"
               pagination={false}
+              locale={{ emptyText: '暂无待回访记录' }}
             />
           </Card>
         </Col>

@@ -1,25 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional
 from datetime import date
 from app.database import get_db
-from app import schemas, crud
+from app import schemas, crud, models
 
 router = APIRouter(prefix="/api/visits", tags=["回访记录"])
 
 
 @router.post("", response_model=schemas.VisitRecord)
 def create_visit(obj: schemas.VisitRecordCreate, db: Session = Depends(get_db)):
+    if obj.repair_order_id:
+        repair = crud.get_repair_order(db, obj.repair_order_id)
+        if not repair:
+            raise HTTPException(status_code=400, detail=f"关联的返修单ID {obj.repair_order_id} 不存在")
     return crud.create_visit_record(db, obj)
 
 
-@router.get("", response_model=List[schemas.VisitRecord])
+@router.get("", response_model=list[schemas.VisitRecord])
 def list_visits(
     skip: int = 0,
     limit: int = 100,
-    status: Optional[str] = None,
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     db: Session = Depends(get_db),
 ):
     return crud.get_visit_records(

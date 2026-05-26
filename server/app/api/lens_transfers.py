@@ -1,23 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional, List
 from app.database import get_db
-from app import schemas, crud
+from app import schemas, crud, models
 
 router = APIRouter(prefix="/api/lens-transfers", tags=["镜片调拨"])
 
 
 @router.post("", response_model=schemas.LensTransfer)
 def create_transfer(obj: schemas.LensTransferCreate, db: Session = Depends(get_db)):
+    if obj.repair_order_id:
+        repair = crud.get_repair_order(db, obj.repair_order_id)
+        if not repair:
+            raise HTTPException(status_code=400, detail=f"关联的返修单ID {obj.repair_order_id} 不存在")
     return crud.create_lens_transfer(db, obj)
 
 
-@router.get("", response_model=List[schemas.LensTransfer])
+@router.get("", response_model=list[schemas.LensTransfer])
 def list_transfers(
     skip: int = 0,
     limit: int = 100,
-    status: Optional[str] = None,
-    is_lost: Optional[int] = None,
+    status: str | None = None,
+    is_lost: int | None = None,
     db: Session = Depends(get_db),
 ):
     return crud.get_lens_transfers(db, skip=skip, limit=limit, status=status, is_lost=is_lost)

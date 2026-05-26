@@ -58,10 +58,13 @@ export default function LensTransferList() {
 
   const handleCreate = async (values) => {
     try {
+      if (!values.repair_order_id) {
+        message.error('请填写关联返修单ID')
+        return
+      }
       await lensTransferApi.create({
         ...values,
         transfer_no: `LT${dayjs().format('YYYYMMDDHHmmss')}`,
-        repair_order_id: values.repair_order_id || 0,
       })
       message.success('创建成功')
       setCreateModal(false)
@@ -215,7 +218,7 @@ export default function LensTransferList() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="repair_order_id" label="关联返修单ID">
+              <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
                 <Input type="number" />
               </Form.Item>
             </Col>

@@ -65,11 +65,14 @@ export default function VisitList() {
 
   const handleCreate = async (values) => {
     try {
+      if (!values.repair_order_id) {
+        message.error('请填写关联返修单ID')
+        return
+      }
       await visitApi.create({
         ...values,
         visit_no: `VS${dayjs().format('YYYYMMDDHHmmss')}`,
         planned_date: values.planned_date.format('YYYY-MM-DD'),
-        repair_order_id: values.repair_order_id || 0,
       })
       message.success('创建成功')
       setCreateModal(false)
@@ -255,7 +258,7 @@ export default function VisitList() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="repair_order_id" label="关联返修单ID">
+          <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
             <Input type="number" />
           </Form.Item>
           <Form.Item name="visitor" label="回访员">

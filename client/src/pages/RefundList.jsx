@@ -57,10 +57,13 @@ export default function RefundList() {
 
   const handleCreate = async (values) => {
     try {
+      if (!values.repair_order_id) {
+        message.error('请填写关联返修单ID')
+        return
+      }
       await refundApi.create({
         ...values,
         refund_no: `RF${dayjs().format('YYYYMMDDHHmmss')}`,
-        repair_order_id: values.repair_order_id || 0,
       })
       message.success('创建成功')
       setCreateModal(false)
@@ -137,9 +140,6 @@ export default function RefundList() {
               <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(record, '已审批')}>
                 审批
               </Button>
-              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(record, '已退款')}>
-                退款
-              </Button>
               <Button type="link" size="small" danger icon={<CloseOutlined />} onClick={() => handleReject(record)}>
                 驳回
               </Button>
@@ -209,7 +209,7 @@ export default function RefundList() {
           <Form.Item name="applicant" label="申请人" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="repair_order_id" label="关联返修单ID">
+          <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
             <Input type="number" />
           </Form.Item>
           <Form.Item>

@@ -205,32 +205,36 @@ def batch_update_repair_orders(
     handler: Optional[str] = None,
     changed_by: str = "系统",
 ) -> int:
-    query = db.query(models.RepairOrder).filter(models.RepairOrder.id.in_(ids))
-    updates = {}
     if status:
-        updates["status"] = status
-    if processor:
-        updates["processor"] = processor
-    if handler:
-        updates["handler"] = handler
-    if updates:
-        updates["updated_at"] = datetime.now()
+        repairs = db.query(models.RepairOrder).filter(models.RepairOrder.id.in_(ids)).all()
+        for r in repairs:
+            old_status = r.status
+            r.status = status
+            r.updated_at = datetime.now()
+            if processor:
+                r.processor = processor
+            if handler:
+                r.handler = handler
+            history = models.StatusHistory(
+                repair_order_id=r.id,
+                from_status=old_status,
+                to_status=status,
+                changed_by=changed_by,
+                change_reason="批量更新",
+            )
+            db.add(history)
+        db.commit()
+        return len(repairs)
+    else:
+        query = db.query(models.RepairOrder).filter(models.RepairOrder.id.in_(ids))
+        updates = {"updated_at": datetime.now()}
+        if processor:
+            updates["processor"] = processor
+        if handler:
+            updates["handler"] = handler
         count = query.update(updates, synchronize_session="fetch")
-        if status:
-            for rid in ids:
-                db_obj = get_repair_order(db, rid)
-                if db_obj:
-                    history = models.StatusHistory(
-                        repair_order_id=rid,
-                        from_status=None,
-                        to_status=status,
-                        changed_by=changed_by,
-                        change_reason="批量更新",
-                    )
-                    db.add(history)
         db.commit()
         return count
-    return 0
 
 
 def delete_repair_order(db: Session, id: int) -> bool:
@@ -245,6 +249,23 @@ def delete_repair_order(db: Session, id: int) -> bool:
 def create_lens_transfer(db: Session, obj: schemas.LensTransferCreate) -> models.LensTransfer:
     db_obj = models.LensTransfer(**obj.model_dump())
     db.add(db_obj)
+    if obj.repair_order_id:
+        repair = get_repair_order(db, obj.repair_order_id)
+        if repair:
+            old_status = repair.status
+            repair.lens_status = "调拨中"
+            if repair.status not in ["镜片调拨中", "镜片丢失"]:
+                repair.status = "镜片调拨中"
+            repair.updated_at = datetime.now()
+            if old_status != repair.status:
+                history = models.StatusHistory(
+                    repair_order_id=repair.id,
+                    from_status=old_status,
+                    to_status=repair.status,
+                    changed_by=obj.status or "系统",
+                    change_reason="创建镜片调拨单",
+                )
+                db.add(history)
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -285,6 +306,22 @@ def update_lens_transfer(db: Session, id: int, obj: schemas.LensTransferUpdate) 
 def create_refund_record(db: Session, obj: schemas.RefundRecordCreate) -> models.RefundRecord:
     db_obj = models.RefundRecord(**obj.model_dump())
     db.add(db_obj)
+    if obj.repair_order_id:
+        repair = get_repair_order(db, obj.repair_order_id)
+        if repair and repair.status != "退款中" and repair.status != "已退款":
+            old_status = repair.status
+            repair.status = "退款中"
+            repair.refund_amount = obj.amount
+            repair.refund_reason = obj.reason
+            repair.updated_at = datetime.now()
+            history = models.StatusHistory(
+                repair_order_id=repair.id,
+                from_status=old_status,
+                to_status="退款中",
+                changed_by=obj.applicant or "系统",
+                change_reason="创建退款申请",
+            )
+            db.add(history)
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -306,11 +343,39 @@ def get_refund_record(db: Session, id: int) -> Optional[models.RefundRecord]:
     return db.query(models.RefundRecord).filter(models.RefundRecord.id == id).first()
 
 
+REFUND_FLOW = {
+    "待审批": ["已审批", "已驳回"],
+    "已审批": ["已退款", "已驳回"],
+    "已退款": [],
+    "已驳回": [],
+}
+
+
 def update_refund_record(db: Session, id: int, obj: schemas.RefundRecordUpdate) -> Optional[models.RefundRecord]:
     db_obj = get_refund_record(db, id)
     if not db_obj:
         return None
     update_data = obj.model_dump(exclude_unset=True)
+    if "status" in update_data:
+        new_status = update_data["status"]
+        if new_status not in REFUND_FLOW.get(db_obj.status, []):
+            raise ValueError(f"退款状态不能从 {db_obj.status} 变更为 {new_status}，合法流转: {' → '.join(REFUND_FLOW.get(db_obj.status, [])) or '无'}")
+        if new_status == "已退款":
+            update_data["paid_at"] = update_data.get("paid_at") or datetime.now()
+            if db_obj.repair_order_id:
+                repair = get_repair_order(db, db_obj.repair_order_id)
+                if repair:
+                    old_repair_status = repair.status
+                    repair.status = "已退款"
+                    repair.updated_at = datetime.now()
+                    history = models.StatusHistory(
+                        repair_order_id=repair.id,
+                        from_status=old_repair_status,
+                        to_status="已退款",
+                        changed_by=update_data.get("approver", "系统"),
+                        change_reason="退款已完成",
+                    )
+                    db.add(history)
     for key, value in update_data.items():
         setattr(db_obj, key, value)
     db_obj.updated_at = datetime.now()
