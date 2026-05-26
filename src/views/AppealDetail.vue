@@ -261,13 +261,12 @@ function canTransitionTo(targetStatus: string): boolean {
   const role = getUserRole()
   if (!role) return false
   
-  const currentStatus = appeal.value.status
-  const transitions = statusTransitions[role]?.[currentStatus] || []
-  
   if (role === 'head_coach' && appeal.value.assignee_id !== userStore.currentUser.id) {
     return false
   }
   
+  const currentStatus = appeal.value.status
+  const transitions = statusTransitions[role]?.[currentStatus] || []
   return transitions.includes(targetStatus)
 }
 
@@ -277,10 +276,26 @@ function canPerformAction(action: string): boolean {
   return canTransitionTo(targetStatus)
 }
 
+const canUpdateStatus = computed(() => {
+  if (!appeal.value || !userStore.currentUser) return false
+  const role = getUserRole()
+  if (!role) return false
+  
+  if (role === 'head_coach' && appeal.value.assignee_id !== userStore.currentUser.id) {
+    return false
+  }
+  
+  const currentStatus = appeal.value.status
+  const transitions = statusTransitions[role]?.[currentStatus] || []
+  return transitions.length > 0
+})
+
 const allowedStatusOptions = computed(() => {
   if (!appeal.value) return []
   const currentStatus = appeal.value.status
   const options: { value: string; label: string }[] = [{ value: currentStatus, label: statusLabels[currentStatus as keyof typeof statusLabels] }]
+  
+  if (!canUpdateStatus.value) return options
   
   const role = getUserRole()
   if (!role) return options
@@ -327,9 +342,13 @@ function formatDateTime(ts: number): string {
 
 async function handleStatusChange() {
   if (!appeal.value || newStatus.value === appeal.value.status) return
+  if (!userStore.currentUser?.id) {
+    alert('未登录，无法更新状态')
+    return
+  }
   if (!canTransitionTo(newStatus.value)) return
   try {
-    await dbApi.updateAppealStatus(appeal.value.id, newStatus.value as any, userStore.currentUser?.id)
+    await dbApi.updateAppealStatus(appeal.value.id, newStatus.value as any, userStore.currentUser.id)
     await loadAppeal()
   } catch (e: any) {
     alert('状态更新失败：' + (e.message || '非法状态流转'))
