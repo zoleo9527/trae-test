@@ -316,8 +316,14 @@ export const mockSampleLendings: SampleLending[] = [
     expectedReturn: '2026-04-29',
     returned: false,
     returnedAt: null,
+    returnedBy: null,
+    returnNote: null,
     note: '客户要求带回家确认纹理是否与装修风格匹配',
-    overdue: true
+    overdue: true,
+    history: [
+      { action: '借出', by: '销售-周琳', at: '2026-04-22 14:00', detail: '借出大理石台面样块给刘先生，应于4月29日归还' },
+      { action: '催还', by: '销售-周琳', at: '2026-05-02 10:00', detail: '电话催促刘先生归还，客户表示下周送回' }
+    ]
   },
   {
     id: 'sl-002',
@@ -331,8 +337,14 @@ export const mockSampleLendings: SampleLending[] = [
     expectedReturn: '2026-04-25',
     returned: true,
     returnedAt: '2026-04-23 10:00',
+    returnedBy: '销售-李明',
+    returnNote: '客户确认颜色为浅灰色，样卡完好归还',
     note: '客户确认颜色后归还',
-    overdue: false
+    overdue: false,
+    history: [
+      { action: '借出', by: '销售-李明', at: '2026-04-18 11:30', detail: '借出沙发面料样卡给张女士确认颜色' },
+      { action: '归还', by: '销售-李明', at: '2026-04-23 10:00', detail: '客户确认颜色为浅灰色，样卡完好归还' }
+    ]
   },
   {
     id: 'sl-003',
@@ -346,8 +358,14 @@ export const mockSampleLendings: SampleLending[] = [
     expectedReturn: '2026-05-08',
     returned: false,
     returnedAt: null,
+    returnedBy: null,
+    returnNote: null,
     note: '客户带回家给孩子看，一直未归还',
-    overdue: true
+    overdue: true,
+    history: [
+      { action: '借出', by: '销售-周琳', at: '2026-05-01 11:00', detail: '借出儿童房木质样块给王先生，应于5月8日归还' },
+      { action: '催还', by: '销售-周琳', at: '2026-05-15 14:30', detail: '微信联系客户，客户说近期忙，下周末送回' }
+    ]
   }
 ]
 

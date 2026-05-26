@@ -187,7 +187,30 @@ function batchReturnSamples() {
           </div>
         </div>
 
-        <div v-else class="empty-batch">
+        <div v-if="store.sampleLendings.filter(l => l.returned).length > 0" class="returned-section">
+          <div class="returned-header">
+            <span>已归还</span>
+            <span class="returned-count">{{ store.sampleLendings.filter(l => l.returned).length }}</span>
+          </div>
+          <div class="returned-list">
+            <div
+              v-for="lending in store.sampleLendings.filter(l => l.returned)"
+              :key="lending.id"
+              class="returned-item"
+            >
+              <div class="returned-icon">✓</div>
+              <div class="returned-main">
+                <div class="returned-name">{{ lending.itemName }}</div>
+                <div class="returned-meta">
+                  归还人 {{ lending.returnedBy }} · {{ lending.returnedAt }}
+                </div>
+                <div v-if="lending.returnNote" class="returned-note">{{ lending.returnNote }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="unreturnedLendings.length === 0 && store.sampleLendings.filter(l => l.returned).length === 0" class="empty-batch">
           <div class="empty-icon">✓</div>
           <p>所有样品已归还</p>
         </div>
@@ -400,5 +423,82 @@ function batchReturnSamples() {
 .empty-batch p {
   font-size: 13px;
   color: #6b7280;
+}
+
+.returned-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.returned-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.returned-count {
+  background: #d1fae5;
+  color: #059669;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.returned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.returned-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-radius: 8px;
+}
+
+.returned-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #10b981;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.returned-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.returned-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.returned-meta {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 1px;
+}
+
+.returned-note {
+  font-size: 10px;
+  color: #059669;
+  margin-top: 2px;
 }
 </style>

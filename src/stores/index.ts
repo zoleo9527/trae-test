@@ -4,6 +4,7 @@ import type {
   Order,
   AfterSalesTicket,
   SampleLending,
+  SampleLendingHistory,
   SupplementaryPart,
   CompensationInfo,
   TicketHistory
@@ -172,22 +173,24 @@ export const useAppStore = defineStore('app', {
     },
 
     batchConfirmParts(confirmedBy: string) {
-      let count = 0
+      let totalCount = 0
       for (const ticket of this.afterSalesTickets) {
+        let ticketCount = 0
         for (const part of ticket.parts) {
           if (this.batchSelection.has(part.id) && !part.confirmed) {
             part.confirmed = true
             part.confirmedBy = confirmedBy
             part.confirmedAt = this._now()
-            count++
+            ticketCount++
           }
         }
-        if (count > 0) {
-          this._addTicketHistory(ticket, '批量确认补件', confirmedBy, `批量确认 ${count} 项补件`)
+        if (ticketCount > 0) {
+          this._addTicketHistory(ticket, '批量确认补件', confirmedBy, `本工单批量确认 ${ticketCount} 项补件`)
           this._updateTicketTimestamp(ticket)
+          totalCount += ticketCount
         }
       }
-      this.showToast(`已批量确认 ${count} 项补件`, 'success')
+      this.showToast(`已批量确认 ${totalCount} 项补件`, 'success')
       this.batchSelection.clear()
     },
 
@@ -196,6 +199,14 @@ export const useAppStore = defineStore('app', {
       if (lending) {
         lending.returned = true
         lending.returnedAt = this._now()
+        lending.returnedBy = returnedBy
+        lending.returnNote = '样品已归还，状态正常'
+        lending.history.push({
+          action: '归还',
+          by: returnedBy,
+          at: this._now(),
+          detail: `由 ${returnedBy} 登记归还，样品状态正常`
+        } as SampleLendingHistory)
         this.showToast(`样品「${lending.itemName}」已登记归还`, 'success')
       }
     },
@@ -206,6 +217,14 @@ export const useAppStore = defineStore('app', {
         if (this.batchSelection.has(lending.id) && !lending.returned) {
           lending.returned = true
           lending.returnedAt = this._now()
+          lending.returnedBy = returnedBy
+          lending.returnNote = '批量登记归还'
+          lending.history.push({
+            action: '归还',
+            by: returnedBy,
+            at: this._now(),
+            detail: `由 ${returnedBy} 批量登记归还`
+          } as SampleLendingHistory)
           count++
         }
       }

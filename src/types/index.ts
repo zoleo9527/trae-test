@@ -85,6 +85,13 @@ export interface TicketHistory {
   detail: string
 }
 
+export interface SampleLendingHistory {
+  action: string
+  by: string
+  at: string
+  detail: string
+}
+
 export interface SampleLending {
   id: string
   orderId: string
@@ -97,8 +104,11 @@ export interface SampleLending {
   expectedReturn: string
   returned: boolean
   returnedAt: string | null
+  returnedBy: string | null
+  returnNote: string | null
   note: string
   overdue: boolean
+  history: SampleLendingHistory[]
 }
 
 export interface Order {

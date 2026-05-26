@@ -183,13 +183,45 @@ function back() {
           </div>
           <div class="sample-list">
             <div v-for="lending in order.sampleLendings" :key="lending.id" class="sample-item">
-              <div class="sample-name">{{ lending.itemName }}</div>
+              <div class="sample-header">
+                <span class="sample-name">{{ lending.itemName }}</span>
+                <span class="badge" :class="lending.returned ? 'badge-green' : lending.overdue ? 'badge-red' : 'badge-yellow'">
+                  {{ lending.returned ? '已归还' : lending.overdue ? '逾期未还' : '未归还' }}
+                </span>
+              </div>
               <div class="sample-meta">
                 借给 {{ lending.lentTo }} · {{ lending.lentAt }}
               </div>
-              <span class="badge" :class="lending.returned ? 'badge-green' : lending.overdue ? 'badge-red' : 'badge-yellow'">
-                {{ lending.returned ? '已归还' : lending.overdue ? '逾期未还' : '未归还' }}
-              </span>
+              <div class="sample-meta" v-if="lending.note">
+                <span class="meta-label">借出备注：</span>{{ lending.note }}
+              </div>
+              <div v-if="lending.returned" class="sample-return-info">
+                <div class="return-row">
+                  <span class="meta-label">归还人：</span>
+                  <span class="return-value">{{ lending.returnedBy }}</span>
+                </div>
+                <div class="return-row">
+                  <span class="meta-label">归还时间：</span>
+                  <span class="return-value">{{ lending.returnedAt }}</span>
+                </div>
+                <div class="return-row" v-if="lending.returnNote">
+                  <span class="meta-label">归还备注：</span>
+                  <span class="return-value">{{ lending.returnNote }}</span>
+                </div>
+              </div>
+              <div v-if="lending.history.length > 0" class="sample-history">
+                <div class="history-title">操作记录</div>
+                <div
+                  v-for="(h, hidx) in lending.history"
+                  :key="hidx"
+                  class="history-item"
+                >
+                  <span class="history-action">{{ h.action }}</span>
+                  <span class="history-at">{{ h.at }}</span>
+                  <span class="history-by">{{ h.by }}</span>
+                  <span class="history-detail">{{ h.detail }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -426,7 +458,7 @@ function back() {
 }
 
 .sample-item {
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f3f4f6;
 }
 
@@ -434,17 +466,92 @@ function back() {
   border-bottom: none;
 }
 
+.sample-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .sample-name {
   font-size: 12px;
   font-weight: 500;
   color: #1f2937;
-  margin-bottom: 2px;
 }
 
 .sample-meta {
   font-size: 11px;
   color: #9ca3af;
+  margin-bottom: 2px;
+}
+
+.meta-label {
+  color: #9ca3af;
+}
+
+.sample-return-info {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #f0fdf4;
+  border-radius: 6px;
+}
+
+.return-row {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.return-row .meta-label {
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.return-value {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.sample-history {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.history-title {
+  font-size: 11px;
+  color: #9ca3af;
   margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.history-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.history-action {
+  color: #6366f1;
+  font-weight: 500;
+}
+
+.history-at {
+  color: #9ca3af;
+  font-family: 'SF Mono', Menlo, monospace;
+}
+
+.history-by {
+  color: #6b7280;
+}
+
+.history-detail {
+  color: #4b5563;
+  flex: 1;
+  min-width: 100%;
 }
 
 .font-mono {
