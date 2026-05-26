@@ -26,7 +26,7 @@ import {
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { repairApi } from '../api'
+import { optometryApi, repairApi } from '../api'
 
 const { RangePicker } = DatePicker
 
@@ -95,6 +95,14 @@ export default function RepairList() {
         customer_phone: opt.customer_phone,
         store_name: opt.store_name,
       })
+    } else {
+      createForm.setFieldsValue({
+        optometry_order_id: undefined,
+        optometry_order_no: undefined,
+        customer_name: undefined,
+        customer_phone: undefined,
+        store_name: undefined,
+      })
     }
   }
 
@@ -120,6 +128,10 @@ export default function RepairList() {
 
   const handleCreate = async (values) => {
     try {
+      if (!values.optometry_order_id) {
+        message.error('请选择关联验光单')
+        return
+      }
       const params = {
         ...values,
         repair_no: `RP${dayjs().format('YYYYMMDDHHmmss')}`,
@@ -290,13 +302,12 @@ export default function RepairList() {
         <Form form={createForm} layout="vertical" onFinish={handleCreate}>
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item name="optometry_order_id" label="关联验光单">
+              <Form.Item name="optometry_order_id" label="关联验光单" rules={[{ required: true, message: '请选择关联验光单' }]}>
                 <Select
                   showSearch
                   placeholder="选择验光单（选择后自动填充客户信息）"
                   optionFilterProp="label"
                   onChange={handleOptometryChange}
-                  allowClear
                   options={optometryOptions.map(o => ({
                     value: o.id,
                     label: `${o.order_no} - ${o.customer_name} (${o.store_name})`,
@@ -306,22 +317,22 @@ export default function RepairList() {
             </Col>
             <Col span={12}>
               <Form.Item name="optometry_order_no" label="验光单号">
-                <Input placeholder="验光单号" />
+                <Input placeholder="请先选择验光单" disabled />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="customer_name" label="客户姓名" rules={[{ required: true }]}>
-                <Input />
+                <Input placeholder="自动从验光单同步" disabled />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="customer_phone" label="联系电话">
-                <Input />
+                <Input placeholder="自动从验光单同步" disabled />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="store_name" label="门店" rules={[{ required: true }]}>
-                <Input />
+                <Input placeholder="自动从验光单同步" disabled />
               </Form.Item>
             </Col>
             <Col span={12}>

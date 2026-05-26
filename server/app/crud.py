@@ -99,10 +99,10 @@ def create_repair_order(db: Session, obj: schemas.RepairOrderCreate) -> models.R
     if obj.optometry_order_id:
         opt = get_optometry_order(db, obj.optometry_order_id)
         if opt:
-            data["customer_name"] = data.get("customer_name") or opt.customer_name
-            data["customer_phone"] = data.get("customer_phone") or opt.customer_phone
-            data["store_name"] = data.get("store_name") or opt.store_name
-            data["optometry_order_no"] = data.get("optometry_order_no") or opt.order_no
+            data["customer_name"] = opt.customer_name
+            data["customer_phone"] = opt.customer_phone
+            data["store_name"] = opt.store_name
+            data["optometry_order_no"] = opt.order_no
     db_obj = models.RepairOrder(**data)
     db.add(db_obj)
     db.flush()
@@ -442,6 +442,18 @@ def update_refund_record(db: Session, id: int, obj: schemas.RefundRecordUpdate) 
 def create_visit_record(db: Session, obj: schemas.VisitRecordCreate) -> models.VisitRecord:
     db_obj = models.VisitRecord(**obj.model_dump())
     db.add(db_obj)
+    db.flush()
+    if obj.repair_order_id:
+        repair = get_repair_order(db, obj.repair_order_id)
+        if repair:
+            history = models.StatusHistory(
+                repair_order_id=repair.id,
+                from_status=repair.status,
+                to_status=repair.status,
+                changed_by=obj.visitor or "系统",
+                change_reason=f"创建回访计划（{obj.visit_type}），计划日期：{obj.planned_date}",
+            )
+            db.add(history)
     db.commit()
     db.refresh(db_obj)
     return db_obj

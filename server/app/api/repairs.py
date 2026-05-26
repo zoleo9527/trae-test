@@ -10,6 +10,10 @@ router = APIRouter(prefix="/api/repairs", tags=["售后返修"])
 
 @router.post("", response_model=schemas.RepairOrder)
 def create_repair(obj: schemas.RepairOrderCreate, db: Session = Depends(get_db)):
+    if obj.optometry_order_id:
+        opt = crud.get_optometry_order(db, obj.optometry_order_id)
+        if not opt:
+            raise HTTPException(status_code=400, detail=f"关联的验光单ID {obj.optometry_order_id} 不存在")
     db_obj = crud.create_repair_order(db, obj)
     return db_obj
 

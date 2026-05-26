@@ -29,6 +29,7 @@ const statusColors = {
 
 export default function LensTransferList() {
   const [data, setData] = useState([])
+  const [repairOptions, setRepairOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({})
   const [createModal, setCreateModal] = useState(false)
@@ -39,7 +40,17 @@ export default function LensTransferList() {
 
   useEffect(() => {
     loadData()
+    loadRepairOptions()
   }, [filters])
+
+  const loadRepairOptions = async () => {
+    try {
+      const list = await repairApi.getSimpleList()
+      setRepairOptions(list || [])
+    } catch (error) {
+      console.error('加载返修单失败:', error)
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
