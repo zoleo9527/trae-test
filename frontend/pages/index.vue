@@ -152,6 +152,10 @@ const recentPurchases = ref<any[]>([]);
 const openExceptions = ref<any[]>([]);
 
 onMounted(async () => {
+  if (!auth.canViewDashboard) {
+    navigateTo(auth.defaultRoute);
+    return;
+  }
   const [s, p, e] = await Promise.all([
     api("/review/dashboard"),
     api("/purchases"),

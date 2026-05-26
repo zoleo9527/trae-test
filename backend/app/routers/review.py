@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import (
     User, Purchase, Grading, Allocation, CreditSale, ExceptionRecord,
     Supplier, Product, Customer, Payment,
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/review", tags=["review"])
 
 
 @router.get("/dashboard", response_model=DashboardStats)
-def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def dashboard(db: Session = Depends(get_db), _: User = Depends(require_roles("stall_manager", "finance"))):
     purchase_count = db.query(Purchase).count()
     total_net = db.query(func.sum(Purchase.net_kg)).scalar() or 0
     total_amount = db.query(func.sum(Purchase.total_amount)).scalar() or 0

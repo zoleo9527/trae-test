@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import User, Purchase, Supplier, Product
 from app.schemas import PurchaseIn, PurchaseOut
 
@@ -65,7 +65,7 @@ def get_purchase(purchase_id: int, db: Session = Depends(get_db),
 
 @router.post("", response_model=PurchaseOut)
 def create_purchase(req: PurchaseIn, db: Session = Depends(get_db),
-                    current: User = Depends(get_current_user)):
+                    current: User = Depends(require_roles("stall_manager"))):
     net = req.gross_kg - req.tare_kg
     today = datetime.now()
     code = "CG" + today.strftime("%Y%m%d") + "-" + str(db.query(Purchase).count() + 1).zfill(3)

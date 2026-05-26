@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import User, Allocation, Purchase, Customer, Grading
 from app.schemas import AllocationIn, AllocationOut, AllocationStatusUpdate
 
@@ -44,7 +44,7 @@ def list_allocations(
 
 @router.post("", response_model=AllocationOut)
 def create_allocation(req: AllocationIn, db: Session = Depends(get_db),
-                      current: User = Depends(get_current_user)):
+                      current: User = Depends(require_roles("stall_manager", "picker"))):
     p = db.query(Purchase).get(req.purchase_id)
     if not p:
         raise HTTPException(404, "进货单不存在")
@@ -91,7 +91,7 @@ def create_allocation(req: AllocationIn, db: Session = Depends(get_db),
 @router.patch("/{allocation_id}/status")
 def update_status(allocation_id: int, req: AllocationStatusUpdate,
                   db: Session = Depends(get_db),
-                  _: User = Depends(get_current_user)):
+                  _: User = Depends(require_roles("stall_manager", "picker"))):
     a = db.query(Allocation).get(allocation_id)
     if not a:
         raise HTTPException(404, "配货单不存在")
@@ -102,7 +102,7 @@ def update_status(allocation_id: int, req: AllocationStatusUpdate,
 
 @router.delete("/{allocation_id}")
 def delete_allocation(allocation_id: int, db: Session = Depends(get_db),
-                      _: User = Depends(get_current_user)):
+                      _: User = Depends(require_roles("stall_manager", "picker"))):
     a = db.query(Allocation).get(allocation_id)
     if not a:
         raise HTTPException(404, "配货单不存在")

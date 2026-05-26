@@ -61,7 +61,7 @@
             </td>
             <td class="space-x-2 text-xs">
               <button
-                v-if="s.balance > 0"
+                v-if="auth.canManagePayments && s.balance > 0"
                 class="text-brand-600 hover:underline"
                 @click="openPay(s)"
               >
@@ -124,6 +124,7 @@
 
 <script setup lang="ts">
 definePageMeta({ middleware: ["auth"] });
+const auth = useAuthStore();
 const api = useApi();
 const all = ref<any[]>([]);
 const allocations = ref<any[]>([]);

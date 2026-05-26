@@ -23,6 +23,20 @@ export const useAuthStore = defineStore('auth', {
       }
       return map[s.user?.role || ''] || s.user?.role || ''
     },
+    canManagePurchases: (s) => s.user?.role === 'stall_manager',
+    canManageGrading: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canManageAllocation: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canManageSales: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canManagePayments: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
+    canManageExceptions: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
+    canViewDashboard: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
+    defaultRoute: (s): string => {
+      switch (s.user?.role) {
+        case 'picker': return '/gradings'
+        case 'finance': return '/sales'
+        default: return '/'
+      }
+    },
   },
   actions: {
     async login(username: string, password: string) {

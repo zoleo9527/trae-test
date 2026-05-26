@@ -57,3 +57,14 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在")
     return user
+
+
+def require_roles(*roles: str):
+    def _checker(current: User = Depends(get_current_user)) -> User:
+        if current.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"当前角色（{current.role}）无权执行此操作",
+            )
+        return current
+    return _checker

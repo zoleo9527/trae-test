@@ -34,7 +34,11 @@
         <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <div class="font-semibold">分级明细</div>
-            <button class="btn-primary" @click="showGrading = true">
+            <button
+              v-if="auth.canManageGrading"
+              class="btn-primary"
+              @click="showGrading = true"
+            >
               新增分级
             </button>
           </div>
@@ -62,6 +66,7 @@
                 <td class="text-xs text-slate-500">{{ g.remark }}</td>
                 <td>
                   <button
+                    v-if="auth.canManageGrading"
                     class="text-rose-600 hover:underline"
                     @click="delGrading(g.id)"
                   >
@@ -81,7 +86,11 @@
         <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <div class="font-semibold">档口配货明细</div>
-            <button class="btn-primary" @click="showAllocation = true">
+            <button
+              v-if="auth.canManageAllocation"
+              class="btn-primary"
+              @click="showAllocation = true"
+            >
               新增配货
             </button>
           </div>
@@ -117,13 +126,14 @@
                 </td>
                 <td class="flex gap-2 text-xs">
                   <button
-                    v-if="a.status === '待提货'"
+                    v-if="auth.canManageAllocation && a.status === '待提货'"
                     class="text-brand-600 hover:underline"
                     @click="updateAllocStatus(a.id, '已提货')"
                   >
                     已提货
                   </button>
                   <button
+                    v-if="auth.canManageAllocation"
                     class="text-rose-600 hover:underline"
                     @click="updateAllocStatus(a.id, '已退货')"
                   >
@@ -168,7 +178,7 @@
                 </td>
                 <td>
                   <button
-                    v-if="s.balance > 0"
+                    v-if="auth.canManagePayments && s.balance > 0"
                     class="text-brand-600 hover:underline"
                     @click="openPay(s)"
                   >
@@ -321,7 +331,11 @@
         <div class="card p-4">
           <div class="flex items-center justify-between mb-2">
             <div class="font-semibold">异常 / 客诉</div>
-            <button class="btn-primary text-xs" @click="showException = true">
+            <button
+              v-if="auth.canManageExceptions"
+              class="btn-primary text-xs"
+              @click="showException = true"
+            >
               登记
             </button>
           </div>
@@ -344,7 +358,7 @@
               </div>
               <div class="mt-1 flex gap-2">
                 <button
-                  v-if="e.status !== '已处理'"
+                  v-if="auth.canManageExceptions && e.status !== '已处理'"
                   class="text-brand-600 hover:underline"
                   @click="markException(e.id, '已处理')"
                 >
@@ -574,6 +588,7 @@
 
 <script setup lang="ts">
 definePageMeta({ middleware: ["auth"] });
+const auth = useAuthStore();
 const route = useRoute();
 const api = useApi();
 

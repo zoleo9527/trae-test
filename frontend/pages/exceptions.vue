@@ -17,7 +17,13 @@
           <option>已处理</option>
           <option>已驳回</option>
         </select>
-        <button class="btn-primary" @click="showCreate = true">登记异常</button>
+        <button
+          v-if="auth.canManageExceptions"
+          class="btn-primary"
+          @click="showCreate = true"
+        >
+          登记异常
+        </button>
       </div>
     </div>
 
@@ -58,13 +64,17 @@
             <td class="text-xs">{{ e.created_at }}</td>
             <td class="space-x-2 text-xs">
               <button
-                v-if="e.status !== '已处理'"
+                v-if="auth.canManageExceptions && e.status !== '已处理'"
                 class="text-brand-600 hover:underline"
                 @click="mark(e.id, '已处理')"
               >
                 已处理
               </button>
-              <button class="text-rose-600 hover:underline" @click="del(e.id)">
+              <button
+                v-if="auth.canManageExceptions"
+                class="text-rose-600 hover:underline"
+                @click="del(e.id)"
+              >
                 删除
               </button>
             </td>
@@ -145,6 +155,7 @@
 
 <script setup lang="ts">
 definePageMeta({ middleware: ["auth"] });
+const auth = useAuthStore();
 const api = useApi();
 const all = ref<any[]>([]);
 const filterType = ref("");

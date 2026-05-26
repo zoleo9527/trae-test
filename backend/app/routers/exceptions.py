@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import User, ExceptionRecord
 from app.schemas import ExceptionIn, ExceptionOut, ExceptionStatusUpdate
 
@@ -44,7 +44,7 @@ def list_exceptions(
 
 @router.post("", response_model=ExceptionOut)
 def create_exception(req: ExceptionIn, db: Session = Depends(get_db),
-                     current: User = Depends(get_current_user)):
+                     current: User = Depends(require_roles("stall_manager", "finance"))):
     e = ExceptionRecord(
         type=req.type, related_type=req.related_type, related_id=req.related_id,
         title=req.title, description=req.description, evidence=req.evidence,
@@ -62,7 +62,7 @@ def create_exception(req: ExceptionIn, db: Session = Depends(get_db),
 @router.patch("/{exception_id}/status", response_model=ExceptionOut)
 def update_status(exception_id: int, req: ExceptionStatusUpdate,
                   db: Session = Depends(get_db),
-                  _: User = Depends(get_current_user)):
+                  _: User = Depends(require_roles("stall_manager", "finance"))):
     e = db.query(ExceptionRecord).get(exception_id)
     if not e:
         raise HTTPException(404, "异常单不存在")
@@ -75,7 +75,7 @@ def update_status(exception_id: int, req: ExceptionStatusUpdate,
 
 @router.delete("/{exception_id}")
 def delete_exception(exception_id: int, db: Session = Depends(get_db),
-                     _: User = Depends(get_current_user)):
+                     _: User = Depends(require_roles("stall_manager", "finance"))):
     e = db.query(ExceptionRecord).get(exception_id)
     if not e:
         raise HTTPException(404, "异常单不存在")

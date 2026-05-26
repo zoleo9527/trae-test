@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import User, CreditSale, Payment, Allocation, Customer
 from app.schemas import (
     CreditSaleIn, CreditSaleOut, PaymentIn, PaymentOut,
@@ -79,7 +79,7 @@ def get_sale(sale_id: int, db: Session = Depends(get_db),
 
 @router.post("", response_model=CreditSaleOut)
 def create_sale(req: CreditSaleIn, db: Session = Depends(get_db),
-                current: User = Depends(get_current_user)):
+                current: User = Depends(require_roles("stall_manager", "picker"))):
     a = db.query(Allocation).get(req.allocation_id)
     if not a:
         raise HTTPException(404, "配货单不存在")
@@ -105,7 +105,7 @@ def create_sale(req: CreditSaleIn, db: Session = Depends(get_db),
 
 @router.post("/{sale_id}/pay", response_model=PaymentOut)
 def pay_sale(sale_id: int, req: PaymentIn, db: Session = Depends(get_db),
-             current: User = Depends(get_current_user)):
+             current: User = Depends(require_roles("stall_manager", "finance"))):
     s = db.query(CreditSale).get(sale_id)
     if not s:
         raise HTTPException(404, "赊销单不存在")

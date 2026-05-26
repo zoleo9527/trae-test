@@ -8,7 +8,11 @@
           class="input w-64"
           placeholder="单号/果品/供应商"
         />
-        <button class="btn-primary" @click="showCreate = true">
+        <button
+          v-if="auth.canManagePurchases"
+          class="btn-primary"
+          @click="showCreate = true"
+        >
           新建进货单
         </button>
       </div>
@@ -135,6 +139,7 @@
 
 <script setup lang="ts">
 definePageMeta({ middleware: ["auth"] });
+const auth = useAuthStore();
 const api = useApi();
 const keyword = ref("");
 const list = ref<any[]>([]);

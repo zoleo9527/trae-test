@@ -55,14 +55,44 @@
 const auth = useAuthStore();
 const route = useRoute();
 
-const menu = [
-  { path: "/", label: "概览", icon: "📊" },
-  { path: "/purchases", label: "进货单", icon: "📥" },
-  { path: "/gradings", label: "分级", icon: "🍎" },
-  { path: "/allocations", label: "档口配货", icon: "🚚" },
-  { path: "/sales", label: "赊销结算", icon: "💰" },
-  { path: "/exceptions", label: "异常回查", icon: "⚠️" },
+const allMenu = [
+  { path: "/", label: "概览", icon: "📊", roles: ["stall_manager", "finance"] },
+  {
+    path: "/purchases",
+    label: "进货单",
+    icon: "📥",
+    roles: ["stall_manager", "picker", "finance"],
+  },
+  {
+    path: "/gradings",
+    label: "分级",
+    icon: "🍎",
+    roles: ["stall_manager", "picker"],
+  },
+  {
+    path: "/allocations",
+    label: "档口配货",
+    icon: "🚚",
+    roles: ["stall_manager", "picker"],
+  },
+  {
+    path: "/sales",
+    label: "赊销结算",
+    icon: "💰",
+    roles: ["stall_manager", "finance"],
+  },
+  {
+    path: "/exceptions",
+    label: "异常回查",
+    icon: "⚠️",
+    roles: ["stall_manager", "finance"],
+  },
 ];
+
+const menu = computed(() => {
+  const role = auth.role;
+  return allMenu.filter((m) => m.roles.includes(role));
+});
 
 const roleList = [
   { role: "stall_manager", short: "档口", user: "admin", pass: "admin123" },
@@ -78,7 +108,7 @@ function isActive(p: string) {
 async function switchRole(r: { user: string; pass: string }) {
   try {
     await auth.login(r.user, r.pass);
-    await navigateTo("/");
+    await navigateTo(auth.defaultRoute);
   } catch (e: any) {
     alert("切换失败：" + (e?.data?.detail || e?.message || e));
   }

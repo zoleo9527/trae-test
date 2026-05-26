@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, require_roles
 from app.models import User, Grading, Purchase
 from app.schemas import GradingIn, GradingOut
 
@@ -30,7 +30,7 @@ def list_gradings(purchase_id: Optional[int] = None,
 
 @router.post("", response_model=GradingOut)
 def create_grading(req: GradingIn, db: Session = Depends(get_db),
-                   _: User = Depends(get_current_user)):
+                   _: User = Depends(require_roles("stall_manager", "picker"))):
     p = db.query(Purchase).get(req.purchase_id)
     if not p:
         raise HTTPException(404, "进货单不存在")
@@ -55,7 +55,7 @@ def create_grading(req: GradingIn, db: Session = Depends(get_db),
 
 @router.delete("/{grading_id}")
 def delete_grading(grading_id: int, db: Session = Depends(get_db),
-                   _: User = Depends(get_current_user)):
+                   _: User = Depends(require_roles("stall_manager", "picker"))):
     g = db.query(Grading).get(grading_id)
     if not g:
         raise HTTPException(404, "分级记录不存在")
