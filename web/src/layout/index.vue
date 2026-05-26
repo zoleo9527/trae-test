@@ -154,14 +154,22 @@ function priorityLabel(priority: string) {
 
 async function loadNotifications() {
   try {
-    const res = await notificationApi.getList({ pageSize: 20, isRead: false })
+    const res = await notificationApi.getList({
+      pageSize: 20,
+      isRead: false,
+      recipientRole: userStore.currentUser.role,
+      recipientName: userStore.currentUser.name,
+    })
     notifications.value = res.items || []
     unreadCount.value = res.total || 0
   } catch (e) {}
 }
 
 async function markAllRead() {
-  await notificationApi.markAllAsRead()
+  await notificationApi.markAllAsRead({
+    recipientRole: userStore.currentUser.role,
+    recipientName: userStore.currentUser.name,
+  })
   loadNotifications()
 }
 

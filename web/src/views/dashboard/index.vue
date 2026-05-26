@@ -225,7 +225,12 @@ async function loadData() {
     const statsRes = await orderApi.getStats()
     orderStats.value = statsRes
 
-    const taskRes = await notificationApi.getList({ pageSize: 20, isRead: false })
+    const taskRes = await notificationApi.getList({
+      pageSize: 20,
+      isRead: false,
+      recipientRole: userStore.currentUser.role,
+      recipientName: userStore.currentUser.name,
+    })
     tasks.value = taskRes.items || []
 
     const today = new Date().toISOString().split('T')[0]

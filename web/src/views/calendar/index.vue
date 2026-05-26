@@ -404,7 +404,7 @@ function goToOrder(orderId: number) {
 }
 
 function goToCreateAcceptance(orderId: number) {
-  router.push(`/acceptances?orderId=${orderId}`)
+  router.push(`/orders/${orderId}?openAcceptance=true&appointmentId=${currentEvent.value.id}`)
 }
 
 onMounted(() => {

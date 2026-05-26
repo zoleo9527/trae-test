@@ -45,6 +45,48 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="showCreateDialog" title="新建安装预约" width="500px">
+      <el-form :model="createForm" label-width="100px">
+        <el-form-item label="关联订单">
+          <el-select v-model="createForm.orderId" placeholder="请选择订单" style="width: 100%;">
+            <el-option
+              v-for="order in availableOrders"
+              :key="order.id"
+              :label="`${order.orderNo} - ${order.customer?.name}`"
+              :value="order.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="预约日期">
+          <el-date-picker v-model="createForm.appointmentDate" type="date" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="时间段">
+          <el-select v-model="createForm.timeSlot" style="width: 100%;">
+            <el-option label="09:00-12:00" value="09:00-12:00" />
+            <el-option label="10:00-14:00" value="10:00-14:00" />
+            <el-option label="14:00-18:00" value="14:00-18:00" />
+            <el-option label="09:00-18:00" value="09:00-18:00" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="安装师傅">
+          <el-input v-model="createForm.installerName" placeholder="请输入安装师傅姓名" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="createForm.installerPhone" placeholder="请输入师傅电话" />
+        </el-form-item>
+        <el-form-item label="团队人数">
+          <el-input-number v-model="createForm.teamSize" :min="1" :max="10" />
+        </el-form-item>
+        <el-form-item label="客户备注">
+          <el-input v-model="createForm.customerRemark" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleCreate">创建预约</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -52,7 +94,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { installationApi } from '@/api'
+import { installationApi, orderApi } from '@/api'
 import { appointmentStatusMap } from '@/utils/constants'
 
 const router = useRouter()
@@ -60,6 +102,17 @@ const list = ref<any[]>([])
 const statusFilter = ref('')
 const dateRange = ref<any[]>([])
 const showCreateDialog = ref(false)
+const availableOrders = ref<any[]>([])
+
+const createForm = ref({
+  orderId: null as number | null,
+  appointmentDate: '',
+  timeSlot: '09:00-12:00',
+  installerName: '',
+  installerPhone: '',
+  teamSize: 2,
+  customerRemark: '',
+})
 
 function statusType(status: string) { return appointmentStatusMap[status]?.type || 'info' }
 function statusLabel(status: string) { return appointmentStatusMap[status]?.label || status }
@@ -73,6 +126,35 @@ async function loadData() {
   }
   const res = await installationApi.getList(params)
   list.value = res.items || []
+}
+
+async function loadAvailableOrders() {
+  const res = await orderApi.getList({ pageSize: 100, status: 'delivered' })
+  availableOrders.value = res.items || []
+}
+
+async function handleCreate() {
+  if (!createForm.value.orderId) {
+    ElMessage.warning('请选择关联订单')
+    return
+  }
+  if (!createForm.value.appointmentDate) {
+    ElMessage.warning('请选择预约日期')
+    return
+  }
+  await installationApi.create(createForm.value)
+  ElMessage.success('预约创建成功')
+  showCreateDialog.value = false
+  loadData()
+  createForm.value = {
+    orderId: null,
+    appointmentDate: '',
+    timeSlot: '09:00-12:00',
+    installerName: '',
+    installerPhone: '',
+    teamSize: 2,
+    customerRemark: '',
+  }
 }
 
 async function confirmAppointment(id: number) {
@@ -91,7 +173,10 @@ function goToOrder(orderId: number) {
   router.push(`/orders/${orderId}`)
 }
 
-onMounted(() => loadData())
+onMounted(() => {
+  loadData()
+  loadAvailableOrders()
+})
 </script>
 
 <style scoped>

@@ -455,6 +455,27 @@ async function loadOrder() {
   appointmentForm.value.orderId = orderId.value
   acceptanceForm.value.orderId = orderId.value
   exceptionForm.value.orderId = orderId.value
+
+  if (route.query.openException === 'true') {
+    const recordId = Number(route.query.recordId)
+    if (recordId) {
+      const record = order.value?.acceptanceRecords?.find((r: any) => r.id === recordId)
+      if (record) {
+        exceptionForm.value.title = `验收未通过 - ${record.missingItems || record.qualityIssues || record.installationIssues}`.slice(0, 50)
+        if (record.missingItems) {
+          exceptionForm.value.type = 'missing_parts'
+          exceptionForm.value.description = `缺件: ${record.missingItems}`
+        } else if (record.qualityIssues) {
+          exceptionForm.value.type = 'quality_issue'
+          exceptionForm.value.description = `质量问题: ${record.qualityIssues}`
+        } else if (record.installationIssues) {
+          exceptionForm.value.type = 'installation_issue'
+          exceptionForm.value.description = `安装问题: ${record.installationIssues}`
+        }
+      }
+    }
+    showExceptionDialog.value = true
+  }
 }
 
 async function handleStatusChange(status: string) {
@@ -520,7 +541,7 @@ async function submitRectification() {
 }
 
 function goToException(orderId: number, recordId: number) {
-  showExceptionDialog.value = true
+  router.push(`/orders/${orderId}?openException=true&recordId=${recordId}`)
 }
 
 function goToExceptionDetail(id: number) {
@@ -543,8 +564,15 @@ function goBack() {
   router.back()
 }
 
-onMounted(() => {
-  loadOrder()
+onMounted(async () => {
+  await loadOrder()
+  if (route.query.openAcceptance === 'true') {
+    const aptId = Number(route.query.appointmentId)
+    if (aptId) {
+      acceptanceForm.value.appointmentId = aptId
+    }
+    showAcceptanceDialog.value = true
+  }
 })
 </script>
 
