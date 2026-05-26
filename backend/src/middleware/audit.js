@@ -2,6 +2,16 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
+const ENTITY_TYPE_MAP = {
+  'collections': 'COLLECTION_ORDER',
+  'sortings': 'SORTING_RECORD',
+  'price-adjustments': 'PRICE_ADJUSTMENT',
+  'settlements': 'SETTLEMENT',
+  'notes': 'NOTE',
+  'exports': 'EXPORT',
+  'auth': 'AUTH',
+}
+
 function auditMiddleware(req, res, next) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     return next()
@@ -18,13 +28,19 @@ function auditMiddleware(req, res, next) {
 
   res.on('finish', () => {
     const duration = Date.now() - startTime
-    let entityType = 'unknown'
+    let entityType = 'UNKNOWN'
     let entityId = null
 
     const pathParts = req.path.split('/').filter(Boolean)
-    if (pathParts.length >= 1) entityType = pathParts[0]
+    if (pathParts.length >= 1) {
+      entityType = ENTITY_TYPE_MAP[pathParts[0]] || pathParts[0].toUpperCase()
+    }
     if (pathParts.length >= 2 && /^[a-z0-9]{20,}$/i.test(pathParts[1])) {
       entityId = pathParts[1]
+    }
+
+    if (responseData?.data?.id && !entityId) {
+      entityId = responseData.data.id
     }
 
     const isSuccess = res.statusCode >= 200 && res.statusCode < 400
@@ -44,6 +60,7 @@ function auditMiddleware(req, res, next) {
           requestBody: req.body,
           responseSummary: responseData ? {
             hasData: !!responseData.data,
+            id: responseData.data?.id || null,
             count: responseData.count || responseData.data?.length || 0,
           } : null,
         },

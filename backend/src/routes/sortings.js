@@ -10,8 +10,15 @@ router.post('/', requireRoles('WEIGHER', 'STATION_OWNER'), async (req, res) => {
   if (!sortedMaterialType) return res.status(400).json({ error: '分拣后物资类型不能为空' })
   if (!sortedWeight || Number(sortedWeight) <= 0) return res.status(400).json({ error: '分拣重量必须大于零' })
 
-  const order = await req.prisma.collectionOrder.findUnique({ where: { id: collectionOrderId } })
+  const order = await req.prisma.collectionOrder.findUnique({
+    where: { id: collectionOrderId },
+    include: { station: true },
+  })
   if (!order) return res.status(404).json({ error: '回收单不存在' })
+
+  if (order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
 
   if (order.status !== 'PENDING' && order.status !== 'WEIGHED' && order.status !== 'SORTED') {
     return res.status(400).json({ error: '当前状态不允许分拣入库', currentStatus: order.status })
@@ -72,6 +79,10 @@ router.get('/', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (req,
   const where = {}
   if (collectionOrderId) where.collectionOrderId = collectionOrderId
 
+  if (req.user.stationId) {
+    where.order = { stationId: req.user.stationId }
+  }
+
   const [items, total] = await Promise.all([
     req.prisma.sortingRecord.findMany({
       where,
@@ -80,7 +91,7 @@ router.get('/', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (req,
       orderBy: { createdAt: 'desc' },
       include: {
         sorter: { select: { id: true, realName: true } },
-        order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, netWeight: true } },
+        order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, netWeight: true, stationId: true } },
       },
     }),
     req.prisma.sortingRecord.count({ where }),
@@ -94,10 +105,15 @@ router.get('/:id', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (r
     where: { id: req.params.id },
     include: {
       sorter: { select: { id: true, realName: true, role: true } },
-      order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, netWeight: true, status: true } },
+      order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, netWeight: true, status: true, stationId: true } },
     },
   })
   if (!record) return res.status(404).json({ error: '分拣记录不存在' })
+
+  if (req.user.stationId && record.order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权查看其他站点的数据' })
+  }
+
   res.json({ data: record })
 })
 

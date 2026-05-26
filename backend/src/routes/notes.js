@@ -122,7 +122,7 @@ router.get('/history/:entityType/:entityId', requireRoles('STATION_OWNER', 'WEIG
       orderBy: { createdAt: 'desc' },
     }),
     req.prisma.auditLog.findMany({
-      where: { entityType: entityType.toLowerCase(), entityId },
+      where: { entityType, entityId },
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),

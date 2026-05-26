@@ -10,11 +10,18 @@ router.post('/', requireRoles('FINANCE', 'STATION_OWNER'), async (req, res) => {
   if (amount === undefined || amount === null) return res.status(400).json({ error: '结算金额不能为空' })
   if (Number(amount) < 0) return res.status(400).json({ error: '结算金额不能为负' })
 
-  const order = await req.prisma.collectionOrder.findUnique({ where: { id: collectionOrderId } })
+  const order = await req.prisma.collectionOrder.findUnique({
+    where: { id: collectionOrderId },
+    include: { station: true },
+  })
   if (!order) return res.status(404).json({ error: '回收单不存在' })
 
-  if (order.status === 'PENDING' || order.status === 'REJECTED') {
-    return res.status(400).json({ error: '当前状态不允许结算', currentStatus: order.status })
+  if (order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
+
+  if (order.status === 'PENDING' || order.status === 'WEIGHED' || order.status === 'REJECTED') {
+    return res.status(400).json({ error: '价格调整完成后才能结算，当前状态：' + order.status })
   }
 
   const existingSettlement = await req.prisma.settlementRecord.findFirst({
@@ -87,6 +94,10 @@ router.get('/', requireRoles('FINANCE', 'STATION_OWNER'), async (req, res) => {
     if (endDate) where.settledAt.lte = new Date(endDate + 'T23:59:59')
   }
 
+  if (req.user.stationId) {
+    where.order = { stationId: req.user.stationId }
+  }
+
   const [items, total] = await Promise.all([
     req.prisma.settlementRecord.findMany({
       where,
@@ -95,7 +106,7 @@ router.get('/', requireRoles('FINANCE', 'STATION_OWNER'), async (req, res) => {
       orderBy: { settledAt: 'desc' },
       include: {
         settledBy: { select: { id: true, realName: true } },
-        order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, totalAmount: true } },
+        order: { select: { id: true, orderNo: true, supplierName: true, materialType: true, totalAmount: true, stationId: true } },
       },
     }),
     req.prisma.settlementRecord.count({ where }),
@@ -123,7 +134,7 @@ router.get('/:id', requireRoles('FINANCE', 'STATION_OWNER', 'WEIGHER'), async (r
       order: {
         select: {
           id: true, orderNo: true, supplierName: true, materialType: true,
-          netWeight: true, unitPrice: true, totalAmount: true, status: true,
+          netWeight: true, unitPrice: true, totalAmount: true, status: true, stationId: true,
           priceAdjustments: true,
           sortingRecords: true,
         },
@@ -131,6 +142,10 @@ router.get('/:id', requireRoles('FINANCE', 'STATION_OWNER', 'WEIGHER'), async (r
     },
   })
   if (!record) return res.status(404).json({ error: '结算记录不存在' })
+
+  if (req.user.stationId && record.order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权查看其他站点的数据' })
+  }
 
   const supplementalNotes = await req.prisma.supplementalNote.findMany({
     where: { entityType: 'SETTLEMENT', entityId: req.params.id },

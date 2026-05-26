@@ -10,14 +10,24 @@ router.post('/', requireRoles('STATION_OWNER', 'WEIGHER'), async (req, res) => {
   if (!adjustedPrice || Number(adjustedPrice) < 0) return res.status(400).json({ error: '调整后价格必须非负' })
   if (!reason || reason.trim().length < 2) return res.status(400).json({ error: '调整原因不能为空且至少2个字' })
 
-  const order = await req.prisma.collectionOrder.findUnique({ where: { id: collectionOrderId } })
+  const order = await req.prisma.collectionOrder.findUnique({
+    where: { id: collectionOrderId },
+    include: { station: true },
+  })
   if (!order) return res.status(404).json({ error: '回收单不存在' })
+
+  if (order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
 
   if (order.status === 'SETTLED') {
     return res.status(400).json({ error: '已结算的单据不允许调整价格' })
   }
   if (order.status === 'REJECTED') {
     return res.status(400).json({ error: '已驳回的单据不允许调整价格' })
+  }
+  if (order.status === 'PENDING' || order.status === 'WEIGHED') {
+    return res.status(400).json({ error: '分拣入库完成后才能调整价格，当前状态：' + order.status })
   }
 
   const originalPrice = Number(order.unitPrice)
@@ -65,6 +75,11 @@ router.post('/:id/approve', requireRoles('STATION_OWNER'), async (req, res) => {
     include: { order: true },
   })
   if (!adjustment) return res.status(404).json({ error: '价格调整记录不存在' })
+
+  if (adjustment.order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
+
   if (adjustment.status !== 'PENDING') {
     return res.status(400).json({ error: '当前状态不允许审批', currentStatus: adjustment.status })
   }
@@ -102,8 +117,16 @@ router.post('/:id/reject', requireRoles('STATION_OWNER'), async (req, res) => {
   const { reason } = req.body
   if (!reason || reason.trim().length < 2) return res.status(400).json({ error: '驳回原因不能为空' })
 
-  const adjustment = await req.prisma.priceAdjustment.findUnique({ where: { id: req.params.id } })
+  const adjustment = await req.prisma.priceAdjustment.findUnique({
+    where: { id: req.params.id },
+    include: { order: true },
+  })
   if (!adjustment) return res.status(404).json({ error: '价格调整记录不存在' })
+
+  if (adjustment.order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
+
   if (adjustment.status !== 'PENDING') {
     return res.status(400).json({ error: '当前状态不允许驳回', currentStatus: adjustment.status })
   }
@@ -136,6 +159,10 @@ router.get('/', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (req,
   if (collectionOrderId) where.collectionOrderId = collectionOrderId
   if (status) where.status = status
 
+  if (req.user.stationId) {
+    where.order = { stationId: req.user.stationId }
+  }
+
   const [items, total] = await Promise.all([
     req.prisma.priceAdjustment.findMany({
       where,
@@ -143,7 +170,7 @@ router.get('/', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (req,
       take: Number(pageSize),
       orderBy: { createdAt: 'desc' },
       include: {
-        order: { select: { id: true, orderNo: true, supplierName: true, netWeight: true } },
+        order: { select: { id: true, orderNo: true, supplierName: true, netWeight: true, stationId: true } },
         approvedBy: { select: { id: true, realName: true } },
       },
     }),
@@ -157,11 +184,16 @@ router.get('/:id', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (r
   const adj = await req.prisma.priceAdjustment.findUnique({
     where: { id: req.params.id },
     include: {
-      order: { select: { id: true, orderNo: true, supplierName: true, netWeight: true, status: true } },
+      order: { select: { id: true, orderNo: true, supplierName: true, netWeight: true, status: true, stationId: true } },
       approvedBy: { select: { id: true, realName: true, role: true } },
     },
   })
   if (!adj) return res.status(404).json({ error: '价格调整记录不存在' })
+
+  if (req.user.stationId && adj.order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权查看其他站点的数据' })
+  }
+
   res.json({ data: adj })
 })
 

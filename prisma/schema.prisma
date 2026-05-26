@@ -28,9 +28,15 @@ model User {
   station   Station? @relation(fields: [stationId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
-  auditLogs       AuditLog[]
-  rejectionNotes  RejectionNote[]
-  supplementalNotes SupplementalNote[]
+  auditLogs          AuditLog[]
+  rejectionNotes     RejectionNote[]
+  supplementalNotes  SupplementalNote[]
+
+  createdOrders      CollectionOrder[]  @relation("CreatedOrders")
+  weighedOrders      CollectionOrder[]  @relation("WeighedOrders")
+  sortedRecords      SortingRecord[]    @relation("SorterRecords")
+  approvedAdjustments PriceAdjustment[] @relation("ApprovedAdjustments")
+  settledRecords     SettlementRecord[] @relation("SettledRecords")
 
   @@map("users")
 }
@@ -95,7 +101,7 @@ model SortingRecord {
   sortedWeight      Decimal  @db.Decimal(12, 3)
   binLocation       String?
   sorterId          String
-  sorter            User     @relation(fields: [sorterId], references: [id])
+  sorter            User     @relation("SorterRecords", fields: [sorterId], references: [id])
   notes             String?
   createdAt         DateTime @default(now())
 
@@ -112,7 +118,7 @@ model PriceAdjustment {
   adjustedPrice     Decimal  @db.Decimal(10, 2)
   reason            String
   approvedById      String?
-  approvedBy        User?    @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedBy        User?    @relation("ApprovedAdjustments", fields: [approvedById], references: [id], onDelete: SetNull)
   status            AdjustmentStatus @default(PENDING)
   createdAt         DateTime @default(now())
 
@@ -133,7 +139,7 @@ model SettlementRecord {
   order             CollectionOrder @relation(fields: [collectionOrderId], references: [id], onDelete: Cascade)
   amount            Decimal  @db.Decimal(12, 2)
   settledById       String
-  settledBy         User     @relation(fields: [settledById], references: [id])
+  settledBy         User     @relation("SettledRecords", fields: [settledById], references: [id])
   paymentMethod     String   @default("CASH")
   notes             String?
   settledAt         DateTime @default(now())

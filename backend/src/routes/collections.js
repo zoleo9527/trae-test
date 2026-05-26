@@ -38,6 +38,10 @@ router.get('/', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (req,
     if (endDate) where.createdAt.lte = new Date(endDate + 'T23:59:59')
   }
 
+  if (req.user.stationId) {
+    where.stationId = req.user.stationId
+  }
+
   const [items, total] = await Promise.all([
     req.prisma.collectionOrder.findMany({
       where,
@@ -98,6 +102,11 @@ router.get('/:id', requireRoles('STATION_OWNER', 'WEIGHER', 'FINANCE'), async (r
   })
 
   if (!order) return res.status(404).json({ error: '回收单不存在' })
+
+  if (req.user.stationId && order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权查看其他站点的数据' })
+  }
+
   res.json({ data: order })
 })
 
@@ -144,6 +153,10 @@ router.put('/:id', requireRoles('STATION_OWNER', 'WEIGHER'), async (req, res) =>
   const order = await req.prisma.collectionOrder.findUnique({ where: { id: req.params.id } })
   if (!order) return res.status(404).json({ error: '回收单不存在' })
 
+  if (order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
+
   if (order.status !== 'PENDING' && order.status !== 'WEIGHED') {
     return res.status(400).json({ error: '当前状态不允许修改', currentStatus: order.status })
   }
@@ -181,6 +194,10 @@ router.put('/:id', requireRoles('STATION_OWNER', 'WEIGHER'), async (req, res) =>
 router.delete('/:id', requireRoles('STATION_OWNER'), async (req, res) => {
   const order = await req.prisma.collectionOrder.findUnique({ where: { id: req.params.id } })
   if (!order) return res.status(404).json({ error: '回收单不存在' })
+
+  if (order.stationId !== req.user.stationId) {
+    return res.status(403).json({ error: '无权操作其他站点的数据' })
+  }
 
   if (order.status !== 'PENDING' && order.status !== 'REJECTED') {
     return res.status(400).json({ error: '只有待处理或已驳回的单据可删除', currentStatus: order.status })
