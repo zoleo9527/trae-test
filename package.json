@@ -1,0 +1,23 @@
+{
+  "name": "tea-distribution-system",
+  "version": "1.0.0",
+  "description": "茶叶经销-客户试饮与回访跟进管理系统",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "client": "cd client && npm start",
+    "init-db": "node server/scripts/initDB.js",
+    "seed-data": "node server/scripts/seedData.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.2.2",
+    "dayjs": "^1.11.10",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
