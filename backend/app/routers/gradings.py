@@ -21,7 +21,7 @@ def _enrich(g: Grading) -> dict:
 @router.get("", response_model=list[GradingOut])
 def list_gradings(purchase_id: Optional[int] = None,
                   db: Session = Depends(get_db),
-                  _: User = Depends(get_current_user)):
+                  _: User = Depends(require_roles("stall_manager", "picker"))):
     q = db.query(Grading)
     if purchase_id:
         q = q.filter(Grading.purchase_id == purchase_id)

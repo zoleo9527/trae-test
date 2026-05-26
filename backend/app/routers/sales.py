@@ -47,7 +47,7 @@ def list_sales(
     status: Optional[str] = Query(None),
     overdue_only: bool = Query(False),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_roles("stall_manager", "finance")),
 ):
     q = db.query(CreditSale).join(Customer)
     if customer_id:

@@ -50,7 +50,7 @@ async function submit() {
   error.value = "";
   try {
     await auth.login(username.value, password.value);
-    navigateTo("/");
+    navigateTo(auth.defaultRoute);
   } catch (e: any) {
     error.value = e?.data?.detail || "登录失败";
   }

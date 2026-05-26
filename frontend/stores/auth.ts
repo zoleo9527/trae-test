@@ -30,6 +30,11 @@ export const useAuthStore = defineStore('auth', {
     canManagePayments: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
     canManageExceptions: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
     canViewDashboard: (s) => s.user?.role === 'stall_manager',
+    canViewPurchasesList: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canViewGradingsList: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canViewAllocationsList: (s) => ['stall_manager', 'picker'].includes(s.user?.role || ''),
+    canViewSalesList: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
+    canViewExceptionsList: (s) => ['stall_manager', 'finance'].includes(s.user?.role || ''),
     defaultRoute: (s): string => {
       switch (s.user?.role) {
         case 'picker': return '/gradings'

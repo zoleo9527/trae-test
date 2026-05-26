@@ -27,7 +27,7 @@ def list_exceptions(
     related_type: Optional[str] = Query(None),
     related_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_roles("stall_manager", "finance")),
 ):
     q = db.query(ExceptionRecord)
     if type:

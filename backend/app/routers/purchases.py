@@ -34,7 +34,7 @@ def list_purchases(
     keyword: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_roles("stall_manager", "picker")),
 ):
     q = db.query(Purchase).join(Supplier).join(Product)
     if keyword:

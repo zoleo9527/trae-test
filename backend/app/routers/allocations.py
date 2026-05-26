@@ -29,7 +29,7 @@ def list_allocations(
     customer_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_roles("stall_manager", "picker")),
 ):
     q = db.query(Allocation).join(Purchase).join(Customer)
     if purchase_id:
