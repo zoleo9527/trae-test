@@ -124,7 +124,7 @@ POST   /api/shipments/{id}/receive/          # 签收
 - `items.product` 自动锁定为价格审批的商品，传入其他商品将被拒绝
 - `items.unit_price` 自动使用审批的 `proposed_unit_price`，传入不一致价格将被拒绝
 - `items.activity_price_applied` 自动标记为 `true`
-- 若价格审批指定了门店，订单 `store` 必须匹配，否则拒绝提交
+- **门店强校验**：若价格审批指定了门店，订单 `store` 必须匹配；即使不修改 activity 只改门店，也会拦截并报错（"该活动仅适用于门店 X，与订货门店 Y 不一致，请先解除活动关联再改门店"）
 - **更新订单活动但未重传 items 时**：自动校验现有明细的商品和单价是否与新活动口径一致，不一致则拦截更新并返回明细级错误（如 "第 1 条明细：商品 X 与活动指定商品 Y 不一致，请重传 items 修正"）
 - 若现有明细校验通过，自动更新为新活动的商品和单价
 - 订单详情返回字段包含 `price_approval_code`、`price_approval_product`、`price_approval_unit_price`、`price_approval_store` 等，活动价来源一目了然

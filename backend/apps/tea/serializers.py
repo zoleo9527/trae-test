@@ -260,23 +260,27 @@ class OrderSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs.get('status') == 'confirmed' and not attrs.get('items'):
             raise serializers.ValidationError('确认订货单时必须包含物料明细')
-        activity = attrs.get('activity')
+        new_activity = attrs.get('activity')
+        existing_activity = self.instance.activity if self.instance else None
+        activity = new_activity if new_activity is not None else existing_activity
+        new_store = attrs.get('store')
+        existing_store = self.instance.store if self.instance else None
+        order_store = new_store if new_store is not None else existing_store
         if activity is not None:
             if activity.status != 'approved':
                 raise serializers.ValidationError(
                     f'只能关联已通过的活动提报，当前活动状态为 {activity.get_status_display()}'
                 )
-        if activity:
             price_approval = self._get_activity_price_approval(activity)
             if price_approval and price_approval.status != 'approved':
                 raise serializers.ValidationError(
                     f'关联活动的价格审批状态为 {price_approval.get_status_display()}，不可用于订货'
                 )
-            if price_approval and price_approval.store:
-                order_store = attrs.get('store') or (self.instance.store if self.instance else None)
-                if order_store and price_approval.store_id != order_store.id:
+            if price_approval and price_approval.store and order_store:
+                if price_approval.store_id != order_store.id:
                     raise serializers.ValidationError(
-                        f'该活动仅适用于门店 {price_approval.store.name}，与订货门店不一致'
+                        f'该活动仅适用于门店 {price_approval.store.name}，'
+                        f'与订货门店 {order_store.name} 不一致，请先解除活动关联再改门店'
                     )
         return attrs
 
