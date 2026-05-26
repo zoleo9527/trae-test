@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Incident, IncidentType, IncidentSeverity, TimelineEntry } from '@/types';
+import type { Incident, IncidentType, IncidentSeverity, IncidentResolution, TimelineEntry } from '@/types';
 import { incidents as initialIncidents } from '@/mock/data';
 
 export const useIncidentStore = defineStore('incident', () => {
@@ -56,12 +56,24 @@ export const useIncidentStore = defineStore('incident', () => {
     i.timeline.push({ at: new Date().toISOString(), actor, action, note });
   }
 
-  function resolve(id: string, actor: string, note?: string) {
+  function resolve(id: string, actor: string, resolution: IncidentResolution, note?: string) {
     const i = getIncident(id);
     if (!i) return;
     i.resolved = true;
     i.resolvedAt = new Date().toISOString();
-    i.timeline.push({ at: i.resolvedAt, actor, action: '处理完成', note });
+    i.resolution = resolution;
+    i.handlerId = i.handlerId || actor;
+    i.timeline.push({
+      at: i.resolvedAt,
+      actor,
+      action: resolution === 'restored' ? '处理完成，恢复任务' : '处理完成，任务完结',
+      note,
+    });
+  }
+
+  function resolutionLabel(r?: IncidentResolution) {
+    if (!r) return '未归档';
+    return { restored: '恢复原状态', completed: '任务完结' }[r];
   }
 
   function typeLabel(t: IncidentType) {
@@ -75,6 +87,6 @@ export const useIncidentStore = defineStore('incident', () => {
   return {
     incidents, unresolved, byType, counts,
     getIncident, forTask, create, appendTimeline, handle, resolve,
-    typeLabel, severityLabel,
+    typeLabel, severityLabel, resolutionLabel,
   };
 });

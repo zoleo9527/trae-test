@@ -60,6 +60,7 @@ export interface Task {
 
 export type IncidentType = 'progress' | 'subsidy' | 'repair' | 'followup';
 export type IncidentSeverity = 'low' | 'medium' | 'high';
+export type IncidentResolution = 'restored' | 'completed';
 
 export interface Incident {
   id: string;
@@ -73,6 +74,7 @@ export interface Incident {
   reportedAt: string;
   resolvedAt?: string;
   resolved: boolean;
+  resolution?: IncidentResolution;
   timeline: TimelineEntry[];
   attachments?: string[];
 }

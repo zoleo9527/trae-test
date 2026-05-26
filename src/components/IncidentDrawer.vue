@@ -46,6 +46,11 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => incident.value?.id,
+  () => { resolution.value = 'restored'; },
+);
+
 const typeKeywords: Record<IncidentType, string[]> = {
   progress: ['进度', '报晚', '完成', '开始', '作业'],
   subsidy:  ['补贴', '材料', '审批', '申请', '盖章'],
@@ -93,17 +98,22 @@ const types: { key: IncidentType; label: string; icon: any }[] = [
 ];
 
 const note = ref('');
+const resolution = ref<'restored' | 'completed'>('restored');
 
 function handle(action: string) {
   if (!incident.value) return;
   const actor = auth.currentUser?.name ?? '系统';
   if (action === 'resolve') {
-    incidentStore.resolve(incident.value.id, actor, note.value || undefined);
+    incidentStore.resolve(incident.value.id, actor, resolution.value, note.value || undefined);
     if (task.value) {
       taskStore.addTimeline(task.value.id, actor, '异常处理完成', note.value || undefined);
       const remaining = incidentStore.forTask(task.value.id).filter(i => !i.resolved);
       if (remaining.length === 0 && task.value.status === 'incident') {
-        taskStore.restoreFromIncident(task.value.id, actor);
+        if (resolution.value === 'restored') {
+          taskStore.restoreFromIncident(task.value.id, actor);
+        } else {
+          taskStore.completeTask(task.value.id, actor);
+        }
       }
     }
   } else {
@@ -158,7 +168,7 @@ function copyTimeline() {
             class="chip border-success-500/30 text-success-500"
           >
             <CheckCircle2 :size="10" />
-            已归档
+            已归档 · {{ incidentStore.resolutionLabel(incident.resolution) }}
           </span>
         </div>
         <div class="flex items-center gap-1">
@@ -366,6 +376,20 @@ function copyTimeline() {
             <Archive :size="12" />
             {{ incident.resolved ? '已处理' : '处理完成并归档' }}
           </button>
+        </div>
+
+        <div v-if="!incident.resolved" class="mt-3 pt-3 border-t border-black/5">
+          <div class="text-[11px] text-ink-900/50 mb-2">归档后任务状态</div>
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input v-model="resolution" type="radio" value="restored" class="w-3.5 h-3.5 text-ink-900" />
+              <span class="text-xs text-ink-900/80">恢复为异常前状态</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input v-model="resolution" type="radio" value="completed" class="w-3.5 h-3.5 text-ink-900" />
+              <span class="text-xs text-ink-900/80">标记为已完成</span>
+            </label>
+          </div>
         </div>
 
         <div class="mt-3 text-[10px] text-ink-900/40 flex items-center gap-1">
