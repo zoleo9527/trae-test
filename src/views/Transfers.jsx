@@ -30,6 +30,24 @@ const Transfers = () => {
     return currentRole === 'manager' || currentRole === 'processor'
   }
 
+  const handleMarkLost = async (order) => {
+    const issueType = window.confirm(
+      `确认标记调拨单 ${order.id} 为丢失？\n\n` +
+      `选择问题单类型：\n` +
+      `点击"确定" - 创建返修单（镜片补发）\n` +
+      `点击"取消" - 创建退款单（客户退款）`
+    ) ? 'repair' : 'refund';
+    
+    if (confirm(`确认创建${issueType === 'repair' ? '返修单' : '退款单'}？`)) {
+      try {
+        await updateTransferStatus(order.id, 'lost', issueType)
+        alert(`已标记丢失，已创建${issueType === 'repair' ? '返修单' : '退款单'}`)
+      } catch (error) {
+        alert('操作失败: ' + error)
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div className="loading">
@@ -119,7 +137,7 @@ const Transfers = () => {
                             </button>
                             <button 
                               className="btn btn-danger btn-sm"
-                              onClick={() => updateTransferStatus(order.id, 'lost')}
+                              onClick={() => handleMarkLost(order)}
                             >
                               丢失
                             </button>

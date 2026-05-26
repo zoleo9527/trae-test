@@ -63,9 +63,9 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  updateTransferStatus: async (id, status) => {
+  updateTransferStatus: async (id, status, issueType) => {
     try {
-      await invoke('update_transfer_status', { id, status })
+      await invoke('update_transfer_status', { id, status, issueType })
       await get().loadAllData()
     } catch (error) {
       set({ error: error.message })

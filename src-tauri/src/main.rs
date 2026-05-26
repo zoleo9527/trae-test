@@ -491,8 +491,8 @@ fn update_inventory_quantity(conn: &Connection, sku: &str, store: &str, quantity
             params![quantity_change, Local::now().to_rfc3339(), sku, store],
         )?;
     } else if quantity_change > 0 {
-        let source_lens: Option<(String, String, f32, f32, i32, Option<f32>)> = conn.query_row(
-            "SELECT name, brand, sph, cyl, axis, add_power FROM lens_inventory WHERE sku = ? LIMIT 1",
+        let source_lens: Option<(String, String, f32, f32, i32, Option<f32>, i32)> = conn.query_row(
+            "SELECT name, brand, sph, cyl, axis, add_power, min_stock FROM lens_inventory WHERE sku = ? LIMIT 1",
             params![sku],
             |row| Ok((
                 row.get(0)?,
@@ -501,17 +501,19 @@ fn update_inventory_quantity(conn: &Connection, sku: &str, store: &str, quantity
                 row.get(3)?,
                 row.get(4)?,
                 row.get(5)?,
+                row.get(6)?,
             )),
         ).optional()?;
 
-        if let Some((name, brand, sph, cyl, axis, add_power)) = source_lens {
+        if let Some((name, brand, sph, cyl, axis, add_power, source_min_stock)) = source_lens {
             let new_id = format!("{}_{}", sku, store);
+            let default_min_stock = if source_min_stock > 0 { source_min_stock } else { 5 };
             conn.execute(
                 "INSERT INTO lens_inventory (id, sku, name, brand, sph, cyl, axis, add_power, quantity, min_stock, store, location, last_updated)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10, 'AUTO', ?11)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'AUTO', ?12)",
                 params![
                     new_id, sku, name, brand, sph, cyl, axis, add_power,
-                    quantity_change, store, Local::now().to_rfc3339()
+                    quantity_change, default_min_stock, store, Local::now().to_rfc3339()
                 ],
             )?;
         } else {
@@ -797,6 +799,7 @@ fn update_transfer_status(
     state: tauri::State<AppState>,
     id: String,
     status: String,
+    issue_type: Option<String>,
 ) -> Result<(), String> {
     let db_guard = state.db.lock().map_err(|e| e.to_string())?;
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
@@ -828,10 +831,6 @@ fn update_transfer_status(
                 params![status, now, id]).map_err(|e| e.to_string())?;
         }
         "lost" => {
-            if current_status == "shipped" {
-                update_inventory_quantity(conn, &lens_sku, &from_store, quantity)
-                    .map_err(|e| format!("恢复调出店库存失败: {}", e))?;
-            }
             conn.execute("UPDATE transfer_orders SET status = ?, lost_at = ? WHERE id = ?",
                 params![status, now, id]).map_err(|e| e.to_string())?;
 
@@ -849,29 +848,58 @@ fn update_transfer_status(
                 ).optional().map_err(|e| e.to_string())?;
 
                 if existing_repair.is_none() && existing_refund.is_none() {
-                    let repair_id = format!("REP{}", Local::now().format("%Y%m%d%H%M%S"));
-                    let reason = format!("调拨单{}丢失: {} x{}，{}→{}", 
+                    let reason = format!("调拨单{}丢失: {} x{}，{}→{}，库存计入异常", 
                         id, lens_name, quantity, from_store, to_store);
+                    let issue_remarks = format!("关联调拨单: {} | 丢失库存: {} x{}", id, lens_name, quantity);
                     
-                    conn.execute(
-                        "INSERT INTO repair_records (id, optometry_id, repair_type, reason, status, created_by, created_at, remarks)
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                        params![
-                            repair_id,
-                            opto_id,
-                            "镜片补发",
-                            reason,
-                            "in_progress",
-                            created_by,
-                            now,
-                            Some(format!("关联调拨单: {}", id))
-                        ],
-                    ).map_err(|e| format!("创建返修单失败: {}", e))?;
+                    let issue_type = issue_type.unwrap_or_else(|| "repair".to_string());
+                    
+                    match issue_type.as_str() {
+                        "refund" => {
+                            let refund_id = format!("REF{}", Local::now().format("%Y%m%d%H%M%S"));
+                            conn.execute(
+                                "INSERT INTO refund_records (id, optometry_id, amount, reason, status, created_by, created_at, remarks)
+                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                params![
+                                    refund_id,
+                                    opto_id,
+                                    0.0,
+                                    reason,
+                                    "pending",
+                                    created_by,
+                                    now,
+                                    Some(issue_remarks)
+                                ],
+                            ).map_err(|e| format!("创建退款单失败: {}", e))?;
 
-                    conn.execute(
-                        "UPDATE optometry_records SET status = 'repair' WHERE id = ?",
-                        params![opto_id],
-                    ).map_err(|e| e.to_string())?;
+                            conn.execute(
+                                "UPDATE optometry_records SET status = 'refund_pending' WHERE id = ?",
+                                params![opto_id],
+                            ).map_err(|e| e.to_string())?;
+                        }
+                        _ => {
+                            let repair_id = format!("REP{}", Local::now().format("%Y%m%d%H%M%S"));
+                            conn.execute(
+                                "INSERT INTO repair_records (id, optometry_id, repair_type, reason, status, created_by, created_at, remarks)
+                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                params![
+                                    repair_id,
+                                    opto_id,
+                                    "镜片补发",
+                                    reason,
+                                    "in_progress",
+                                    created_by,
+                                    now,
+                                    Some(issue_remarks)
+                                ],
+                            ).map_err(|e| format!("创建返修单失败: {}", e))?;
+
+                            conn.execute(
+                                "UPDATE optometry_records SET status = 'repair' WHERE id = ?",
+                                params![opto_id],
+                            ).map_err(|e| e.to_string())?;
+                        }
+                    }
                 }
             }
         }
