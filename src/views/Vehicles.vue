@@ -109,9 +109,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import db from '@/utils/db'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
+const route = useRoute()
 
 const tableData = ref([])
 const searchKeyword = ref('')
@@ -272,7 +275,18 @@ async function loadData() {
   }
 }
 
-onMounted(() => {
-  loadData()
+async function highlightVehicle(vehicleId) {
+  await nextTick()
+  const row = tableData.value.find(v => v.id === Number(vehicleId))
+  if (row) {
+    await viewHistory(row)
+  }
+}
+
+onMounted(async () => {
+  await loadData()
+  if (route.query.highlight) {
+    await highlightVehicle(route.query.highlight)
+  }
 })
 </script>

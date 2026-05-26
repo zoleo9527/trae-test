@@ -47,7 +47,8 @@ const routes = [
       {
         path: 'vehicles',
         name: 'Vehicles',
-        component: () => import('@/views/Vehicles.vue')
+        component: () => import('@/views/Vehicles.vue'),
+        meta: { roles: ['owner', 'weigher'] }
       },
       {
         path: 'materials',

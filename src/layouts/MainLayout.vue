@@ -33,7 +33,7 @@
           <span>追踪溯源</span>
         </el-menu-item>
         
-        <el-menu-item index="/vehicles">
+        <el-menu-item v-if="showVehicles" index="/vehicles">
           <el-icon><Van /></el-icon>
           <span>车辆管理</span>
         </el-menu-item>
@@ -107,6 +107,7 @@ const isOwner = computed(() => authStore.user?.role === 'owner')
 const showWeighing = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
 const showSettlement = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
 const showExceptions = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
+const showVehicles = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
 
 const roleText = computed(() => {
   const roles = {

@@ -190,6 +190,37 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="vehicleHistoryVisible" title="车辆过磅历史" width="900px">
+      <div class="vehicle-info" style="margin-bottom: 15px; padding: 10px; background: #f5f7fa; border-radius: 4px;">
+        <span>车牌号: <strong>{{ currentVehicle?.plate_number }}</strong></span>
+        <span style="margin-left: 20px;">司机: {{ currentVehicle?.driver_name }}</span>
+        <span style="margin-left: 20px;">皮重: {{ currentVehicle?.tare_weight }} kg</span>
+      </div>
+      <el-table :data="vehicleWeighings" border stripe size="small">
+        <el-table-column prop="weighing_no" label="磅单号" width="150" />
+        <el-table-column prop="material_name" label="物料" width="100" />
+        <el-table-column prop="net_weight" label="净重(kg)" width="100" />
+        <el-table-column prop="total_amount" label="金额(元)" width="120">
+          <template #default="{ row }">¥{{ row.total_amount.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <span :class="['status-tag', 'status-' + row.status]">
+              {{ statusText[row.status] }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="过磅时间" width="160" />
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="$router.push(`/weighing/detail/${row.id}`)">
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -230,9 +261,38 @@ const settlementForm = reactive({
 const isOwner = computed(() => authStore.user?.role === 'owner')
 const canSettle = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
 const canPay = computed(() => ['owner', 'accountant'].includes(authStore.user?.role))
+const canAccessVehicles = computed(() => ['owner', 'weigher'].includes(authStore.user?.role))
 
-function goToVehicle(vehicleId) {
-  router.push({ path: '/vehicles', query: { highlight: vehicleId } })
+const vehicleHistoryVisible = ref(false)
+const currentVehicle = ref(null)
+const vehicleWeighings = ref([])
+
+async function goToVehicle(vehicleId) {
+  if (canAccessVehicles.value) {
+    router.push({ path: '/vehicles', query: { highlight: vehicleId } })
+  } else {
+    await showVehicleHistory(vehicleId)
+  }
+}
+
+async function showVehicleHistory(vehicleId) {
+  const vResult = await db.query('SELECT * FROM vehicles WHERE id = ?', [vehicleId])
+  if (vResult.success && vResult.data.length > 0) {
+    currentVehicle.value = vResult.data[0]
+    
+    const wResult = await db.query(`
+      SELECT w.*, m.name as material_name
+      FROM weighings w
+      LEFT JOIN materials m ON w.material_id = m.id
+      WHERE w.vehicle_id = ?
+      ORDER BY w.created_at DESC
+    `, [vehicleId])
+    
+    if (wResult.success) {
+      vehicleWeighings.value = wResult.data
+    }
+    vehicleHistoryVisible.value = true
+  }
 }
 
 const settlementStatusText = {
@@ -240,6 +300,12 @@ const settlementStatusText = {
   approved: '已通过',
   rejected: '已驳回',
   paid: '已付款'
+}
+
+const statusText = {
+  pending: '待结算',
+  settled: '已结算',
+  cancelled: '已作废'
 }
 
 const totalWeight = computed(() => {
