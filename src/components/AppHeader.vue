@@ -33,7 +33,11 @@ const alertStore = useAlertStore()
 const currentUser = computed(() => userStore.currentUser)
 const unreadCount = computed(() => {
   if (!currentUser.value) return 0
-  return alertStore.alerts.filter(a => a.assignee === currentUser.value.id && a.status === 'unread').length
+  let alerts = alertStore.alerts
+  if (currentUser.value.role !== 'director') {
+    alerts = alerts.filter(a => a.assignee === currentUser.value.id)
+  }
+  return alerts.filter(a => a.status === 'unread').length
 })
 
 const getRoleName = (role) => userStore.getRoleName(role)

@@ -160,22 +160,39 @@ export const useSubsidyStore = defineStore('subsidy', () => {
               operatorId: 'system',
               operatorName: '系统'
             })
-          } else if (existingAlert.status !== 'handled') {
-            await alertStore.updateAlert(existingAlert.id, {
-              content: `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
-              status: 'unread',
-              createTime: new Date().toLocaleString('zh-CN')
-            })
-            
-            await addHistoryLog({
-              type: 'alert',
-              action: 'update',
-              targetId: existingAlert.id,
-              targetName: '补贴材料缺失提醒',
-              content: `材料缺失情况更新：仍缺少${missingDocs.length}项材料`,
-              operatorId: operator.id,
-              operatorName: operator.name
-            })
+          } else {
+            if (existingAlert.status === 'handled') {
+              await alertStore.reactivateAlert(existingAlert.id, {
+                content: `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
+                createTime: new Date().toLocaleString('zh-CN')
+              }, operator)
+              
+              await addHistoryLog({
+                type: 'alert',
+                action: 'reactivate',
+                targetId: existingAlert.id,
+                targetName: '补贴材料缺失提醒',
+                content: `材料再次缺失，提醒已重新激活，仍缺少${missingDocs.length}项材料`,
+                operatorId: operator.id,
+                operatorName: operator.name
+              })
+            } else {
+              await alertStore.updateAlert(existingAlert.id, {
+                content: `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
+                status: 'unread',
+                createTime: new Date().toLocaleString('zh-CN')
+              })
+              
+              await addHistoryLog({
+                type: 'alert',
+                action: 'update',
+                targetId: existingAlert.id,
+                targetName: '补贴材料缺失提醒',
+                content: `材料缺失情况更新：仍缺少${missingDocs.length}项材料`,
+                operatorId: operator.id,
+                operatorName: operator.name
+              })
+            }
           }
         }
       }

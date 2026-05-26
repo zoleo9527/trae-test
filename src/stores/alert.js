@@ -51,6 +51,48 @@ export const useAlertStore = defineStore('alert', () => {
     return null
   }
 
+  async function reactivateAlert(id, updates, operator) {
+    const index = alerts.value.findIndex(a => a.id === id)
+    if (index !== -1) {
+      const oldHandledInfo = {
+        handledBy: alerts.value[index].handledBy,
+        handledByName: alerts.value[index].handledByName,
+        handledTime: alerts.value[index].handledTime,
+        handleRemark: alerts.value[index].handleRemark
+      }
+      
+      alerts.value[index] = {
+        ...alerts.value[index],
+        ...updates,
+        status: 'unread',
+        reactivated: true,
+        lastHandledInfo: oldHandledInfo,
+        reactivateTime: new Date().toLocaleString('zh-CN'),
+        reactivatedBy: operator.name
+      }
+      
+      delete alerts.value[index].handledBy
+      delete alerts.value[index].handledByName
+      delete alerts.value[index].handledTime
+      delete alerts.value[index].handleRemark
+      
+      await storage.set('alerts', alerts.value)
+      
+      await addHistoryLog({
+        type: 'alert',
+        action: 'reactivate',
+        targetId: id,
+        targetName: alerts.value[index].title,
+        content: `${operator.name}重新激活了此提醒`,
+        operatorId: operator.id,
+        operatorName: operator.name
+      })
+      
+      return alerts.value[index]
+    }
+    return null
+  }
+
   async function markAsRead(id, operator = null) {
     const index = alerts.value.findIndex(a => a.id === id)
     if (index !== -1 && alerts.value[index].status === 'unread') {
@@ -143,6 +185,7 @@ export const useAlertStore = defineStore('alert', () => {
     loadAlerts,
     addAlert,
     updateAlert,
+    reactivateAlert,
     markAsRead,
     markAsHandled,
     markAllAsRead,

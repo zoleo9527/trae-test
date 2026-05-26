@@ -64,6 +64,9 @@
             <div class="alert-desc">{{ alert.content }}</div>
             <div class="alert-meta">
               <span>{{ alert.createTime }}</span>
+              <span v-if="alert.reactivated" class="reactivated-badge">
+                由 {{ alert.reactivatedBy }} 重新激活于 {{ alert.reactivateTime }}
+              </span>
               <span v-if="alert.handledByName" class="handled-info">
                 · {{ alert.handledByName }}处理于 {{ alert.handledTime }}
                 <span v-if="alert.handleRemark">（{{ alert.handleRemark }}）</span>
@@ -354,6 +357,14 @@ onMounted(async () => {
 .handled-badge {
   padding: 1px 6px;
   background: #52c41a;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.reactivated-badge {
+  padding: 1px 6px;
+  background: #722ed1;
   color: #fff;
   border-radius: 10px;
   font-size: 10px;

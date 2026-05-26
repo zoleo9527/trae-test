@@ -210,8 +210,14 @@ const recentTasks = computed(() => {
 })
 
 const pendingAlerts = computed(() => {
-  return alertStore.alerts
-    .filter(a => a.assignee === currentUser.value.id)
+  let alerts = [...alertStore.alerts]
+  
+  if (currentUser.value.role !== 'director') {
+    alerts = alerts.filter(a => a.assignee === currentUser.value.id)
+  }
+  
+  return alerts
+    .filter(a => a.status !== 'handled')
     .slice(0, 3)
 })
 
