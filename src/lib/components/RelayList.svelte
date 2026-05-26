@@ -15,20 +15,12 @@
 </script>
 
 <div class="relay-list">
-  {#if $filteredRelays.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <div>没有符合条件的任务</div>
-      <div class="empty-hint">试试调整筛选条件</div>
-    </div>
-  {:else}
-    {#each $filteredRelays as relay (relay.id)}
-      <RelayCard
-        relay={relay}
-        plotName={plotName(relay.plotId)}
-        machinePlate={machinePlate(relay.machineId)}
-        operatorName={operatorName(relay.operatorId)}
-      />
-    {/each}
-  {/if}
+  {#each $filteredRelays as relay (relay.id)}
+    <RelayCard
+      relay={relay}
+      plotName={plotName(relay.plotId)}
+      machinePlate={machinePlate(relay.machineId)}
+      operatorName={operatorName(relay.operatorId)}
+    />
+  {/each}
 </div>

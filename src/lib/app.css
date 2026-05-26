@@ -407,6 +407,81 @@ select:focus, input:focus, textarea:focus {
 }
 .reset-btn:hover { background: #e0e0e0; color: var(--text); }
 
+/* Focus Toggle */
+.focus-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.focus-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.focus-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.focus-slider {
+  position: absolute;
+  inset: 0;
+  background-color: #ccc;
+  border-radius: 24px;
+  transition: 0.2s;
+}
+
+.focus-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.focus-switch input:checked + .focus-slider {
+  background-color: var(--primary);
+}
+
+.focus-switch input:checked + .focus-slider::before {
+  transform: translateX(20px);
+}
+
+.focus-label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.focus-label b {
+  color: var(--primary-dark);
+}
+
+.show-all-link {
+  font-size: 12px;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 4px 8px;
+}
+.show-all-link:hover {
+  color: var(--primary-dark);
+  background: #e8f5ec;
+  border-radius: 4px;
+}
+
 /* ---------- Relay List ---------- */
 .relay-list {
   display: flex;

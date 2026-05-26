@@ -1,8 +1,10 @@
 import { writable, derived } from 'svelte/store';
 import type { FilterState, RelayItem, Role } from '../types';
 import { SEED_RELAYS, PLOTS, MACHINES, OPERATORS } from '../data/seed';
+import { toLocalDateStr, DISPATCHER_ACTION_STATUSES, OPERATOR_ACTION_STATUSES } from '../utils/relay';
 
 export const currentRole = writable<Role>('dispatcher');
+export const focusMode = writable<boolean>(true);
 export const relays = writable<RelayItem[]>(JSON.parse(JSON.stringify(SEED_RELAYS)));
 
 export const filters = writable<FilterState>({
@@ -16,18 +18,18 @@ export const filters = writable<FilterState>({
 });
 
 export const filteredRelays = derived(
-  [relays, filters],
-  ([$relays, $f]) => {
+  [relays, filters, currentRole, focusMode],
+  ([$relays, $f, $role, $focus]) => {
     return $relays.filter((r) => {
       if ($f.status !== 'all' && r.status !== $f.status) return false;
       if ($f.exceptionType !== 'all' && r.exceptionType !== $f.exceptionType) return false;
       if ($f.operatorId !== 'all' && r.operatorId !== $f.operatorId) return false;
       if ($f.machineId !== 'all' && r.machineId !== $f.machineId) return false;
       if ($f.dateFrom) {
-        if (r.updatedAt < new Date($f.dateFrom + 'T00:00:00Z').toISOString()) return false;
+        if (toLocalDateStr(r.updatedAt) < $f.dateFrom) return false;
       }
       if ($f.dateTo) {
-        if (r.updatedAt > new Date($f.dateTo + 'T23:59:59Z').toISOString()) return false;
+        if (toLocalDateStr(r.updatedAt) > $f.dateTo) return false;
       }
       if ($f.keyword) {
         const kw = $f.keyword.toLowerCase().trim();
@@ -46,6 +48,10 @@ export const filteredRelays = derived(
           operator?.name ?? ''
         ].join(' ').toLowerCase();
         if (!haystack.includes(kw)) return false;
+      }
+      if ($focus) {
+        if ($role === 'dispatcher' && !DISPATCHER_ACTION_STATUSES.includes(r.status)) return false;
+        if ($role === 'operator' && !OPERATOR_ACTION_STATUSES.includes(r.status)) return false;
       }
       return true;
     });

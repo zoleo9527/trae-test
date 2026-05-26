@@ -36,3 +36,26 @@ export function formatDate(iso: string): string {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+export function toLocalDateStr(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export const DISPATCHER_ACTION_STATUSES: string[] = [
+  'pending_dispatch',
+  'awaiting_repair',
+  'subsidy_pending',
+  'exception_late',
+  'exception_incomplete',
+  'exception_disconnected',
+  'repair_done'
+];
+
+export const OPERATOR_ACTION_STATUSES: string[] = [
+  'fuel_approved',
+  'fuel_issued',
+  'in_operation',
+  'exception_late'
+];

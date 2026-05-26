@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { currentRole, filteredRelays, exceptionStats } from '$lib/stores/app';
+  import { currentRole, filteredRelays, exceptionStats, focusMode, relays } from '$lib/stores/app';
   import { ROLES } from '$lib/data/seed';
   import FilterPanel from '$lib/components/FilterPanel.svelte';
   import RelayList from '$lib/components/RelayList.svelte';
@@ -10,6 +10,8 @@
   $: directorView = $currentRole === 'director';
   $: dispatcherView = $currentRole === 'dispatcher';
   $: operatorView = $currentRole === 'operator';
+  $: totalCount = $relays.length;
+  $: shownCount = $filteredRelays.length;
 </script>
 
 <div class="dashboard">
@@ -18,7 +20,15 @@
       <span class="welcome-avatar">{roleInfo?.avatar}</span>
       <div>
         <div class="welcome-title">{roleInfo?.name}工作台</div>
-        <div class="welcome-sub">{roleInfo?.description}</div>
+        <div class="welcome-sub">
+          {#if directorView}
+            {roleInfo?.description}
+          {:else if $focusMode}
+            {roleInfo?.description} · 当前聚焦 <b>{shownCount}</b> 条待处理 / 共 {totalCount} 条
+          {:else}
+            {roleInfo?.description} · 查看全部 {totalCount} 条
+          {/if}
+        </div>
       </div>
     </div>
     <div class="welcome-right">
@@ -56,23 +66,37 @@
 
   <FilterPanel />
 
-  {#if operatorView}
-    <div class="role-hint">
-      机手操作提示：油料待领的任务可以直接点「领取油料」；作业中可点「报工/报晚」或提交维修申请。
-    </div>
-  {/if}
-  {#if dispatcherView}
-    <div class="role-hint">
-      调度员操作提示：待调度的任务可「审批油料」；维修待处理的任务可「处理维修」；补贴待归档的可「收齐补贴材料」；异常任务需回访衔接。
-    </div>
-  {/if}
   {#if directorView}
     <div class="role-hint">
       理事视图：关注异常统计和全流程合规，可按异常类型筛选查看具体任务和时间线。
     </div>
+  {:else if dispatcherView && $focusMode}
+    <div class="role-hint">
+      调度员操作提示：下方只列出需要你处理的任务（待调度、待维修、补贴待归档、异常待衔接）。需要排查历史任务请切换到「查看全部」。
+    </div>
+  {:else if dispatcherView}
+    <div class="role-hint">
+      调度员操作提示：查看全部任务。可点「回到聚焦」快速回到待处理列表。
+    </div>
+  {:else if operatorView && $focusMode}
+    <div class="role-hint">
+      机手操作提示：下方只列出需要你处理的任务（油料待领、待开始作业、作业中）。需要看历史请切换到「查看全部」。
+    </div>
+  {:else if operatorView}
+    <div class="role-hint">
+      机手操作提示：查看全部任务。可点「回到聚焦」快速回到待处理列表。
+    </div>
   {/if}
 
-  <RelayList />
+  {#if $filteredRelays.length === 0 && !directorView && $focusMode}
+    <div class="empty-state">
+      <div class="empty-icon">✅</div>
+      <div>没有需要你处理的任务</div>
+      <div class="empty-hint">可切换到「查看全部」浏览历史任务</div>
+    </div>
+  {:else}
+    <RelayList />
+  {/if}
 
   <details class="tradeoff-panel">
     <summary>当前实现的取舍与后续可扩展点</summary>

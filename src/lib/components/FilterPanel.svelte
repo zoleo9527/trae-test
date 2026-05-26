@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { filters } from '$lib/stores/app';
+  import { filters, focusMode, currentRole } from '$lib/stores/app';
   import { OPERATORS, MACHINES, STATUS_LABELS, EXCEPTION_LABELS } from '$lib/data/seed';
 
   const statusOptions = [
@@ -11,6 +11,12 @@
     { value: 'all', label: '全部异常' },
     ...Object.entries(EXCEPTION_LABELS).map(([k, v]) => ({ value: k, label: v }))
   ];
+
+  $: focusLabel = $currentRole === 'director'
+    ? '理事查看全部任务'
+    : $focus
+      ? '聚焦待处理'
+      : '查看全部';
 
   function reset() {
     filters.set({
@@ -63,7 +69,7 @@
     </div>
     <div class="filter-item keyword-item">
       <label>关键字</label>
-      <input type="text" bind:value={$filters.keyword} placeholder="任务ID/任务类型" />
+      <input type="text" bind:value={$filters.keyword} placeholder="任务ID/任务类型/地块/机手" />
     </div>
     <div class="filter-item">
       <label>起始日期</label>
@@ -77,4 +83,25 @@
       <button class="reset-btn" on:click={reset} type="button">重置</button>
     </div>
   </div>
+
+  {#if $currentRole !== 'director'}
+    <div class="focus-toggle-row">
+      <label class="focus-switch">
+        <input type="checkbox" bind:checked={$focusMode} />
+        <span class="focus-slider"></span>
+      </label>
+      <span class="focus-label">
+        {#if $focus}
+          <b>聚焦待处理</b> · 只显示需要你操作的任务
+        {:else}
+          查看全部任务
+        {/if}
+      </span>
+      {#if $focus}
+        <button class="show-all-link" on:click={() => ($focusMode = false)} type="button">切换到全部 →</button>
+      {:else}
+        <button class="show-all-link" on:click={() => ($focusMode = true)} type="button">← 回到聚焦</button>
+      {/if}
+    </div>
+  {/if}
 </div>
