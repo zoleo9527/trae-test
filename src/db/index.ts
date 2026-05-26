@@ -242,6 +242,46 @@ export const dbApi = {
   },
 
   async updateAppealStatus(id: number, status: Appeal['status'], actorId?: number, note?: string): Promise<void> {
+    const existing = await db.query('SELECT status, assignee_id FROM appeals WHERE id = ?', [id])
+    if (!existing[0]) throw new Error('申诉不存在')
+    
+    const currentStatus = existing[0].status as Appeal['status']
+    if (currentStatus === status) return
+    
+    let actorRole = null
+    if (actorId) {
+      const actor = await db.query('SELECT role FROM users WHERE id = ?', [actorId])
+      if (actor[0]) actorRole = actor[0].role
+    }
+    
+    const validTransitions: Record<string, Record<string, string[]>> = {
+      director: {
+        pending: ['investigating', 'resolved', 'rejected'],
+        investigating: ['resolved', 'rejected', 'escalated', 'pending'],
+        escalated: ['resolved', 'rejected', 'investigating'],
+        resolved: ['investigating'],
+        rejected: ['investigating']
+      },
+      head_coach: {
+        pending: ['investigating'],
+        investigating: ['resolved']
+      },
+      reception: {
+        pending: ['investigating']
+      }
+    }
+    
+    if (actorRole && validTransitions[actorRole]) {
+      const allowed = validTransitions[actorRole][currentStatus] || []
+      if (!allowed.includes(status)) {
+        throw new Error(`角色「${actorRole}」不允许从「${currentStatus}」变更为「${status}」`)
+      }
+      
+      if (actorRole === 'head_coach' && existing[0].assignee_id !== actorId) {
+        throw new Error('教练主管只能处理分配给自己的申诉')
+      }
+    }
+    
     const now = Date.now()
     await db.run('UPDATE appeals SET status = ?, updated_at = ? WHERE id = ?', [status, now, id])
     const actions: Record<string, string> = {

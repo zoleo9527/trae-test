@@ -158,19 +158,35 @@
             <h3>快捷操作</h3>
           </div>
           <div class="card-body">
-            <button class="action-btn" @click="quickAction('start')" :disabled="!canUpdateStatus">
+            <button 
+              class="action-btn" 
+              @click="quickAction('start')" 
+              :disabled="!canPerformAction('start')"
+            >
               <span class="action-icon">🔍</span>
               <span>开始调查</span>
             </button>
-            <button class="action-btn" @click="quickAction('resolve')" :disabled="!canResolve">
+            <button 
+              class="action-btn" 
+              @click="quickAction('resolve')" 
+              :disabled="!canPerformAction('resolve')"
+            >
               <span class="action-icon">✅</span>
               <span>标记已解决</span>
             </button>
-            <button class="action-btn" @click="quickAction('escalate')" :disabled="!canEscalate">
+            <button 
+              class="action-btn" 
+              @click="quickAction('escalate')" 
+              :disabled="!canPerformAction('escalate')"
+            >
               <span class="action-icon">⬆️</span>
               <span>升级处理</span>
             </button>
-            <button class="action-btn" @click="quickAction('reject')" :disabled="!canReject">
+            <button 
+              class="action-btn" 
+              @click="quickAction('reject')" 
+              :disabled="!canPerformAction('reject')"
+            >
               <span class="action-icon">❌</span>
               <span>驳回申诉</span>
             </button>
@@ -206,75 +222,81 @@ const roleLabels = ROLE_LABELS
 
 const typeClass = computed(() => 'badge-info')
 
-const canUpdateStatus = computed(() => {
-  if (!userStore.currentUser) return false
-  if (userStore.hasRole(['director'])) return true
-  if (userStore.hasRole(['head_coach'])) return appeal.value?.assignee_id === userStore.currentUser.id
-  if (userStore.hasRole(['reception'])) return appeal.value?.status === 'pending'
-  return false
-})
-
-const canResolve = computed(() => {
-  if (!userStore.currentUser) return false
-  if (userStore.hasRole(['director'])) return true
-  if (userStore.hasRole(['head_coach'])) return appeal.value?.assignee_id === userStore.currentUser.id && appeal.value?.status === 'investigating'
-  return false
-})
-
-const canEscalate = computed(() => {
-  if (!userStore.currentUser) return false
-  return userStore.hasRole(['director'])
-})
-
-const canReject = computed(() => {
-  if (!userStore.currentUser) return false
-  return userStore.hasRole(['director'])
-})
-
 const canAssign = computed(() => {
   return userStore.hasRole(['director'])
 })
+
+const statusTransitions: Record<string, Record<string, string[]>> = {
+  director: {
+    pending: ['investigating', 'resolved', 'rejected'],
+    investigating: ['resolved', 'rejected', 'escalated', 'pending'],
+    escalated: ['resolved', 'rejected', 'investigating'],
+    resolved: ['investigating'],
+    rejected: ['investigating']
+  },
+  head_coach: {
+    pending: ['investigating'],
+    investigating: ['resolved']
+  },
+  reception: {
+    pending: ['investigating']
+  }
+}
+
+const actionToStatus: Record<string, string> = {
+  start: 'investigating',
+  resolve: 'resolved',
+  escalate: 'escalated',
+  reject: 'rejected'
+}
+
+function getUserRole(): string | null {
+  if (!userStore.currentUser) return null
+  return userStore.currentUser.role
+}
+
+function canTransitionTo(targetStatus: string): boolean {
+  if (!appeal.value || !userStore.currentUser) return false
+  
+  const role = getUserRole()
+  if (!role) return false
+  
+  const currentStatus = appeal.value.status
+  const transitions = statusTransitions[role]?.[currentStatus] || []
+  
+  if (role === 'head_coach' && appeal.value.assignee_id !== userStore.currentUser.id) {
+    return false
+  }
+  
+  return transitions.includes(targetStatus)
+}
+
+function canPerformAction(action: string): boolean {
+  const targetStatus = actionToStatus[action]
+  if (!targetStatus) return false
+  return canTransitionTo(targetStatus)
+}
 
 const allowedStatusOptions = computed(() => {
   if (!appeal.value) return []
   const currentStatus = appeal.value.status
   const options: { value: string; label: string }[] = [{ value: currentStatus, label: statusLabels[currentStatus as keyof typeof statusLabels] }]
-
-  if (userStore.hasRole(['director'])) {
-    if (currentStatus === 'pending') {
-      options.push({ value: 'investigating', label: '调查中' })
-      options.push({ value: 'resolved', label: '已解决' })
-      options.push({ value: 'rejected', label: '已驳回' })
+  
+  const role = getUserRole()
+  if (!role) return options
+  
+  const transitions = statusTransitions[role]?.[currentStatus] || []
+  
+  transitions.forEach(status => {
+    let label = statusLabels[status as keyof typeof statusLabels]
+    if (status === 'investigating' && currentStatus !== 'investigating') {
+      if (role === 'head_coach') label = '开始调查'
+      else if (role === 'reception') label = '开始处理'
+      else if (currentStatus === 'resolved' || currentStatus === 'rejected') label = '重新调查'
     }
-    if (currentStatus === 'investigating') {
-      options.push({ value: 'resolved', label: '已解决' })
-      options.push({ value: 'rejected', label: '已驳回' })
-      options.push({ value: 'escalated', label: '已升级' })
-      options.push({ value: 'pending', label: '待处理' })
-    }
-    if (currentStatus === 'escalated') {
-      options.push({ value: 'resolved', label: '已解决' })
-      options.push({ value: 'rejected', label: '已驳回' })
-      options.push({ value: 'investigating', label: '调查中' })
-    }
-    if (currentStatus === 'resolved' || currentStatus === 'rejected') {
-      options.push({ value: 'investigating', label: '重新调查' })
-    }
-  } else if (userStore.hasRole(['head_coach'])) {
-    if (appeal.value.assignee_id === userStore.currentUser?.id) {
-      if (currentStatus === 'pending') {
-        options.push({ value: 'investigating', label: '开始调查' })
-      }
-      if (currentStatus === 'investigating') {
-        options.push({ value: 'resolved', label: '标记已解决' })
-      }
-    }
-  } else if (userStore.hasRole(['reception'])) {
-    if (currentStatus === 'pending') {
-      options.push({ value: 'investigating', label: '开始处理' })
-    }
-  }
-
+    options.push({ value: status, label })
+  })
+  
   return options
 })
 
@@ -305,9 +327,13 @@ function formatDateTime(ts: number): string {
 
 async function handleStatusChange() {
   if (!appeal.value || newStatus.value === appeal.value.status) return
-  if (!canUpdateStatus.value) return
-  await dbApi.updateAppealStatus(appeal.value.id, newStatus.value as any, userStore.currentUser?.id)
-  await loadAppeal()
+  if (!canTransitionTo(newStatus.value)) return
+  try {
+    await dbApi.updateAppealStatus(appeal.value.id, newStatus.value as any, userStore.currentUser?.id)
+    await loadAppeal()
+  } catch (e: any) {
+    alert('状态更新失败：' + (e.message || '非法状态流转'))
+  }
 }
 
 async function handleAddTimeline() {
