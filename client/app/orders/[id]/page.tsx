@@ -1008,6 +1008,12 @@ function SamplesTab({ order, onUpdate }: { order: Order; onUpdate: () => void })
     onUpdate()
   }
 
+  const handleMarkLost = async (sample: SampleLending) => {
+    if (!confirm(`确认将样品"${sample.sample_name}"标记为丢失？此操作无法撤销。`)) return
+    await api.updateSample(order.id, sample.id, { status: 'lost' })
+    onUpdate()
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -1083,12 +1089,20 @@ function SamplesTab({ order, onUpdate }: { order: Order; onUpdate: () => void })
                 </div>
                 <div className="flex items-center gap-2">
                   {sample.status === 'lent' || sample.status === 'overdue' ? (
-                    <button
-                      onClick={() => handleReturn(sample)}
-                      className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1"
-                    >
-                      <CheckCheck className="w-3 h-3" /> 归还
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleReturn(sample)}
+                        className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1"
+                      >
+                        <CheckCheck className="w-3 h-3" /> 归还
+                      </button>
+                      <button
+                        onClick={() => handleMarkLost(sample)}
+                        className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" /> 丢失
+                      </button>
+                    </>
                   ) : null}
                   <span className={cn(
                     'text-xs px-2 py-0.5 rounded',

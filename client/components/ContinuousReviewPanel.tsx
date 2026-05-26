@@ -15,8 +15,9 @@ interface AfterSalesData {
   order_id: number
   order_no: string
   customer_name: string
-  overdue_samples: number
   unreturned_samples: number
+  overdue_samples: number
+  lost_samples: number
   damaged_arrivals: number
   missing_arrivals: number
   pending_replacements: number
@@ -44,6 +45,15 @@ export default function ContinuousReviewPanel({ orderId }: { orderId: number }) 
   if (loading || !data) return null
 
   const issues = []
+  if (data.lost_samples > 0) {
+    issues.push({
+      type: 'sample_lost',
+      icon: <XCircle className="w-4 h-4" />,
+      label: '丢失样品',
+      count: data.lost_samples,
+      color: 'bg-gray-100 text-gray-700 border-gray-300',
+    })
+  }
   if (data.overdue_samples > 0) {
     issues.push({
       type: 'sample_overdue',
@@ -53,12 +63,12 @@ export default function ContinuousReviewPanel({ orderId }: { orderId: number }) 
       color: 'bg-red-50 text-red-700 border-red-200',
     })
   }
-  if (data.unreturned_samples > 0) {
+  if (data.unreturned_samples - data.overdue_samples > 0) {
     issues.push({
       type: 'sample_unreturned',
       icon: <Box className="w-4 h-4" />,
-      label: '未还样品',
-      count: data.unreturned_samples,
+      label: '借出未还',
+      count: data.unreturned_samples - data.overdue_samples,
       color: 'bg-amber-50 text-amber-700 border-amber-200',
     })
   }

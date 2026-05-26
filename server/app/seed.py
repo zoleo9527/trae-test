@@ -48,6 +48,7 @@ ORDERS = [
         "samples": [
             {"sample_name": "深灰色布艺小样", "sample_code": "FAB-GRY-001", "lent_to": "王建国", "due_offset": 7, "returned_offset": 5, "status": "returned", "condition": "完好"},
             {"sample_name": "爵士白大理石样板", "sample_code": "STN-MAR-002", "lent_to": "王建国", "due_offset": 7, "returned_offset": None, "status": "overdue", "condition": None, "remarks": "已超期3天未归还，客户称忘记，电话催促中"},
+            {"sample_name": "五金拉手样品", "sample_code": "HDL-SAM-001", "lent_to": "王建国", "due_offset": 7, "returned_offset": None, "status": "lost", "condition": None, "remarks": "客户称遗失，已确认丢失，需赔偿"},
         ],
         "replacements": [
             {"item_idx": 3, "part_name": "餐椅（补发）", "part_code": "CHR-WDN-1", "quantity": 1, "reason": "到货缺失1把，供应商补发", "status": "arrived", "requested_offset": 30, "ordered_offset": 30, "arrived_offset": 35, "installed_offset": None, "confirmed_offset": None},

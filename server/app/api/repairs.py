@@ -26,20 +26,24 @@ def get_after_sales_summary(order_id: int, db: Session = Depends(get_db)):
 
     now = datetime.now()
     samples = db.query(SampleLending).filter(SampleLending.order_id == order_id).all()
-    overdue_samples = []
+
     unreturned_samples = []
+    overdue_samples = []
+    lost_samples = []
+
     for s in samples:
-        if s.returned_date is None and s.status != "lost":
+        if s.status == "lost":
+            lost_samples.append(s)
+        elif s.returned_date is None:
             unreturned_samples.append(s)
-            if s.due_date < now and s.status != "overdue":
-                s.status = "overdue"
-                db.flush()
-            if s.status == "overdue":
+            is_overdue = s.status == "overdue" or (s.due_date and s.due_date < now)
+            if is_overdue:
+                if s.status != "overdue":
+                    s.status = "overdue"
+                    db.flush()
                 overdue_samples.append(s)
-        elif s.status == "lost":
-            overdue_samples.append(s)
-    if overdue_samples:
-        db.commit()
+
+    db.commit()
 
     arrivals = db.query(Arrival).filter(Arrival.order_id == order_id).all()
     damaged_arrivals = [a for a in arrivals if a.damaged_qty > 0]
@@ -52,8 +56,9 @@ def get_after_sales_summary(order_id: int, db: Session = Depends(get_db)):
         "order_id": order_id,
         "order_no": order.order_no,
         "customer_name": order.customer_name,
-        "overdue_samples": len(overdue_samples),
         "unreturned_samples": len(unreturned_samples),
+        "overdue_samples": len(overdue_samples),
+        "lost_samples": len(lost_samples),
         "damaged_arrivals": len(damaged_arrivals),
         "missing_arrivals": len(missing_arrivals),
         "pending_replacements": len(pending_replacements),
