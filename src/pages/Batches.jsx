@@ -101,6 +101,25 @@ export default function Batches() {
                         {t.credit_id && <div>赊销 #{t.credit_id}</div>}
                         {t.payment_id && <div>回款 #{t.payment_id}</div>}
                         {t.ref && <div>凭证 {t.ref}</div>}
+                        {t.linked_losses && t.linked_losses.length > 0 && (
+                          <div className="sep" style={{ margin: '4px 0', height: 0 }} />
+                        )}
+                        {t.linked_losses?.map((l, j) => (
+                          <div key={j} style={{ marginTop: 2 }}>
+                            <span className={`tag ${l.status === 'confirmed' ? 'green' : 'red'}`}>
+                              损耗 #{l.id}
+                            </span>
+                            <span className="muted" style={{ marginLeft: 4 }}>
+                              {l.batch_code} {l.qty_kg}
+                            </span>
+                          </div>
+                        ))}
+                        {t.claim_batch_code && t.type === 'loss' && (
+                          <div style={{ marginTop: 4, color: 'var(--ink-2)' }}>
+                            <span className="tag red">客诉批次</span>
+                            <span className="muted" style={{ marginLeft: 4 }}>{t.claim_batch_code}</span>
+                          </div>
+                        )}
                       </div>
                     </React.Fragment>
                   )

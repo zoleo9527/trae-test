@@ -264,6 +264,28 @@ function DayDetail({ date }) {
               {a.claim_id && <div>客诉 #{a.claim_id}</div>}
               {a.credit_id && <div>赊销 #{a.credit_id}</div>}
               {a.picking_id && <div>配货 #{a.picking_id}</div>}
+              {a.claim_batch_code && a.type === 'loss' && (
+                <div style={{ marginTop: 2 }}>
+                  <span className="tag red">客诉批次</span>
+                  <span style={{ marginLeft: 4 }}>{a.claim_batch_code}</span>
+                </div>
+              )}
+              {a.linked_loss_summary && a.type === 'claim' && (
+                <div style={{ marginTop: 4 }}>
+                  <div className="muted">关联损耗：</div>
+                  {a.linked_loss_summary.split(';').map((s, j) => {
+                    const [code, qty, status] = s.split(':')
+                    return (
+                      <div key={j} style={{ marginTop: 2 }}>
+                        <span className={`tag ${status === 'confirmed' ? 'green' : 'red'}`}>
+                          {code}
+                        </span>
+                        <span style={{ marginLeft: 4 }}>{qty}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </td>
           </tr>
         ))}
