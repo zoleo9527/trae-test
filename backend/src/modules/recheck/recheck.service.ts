@@ -63,8 +63,8 @@ export class RecheckService {
           fromStatus: oldStatus,
           toStatus: 'compensating',
           remark: existingRechecks.length > 0
-            ? `补充复检完成，进入赔付审批（第${existingRechecks.length + 1}次复检）`
-            : '复检完成，进入赔付审批',
+            ? `待赔付审批（第${existingRechecks.length + 1}次复检）`
+            : '待赔付审批',
           operatorId: userId,
         });
         await queryRunner.manager.save(statusLog);

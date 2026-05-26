@@ -158,108 +158,108 @@ WHERE comp.complaint_id = c.id AND c.weight_note_no = 'WB20240520005' AND u.user
 -- 插入演示状态日志 - 确保每条客诉都有完整的状态链
 -- 王老板 - pending
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520001' AND u.username = 'manager';
 
 -- 李批发 - pending -> rechecking
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520002' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520002' AND u.username = 'manager';
 
 -- 张零售 - pending -> rechecking -> compensating
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'rechecking', 'compensating', '复检完成，确认发错货，进入赔付审批', u.id
+SELECT c.id, 'rechecking', 'compensating', '待赔付审批', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520003' AND u.username = 'picker';
 
 -- 刘超市 - pending -> rechecking -> compensating -> payment_pending
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'rechecking', 'compensating', '复检完成，西瓜成熟度过高，建议全额赔付', u.id
+SELECT c.id, 'rechecking', 'compensating', '待赔付审批', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'picker';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'compensating', 'payment_pending', '张经理批准全额赔付¥3000，等待财务回款', u.id
+SELECT c.id, 'compensating', 'payment_pending', '待回款', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520004' AND u.username = 'manager';
 
 -- 陈果行 - pending -> rechecking -> compensating -> payment_pending -> completed
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，等待处理', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货进行复检', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'rechecking', 'compensating', '复检完成，包装轻微破损，赔付包装费', u.id
+SELECT c.id, 'rechecking', 'compensating', '待赔付审批', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'picker';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'compensating', 'payment_pending', '张经理批准赔付¥200，等待财务回款', u.id
+SELECT c.id, 'compensating', 'payment_pending', '待回款', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'payment_pending', 'completed', '王财务已登记回款¥200（账扣方式）', u.id
+SELECT c.id, 'payment_pending', 'completed', '已完成', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240520005' AND u.username = 'accountant';
 
 -- 周市场 - pending
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，3箱葡萄发霉', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521001' AND u.username = 'manager';
 
 -- 吴配送 - pending -> rejected
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，延迟送达', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521002' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rejected', '延迟在2小时内，按合同不承担责任，驳回客诉', u.id
+SELECT c.id, 'pending', 'rejected', '已驳回', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521002' AND u.username = 'manager';
 
 -- 郑批发 - pending
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，规格不符', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521003' AND u.username = 'manager';
 
 -- 孙零售 - pending -> rechecking
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，芒果有虫眼', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521004' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货去冷库E区复检', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521004' AND u.username = 'manager';
 
 -- 钱超市 - pending -> rechecking -> compensating
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, NULL, 'pending', '客诉已登记，数量短缺5箱', u.id
+SELECT c.id, NULL, 'pending', '待处理', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'pending', 'rechecking', '已安排李配货核查出库和过磅记录', u.id
+SELECT c.id, 'pending', 'rechecking', '待复检', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'manager';
 
 INSERT INTO status_logs (complaint_id, from_status, to_status, remark, operator_id)
-SELECT c.id, 'rechecking', 'compensating', '核查确认出库45箱，少发5箱，进入赔付', u.id
+SELECT c.id, 'rechecking', 'compensating', '待赔付审批', u.id
 FROM complaints c, users u WHERE c.weight_note_no = 'WB20240521005' AND u.username = 'picker';
 
 -- 插入演示证据数据

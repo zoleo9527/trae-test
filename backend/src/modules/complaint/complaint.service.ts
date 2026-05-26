@@ -151,12 +151,12 @@ export class ComplaintService {
 
   private getStatusRemark(status: ComplaintStatus): string {
     const remarks: Record<ComplaintStatus, string> = {
-      pending: '客诉已登记',
-      rechecking: '已安排复检',
-      compensating: '复检完成，进入赔付审批',
-      payment_pending: '赔付已批准，等待回款',
-      completed: '回款完成，案件结案',
-      rejected: '客诉已驳回',
+      pending: '待处理',
+      rechecking: '待复检',
+      compensating: '待赔付审批',
+      payment_pending: '待回款',
+      completed: '已完成',
+      rejected: '已驳回',
     };
     return remarks[status] || '状态已更新';
   }

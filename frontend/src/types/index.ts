@@ -108,8 +108,8 @@ export interface Statistics {
 
 export const STATUS_LABELS: Record<ComplaintStatus, string> = {
   pending: '待处理',
-  rechecking: '复检中',
-  compensating: '赔付审批中',
+  rechecking: '待复检',
+  compensating: '待赔付审批',
   payment_pending: '待回款',
   completed: '已完成',
   rejected: '已驳回',

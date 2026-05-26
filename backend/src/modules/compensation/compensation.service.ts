@@ -84,7 +84,7 @@ export class CompensationService {
           complaintId: complaint.id,
           fromStatus: oldStatus,
           toStatus: 'payment_pending',
-          remark: '赔付已批准，等待回款',
+          remark: '待回款',
           operatorId: userId,
         });
         await queryRunner.manager.save(statusLog);
@@ -130,7 +130,7 @@ export class CompensationService {
           complaintId: complaint.id,
           fromStatus: oldStatus,
           toStatus: 'rejected',
-          remark: '赔付申请被驳回',
+          remark: '已驳回',
           operatorId: userId,
         });
         await queryRunner.manager.save(statusLog);

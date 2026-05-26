@@ -271,7 +271,7 @@ async function handleBatchAction(action: string) {
   };
   const actionWarnings: Record<string, string> = {
     recheck: '待处理的客诉将标记为「待复检」状态',
-    approve: '根据每条记录的业务完成情况自动推进到下一待办状态\n• 待处理 → 待复检\n• 复检中（已有复检记录）→ 待赔付审批\n• 赔付审批中（已有已批准赔付）→ 待登记回款\n• 待回款（已有回款记录）→ 已结案',
+    approve: '根据每条记录的业务完成情况自动推进到下一待办状态\n• 待处理 → 待复检\n• 待复检（已有复检记录）→ 待赔付审批\n• 待赔付审批（已有已批准赔付）→ 待登记回款\n• 待回款（已有回款记录）→ 已结案',
     reject: '未结案的客诉将标记为「已驳回」',
   };
 

@@ -74,7 +74,7 @@ export class PaymentService {
           complaintId: complaint.id,
           fromStatus: oldStatus,
           toStatus: 'completed',
-          remark: '回款完成，案件结案',
+          remark: '已完成',
           operatorId: userId,
         });
         await queryRunner.manager.save(statusLog);
