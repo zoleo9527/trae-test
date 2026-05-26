@@ -23,10 +23,6 @@ class WeightTicketViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'weigh_time', 'total_amount']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        elif self.action in ['approve', 'reject', 'mark_review']:
-            return [CanApproveWeight()]
         return [CanManageWeight()]
 
     def get_serializer_class(self):
@@ -156,8 +152,6 @@ class PriceAdjustmentViewSet(viewsets.ModelViewSet):
     search_fields = ['waste_type__name', 'reason']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
         return [CanApproveWeight()]
 
     def get_serializer_class(self):

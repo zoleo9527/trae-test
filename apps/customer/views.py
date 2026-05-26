@@ -19,8 +19,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'contact', 'phone']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'credit_info']:
-            return [IsAuthenticated()]
+        from apps.base.permissions import CanManageCustomer
         return [CanManageCustomer()]
 
     def get_serializer_class(self):
@@ -81,8 +80,7 @@ class WasteTypeViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
+        from apps.base.permissions import CanManageCustomer
         return [CanManageCustomer()]
 
     def get_serializer_class(self):

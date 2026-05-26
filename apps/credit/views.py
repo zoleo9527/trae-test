@@ -25,10 +25,6 @@ class CreditRecordViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'due_date', 'amount']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        elif self.action in ['approve', 'reject']:
-            return [CanApproveCredit()]
         return [CanManageCredit()]
 
     def get_serializer_class(self):
@@ -196,10 +192,6 @@ class RepaymentRecordViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'payment_time', 'amount']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        elif self.action in ['approve', 'reject']:
-            return [CanApproveCredit()]
         return [CanManageCredit()]
 
     def get_serializer_class(self):
@@ -380,15 +372,20 @@ class CreditReminderViewSet(viewsets.ModelViewSet):
             return CreditReminderListSerializer
         return CreditReminderSerializer
 
+    def get_permissions(self):
+        from apps.base.permissions import CanManageCredit
+        return [CanManageCredit()]
+
     def list(self, request, *args, **kwargs):
-        self._auto_sync_reminders(request)
+        self._sync_all_reminders(request)
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        self._auto_sync_single_reminder(request, self.get_object())
+        reminder = self.get_object()
+        self._sync_single_reminder(request, reminder)
         return super().retrieve(request, *args, **kwargs)
 
-    def _auto_sync_single_reminder(self, request, reminder):
+    def _sync_single_reminder(self, request, reminder):
         today = timezone.now().date()
         updated = False
         credit = reminder.credit_record
@@ -411,93 +408,40 @@ class CreditReminderViewSet(viewsets.ModelViewSet):
         if reminder.credit_record and not reminder.is_handled:
             due_date = reminder.credit_record.due_date
             days_until_due = (due_date - today).days
-            new_type = None
-            new_title = None
-            new_content = None
+            credit_amount = float(reminder.credit_record.amount)
+            remaining_amount = float(credit.get_remaining_amount()) if credit else 0
 
             if days_until_due < 0:
-                if reminder.type != 'overdue':
-                    new_type = 'overdue'
-                    new_title = '赊账已逾期提醒'
-                    new_content = f'客户{reminder.customer.name}的赊账已逾期{abs(days_until_due)}天，请立即联系客户回款。'
+                new_type = 'overdue'
+                new_title = '赊账已逾期提醒'
+                new_content = f'客户{reminder.customer.name}的赊账金额{credit_amount}元已逾期{abs(days_until_due)}天，请立即联系客户回款。剩余欠款：{remaining_amount}元。'
             elif days_until_due <= 7:
-                if reminder.type != 'due_soon':
-                    new_type = 'due_soon'
-                    new_title = '赊账即将到期提醒'
-                    new_content = f'客户{reminder.customer.name}的赊账将在{days_until_due}天后到期，请及时跟进。'
-            elif days_until_due > 7 and reminder.type == 'custom':
                 new_type = 'due_soon'
                 new_title = '赊账即将到期提醒'
-                new_content = f'客户{reminder.customer.name}的赊账将在{days_until_due}天后到期，请及时跟进。'
+                new_content = f'客户{reminder.customer.name}的赊账金额{credit_amount}元将在{days_until_due}天后到期，请及时联系客户回款。剩余欠款：{remaining_amount}元。'
+            else:
+                new_type = 'due_soon'
+                new_title = '赊账到期提醒'
+                new_content = f'客户{reminder.customer.name}的赊账金额{credit_amount}元将于{due_date}到期，剩余{days_until_due}天，请提前安排回款。剩余欠款：{remaining_amount}元。'
 
-            if new_type and new_type != reminder.type:
+            if new_type != reminder.type or new_title != reminder.title or new_content != reminder.content:
                 reminder.type = new_type
-                if new_title:
-                    reminder.title = new_title
-                if new_content:
-                    reminder.content = new_content
+                reminder.title = new_title
+                reminder.content = new_content
                 updated = True
 
         if updated:
             reminder.updated_by = request.user
             reminder.save()
 
-    def _auto_sync_reminders(self, request):
-        today = timezone.now().date()
+    def _sync_all_reminders(self, request):
         reminders = CreditReminder.objects.filter(is_handled=False).select_related('credit_record', 'customer')
-
         for reminder in reminders:
-            updated = False
-            credit = reminder.credit_record
-
-            if credit:
-                remaining = credit.get_remaining_amount()
-                if remaining <= 0 and credit.status == 'approved':
-                    reminder.is_handled = True
-                    reminder.handled_by = request.user
-                    reminder.handled_at = timezone.now()
-                    reminder.handle_note = f'系统自动标记：赊账{credit.record_no}已全额结清'
-                    updated = True
-                elif credit.status != 'approved':
-                    reminder.is_handled = True
-                    reminder.handled_by = request.user
-                    reminder.handled_at = timezone.now()
-                    reminder.handle_note = f'系统自动标记：关联赊账状态已变更为{credit.get_status_display()}'
-                    updated = True
-
-            if reminder.credit_record and not reminder.is_handled:
-                due_date = reminder.credit_record.due_date
-                days_until_due = (due_date - today).days
-                new_type = None
-                new_title = None
-                new_content = None
-
-                if days_until_due < 0:
-                    if reminder.type != 'overdue':
-                        new_type = 'overdue'
-                        new_title = '赊账已逾期提醒'
-                        new_content = f'客户{reminder.customer.name}的赊账已逾期{abs(days_until_due)}天，请立即联系客户回款。'
-                elif days_until_due <= 7:
-                    if reminder.type != 'due_soon':
-                        new_type = 'due_soon'
-                        new_title = '赊账即将到期提醒'
-                        new_content = f'客户{reminder.customer.name}的赊账将在{days_until_due}天后到期，请及时跟进。'
-
-                if new_type and new_type != reminder.type:
-                    reminder.type = new_type
-                    if new_title:
-                        reminder.title = new_title
-                    if new_content:
-                        reminder.content = new_content
-                    updated = True
-
-            if updated:
-                reminder.updated_by = request.user
-                reminder.save()
+            self._sync_single_reminder(request, reminder)
 
     @action(detail=False, methods=['post'])
     def sync_reminders(self, request):
-        self._auto_sync_reminders(request)
+        self._sync_all_reminders(request)
         log_action(
             user=request.user,
             action='update',

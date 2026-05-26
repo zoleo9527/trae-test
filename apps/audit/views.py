@@ -21,6 +21,8 @@ class AuditLogViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
 
     def get_queryset(self):
         queryset = AuditLog.objects.all()
-        if not self.request.user.is_staff:
+        from apps.base.permissions import get_user_role
+        user_role = get_user_role(self.request.user)
+        if user_role != 'site_admin' and not self.request.user.is_superuser:
             queryset = queryset.filter(user=self.request.user)
         return queryset
