@@ -6,13 +6,14 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from apps.base.views import DashboardView
+from apps.base.views import DashboardView, UserInfoView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/user/info/', UserInfoView.as_view(), name='user_info'),
     path('api/customers/', include('apps.customer.urls')),
     path('api/weights/', include('apps.weight.urls')),
     path('api/credits/', include('apps.credit.urls')),

@@ -2,12 +2,14 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.permissions import IsAuthenticated
 from .models import Customer, WasteType
 from .serializers import (
     CustomerSerializer, CustomerListSerializer,
     WasteTypeSerializer, WasteTypeListSerializer
 )
 from apps.audit.utils import log_action, model_to_dict
+from apps.base.permissions import CanManageCustomer
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -15,6 +17,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['type', 'credit_level', 'is_active']
     search_fields = ['code', 'name', 'contact', 'phone']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'credit_info']:
+            return [IsAuthenticated()]
+        return [CanManageCustomer()]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -72,6 +79,11 @@ class WasteTypeViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['category', 'is_active']
     search_fields = ['code', 'name']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [CanManageCustomer()]
 
     def get_serializer_class(self):
         if self.action == 'list':

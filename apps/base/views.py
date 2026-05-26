@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Sum, Q
 from apps.weight.models import WeightTicket
 from apps.credit.models import CreditRecord, RepaymentRecord
+from .serializers import UserSerializer
 
 
 class DashboardView(APIView):
@@ -62,3 +63,11 @@ class DashboardView(APIView):
             },
             'recent_pending': pending_list
         })
+
+
+class UserInfoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)

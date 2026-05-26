@@ -10,10 +10,12 @@ from django.contrib.auth.models import User
 from apps.customer.models import Customer, WasteType
 from apps.weight.models import WeightTicket
 from apps.credit.models import CreditRecord, RepaymentRecord, CreditReminder
+from apps.base.models import UserRole
 
 
 def init_users():
     print('Creating users...')
+    UserRole.objects.filter(user__username__in=['admin', 'manager', 'operator', 'finance']).delete()
     User.objects.filter(username__in=['admin', 'manager', 'operator', 'finance']).delete()
 
     admin = User.objects.create_superuser(
@@ -22,7 +24,8 @@ def init_users():
         password='admin123456',
         is_staff=True
     )
-    print(f'Created admin user: admin / admin123456')
+    UserRole.objects.create(user=admin, role='site_admin', description='超级管理员')
+    print(f'Created admin user: admin / admin123456 (超级管理员)')
 
     manager = User.objects.create_user(
         username='manager',
@@ -30,21 +33,24 @@ def init_users():
         password='manager123456',
         is_staff=True
     )
-    print(f'Created manager user: manager / manager123456')
+    UserRole.objects.create(user=manager, role='site_admin', description='站点管理员')
+    print(f'Created manager user: manager / manager123456 (站点管理员)')
 
     operator = User.objects.create_user(
         username='operator',
         email='operator@example.com',
         password='operator123456'
     )
-    print(f'Created operator user: operator / operator123456')
+    UserRole.objects.create(user=operator, role='operator', description='过磅员')
+    print(f'Created operator user: operator / operator123456 (过磅员)')
 
     finance = User.objects.create_user(
         username='finance',
         email='finance@example.com',
         password='finance123456'
     )
-    print(f'Created finance user: finance / finance123456')
+    UserRole.objects.create(user=finance, role='finance', description='财务')
+    print(f'Created finance user: finance / finance123456 (财务)')
 
     return admin, manager, operator, finance
 
@@ -271,10 +277,10 @@ def main():
     print('API URL: http://localhost:8000/api/')
     print()
     print('Default accounts:')
-    print('  - admin / admin123456 (超级管理员)')
-    print('  - manager / manager123456 (站点管理员)')
-    print('  - operator / operator123456 (过磅员)')
-    print('  - finance / finance123456 (财务)')
+    print('  - admin / admin123456 (超级管理员 - 所有权限)')
+    print('  - manager / manager123456 (站点管理员 - 审核权限)')
+    print('  - operator / operator123456 (过磅员 - 磅单操作权限)')
+    print('  - finance / finance123456 (财务 - 赊账回款权限)')
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import datetime
 from .models import WeightTicket, PriceAdjustment
@@ -11,6 +12,7 @@ from .serializers import (
     PriceAdjustmentSerializer, PriceAdjustmentListSerializer
 )
 from apps.audit.utils import log_action, model_to_dict
+from apps.base.permissions import CanManageWeight, CanApproveWeight
 
 
 class WeightTicketViewSet(viewsets.ModelViewSet):
@@ -19,6 +21,13 @@ class WeightTicketViewSet(viewsets.ModelViewSet):
     filterset_fields = ['customer', 'waste_type', 'status', 'payment_method']
     search_fields = ['ticket_no', 'customer__name', 'vehicle_no']
     ordering_fields = ['created_at', 'weigh_time', 'total_amount']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        elif self.action in ['approve', 'reject', 'mark_review']:
+            return [CanApproveWeight()]
+        return [CanManageWeight()]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -145,6 +154,11 @@ class PriceAdjustmentViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['waste_type', 'is_effective']
     search_fields = ['waste_type__name', 'reason']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [CanApproveWeight()]
 
     def get_serializer_class(self):
         if self.action == 'list':
