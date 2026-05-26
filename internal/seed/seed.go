@@ -87,6 +87,26 @@ func Run(ctx context.Context, db *sql.DB) error {
 			`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
 			 VALUES('leave_request',$1,'create',NULL,$2::jsonb,$3,$4,$5)`,
 			id, fmt.Sprintf(`{"reason":%q,"member_id":%d}`, lv.reason, lv.mid), lv.by, displayOf(lv.by, ownerID, coachID, frontID), lv.start)
+
+		if lv.status == "approved" {
+			_, _ = db.ExecContext(ctx,
+				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
+				 VALUES('leave_request',$1,'approve',$2::jsonb,$3::jsonb,$4,$5,$6)`,
+				id,
+				fmt.Sprintf(`{"status":"pending","course_deduct":%d,"approver_id":null,"approved_at":null}`, lv.deduct),
+				fmt.Sprintf(`{"status":"approved","course_deduct":%d,"approver_id":%d,"approved_at":%q,"member_courses_used_old":8,"member_courses_used_add":%d,"member_courses_used_new":%d}`,
+					lv.deduct, *lv.approver, lv.start.Add(24*time.Hour).Format(time.RFC3339), lv.deduct, 8+lv.deduct),
+				*lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
+		}
+		if lv.status == "rejected" {
+			_, _ = db.ExecContext(ctx,
+				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
+				 VALUES('leave_request',$1,'reject',$2::jsonb,$3::jsonb,$4,$5,$6)`,
+				id,
+				fmt.Sprintf(`{"status":"pending","course_deduct":%d,"reject_reason":null}`, lv.deduct),
+				fmt.Sprintf(`{"status":"rejected","course_deduct":%d,"reject_reason":"需在课表登记缺席,暂不批假"}`, lv.deduct),
+				*lv.approver, displayOf(*lv.approver, ownerID, coachID, frontID), lv.start.Add(24*time.Hour))
+		}
 	}
 
 	renewals := []struct {
@@ -117,7 +137,27 @@ func Run(ctx context.Context, db *sql.DB) error {
 		if err := row.Scan(&id); err != nil {
 			return err
 		}
+
+		_, _ = db.ExecContext(ctx,
+			`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
+			 VALUES('renewal',$1,'create',NULL,$2::jsonb,$3,$4,$5)`,
+			id, fmt.Sprintf(`{"member_id":%d,"expire_at":%q,"channel":%q,"status":"open"}`,
+				r.mid, r.exp.Format(time.RFC3339), r.ch),
+			frontID, "前台 王前台", time.Now().Add(-2*time.Hour))
+
+		if r.st == "noticed" && r.assign != nil {
+			_, _ = db.ExecContext(ctx,
+				`INSERT INTO audit_logs(entity_type,entity_id,action,old_value,new_value,actor_id,actor_name,at)
+				 VALUES('renewal',$1,'update',$2::jsonb,$3::jsonb,$4,$5,$6)`,
+				id,
+				fmt.Sprintf(`{"status":"open","assigned_to":null,"note":null,"noticed_by":null,"noticed_at":null}`,
+				fmt.Sprintf(`{"status":"noticed","assigned_to":%d,"note":%q,"noticed_by":%d,"noticed_at":%q}`,
+					*r.assign, *r.note, *r.assign, time.Now().Add(-1*time.Hour).Format(time.RFC3339)),
+				*r.assign, displayOf(*r.assign, ownerID, coachID, frontID),
+				time.Now().Add(-1*time.Hour))
+		}
 	}
+}
 
 	notes := []struct {
 		target string
