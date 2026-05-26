@@ -93,6 +93,22 @@
     return currentUser && subsidy?.status !== 'rejected';
   }
 
+  function canReportProgress() {
+    if (!subsidy) return false;
+    if (!['scheduled', 'in_progress'].includes(subsidy.status)) return false;
+    if (subsidy.status === 'scheduled' && !subsidy.scheduled_operator_id) return false;
+    return true;
+  }
+
+  function progressReportHint() {
+    if (!subsidy) return '';
+    if (subsidy.status === 'submitted') return '请先由调度员排期并指派机手';
+    if (subsidy.status === 'scheduled' && !subsidy.scheduled_operator_id) return '请先指派机手';
+    if (subsidy.status === 'completed') return '已完成的申报无法提交进度';
+    if (subsidy.status === 'rejected') return '已驳回的申报无法提交进度';
+    return '';
+  }
+
   async function submitSchedule() {
     await api.scheduleSubsidy(subsidy.id, {
       scheduled_for: schedule.scheduled_for,
@@ -315,11 +331,19 @@
       <div class="card">
         <div class="card-header-inline">
           <h3>📊 进度报告</h3>
-          <button class="btn-small" on:click={() => showReportForm = !showReportForm}>
-            {showReportForm ? '取消' : '＋ 新增'}
-          </button>
+          {#if canReportProgress()}
+            <button class="btn-small" on:click={() => showReportForm = !showReportForm}>
+              {showReportForm ? '取消' : '＋ 新增'}
+            </button>
+          {/if}
         </div>
-        {#if showReportForm}
+        {#if !canReportProgress()}
+          <div class="form-hint">
+            <span class="hint-icon">ℹ️</span>
+            <span>{progressReportHint()}</span>
+          </div>
+        {/if}
+        {#if canReportProgress() && showReportForm}
           <div class="inline-form">
             <input type="number" placeholder="进度 %" bind:value={newReport.progress_pct} />
             <input type="number" placeholder="完成亩数" bind:value={newReport.area_done} />
@@ -670,6 +694,20 @@
     border: 1px solid #d1d5db;
     border-radius: 4px;
     font-size: 13px;
+  }
+
+  .form-hint {
+    padding: 12px 16px;
+    background: #f0f9ff;
+    color: #0369a1;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hint-icon {
+    font-size: 16px;
   }
 
   .simple-list {

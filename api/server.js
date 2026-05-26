@@ -172,11 +172,27 @@ app.post('/api/subsidies/:id/complete', requireAuth, requireRole(['director', 'd
 app.post('/api/subsidies/:id/report', requireAuth, (req, res) => {
   const { progress_pct, area_done, issue_type, issue_note } = req.body;
   const appId = req.params.id;
-  const current = db.prepare('SELECT status FROM subsidy_applications WHERE id = ?').get(appId);
-  if (current && ['scheduled', 'submitted'].includes(current.status)) {
+  const current = db.prepare(`
+    SELECT status, scheduled_operator_id FROM subsidy_applications WHERE id = ?
+  `).get(appId);
+
+  if (!current) return res.status(404).json({ error: '申报不存在' });
+  if (current.status !== 'scheduled' && current.status !== 'in_progress') {
+    return res.status(400).json({
+      error: '仅已排期或进行中的申报可提交进度报告'
+    });
+  }
+  if (current.status === 'scheduled' && !current.scheduled_operator_id) {
+    return res.status(400).json({
+      error: '请先指派机手后再提交进度'
+    });
+  }
+
+  if (current.status === 'scheduled') {
     db.prepare("UPDATE subsidy_applications SET status = 'in_progress' WHERE id = ?")
       .run(appId);
   }
+
   db.prepare(`
     INSERT INTO task_reports(application_id, operator_id, reported_at,
       progress_pct, area_done, issue_type, issue_note)
