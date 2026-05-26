@@ -60,6 +60,7 @@ const colorMap = {
 
 export default function RepairList() {
   const [data, setData] = useState([])
+  const [optometryOptions, setOptometryOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [filters, setFilters] = useState({})
@@ -72,7 +73,30 @@ export default function RepairList() {
 
   useEffect(() => {
     loadData()
+    loadOptometryOptions()
   }, [filters])
+
+  const loadOptometryOptions = async () => {
+    try {
+      const list = await optometryApi.list({ limit: 200 })
+      setOptometryOptions(list || [])
+    } catch (error) {
+      console.error('加载验光单失败:', error)
+    }
+  }
+
+  const handleOptometryChange = (optometryId) => {
+    const opt = optometryOptions.find(o => o.id === optometryId)
+    if (opt) {
+      createForm.setFieldsValue({
+        optometry_order_id: opt.id,
+        optometry_order_no: opt.order_no,
+        customer_name: opt.customer_name,
+        customer_phone: opt.customer_phone,
+        store_name: opt.store_name,
+      })
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -265,9 +289,24 @@ export default function RepairList() {
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreate}>
           <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item name="optometry_order_id" label="关联验光单">
+                <Select
+                  showSearch
+                  placeholder="选择验光单（选择后自动填充客户信息）"
+                  optionFilterProp="label"
+                  onChange={handleOptometryChange}
+                  allowClear
+                  options={optometryOptions.map(o => ({
+                    value: o.id,
+                    label: `${o.order_no} - ${o.customer_name} (${o.store_name})`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
             <Col span={12}>
               <Form.Item name="optometry_order_no" label="验光单号">
-                <Input placeholder="选填，关联验光单" />
+                <Input placeholder="验光单号" />
               </Form.Item>
             </Col>
             <Col span={12}>

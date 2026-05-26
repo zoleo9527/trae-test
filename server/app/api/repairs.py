@@ -86,3 +86,15 @@ def get_repair_history(id: int, db: Session = Depends(get_db)):
     if not obj:
         raise HTTPException(status_code=404, detail="返修单不存在")
     return crud.get_status_history(db, id)
+
+
+@router.get("/simple/list")
+def get_repairs_simple(db: Session = Depends(get_db)):
+    repairs = db.query(models.RepairOrder).filter(
+        models.RepairOrder.status.notin_(["已完成", "已退款", "已驳回"])
+    ).order_by(models.RepairOrder.created_at.desc()).limit(100).all()
+    return [
+        {"id": r.id, "repair_no": r.repair_no, "customer_name": r.customer_name,
+         "store_name": r.store_name, "repair_type": r.repair_type, "status": r.status}
+        for r in repairs
+    ]

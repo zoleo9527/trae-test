@@ -95,7 +95,15 @@ def get_optometry_order_by_no(db: Session, order_no: str) -> Optional[models.Opt
 
 
 def create_repair_order(db: Session, obj: schemas.RepairOrderCreate) -> models.RepairOrder:
-    db_obj = models.RepairOrder(**obj.model_dump())
+    data = obj.model_dump()
+    if obj.optometry_order_id:
+        opt = get_optometry_order(db, obj.optometry_order_id)
+        if opt:
+            data["customer_name"] = data.get("customer_name") or opt.customer_name
+            data["customer_phone"] = data.get("customer_phone") or opt.customer_phone
+            data["store_name"] = data.get("store_name") or opt.store_name
+            data["optometry_order_no"] = data.get("optometry_order_no") or opt.order_no
+    db_obj = models.RepairOrder(**data)
     db.add(db_obj)
     db.flush()
     history = models.StatusHistory(
@@ -298,6 +306,37 @@ def update_lens_transfer(db: Session, id: int, obj: schemas.LensTransferUpdate) 
     for key, value in update_data.items():
         setattr(db_obj, key, value)
     db_obj.updated_at = datetime.now()
+    if db_obj.repair_order_id:
+        repair = get_repair_order(db, db_obj.repair_order_id)
+        if repair:
+            new_repair_status = None
+            change_reason = None
+            status_val = update_data.get('status', db_obj.status)
+            is_lost_val = update_data.get('is_lost', db_obj.is_lost)
+            if is_lost_val == 1:
+                repair.lens_status = "已丢失"
+                if repair.status != "镜片丢失":
+                    new_repair_status = "镜片丢失"
+                    change_reason = "镜片调拨丢失"
+            elif status_val == "已收货":
+                repair.lens_status = "库存充足"
+                if repair.status in ["镜片调拨中", "待镜片"]:
+                    new_repair_status = "处理中"
+                    change_reason = "镜片已到货，恢复处理"
+            elif status_val == "已发货":
+                repair.lens_status = "调拨中"
+            if new_repair_status and repair.status != new_repair_status:
+                old_repair_status = repair.status
+                repair.status = new_repair_status
+                repair.updated_at = datetime.now()
+                history = models.StatusHistory(
+                    repair_order_id=repair.id,
+                    from_status=old_repair_status,
+                    to_status=new_repair_status,
+                    changed_by="系统",
+                    change_reason=change_reason,
+                )
+                db.add(history)
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -376,6 +415,22 @@ def update_refund_record(db: Session, id: int, obj: schemas.RefundRecordUpdate) 
                         change_reason="退款已完成",
                     )
                     db.add(history)
+        elif new_status == "已驳回":
+            if db_obj.repair_order_id:
+                repair = get_repair_order(db, db_obj.repair_order_id)
+                if repair and repair.status in ["退款中"]:
+                    old_repair_status = repair.status
+                    repair.status = "需回查"
+                    repair.updated_at = datetime.now()
+                    reject_reason = update_data.get("reject_reason", "退款申请被驳回")
+                    history = models.StatusHistory(
+                        repair_order_id=repair.id,
+                        from_status=old_repair_status,
+                        to_status="需回查",
+                        changed_by=update_data.get("approver", "系统"),
+                        change_reason=f"退款驳回: {reject_reason}",
+                    )
+                    db.add(history)
     for key, value in update_data.items():
         setattr(db_obj, key, value)
     db_obj.updated_at = datetime.now()
@@ -418,10 +473,26 @@ def update_visit_record(db: Session, id: int, obj: schemas.VisitRecordUpdate) ->
     db_obj = get_visit_record(db, id)
     if not db_obj:
         return None
+    old_status = db_obj.status
     update_data = obj.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_obj, key, value)
     db_obj.updated_at = datetime.now()
+    new_status = update_data.get("status", old_status)
+    if new_status == "已回访" and old_status != "已回访" and db_obj.repair_order_id:
+        repair = get_repair_order(db, db_obj.repair_order_id)
+        if repair and repair.status == "待处理":
+            old_repair_status = repair.status
+            repair.status = "处理中"
+            repair.updated_at = datetime.now()
+            history = models.StatusHistory(
+                repair_order_id=repair.id,
+                from_status=old_repair_status,
+                to_status="处理中",
+                changed_by=update_data.get("visitor", "系统"),
+                change_reason="回访完成，开始处理",
+            )
+            db.add(history)
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -433,18 +504,32 @@ def batch_update_visit_records(
     status: Optional[str] = None,
     visitor: Optional[str] = None,
 ) -> int:
-    query = db.query(models.VisitRecord).filter(models.VisitRecord.id.in_(ids))
-    updates = {}
-    if status:
-        updates["status"] = status
-    if visitor:
-        updates["visitor"] = visitor
-    if updates:
-        updates["updated_at"] = datetime.now()
-        count = query.update(updates, synchronize_session="fetch")
-        db.commit()
-        return count
-    return 0
+    visits = db.query(models.VisitRecord).filter(models.VisitRecord.id.in_(ids)).all()
+    count = 0
+    for v in visits:
+        old_status = v.status
+        if status:
+            v.status = status
+        if visitor:
+            v.visitor = visitor
+        v.updated_at = datetime.now()
+        if status == "已回访" and old_status != "已回访" and v.repair_order_id:
+            repair = get_repair_order(db, v.repair_order_id)
+            if repair and repair.status == "待处理":
+                old_repair_status = repair.status
+                repair.status = "处理中"
+                repair.updated_at = datetime.now()
+                history = models.StatusHistory(
+                    repair_order_id=repair.id,
+                    from_status=old_repair_status,
+                    to_status="处理中",
+                    changed_by=visitor or "系统",
+                    change_reason="回访完成，开始处理",
+                )
+                db.add(history)
+        count += 1
+    db.commit()
+    return count
 
 
 def get_dashboard_stats(db: Session) -> dict:

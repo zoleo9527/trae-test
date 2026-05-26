@@ -29,6 +29,7 @@ const statusColors = {
 
 export default function RefundList() {
   const [data, setData] = useState([])
+  const [repairOptions, setRepairOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({})
   const [createModal, setCreateModal] = useState(false)
@@ -39,7 +40,17 @@ export default function RefundList() {
 
   useEffect(() => {
     loadData()
+    loadRepairOptions()
   }, [filters])
+
+  const loadRepairOptions = async () => {
+    try {
+      const list = await repairApi.getSimpleList()
+      setRepairOptions(list || [])
+    } catch (error) {
+      console.error('加载返修单失败:', error)
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -209,8 +220,16 @@ export default function RefundList() {
           <Form.Item name="applicant" label="申请人" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
-            <Input type="number" />
+          <Form.Item name="repair_order_id" label="关联返修单" rules={[{ required: true, message: '请选择关联返修单' }]}>
+            <Select
+              showSearch
+              placeholder="选择返修单"
+              optionFilterProp="label"
+              options={repairOptions.map(r => ({
+                value: r.id,
+                label: `${r.repair_no} - ${r.customer_name} (${r.store_name})`,
+              }))}
+            />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>创建</Button>

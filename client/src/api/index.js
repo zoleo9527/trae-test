@@ -27,6 +27,7 @@ export const repairApi = {
   updateStatus: (id, status, changedBy, reason) =>
     request.post(`/repairs/${id}/status`, null, { params: { new_status: status, changed_by: changedBy, reason } }),
   getHistory: (id) => request.get(`/repairs/${id}/history`),
+  getSimpleList: () => request.get('/repairs/simple/list'),
 }
 
 export const visitApi = {

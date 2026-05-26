@@ -218,8 +218,16 @@ export default function LensTransferList() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
-                <Input type="number" />
+              <Form.Item name="repair_order_id" label="关联返修单" rules={[{ required: true, message: '请选择关联返修单' }]}>
+                <Select
+                  showSearch
+                  placeholder="选择返修单"
+                  optionFilterProp="label"
+                  options={repairOptions.map(r => ({
+                    value: r.id,
+                    label: `${r.repair_no} - ${r.customer_name} (${r.store_name})`,
+                  }))}
+                />
               </Form.Item>
             </Col>
           </Row>

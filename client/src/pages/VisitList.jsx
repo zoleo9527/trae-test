@@ -32,6 +32,7 @@ const visitStatusColors = {
 
 export default function VisitList() {
   const [data, setData] = useState([])
+  const [repairOptions, setRepairOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [filters, setFilters] = useState({})
@@ -43,7 +44,17 @@ export default function VisitList() {
 
   useEffect(() => {
     loadData()
+    loadRepairOptions()
   }, [filters])
+
+  const loadRepairOptions = async () => {
+    try {
+      const list = await repairApi.getSimpleList()
+      setRepairOptions(list || [])
+    } catch (error) {
+      console.error('加载返修单失败:', error)
+    }
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -258,8 +269,16 @@ export default function VisitList() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="repair_order_id" label="关联返修单ID" rules={[{ required: true, message: '请输入关联返修单ID' }]}>
-            <Input type="number" />
+          <Form.Item name="repair_order_id" label="关联返修单" rules={[{ required: true, message: '请选择关联返修单' }]}>
+            <Select
+              showSearch
+              placeholder="选择返修单"
+              optionFilterProp="label"
+              options={repairOptions.map(r => ({
+                value: r.id,
+                label: `${r.repair_no} - ${r.customer_name} (${r.store_name})`,
+              }))}
+            />
           </Form.Item>
           <Form.Item name="visitor" label="回访员">
             <Input />
