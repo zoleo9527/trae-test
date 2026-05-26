@@ -33,6 +33,7 @@ export default function Dashboard() {
     getPendingExceptionsCount,
     getPendingLedgerCount,
     getPendingFinanceCount,
+    getLedgerById,
   } = useStore();
 
   const filteredLedger = getFilteredLedger();
@@ -225,47 +226,60 @@ export default function Dashboard() {
           </Card.Header>
           <Card.Content className="p-0">
             <div className="divide-y divide-gray-100">
-              {recentExceptions.map((exception) => (
-                <div
-                  key={exception.id}
-                  className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/exceptions/${exception.id}`)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className={cn(
-                        'p-2 rounded-lg mt-0.5',
-                        exception.type === 'environment' ? 'bg-green-100' :
-                        exception.type === 'equipment' ? 'bg-blue-100' :
-                        exception.type === 'quality' ? 'bg-yellow-100' :
-                        'bg-red-100'
-                      )}>
-                        <AlertTriangle className={cn(
-                          'w-4 h-4',
-                          exception.type === 'environment' ? 'text-green-600' :
-                          exception.type === 'equipment' ? 'text-blue-600' :
-                          exception.type === 'quality' ? 'text-yellow-600' :
-                          'text-red-600'
-                        )} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{exception.title}</span>
-                          <Badge variant={getStatusBadgeVariant(exception.status)}>
-                            {exceptionStatusLabels[exception.status]}
-                          </Badge>
+              {recentExceptions.map((exception) => {
+                const relatedLedger = exception.relatedLedgerId 
+                  ? getLedgerById(exception.relatedLedgerId) 
+                  : undefined;
+                return (
+                  <div
+                    key={exception.id}
+                    className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/exceptions/${exception.id}`)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          'p-2 rounded-lg mt-0.5',
+                          exception.type === 'environment' ? 'bg-green-100' :
+                          exception.type === 'equipment' ? 'bg-blue-100' :
+                          exception.type === 'quality' ? 'bg-yellow-100' :
+                          'bg-red-100'
+                        )}>
+                          <AlertTriangle className={cn(
+                            'w-4 h-4',
+                            exception.type === 'environment' ? 'text-green-600' :
+                            exception.type === 'equipment' ? 'text-blue-600' :
+                            exception.type === 'quality' ? 'text-yellow-600' :
+                            'text-red-600'
+                          )} />
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {exceptionTypeLabels[exception.type]} · {exception.reporterName}
-                        </p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">{exception.title}</span>
+                            <Badge variant={getStatusBadgeVariant(exception.status)}>
+                              {exceptionStatusLabels[exception.status]}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {exceptionTypeLabels[exception.type]} · {exception.reporterName}
+                          </p>
+                          {relatedLedger && (
+                            <p className="text-xs text-blue-600 mt-1" onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/ledger/${relatedLedger.id}`);
+                            }}>
+                              关联台账：{relatedLedger.recordNo} →
+                            </p>
+                          )}
+                        </div>
                       </div>
+                      <p className="text-xs text-gray-500 whitespace-nowrap">
+                        {format(new Date(exception.createdAt), 'MM-dd HH:mm', { locale: zhCN })}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500 whitespace-nowrap">
-                      {format(new Date(exception.createdAt), 'MM-dd HH:mm', { locale: zhCN })}
-                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {recentExceptions.length === 0 && (
                 <div className="px-6 py-8 text-center text-gray-500">
                   暂无异常记录

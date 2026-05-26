@@ -221,7 +221,8 @@ export const useStore = create<AppState>((set, get) => ({
               handlerId: userId,
               handlerName: userName,
               updatedAt: now,
-              resolvedAt: status === 'resolved' || status === 'rejected' || status === 'closed' ? now : e.resolvedAt,
+              processingAt: status === 'processing' ? now : e.processingAt,
+              resolvedAt: status === 'resolved' ? now : e.resolvedAt,
               comments: comment
                 ? [
                     ...e.comments,
@@ -238,7 +239,7 @@ export const useStore = create<AppState>((set, get) => ({
                 ...e.operationLogs,
                 {
                   id: `elog-${Date.now()}`,
-                  action: status === 'processing' ? '开始处理' : status === 'resolved' ? '标记已解决' : status === 'rejected' ? '驳回异常' : `状态更新为${status}`,
+                  action: status === 'processing' ? '开始处理' : status === 'resolved' ? '标记已解决' : status === 'rejected' ? '驳回异常' : status === 'closed' ? '关闭异常' : `状态更新为${status}`,
                   userId,
                   userName,
                   oldValue: e.status,
@@ -336,40 +337,41 @@ export const useStore = create<AppState>((set, get) => ({
 
       const relatedLedger = state.ledgerRecords.find((r) => r.id === financeRecord.ledgerId);
       
+      if (!relatedLedger) return state;
+      if (relatedLedger.status === 'pending') return state;
+
       return {
         financeRecords: state.financeRecords.map((f) =>
           f.id === id
             ? {
                 ...f,
-                status: 'reconciled',
+                status: 'reconciled' as const,
                 reconciledBy,
                 reconciledAt: now,
               }
             : f
         ),
-        ledgerRecords: relatedLedger && relatedLedger.status === 'verified'
-          ? state.ledgerRecords.map((r) =>
-              r.id === financeRecord.ledgerId
-                ? {
-                    ...r,
-                    status: 'reconciled',
-                    reconciledAt: now,
-                    operationLogs: [
-                      ...r.operationLogs,
-                      {
-                        id: `log-${Date.now()}`,
-                        action: '状态更新为reconciled',
-                        userId: reconciledBy,
-                        userName: reconciledBy,
-                        oldValue: r.status,
-                        newValue: 'reconciled',
-                        createdAt: now,
-                      },
-                    ],
-                  }
-                : r
-            )
-          : state.ledgerRecords,
+        ledgerRecords: state.ledgerRecords.map((r) =>
+          r.id === financeRecord.ledgerId && r.status !== 'reconciled' && r.status !== 'settled'
+            ? {
+                ...r,
+                status: 'reconciled' as const,
+                reconciledAt: now,
+                operationLogs: [
+                  ...r.operationLogs,
+                  {
+                    id: `log-${Date.now()}`,
+                    action: '状态更新为reconciled',
+                    userId: reconciledBy,
+                    userName: reconciledBy,
+                    oldValue: r.status,
+                    newValue: 'reconciled',
+                    createdAt: now,
+                  },
+                ],
+              }
+            : r
+        ),
       };
     });
   },
@@ -380,12 +382,17 @@ export const useStore = create<AppState>((set, get) => ({
       const financeRecord = state.financeRecords.find((f) => f.id === id);
       if (!financeRecord) return state;
 
+      const relatedLedger = state.ledgerRecords.find((r) => r.id === financeRecord.ledgerId);
+      
+      if (!relatedLedger) return state;
+      if (relatedLedger.status === 'pending' || relatedLedger.status === 'verified') return state;
+
       return {
         financeRecords: state.financeRecords.map((f) =>
           f.id === id
             ? {
                 ...f,
-                status: 'settled',
+                status: 'settled' as const,
                 settledAt: now,
                 difference,
                 differenceNote,
@@ -393,10 +400,10 @@ export const useStore = create<AppState>((set, get) => ({
             : f
         ),
         ledgerRecords: state.ledgerRecords.map((r) =>
-          r.id === financeRecord.ledgerId
+          r.id === financeRecord.ledgerId && r.status !== 'settled'
             ? {
                 ...r,
-                status: 'settled',
+                status: 'settled' as const,
                 settledAt: now,
                 operationLogs: [
                   ...r.operationLogs,

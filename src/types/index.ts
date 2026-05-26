@@ -51,6 +51,7 @@ export interface ExceptionRecord {
   relatedLedgerId?: string;
   createdAt: string;
   updatedAt: string;
+  processingAt?: string;
   resolvedAt?: string;
   comments: Comment[];
   operationLogs: OperationLog[];

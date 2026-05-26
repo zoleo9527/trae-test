@@ -312,8 +312,9 @@ export default function ExceptionDetail() {
               <Card.Content className="space-y-4">
                 {[
                   { key: 'pending', label: '已上报', time: exception.createdAt, done: true },
-                  { key: 'processing', label: '处理中', time: exception.status === 'pending' ? undefined : exception.updatedAt, done: exception.status !== 'pending' },
-                  { key: 'resolved', label: '已解决', time: exception.resolvedAt, done: exception.status === 'resolved' || exception.status === 'closed' },
+                  { key: 'processing', label: '处理中', time: exception.processingAt, done: exception.status === 'processing' || exception.status === 'resolved' || exception.status === 'rejected' || exception.status === 'closed' },
+                  { key: 'resolved', label: '已解决', time: exception.resolvedAt, done: exception.status === 'resolved' },
+                  { key: 'rejected', label: '已驳回', time: exception.resolvedAt, done: exception.status === 'rejected' },
                 ].map((step, index, arr) => (
                   <div key={step.key} className="flex items-start gap-3">
                     <div className="relative">
