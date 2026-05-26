@@ -12,6 +12,14 @@ type Worker struct {
 	DB *sql.DB
 }
 
+type job struct {
+	ID       int64
+	Kind     string
+	TargetID int64
+	Payload  string
+	Attempts int
+}
+
 func New(db *sql.DB) *Worker { return &Worker{DB: db} }
 
 func (w *Worker) Run(ctx context.Context) {
@@ -37,13 +45,6 @@ func (w *Worker) process(ctx context.Context) error {
 		return err
 	}
 	defer rows.Close()
-	type job struct {
-		ID       int64
-		Kind     string
-		TargetID int64
-		Payload  string
-		Attempts int
-	}
 	jobs := []job{}
 	for rows.Next() {
 		var j job

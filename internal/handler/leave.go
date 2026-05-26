@@ -114,9 +114,9 @@ func (h *Handler) ApproveLeave(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not pending"})
 	}
 
-	var coursesUsed int
+	var coursesUsedOld int
 	if req.ApplyDeduct {
-		if err := tx.QueryRowContext(h.ctx(), `SELECT courses_used FROM members WHERE id=$1 FOR UPDATE`, old.MemberID).Scan(&coursesUsed); err != nil {
+		if err := tx.QueryRowContext(h.ctx(), `SELECT courses_used FROM members WHERE id=$1 FOR UPDATE`, old.MemberID).Scan(&coursesUsedOld); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
 		if _, err := tx.ExecContext(h.ctx(), `UPDATE members SET courses_used = courses_used + $1 WHERE id=$2`, req.CourseDeduct, old.MemberID); err != nil {
@@ -125,9 +125,13 @@ func (h *Handler) ApproveLeave(c *fiber.Ctx) error {
 	}
 
 	now := time.Now().UTC()
+	deduct := req.CourseDeduct
+	if !req.ApplyDeduct {
+		deduct = 0
+	}
 	if _, err := tx.ExecContext(h.ctx(),
 		`UPDATE leave_requests SET status='approved', approver_id=$1, approved_at=$2, course_deduct=$3, updated_at=$4 WHERE id=$5`,
-		auth.Current(c).UserID, now, req.CourseDeduct, now, id); err != nil {
+		auth.Current(c).UserID, now, deduct, now, id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if err := tx.Commit(); err != nil {
@@ -135,7 +139,12 @@ func (h *Handler) ApproveLeave(c *fiber.Ctx) error {
 	}
 
 	oldM := map[string]any{"status": old.Status, "course_deduct": old.CourseDeduct, "approver_id": old.ApproverID, "approved_at": old.ApprovedAt}
-	newM := map[string]any{"status": "approved", "course_deduct": req.CourseDeduct, "approver_id": auth.Current(c).UserID, "approved_at": now, "member_courses_used_add": req.CourseDeduct}
+	newM := map[string]any{"status": "approved", "course_deduct": deduct, "approver_id": auth.Current(c).UserID, "approved_at": now, "apply_deduct": req.ApplyDeduct}
+	if req.ApplyDeduct {
+		newM["member_courses_used_old"] = coursesUsedOld
+		newM["member_courses_used_add"] = req.CourseDeduct
+		newM["member_courses_used_new"] = coursesUsedOld + req.CourseDeduct
+	}
 	_ = h.Audit.Record(h.ctx(), "leave_request", int64(id), "approve", oldM, newM, auth.Current(c).UserID, auth.Current(c).Name)
 	h.enqueue("leave_approved", int64(id), fmt.Sprintf(`{"member_id":%d,"leave_id":%d}`, old.MemberID, id))
 	return c.JSON(fiber.Map{"ok": true})
@@ -171,10 +180,25 @@ func (h *Handler) RejectLeave(c *fiber.Ctx) error {
 
 func (h *Handler) CancelLeave(c *fiber.Ctx) error {
 	id := c.ParamsInt("id", 0)
+	var old model.LeaveRequest
+	err := h.DB.QueryRowContext(h.ctx(),
+		`SELECT id, member_id, start_date, end_date, reason, status, course_deduct, approver_id, approved_at, reject_reason, created_by, created_at, updated_at
+		 FROM leave_requests WHERE id=$1`, id).
+		Scan(&old.ID, &old.MemberID, &old.StartDate, &old.EndDate, &old.Reason, &old.Status, &old.CourseDeduct, &old.ApproverID, &old.ApprovedAt, &old.RejectReason, &old.CreatedBy, &old.CreatedAt, &old.UpdatedAt)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
+	}
+	if old.Status != model.LeavePending {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not pending"})
+	}
+	now := time.Now().UTC()
 	if _, err := h.DB.ExecContext(h.ctx(),
 		`UPDATE leave_requests SET status='cancelled', updated_at=$1 WHERE id=$2 AND status='pending'`,
-		time.Now().UTC(), id); err != nil {
+		now, id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	oldM := map[string]any{"status": old.Status}
+	newM := map[string]any{"status": "cancelled", "cancelled_at": now}
+	_ = h.Audit.Record(h.ctx(), "leave_request", int64(id), "cancel", oldM, newM, auth.Current(c).UserID, auth.Current(c).Name)
 	return c.JSON(fiber.Map{"ok": true})
 }
