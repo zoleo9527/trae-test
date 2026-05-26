@@ -27,6 +27,19 @@ function openIncident(tid: string) {
   const list = incidentStore.forTask(tid);
   if (list.length) drawer.openIncident(list[0].id);
 }
+function reportIncident(tid: string) {
+  const actor = auth.currentUser!.name;
+  const incident = incidentStore.create({
+    taskId: tid,
+    type: 'progress',
+    severity: 'medium',
+    title: '机手上报异常',
+    description: '请在抽屉内补充具体异常细节。',
+    reporterId: auth.currentUser!.id,
+  });
+  taskStore.setIncident(tid, actor);
+  drawer.openIncident(incident.id);
+}
 </script>
 
 <template>
@@ -84,14 +97,7 @@ function openIncident(tid: string) {
           </button>
           <button
             class="btn-ghost"
-            @click="drawer.openIncident(incidentStore.create({
-              taskId: t.id,
-              type: 'progress',
-              severity: 'medium',
-              title: '机手上报异常',
-              description: '请在抽屉内补充具体异常细节。',
-              reporterId: auth.currentUser!.id,
-            }).id)"
+            @click="reportIncident(t.id)"
           >
             上报异常
           </button>

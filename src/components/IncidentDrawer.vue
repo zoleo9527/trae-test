@@ -99,7 +99,13 @@ function handle(action: string) {
   const actor = auth.currentUser?.name ?? '系统';
   if (action === 'resolve') {
     incidentStore.resolve(incident.value.id, actor, note.value || undefined);
-    task.value && taskStore.addTimeline(task.value.id, actor, '异常处理完成', note.value || undefined);
+    if (task.value) {
+      taskStore.addTimeline(task.value.id, actor, '异常处理完成', note.value || undefined);
+      const remaining = incidentStore.forTask(task.value.id).filter(i => !i.resolved);
+      if (remaining.length === 0 && task.value.status === 'incident') {
+        taskStore.restoreFromIncident(task.value.id, actor);
+      }
+    }
   } else {
     incidentStore.handle(incident.value.id, actor, action, note.value || undefined);
     task.value && taskStore.addTimeline(task.value.id, actor, action, note.value || undefined);

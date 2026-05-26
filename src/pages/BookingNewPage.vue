@@ -26,23 +26,27 @@ const conflictMsg = ref('');
 
 function submit() {
   conflictMsg.value = '';
+  const expectedAtIso = new Date(expectedAt.value).toISOString();
   const payload = {
     plotId: plotId.value,
     crop: crop.value,
     area: Number(area.value),
     machineType: machineType.value,
     durationHours: Number(durationHours.value),
-    expectedAt: new Date(expectedAt.value).toISOString(),
+    expectedAt: expectedAtIso,
     notes: notes.value,
   } as const;
-  const created = taskStore.createTask(payload);
+
   if (chosenOperatorId.value) {
-    try {
-      taskStore.assignOperator(created.id, chosenOperatorId.value, auth.currentUser!.name);
-    } catch (e: any) {
-      conflictMsg.value = e?.message || '派单失败';
+    if (taskStore.hasConflict(chosenOperatorId.value, expectedAtIso, payload.durationHours)) {
+      conflictMsg.value = '该机手该时段已有任务，存在冲突';
       return;
     }
+  }
+
+  const created = taskStore.createTask(payload);
+  if (chosenOperatorId.value) {
+    taskStore.assignOperator(created.id, chosenOperatorId.value, auth.currentUser!.name);
   }
   router.push('/bookings');
 }

@@ -111,13 +111,51 @@ export const useTaskStore = defineStore('task', () => {
     t.timeline.push({ at: new Date().toISOString(), actor, action, note });
   }
 
+  function restoreFromIncident(taskId: string, actor: string): void {
+    const t = getTask(taskId);
+    if (!t || t.status !== 'incident') return;
+    const statusActions: Record<string, TaskStatus> = {
+      '创建作业预约': 'pending',
+      '派单给机手': 'assigned',
+      '机手确认接受任务': 'confirmed',
+      '开始作业': 'in_progress',
+      '完成作业': 'completed',
+    };
+    let prev: TaskStatus = 'pending';
+    for (const e of t.timeline) {
+      if (e.action === '标记为异常') break;
+      if (statusActions[e.action] !== undefined) prev = statusActions[e.action];
+    }
+    t.status = prev;
+    t.timeline.push({
+      at: new Date().toISOString(),
+      actor,
+      action: '异常已处理，恢复为' + statusLabel[prev],
+    });
+  }
+
+  function deleteTask(taskId: string) {
+    const idx = tasks.value.findIndex(t => t.id === taskId);
+    if (idx >= 0) tasks.value.splice(idx, 1);
+  }
+
   function machineTypeLabel(t: MachineType) {
     return { tractor: '旋耕机', combine: '联合收割机', sprayer: '植保机', transplanter: '插秧机' }[t];
   }
 
+  const statusLabel: Record<TaskStatus, string> = {
+    pending: '待派单',
+    assigned: '已派单',
+    confirmed: '已确认',
+    in_progress: '作业中',
+    completed: '已完成',
+    incident: '异常',
+  };
+
   return {
     tasks, tasksSorted, statusGroups, todayTasks, waitingForOperator,
     hasConflict, getTask, createTask, assignOperator, confirmTask,
-    startTask, completeTask, setIncident, addTimeline, machineTypeLabel,
+    startTask, completeTask, setIncident, addTimeline, restoreFromIncident,
+    deleteTask, machineTypeLabel,
   };
 });
