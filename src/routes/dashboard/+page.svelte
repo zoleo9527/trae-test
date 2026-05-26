@@ -94,6 +94,10 @@
       <div>没有需要你处理的任务</div>
       <div class="empty-hint">可切换到「查看全部」浏览历史任务</div>
     </div>
+  {:else if $filteredRelays.length === 0 && directorView}
+    <RelayList emptyHint="试试调整筛选条件，查看不同范围的任务数据" />
+  {:else if $filteredRelays.length === 0 && !$focusMode}
+    <RelayList emptyHint="可点「回到聚焦」回到待处理列表，或调整筛选条件" />
   {:else}
     <RelayList />
   {/if}

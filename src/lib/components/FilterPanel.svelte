@@ -14,7 +14,7 @@
 
   $: focusLabel = $currentRole === 'director'
     ? '理事查看全部任务'
-    : $focus
+    : $focusMode
       ? '聚焦待处理'
       : '查看全部';
 
@@ -91,13 +91,13 @@
         <span class="focus-slider"></span>
       </label>
       <span class="focus-label">
-        {#if $focus}
+        {#if $focusMode}
           <b>聚焦待处理</b> · 只显示需要你操作的任务
         {:else}
           查看全部任务
         {/if}
       </span>
-      {#if $focus}
+      {#if $focusMode}
         <button class="show-all-link" on:click={() => ($focusMode = false)} type="button">切换到全部 →</button>
       {:else}
         <button class="show-all-link" on:click={() => ($focusMode = true)} type="button">← 回到聚焦</button>

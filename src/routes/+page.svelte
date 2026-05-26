@@ -1,13 +1,14 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { ROLES } from '$lib/data/seed';
-  import { currentRole } from '$lib/stores/app';
+  import { currentRole, focusMode } from '$lib/stores/app';
   import type { Role } from '$lib/types';
 
   let selectedRole: Role = 'dispatcher';
 
   function login() {
     currentRole.set(selectedRole);
+    focusMode.set(true);
     goto('/dashboard');
   }
 </script>

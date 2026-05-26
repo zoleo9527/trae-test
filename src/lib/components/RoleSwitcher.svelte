@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { currentRole } from '$lib/stores/app';
+  import { currentRole, focusMode } from '$lib/stores/app';
   import { ROLES } from '$lib/data/seed';
   import { goto } from '$app/navigation';
 
   function switchRole(id) {
     currentRole.set(id);
+    focusMode.set(true);
     goto('/dashboard');
   }
 </script>
