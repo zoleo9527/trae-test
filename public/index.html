@@ -397,7 +397,7 @@
           <td>${s.location}</td>
           <td><span class="status-tag ${s.status === 'AVAILABLE' ? 'status-completed' : 'status-borrowed'}">${s.status === 'AVAILABLE' ? '可借出' : '借出中'}</span></td>
           <td class="action-buttons">
-            <button class="btn btn-primary" onclick="showBorrowFromSample('${s.id}', '${s.name}')">借出</button>
+            ${s.status === 'AVAILABLE' ? `<button class="btn btn-primary" onclick="showBorrowFromSample('${s.id}', '${s.name}')">借出</button>` : `<span class="text-muted text-sm">不可操作</span>`}
           </td>
         </tr>`).join('');
     }

@@ -55,8 +55,14 @@ router.get('/:id', async (req: Request, res: Response) => {
     return res.status(404).json({ code: 404, message: '记录不存在' });
   }
 
+  const auditConditions: any[] = [{ entityType: 'SampleBorrow', entityId: req.params.id }];
+
+  if (borrow.returnRecord) {
+    auditConditions.push({ entityType: 'SampleReturn', entityId: borrow.returnRecord.id });
+  }
+
   const auditLogs = await prisma.auditLog.findMany({
-    where: { entityType: 'SampleBorrow', entityId: req.params.id },
+    where: { OR: auditConditions },
     orderBy: { createdAt: 'desc' },
     include: { user: { select: { name: true } } },
   });

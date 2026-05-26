@@ -9,8 +9,8 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
-    "seed": "npx --no-install ts-node prisma/seed.ts",
-    "demo": "npx --no-install ts-node prisma/demo-data.ts",
+    "seed": "npx ts-node prisma/seed.ts",
+    "demo": "npx ts-node prisma/demo-data.ts",
     "init": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run seed && npm run demo"
   },
   "dependencies": {
