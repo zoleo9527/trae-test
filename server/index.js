@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
+const { ensureSortOrderColumn } = require('./db/migrate');
+
 const customerRoutes = require('./routes/customers');
 const trialRoutes = require('./routes/trials');
 const followupRoutes = require('./routes/followups');
@@ -12,6 +14,8 @@ const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+ensureSortOrderColumn();
 
 app.use(cors());
 app.use(express.json());

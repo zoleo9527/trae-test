@@ -94,55 +94,17 @@ const seedData = () => {
   );
   trials.forEach(t => insertTrial.run(t.id, t.customer_id, t.product_id, t.trial_quantity, t.trial_date, t.assigned_staff_id, t.status, t.feedback, t.satisfaction_score, now, now));
 
+  const today = dayjs().format('YYYY-MM-DD');
+  const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
+  const dayAfterTomorrow = dayjs().add(2, 'day').format('YYYY-MM-DD');
+
   const followups = [
     {
       id: 'follow_001',
       trial_id: 'trial_001',
       customer_id: 'cust_001',
       assigned_staff_id: 'staff_002',
-      scheduled_date: dayjs().subtract(5, 'day').format('YYYY-MM-DD'),
-      scheduled_time: '14:00',
-      followup_type: 'phone',
-      status: 'completed',
-      actual_date: dayjs().subtract(5, 'day').format('YYYY-MM-DD'),
-      content: '电话回访试饮感受，确认订购意向',
-      result: '客户表示满意，有意向首批订购10罐',
-      next_followup_date: dayjs().add(2, 'day').format('YYYY-MM-DD'),
-    },
-    {
-      id: 'follow_002',
-      trial_id: 'trial_001',
-      customer_id: 'cust_001',
-      assigned_staff_id: 'staff_002',
-      scheduled_date: dayjs().add(2, 'day').format('YYYY-MM-DD'),
-      scheduled_time: '10:00',
-      followup_type: 'visit',
-      status: 'pending',
-      actual_date: null,
-      content: null,
-      result: null,
-      next_followup_date: null,
-    },
-    {
-      id: 'follow_003',
-      trial_id: 'trial_002',
-      customer_id: 'cust_002',
-      assigned_staff_id: 'staff_002',
-      scheduled_date: dayjs().subtract(2, 'day').format('YYYY-MM-DD'),
-      scheduled_time: '15:30',
-      followup_type: 'wechat',
-      status: 'completed',
-      actual_date: dayjs().subtract(2, 'day').format('YYYY-MM-DD'),
-      content: '微信发送优惠活动信息',
-      result: '客户表示需要考虑，暂不下单',
-      next_followup_date: dayjs().add(7, 'day').format('YYYY-MM-DD'),
-    },
-    {
-      id: 'follow_004',
-      trial_id: 'trial_003',
-      customer_id: 'cust_003',
-      assigned_staff_id: 'staff_003',
-      scheduled_date: dayjs().add(1, 'day').format('YYYY-MM-DD'),
+      scheduled_date: today,
       scheduled_time: '09:00',
       followup_type: 'phone',
       status: 'pending',
@@ -150,13 +112,59 @@ const seedData = () => {
       content: null,
       result: null,
       next_followup_date: null,
+      sort_order: 0,
+    },
+    {
+      id: 'follow_002',
+      trial_id: 'trial_001',
+      customer_id: 'cust_001',
+      assigned_staff_id: 'staff_002',
+      scheduled_date: today,
+      scheduled_time: '10:30',
+      followup_type: 'visit',
+      status: 'pending',
+      actual_date: null,
+      content: null,
+      result: null,
+      next_followup_date: null,
+      sort_order: 1,
+    },
+    {
+      id: 'follow_003',
+      trial_id: 'trial_002',
+      customer_id: 'cust_002',
+      assigned_staff_id: 'staff_002',
+      scheduled_date: today,
+      scheduled_time: '14:00',
+      followup_type: 'wechat',
+      status: 'pending',
+      actual_date: null,
+      content: null,
+      result: null,
+      next_followup_date: null,
+      sort_order: 2,
+    },
+    {
+      id: 'follow_004',
+      trial_id: 'trial_003',
+      customer_id: 'cust_003',
+      assigned_staff_id: 'staff_003',
+      scheduled_date: tomorrow,
+      scheduled_time: '09:00',
+      followup_type: 'phone',
+      status: 'pending',
+      actual_date: null,
+      content: null,
+      result: null,
+      next_followup_date: null,
+      sort_order: 0,
     },
     {
       id: 'follow_005',
       trial_id: 'trial_003',
       customer_id: 'cust_003',
       assigned_staff_id: 'staff_003',
-      scheduled_date: dayjs().add(4, 'day').format('YYYY-MM-DD'),
+      scheduled_date: dayAfterTomorrow,
       scheduled_time: '14:00',
       followup_type: 'visit',
       status: 'pending',
@@ -164,13 +172,29 @@ const seedData = () => {
       content: null,
       result: null,
       next_followup_date: null,
+      sort_order: 0,
+    },
+    {
+      id: 'follow_006',
+      trial_id: 'trial_004',
+      customer_id: 'cust_004',
+      assigned_staff_id: 'staff_003',
+      scheduled_date: dayjs().add(3, 'day').format('YYYY-MM-DD'),
+      scheduled_time: '10:00',
+      followup_type: 'phone',
+      status: 'pending',
+      actual_date: null,
+      content: null,
+      result: null,
+      next_followup_date: null,
+      sort_order: 0,
     },
   ];
 
   const insertFollowup = db.prepare(
-    'INSERT OR IGNORE INTO followup_tasks (id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status, actual_date, content, result, next_followup_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT OR IGNORE INTO followup_tasks (id, trial_id, customer_id, assigned_staff_id, scheduled_date, scheduled_time, followup_type, status, actual_date, content, result, next_followup_date, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  followups.forEach(f => insertFollowup.run(f.id, f.trial_id, f.customer_id, f.assigned_staff_id, f.scheduled_date, f.scheduled_time, f.followup_type, f.status, f.actual_date, f.content, f.result, f.next_followup_date, now, now));
+  followups.forEach(f => insertFollowup.run(f.id, f.trial_id, f.customer_id, f.assigned_staff_id, f.scheduled_date, f.scheduled_time, f.followup_type, f.status, f.actual_date, f.content, f.result, f.next_followup_date, f.sort_order, now, now));
 
   const orders = [
     {
