@@ -97,10 +97,10 @@ export const useReviewStore = defineStore('review', () => {
         const alertStore = useAlertStore()
         await alertStore.loadAlerts()
         const relatedAlerts = alertStore.alerts.filter(
-          a => a.type === 'bad_review' && a.relatedId === id && a.status === 'unread'
+          a => a.type === 'bad_review' && a.relatedId === id && a.status !== 'handled'
         )
         for (const alert of relatedAlerts) {
-          await alertStore.markAsRead(alert.id)
+          await alertStore.markAsHandled(alert.id, operator, '已回复评价')
         }
       }
     }

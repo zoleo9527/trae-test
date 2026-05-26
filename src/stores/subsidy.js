@@ -4,6 +4,8 @@ import { storage } from '../utils/storage'
 import { addHistoryLog } from './history'
 import { useAlertStore } from './alert'
 
+const REQUIRED_MATERIALS = ['作业单', '验收单', '身份证复印件']
+
 export const useSubsidyStore = defineStore('subsidy', () => {
   const records = ref([])
   const loading = ref(false)
@@ -17,10 +19,19 @@ export const useSubsidyStore = defineStore('subsidy', () => {
     loading.value = false
   }
 
+  function calculateMissingDocs(materials = []) {
+    return REQUIRED_MATERIALS.filter(m => !materials.includes(m))
+  }
+
   async function addRecord(record, operator) {
+    const materials = record.materials || []
+    const missingDocs = record.missingDocs || calculateMissingDocs(materials)
+    
     const newRecord = {
       id: 's' + Date.now(),
       ...record,
+      materials,
+      missingDocs,
       status: 'pending',
       approveDate: null,
       createBy: operator.id
@@ -33,16 +44,15 @@ export const useSubsidyStore = defineStore('subsidy', () => {
       action: 'create',
       targetId: newRecord.id,
       targetName: `${record.plotName}补贴申请`,
-      content: `提交补贴申请，金额：${record.amount}元`,
+      content: `提交补贴申请，金额：${record.amount}元，已交材料：${materials.length > 0 ? materials.join('、') : '无'}`,
       operatorId: operator.id,
       operatorName: operator.name
     })
 
     const alertStore = useAlertStore()
+    await alertStore.loadAlerts()
     
-    if (record.missingDocs && record.missingDocs.length > 0) {
-      await alertStore.loadAlerts()
-      
+    if (missingDocs.length > 0) {
       const existingAlert = alertStore.alerts.find(
         a => a.type === 'material' && a.relatedId === newRecord.id
       )
@@ -50,7 +60,7 @@ export const useSubsidyStore = defineStore('subsidy', () => {
         await alertStore.addAlert({
           type: 'material',
           title: '补贴材料缺失',
-          content: `${record.plotName}的补贴申请缺少以下材料：${record.missingDocs.join('、')}`,
+          content: `${record.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
           relatedId: newRecord.id,
           relatedType: 'subsidy',
           assignee: operator.id
@@ -61,7 +71,7 @@ export const useSubsidyStore = defineStore('subsidy', () => {
           action: 'create',
           targetId: `material-${newRecord.id}`,
           targetName: '补贴材料缺失提醒',
-          content: `系统自动生成材料缺失提醒：${record.plotName}`,
+          content: `系统自动生成材料缺失提醒：${record.plotName}，缺少${missingDocs.length}项材料`,
           operatorId: 'system',
           operatorName: '系统'
         })
@@ -75,8 +85,17 @@ export const useSubsidyStore = defineStore('subsidy', () => {
     const index = records.value.findIndex(r => r.id === id)
     if (index !== -1) {
       const oldRecord = records.value[index]
-      records.value[index] = { ...oldRecord, ...updates }
+      
+      const finalUpdates = { ...updates }
+      if (finalUpdates.materials !== undefined) {
+        finalUpdates.missingDocs = calculateMissingDocs(finalUpdates.materials)
+      }
+      
+      records.value[index] = { ...oldRecord, ...finalUpdates }
       await storage.set('subsidyRecords', records.value)
+
+      const alertStore = useAlertStore()
+      await alertStore.loadAlerts()
 
       if (operator && updates.status) {
         const statusMap = { pending: '待审核', approved: '已通过', rejected: '已驳回' }
@@ -101,41 +120,51 @@ export const useSubsidyStore = defineStore('subsidy', () => {
             operatorName: operator.name
           })
           
-          const alertStore = useAlertStore()
-          await alertStore.loadAlerts()
-          const pendingAlerts = alertStore.alerts.filter(
-            a => a.type === 'material' && a.relatedId === id && a.status === 'unread'
+          const relatedAlerts = alertStore.alerts.filter(
+            a => a.type === 'material' && a.relatedId === id && a.status !== 'handled'
           )
-          for (const alert of pendingAlerts) {
-            await alertStore.markAsRead(alert.id)
+          for (const alert of relatedAlerts) {
+            await alertStore.markAsRead(alert.id, operator)
           }
         }
       }
 
-      if (operator && updates.missingDocs) {
-        const alertStore = useAlertStore()
-        await alertStore.loadAlerts()
+      if (operator && finalUpdates.materials !== undefined) {
+        const missingDocs = finalUpdates.missingDocs || []
         
-        if (updates.missingDocs.length === 0) {
-          const existingAlert = alertStore.alerts.find(
-            a => a.type === 'material' && a.relatedId === id && a.status === 'unread'
-          )
-          if (existingAlert) {
-            await alertStore.markAsRead(existingAlert.id)
+        const existingAlert = alertStore.alerts.find(
+          a => a.type === 'material' && a.relatedId === id
+        )
+        
+        if (missingDocs.length === 0) {
+          if (existingAlert && existingAlert.status !== 'handled') {
+            await alertStore.markAsHandled(existingAlert.id, operator, '材料已补齐')
           }
         } else {
-          const existingAlert = alertStore.alerts.find(
-            a => a.type === 'material' && a.relatedId === id
-          )
           if (!existingAlert) {
             await alertStore.addAlert({
               type: 'material',
-              title: '补贴材料仍缺失',
-              content: `${oldRecord.plotName}的补贴申请仍缺少：${updates.missingDocs.join('、')}`,
+              title: '补贴材料缺失',
+              content: `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`,
               relatedId: id,
               relatedType: 'subsidy',
               assignee: operator.id
             })
+            
+            await addHistoryLog({
+              type: 'alert',
+              action: 'create',
+              targetId: `material-${id}`,
+              targetName: '补贴材料缺失提醒',
+              content: `系统自动生成材料缺失提醒：${oldRecord.plotName}`,
+              operatorId: 'system',
+              operatorName: '系统'
+            })
+          } else if (existingAlert.status !== 'handled') {
+            existingAlert.content = `${oldRecord.plotName}的补贴申请缺少以下材料：${missingDocs.join('、')}`
+            existingAlert.createTime = new Date().toLocaleString('zh-CN')
+            existingAlert.status = 'unread'
+            await alertStore.addAlert(existingAlert)
           }
         }
       }

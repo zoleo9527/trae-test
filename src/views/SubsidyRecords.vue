@@ -51,7 +51,11 @@
             <td>{{ record.applyDate }}</td>
             <td>
               <div class="material-tags">
-                <span v-for="m in record.materials" :key="m" class="material-tag">{{ m }}</span>
+                <span v-for="m in record.materials" :key="m" class="material-tag has">{{ m }}</span>
+              </div>
+              <div v-if="record.missingDocs && record.missingDocs.length > 0" class="missing-docs">
+                <span class="missing-label">缺失:</span>
+                <span v-for="m in record.missingDocs" :key="m" class="material-tag missing">{{ m }}</span>
               </div>
             </td>
             <td>
@@ -281,6 +285,30 @@ onMounted(async () => {
   border-radius: 4px;
   font-size: 11px;
   color: #666;
+}
+
+.material-tag.has {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.material-tag.missing {
+  background: #fff1f0;
+  color: #ff4d4f;
+}
+
+.missing-docs {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.missing-label {
+  font-size: 11px;
+  color: #ff4d4f;
+  font-weight: 500;
 }
 
 .action-btns {

@@ -78,11 +78,11 @@ export const useTaskStore = defineStore('task', () => {
         if (updates.status === 'delayed') {
           await plotStore.updatePlot(oldTask.plotId, { status: 'delayed' })
           
+          await alertStore.loadAlerts()
           const existingAlert = alertStore.alerts.find(
             a => a.type === 'delay' && a.relatedId === id
           )
           if (!existingAlert) {
-            await alertStore.loadAlerts()
             await alertStore.addAlert({
               type: 'delay',
               title: '作业进度延误',
@@ -109,11 +109,12 @@ export const useTaskStore = defineStore('task', () => {
           const allCompleted = plotTasks.every(t => t.status === 'completed' || t.id === id)
           await plotStore.updatePlot(oldTask.plotId, { status: allCompleted ? 'completed' : 'progress' })
           
+          await alertStore.loadAlerts()
           const pendingAlerts = alertStore.alerts.filter(
-            a => a.type === 'delay' && a.relatedId === id && a.status === 'unread'
+            a => a.type === 'delay' && a.relatedId === id && a.status !== 'handled'
           )
           for (const alert of pendingAlerts) {
-            await alertStore.markAsRead(alert.id)
+            await alertStore.markAsRead(alert.id, operator)
           }
         }
       }

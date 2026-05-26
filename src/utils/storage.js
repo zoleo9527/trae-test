@@ -83,9 +83,9 @@ async function initDemoData() {
   ]
 
   const demoSubsidyRecords = [
-    { id: 's1', plotId: 'p1', plotName: '东大片1号', subsidyType: '农机作业补贴', amount: 3600, status: 'approved', applyDate: '2024-05-06', approveDate: '2024-05-08', materials: ['作业单', '验收单', '身份证复印件'], remark: '补贴已发放', createBy: 'u2' },
-    { id: 's2', plotId: 'p2', plotName: '西洼地2号', subsidyType: '种粮补贴', amount: 2550, status: 'pending', applyDate: '2024-05-16', approveDate: null, materials: ['作业单'], remark: '缺少验收单和身份证复印件', createBy: 'u2' },
-    { id: 's3', plotId: 'p4', plotName: '北平地4号', subsidyType: '农机作业补贴', amount: 2850, status: 'rejected', applyDate: '2024-05-13', approveDate: '2024-05-14', materials: ['作业单', '验收单'], remark: '作业未完成，暂不能申请', createBy: 'u2' }
+    { id: 's1', plotId: 'p1', plotName: '东大片1号', subsidyType: '农机作业补贴', amount: 3600, status: 'approved', applyDate: '2024-05-06', approveDate: '2024-05-08', materials: ['作业单', '验收单', '身份证复印件'], missingDocs: [], remark: '补贴已发放', createBy: 'u2' },
+    { id: 's2', plotId: 'p2', plotName: '西洼地2号', subsidyType: '种粮补贴', amount: 2550, status: 'pending', applyDate: '2024-05-16', approveDate: null, materials: ['作业单'], missingDocs: ['验收单', '身份证复印件'], remark: '缺少验收单和身份证复印件', createBy: 'u2' },
+    { id: 's3', plotId: 'p4', plotName: '北平地4号', subsidyType: '农机作业补贴', amount: 2850, status: 'rejected', applyDate: '2024-05-13', approveDate: '2024-05-14', materials: ['作业单', '验收单'], missingDocs: ['身份证复印件'], remark: '作业未完成，暂不能申请', createBy: 'u2' }
   ]
 
   const demoReviews = [
@@ -95,8 +95,8 @@ async function initDemoData() {
 
   const demoAlerts = [
     { id: 'a1', type: 'delay', title: '作业进度延误', content: '北平地4号收割作业已延误3天，机手：赵机手', relatedId: 't4', relatedType: 'task', status: 'unread', createTime: '2024-05-15 08:00', assignee: 'u2' },
-    { id: 'a2', type: 'subsidy', title: '补贴材料不齐', content: '西洼地2号补贴申请缺少验收单和身份证复印件', relatedId: 's2', relatedType: 'subsidy', status: 'unread', createTime: '2024-05-17 10:00', assignee: 'u2' },
-    { id: 'a3', type: 'review', title: '收到差评回访', content: '北平地4号作业收到2星评价，需要跟进处理', relatedId: 'r2', relatedType: 'review', status: 'read', createTime: '2024-05-15 14:00', assignee: 'u1' },
+    { id: 'a2', type: 'material', title: '补贴材料不齐', content: '西洼地2号补贴申请缺少验收单和身份证复印件', relatedId: 's2', relatedType: 'subsidy', status: 'unread', createTime: '2024-05-17 10:00', assignee: 'u2' },
+    { id: 'a3', type: 'bad_review', title: '收到差评回访', content: '北平地4号作业收到2星评价，需要跟进处理', relatedId: 'r2', relatedType: 'review', status: 'read', createTime: '2024-05-15 14:00', assignee: 'u1' },
     { id: 'a4', type: 'maintenance', title: '机械维修提醒', content: '拖拉机#003需要保养，上次保养时间：2024-03-20', relatedId: null, relatedType: 'maintenance', status: 'unread', createTime: '2024-05-18 09:00', assignee: 'u2' }
   ]
 

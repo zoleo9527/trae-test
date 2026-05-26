@@ -225,7 +225,7 @@ function getStatusText(status) {
 }
 
 function getAlertIcon(type) {
-  const icons = { delay: '⏰', subsidy: '📋', review: '💬', maintenance: '🔧' }
+  const icons = { delay: '⏰', material: '📋', bad_review: '💬', maintenance: '🔧' }
   return icons[type] || '📢'
 }
 
@@ -239,7 +239,7 @@ function goToTask(id) {
 }
 
 async function handleAlert(alert) {
-  await alertStore.markAsRead(alert.id)
+  await alertStore.markAsRead(alert.id, currentUser.value)
   toastStore.info('已标记为已读')
 }
 
@@ -386,12 +386,12 @@ onMounted(async () => {
   border-left: 3px solid #faad14;
 }
 
-.alert-subsidy {
+.alert-material {
   background: #e6f7ff;
   border-left: 3px solid #1890ff;
 }
 
-.alert-review {
+.alert-bad_review {
   background: #fff1f0;
   border-left: 3px solid #ff4d4f;
 }
