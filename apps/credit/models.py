@@ -41,8 +41,14 @@ class CreditRecord(BaseModel):
     def get_repaid_amount(self):
         return self.repayments.filter(status='approved').aggregate(total=models.Sum('amount'))['total'] or 0
 
+    def get_pending_repayments_total(self):
+        return self.repayments.filter(status='pending').aggregate(total=models.Sum('amount'))['total'] or 0
+
     def get_remaining_amount(self):
         return self.amount - self.get_repaid_amount()
+
+    def get_effective_remaining(self):
+        return self.amount - self.get_repaid_amount() - self.get_pending_repayments_total()
 
 
 class RepaymentRecord(BaseModel):

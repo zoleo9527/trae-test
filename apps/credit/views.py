@@ -81,6 +81,26 @@ class CreditRecordViewSet(viewsets.ModelViewSet):
                 {'error': '只有待确认状态的赊账才能确认'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        customer = credit.customer
+        approved_used = customer.get_approved_used_credit()
+        new_total_used = approved_used + credit.amount
+
+        if new_total_used > customer.credit_limit:
+            return Response(
+                {
+                    'error': '客户赊账额度不足，审批后将超出额度',
+                    'details': {
+                        'credit_limit': float(customer.credit_limit),
+                        'current_approved_used': float(approved_used),
+                        'current_credit_amount': float(credit.amount),
+                        'new_total_if_approved': float(new_total_used),
+                        'exceed_amount': float(new_total_used - customer.credit_limit)
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         old_values = model_to_dict(credit)
         credit.status = 'approved'
         credit.reviewed_by = request.user
@@ -225,6 +245,41 @@ class RepaymentRecordViewSet(viewsets.ModelViewSet):
                 {'error': '只有待确认状态的回款才能确认'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        credit = repayment.credit_record
+        remaining = credit.get_remaining_amount()
+        pending_total = credit.get_pending_repayments_total()
+        effective_remaining = credit.get_effective_remaining()
+
+        if repayment.amount > remaining:
+            return Response(
+                {
+                    'error': '回款金额超过当前剩余欠款，无法确认',
+                    'details': {
+                        'credit_amount': float(credit.amount),
+                        'repaid_amount': float(credit.get_repaid_amount()),
+                        'remaining_amount': float(remaining),
+                        'repayment_amount': float(repayment.amount),
+                        'exceed_amount': float(repayment.amount - remaining)
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if pending_total > remaining:
+            return Response(
+                {
+                    'error': '存在多笔待确认回款，总额将超过剩余欠款',
+                    'details': {
+                        'remaining_amount': float(remaining),
+                        'pending_total': float(pending_total),
+                        'current_repayment': float(repayment.amount),
+                        'other_pending': float(pending_total - repayment.amount)
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         old_values = model_to_dict(repayment)
         repayment.status = 'approved'
         repayment.reviewed_by = request.user
@@ -308,6 +363,74 @@ class CreditReminderViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return CreditReminderListSerializer
         return CreditReminderSerializer
+
+    def list(self, request, *args, **kwargs):
+        self._auto_sync_reminders(request)
+        return super().list(request, *args, **kwargs)
+
+    def _auto_sync_reminders(self, request):
+        today = timezone.now().date()
+        reminders = CreditReminder.objects.filter(is_handled=False).select_related('credit_record', 'customer')
+
+        for reminder in reminders:
+            updated = False
+            credit = reminder.credit_record
+
+            if credit:
+                remaining = credit.get_remaining_amount()
+                if remaining <= 0 and credit.status == 'approved':
+                    reminder.is_handled = True
+                    reminder.handled_by = request.user
+                    reminder.handled_at = timezone.now()
+                    reminder.handle_note = f'系统自动标记：赊账{credit.record_no}已全额结清'
+                    updated = True
+                elif credit.status != 'approved':
+                    reminder.is_handled = True
+                    reminder.handled_by = request.user
+                    reminder.handled_at = timezone.now()
+                    reminder.handle_note = f'系统自动标记：关联赊账状态已变更为{credit.get_status_display()}'
+                    updated = True
+
+            if reminder.credit_record and not reminder.is_handled:
+                due_date = reminder.credit_record.due_date
+                days_until_due = (due_date - today).days
+                new_type = None
+                new_title = None
+                new_content = None
+
+                if days_until_due < 0:
+                    if reminder.type != 'overdue':
+                        new_type = 'overdue'
+                        new_title = '赊账已逾期提醒'
+                        new_content = f'客户{reminder.customer.name}的赊账已逾期{abs(days_until_due)}天，请立即联系客户回款。'
+                elif days_until_due <= 7:
+                    if reminder.type != 'due_soon':
+                        new_type = 'due_soon'
+                        new_title = '赊账即将到期提醒'
+                        new_content = f'客户{reminder.customer.name}的赊账将在{days_until_due}天后到期，请及时跟进。'
+
+                if new_type and new_type != reminder.type:
+                    reminder.type = new_type
+                    if new_title:
+                        reminder.title = new_title
+                    if new_content:
+                        reminder.content = new_content
+                    updated = True
+
+            if updated:
+                reminder.updated_by = request.user
+                reminder.save()
+
+    @action(detail=False, methods=['post'])
+    def sync_reminders(self, request):
+        self._auto_sync_reminders(request)
+        log_action(
+            user=request.user,
+            action='update',
+            message='手动同步提醒状态',
+            request=request
+        )
+        return Response({'status': 'success', 'message': '提醒同步完成'})
 
     def perform_create(self, serializer):
         instance = serializer.save(created_by=self.request.user, updated_by=self.request.user)

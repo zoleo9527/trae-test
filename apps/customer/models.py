@@ -41,6 +41,18 @@ class Customer(BaseModel):
         from apps.credit.models import CreditRecord, RepaymentRecord
         total_credit = CreditRecord.objects.filter(
             customer=self,
+            status__in=['pending', 'approved']
+        ).aggregate(total=models.Sum('amount'))['total'] or 0
+        total_repaid = RepaymentRecord.objects.filter(
+            customer=self,
+            status='approved'
+        ).aggregate(total=models.Sum('amount'))['total'] or 0
+        return total_credit - total_repaid
+
+    def get_approved_used_credit(self):
+        from apps.credit.models import CreditRecord, RepaymentRecord
+        total_credit = CreditRecord.objects.filter(
+            customer=self,
             status='approved'
         ).aggregate(total=models.Sum('amount'))['total'] or 0
         total_repaid = RepaymentRecord.objects.filter(

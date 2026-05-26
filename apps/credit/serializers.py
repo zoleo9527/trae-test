@@ -103,9 +103,14 @@ class RepaymentRecordSerializer(serializers.ModelSerializer):
             data['customer'] = customer
 
             remaining = credit_record.get_remaining_amount()
-            if data['amount'] > remaining:
+            pending_total = credit_record.get_pending_repayments_total()
+            effective_remaining = remaining - pending_total
+
+            if data['amount'] > effective_remaining:
                 raise serializers.ValidationError(
-                    f'回款金额不能超过剩余欠款，剩余欠款: {float(remaining)}元'
+                    f'回款金额将超额，剩余可用额度: {float(effective_remaining)}元，'
+                    f'当前剩余欠款: {float(remaining)}元，'
+                    f'已有待确认回款: {float(pending_total)}元'
                 )
 
             if data['amount'] <= 0:
