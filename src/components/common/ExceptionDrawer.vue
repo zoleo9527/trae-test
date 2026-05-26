@@ -229,21 +229,21 @@
             margin: 12px 0 8px;
           "
         >
-          <strong>退货明细（{{ ret.lines.length }} 条）</strong>
+          <strong>退货明细（{{ editLines.length }} 条）</strong>
           <el-button size="small" type="primary" plain @click="addLine">
             <el-icon class="el-icon--left"><Plus /></el-icon>新增一条
           </el-button>
         </div>
 
         <div
-          v-if="ret.lines.length === 0"
+          v-if="editLines.length === 0"
           style="color: var(--app-sub-text); font-size: 13px; padding: 12px 0"
         >
           尚未添加任何明细，点击"新增一条"开始补全。
         </div>
 
         <div
-          v-for="(line, idx) in ret.lines"
+          v-for="(line, idx) in editLines"
           :key="idx"
           style="
             border: 1px solid var(--app-border);
@@ -271,17 +271,20 @@
             >
               <el-form-item label="书名" required>
                 <el-input
-                  v-model="line.title"
+                  v-model="editLines[idx].title"
                   @blur="onLineChange(idx)"
                   @change="onLineChange(idx)"
                 />
               </el-form-item>
               <el-form-item label="ISBN">
-                <el-input v-model="line.isbn" @blur="onLineChange(idx)" />
+                <el-input
+                  v-model="editLines[idx].isbn"
+                  @blur="onLineChange(idx)"
+                />
               </el-form-item>
               <el-form-item label="单价（元）" required>
                 <el-input-number
-                  v-model="line.price"
+                  v-model="editLines[idx].price"
                   :min="0"
                   :precision="2"
                   :step="0.1"
@@ -291,7 +294,7 @@
               </el-form-item>
               <el-form-item label="铺货数">
                 <el-input-number
-                  v-model="line.distributedQty"
+                  v-model="editLines[idx].distributedQty"
                   :min="0"
                   style="width: 100%"
                   @change="onLineChange(idx)"
@@ -299,7 +302,7 @@
               </el-form-item>
               <el-form-item label="退货数" required>
                 <el-input-number
-                  v-model="line.returnedQty"
+                  v-model="editLines[idx].returnedQty"
                   :min="1"
                   style="width: 100%"
                   @change="onLineChange(idx)"
@@ -307,7 +310,7 @@
               </el-form-item>
               <el-form-item label="退货原因">
                 <el-select
-                  v-model="line.reason"
+                  v-model="editLines[idx].reason"
                   placeholder="选择原因"
                   style="width: 100%"
                   @change="onLineChange(idx)"
@@ -536,6 +539,8 @@ const editForm = reactive({
   note: "",
 });
 
+const editLines = ref<ReturnLine[]>([]);
+
 const exForm = reactive({ type: "caliber", action: "resubmit", comment: "" });
 const rcForm = reactive({
   code: "",
@@ -553,6 +558,7 @@ watch(
         editForm.channelCode = ret.value.channelCode;
         editForm.deadline = ret.value.deadline;
         editForm.note = ret.value.note;
+        editLines.value = ret.value.lines.map((l) => ({ ...l }));
       }
       exForm.type = "caliber";
       exForm.action = "resubmit";
@@ -570,9 +576,7 @@ const canSubmit = computed(() => {
   if (mode.value === "receipt") return rcForm.code.trim().length >= 2;
   if (mode.value === "reconcile") return reconForm.comment.trim().length >= 2;
   if (mode.value === "edit")
-    return (
-      ret.value?.lines.length! > 0 && editForm.channelName.trim().length > 0
-    );
+    return editLines.length > 0 && editForm.channelName.trim().length > 0;
   return true;
 });
 
@@ -596,7 +600,8 @@ function jumpReturn(id: string) {
 
 function addLine() {
   if (!ret.value || ret.value.status !== "draft") return;
-  store.addReturnLine(ret.value.id, {
+  const newLine: ReturnLine = {
+    isbn: "9787" + Math.floor(100000000 + Math.random() * 900000000),
     title: "",
     author: "",
     category: "",
@@ -604,26 +609,63 @@ function addLine() {
     distributedQty: 0,
     returnedQty: 0,
     reason: "滞销",
-  });
+  };
+  editLines.value.push(newLine);
+  store.addReturnLine(ret.value.id, newLine);
 }
 
 function removeLine(idx: number) {
   if (!ret.value || ret.value.status !== "draft") return;
+  editLines.value.splice(idx, 1);
   store.removeReturnLine(ret.value.id, idx);
 }
 
+const pendingSync = new Map<number, number>();
+
 function onLineChange(idx: number) {
   if (!ret.value || ret.value.status !== "draft") return;
-  const line = ret.value.lines[idx];
-  if (!line) return;
-  if (!line.title || line.title.trim().length === 0) return;
-  if (!line.returnedQty || line.returnedQty <= 0) return;
-  store.updateReturnLine(ret.value.id, idx, { ...line });
+  const storeLine = ret.value.lines[idx];
+  const localLine = editLines.value[idx];
+  if (!storeLine || !localLine) return;
+  if (!localLine.title || localLine.title.trim().length === 0) return;
+  if (!localLine.returnedQty || localLine.returnedQty <= 0) return;
+
+  const changed: string[] = [];
+  if (storeLine.title !== localLine.title)
+    changed.push(`书名《${storeLine.title}》→《${localLine.title}》`);
+  if (storeLine.price !== localLine.price)
+    changed.push(`单价 ¥${storeLine.price} → ¥${localLine.price}`);
+  if (storeLine.returnedQty !== localLine.returnedQty)
+    changed.push(`退货数 ${storeLine.returnedQty} → ${localLine.returnedQty}`);
+  if (storeLine.distributedQty !== localLine.distributedQty)
+    changed.push(
+      `铺货数 ${storeLine.distributedQty} → ${localLine.distributedQty}`,
+    );
+  if (storeLine.reason !== localLine.reason)
+    changed.push(`原因《${storeLine.reason}》→《${localLine.reason}》`);
+  if (changed.length === 0) return;
+
+  if (pendingSync.has(idx)) {
+    clearTimeout(pendingSync.get(idx));
+  }
+  pendingSync.set(
+    idx,
+    window.setTimeout(() => {
+      if (!ret.value) return;
+      const currentStoreLine = ret.value.lines[idx];
+      const currentLocal = editLines.value[idx];
+      if (!currentStoreLine || !currentLocal) return;
+      store.updateReturnLine(ret.value.id, idx, { ...currentLocal }, [
+        ...changed,
+      ]);
+      pendingSync.delete(idx);
+    }, 600),
+  );
 }
 
 function submit() {
   if (!canSubmit.value) {
-    if (mode.value === "edit" && ret.value?.lines.length === 0) {
+    if (mode.value === "edit" && editLines.value.length === 0) {
       ElMessage.warning("请至少添加一条退货明细");
     }
     return;
@@ -635,6 +677,12 @@ function submit() {
       channelCode: editForm.channelCode,
       deadline: editForm.deadline || ret.value.deadline,
       note: editForm.note,
+    });
+    pendingSync.forEach((t) => clearTimeout(t));
+    pendingSync.clear();
+    editLines.value.forEach((line, idx) => {
+      if (!ret.value) return;
+      store.updateReturnLine(ret.value.id, idx, { ...line }, [], true);
     });
     try {
       store.submitReturn(ret.value.id);

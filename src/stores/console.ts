@@ -234,21 +234,20 @@ export const useConsoleStore = defineStore('console', {
         })
       }
     },
-    updateReturnLine(id: string, lineIndex: number, patch: Partial<ReturnLine>) {
+    updateReturnLine(
+      id: string,
+      lineIndex: number,
+      patch: Partial<ReturnLine>,
+      changed: string[] = [],
+      silent = false,
+    ) {
       const target = this.returns.find(r => r.id === id)
       if (!target || target.status !== 'draft') return
       const line = target.lines[lineIndex]
       if (!line) return
-      const oldTitle = line.title
-      const oldQty = line.returnedQty
-      const oldPrice = line.price
       Object.assign(line, patch)
       target.totalAmount = target.lines.reduce((s, l) => s + l.price * l.returnedQty, 0)
-      const changed: string[] = []
-      if (oldTitle !== line.title) changed.push(`书名《${oldTitle}》→《${line.title}》`)
-      if (oldQty !== line.returnedQty) changed.push(`退货数 ${oldQty} → ${line.returnedQty}`)
-      if (oldPrice !== line.price) changed.push(`单价 ¥${oldPrice} → ¥${line.price}`)
-      if (changed.length) {
+      if (!silent && changed.length) {
         this.appendHistory('return', id, {
           role: 'channel',
           operator: target.manager,
