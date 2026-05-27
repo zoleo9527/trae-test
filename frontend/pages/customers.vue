@@ -128,8 +128,8 @@
                 >
                   <div style="display: flex; align-items: center; justify-content: space-between;">
                     <span style="font-size: 14px; font-weight: 500;">{{ order.id }}</span>
-                    <span :class="['badge', `badge-${STATUS_COLORS[order.status]}`]">
-                      {{ STATUS_LABELS[order.status] }}
+                    <span :class="['badge', `badge-${order.is_rescheduled ? 'info' : STATUS_COLORS[order.status]}`]">
+                      {{ order.is_rescheduled ? '已改约' : STATUS_LABELS[order.status] }}
                     </span>
                   </div>
                   <div style="font-size: 13px; color: var(--gray-600); margin-top: 4px;">

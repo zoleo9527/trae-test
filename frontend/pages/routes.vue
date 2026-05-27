@@ -162,8 +162,8 @@
                   <div class="order-route-quantity">
                     <div class="order-route-quantity-value">{{ order.quantity }} 桶</div>
                     <div class="order-route-quantity-label">
-                      <span :class="['badge', `badge-${STATUS_COLORS[order.status]}`]">
-                        {{ STATUS_LABELS[order.status] }}
+                      <span :class="['badge', `badge-${order.is_rescheduled ? 'info' : STATUS_COLORS[order.status]}`]">
+                        {{ order.is_rescheduled ? '已改约' : STATUS_LABELS[order.status] }}
                       </span>
                     </div>
                   </div>

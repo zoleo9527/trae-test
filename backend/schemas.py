@@ -155,6 +155,7 @@ class DashboardStats(BaseModel):
     delivered_orders: int = 0
     pending_orders: int = 0
     exception_orders: int = 0
+    rescheduled_orders: int = 0
     total_buckets_delivered: int = 0
     total_buckets_returned: int = 0
     pending_exceptions: int = 0
