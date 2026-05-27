@@ -32,7 +32,12 @@
         <div class="stat-label">待处理异常</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">💧</div>
+        <div class="stat-icon">�</div>
+        <div class="stat-value" style="color: var(--info);">{{ stats.rescheduled_orders || 0 }}</div>
+        <div class="stat-label">已改约订单</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">�💧</div>
         <div class="stat-value">{{ stats.total_buckets_delivered }}</div>
         <div class="stat-label">今日送水桶数</div>
       </div>

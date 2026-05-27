@@ -283,12 +283,14 @@ async def handle_exception(exception_id: str, handle_data: ExceptionHandle):
             order["is_rescheduled"] = False
             route["pending_orders"] += 1
         elif handle_data.handle_type == "reschedule":
-            order["status"] = "exception"
+            order["status"] = "pending"
             order["is_rescheduled"] = True
             order["delivery_route_id"] = None
             order["delivery_sequence"] = None
+            route["total_orders"] -= 1
         else:
             order["status"] = "delivered"
+            route["delivered_orders"] += 1
     
     return {"status": "success", "message": "异常已处理"}
 
@@ -314,8 +316,9 @@ async def get_dashboard_stats():
         "in_progress_routes": len([r for r in today_routes if r["status"] == "in_progress"]),
         "today_orders": len(today_orders),
         "delivered_orders": len([o for o in today_orders if o["status"] == "delivered"]),
-        "pending_orders": len([o for o in today_orders if o["status"] == "pending"]),
+        "pending_orders": len([o for o in today_orders if o["status"] == "pending" and not o.get("is_rescheduled", False)]),
         "exception_orders": len([o for o in today_orders if o["status"] == "exception"]),
+        "rescheduled_orders": len([o for o in today_orders if o.get("is_rescheduled", False)]),
         "total_buckets_delivered": sum(o["delivered_quantity"] for o in today_orders),
         "total_buckets_returned": sum(o["returned_empty_buckets"] for o in today_orders),
         "pending_exceptions": len([e for e in db.exceptions if e["status"] == "pending"])

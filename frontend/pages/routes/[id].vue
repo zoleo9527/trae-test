@@ -25,12 +25,21 @@
               🚀 开始配送
             </button>
             <button
-              v-if="routeData.status === 'in_progress' && routeData.pending_orders === 0"
+              v-if="routeData.status === 'in_progress' && routeData.pending_orders === 0 && routeData.exception_orders === 0"
               class="btn btn-success"
               @click="completeRoute"
             >
               ✅ 完成路线
             </button>
+            <div
+              v-else-if="routeData.status === 'in_progress' && (routeData.pending_orders > 0 || routeData.exception_orders > 0)"
+              style="font-size: 12px; color: var(--warning);"
+            >
+              <template v-if="routeData.pending_orders > 0">⏳ 有待配送订单</template>
+              <template v-if="routeData.pending_orders > 0 && routeData.exception_orders > 0">、</template>
+              <template v-if="routeData.exception_orders > 0">⚠️ 有未处理异常</template>
+              ，无法完成路线
+            </div>
           </div>
         </div>
         <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">

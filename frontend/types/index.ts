@@ -92,6 +92,7 @@ export interface DashboardStats {
   delivered_orders: number
   pending_orders: number
   exception_orders: number
+  rescheduled_orders: number
   total_buckets_delivered: number
   total_buckets_returned: number
   pending_exceptions: number
