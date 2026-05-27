@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { RefundStatus, UserRole, TaskType, TaskStatus } from '@prisma/client';
+import { RefundStatus, UserRole, TaskType, TaskStatus, PackageStatus } from '@prisma/client';
 import { SubmitRefundDto, CsReviewDto, InspectionSubmitDto, FinalReviewDto } from './dto/refund-flow.dto';
 import { BatchReviewDto, BatchReviewResult } from './dto/batch-review.dto';
 
@@ -202,16 +202,14 @@ export class WorkflowService {
         : RefundStatus.REJECTED;
 
     return this.prisma.$transaction(async (tx) => {
-      const updateData: any = {
-        status: finalStatus,
-        finalDecision: finalStatus,
-        finalReviewerId: dto.reviewerId,
-        finalReviewTime: new Date(),
-      };
-
       const updated = await tx.refundRequest.update({
         where: { id: dto.refundId },
-        data: updateData,
+        data: {
+          status: finalStatus,
+          finalDecision: finalStatus,
+          finalReviewerId: dto.reviewerId,
+          finalReviewTime: new Date(),
+        },
         include: {
           package: true,
           flowLogs: true,
@@ -236,12 +234,20 @@ export class WorkflowService {
         });
         
         if (currentPackage) {
-          const newUsedCount = Math.max(0, currentPackage.usedCount - refund.refundCount);
+          const newTotalCount = currentPackage.totalCount - refund.refundCount;
+          let newStatus: PackageStatus = currentPackage.status;
+          
+          if (newTotalCount <= 0) {
+            newStatus = PackageStatus.REFUNDED;
+          } else if (newTotalCount <= currentPackage.usedCount) {
+            newStatus = PackageStatus.USED_UP;
+          }
+
           await tx.customerPackage.update({
             where: { id: refund.packageId },
             data: {
-              usedCount: newUsedCount,
-              status: newUsedCount >= currentPackage.totalCount ? 'USED_UP' : currentPackage.status,
+              totalCount: newTotalCount,
+              status: newStatus,
             },
           });
         }
@@ -266,6 +272,7 @@ export class WorkflowService {
       try {
         const refund = await this.prisma.refundRequest.findUnique({
           where: { id: item.refundId },
+          include: { verification: { include: { station: true } } },
         });
 
         if (!refund) {
@@ -309,15 +316,42 @@ export class WorkflowService {
         }
 
         await this.prisma.$transaction(async (tx) => {
-          await tx.refundRequest.update({
-            where: { id: item.refundId },
-            data: {
-              status: newStatus,
-              finalDecision: item.action === 'APPROVE' ? 'APPROVED' : item.action === 'REJECT' ? 'REJECTED' : null,
-              finalReviewerId: dto.reviewerId,
-              finalReviewTime: new Date(),
-            },
-          });
+          if (item.action === 'NEED_INSPECTION') {
+            await tx.refundRequest.update({
+              where: { id: item.refundId },
+              data: {
+                status: newStatus,
+                csReviewerId: dto.reviewerId,
+                csOpinion: remark,
+                csReviewTime: new Date(),
+              },
+            });
+
+            if (refund.verification?.stationId) {
+              await tx.task.create({
+                data: {
+                  type: TaskType.REFUND_REVIEW,
+                  stationId: refund.verification.stationId,
+                  relatedId: item.refundId,
+                  relatedType: 'RefundRequest',
+                  title: `退款申诉现场核验 - ${refund.verification.station.name}`,
+                  description: `退款原因: ${refund.customerReason}\n客服意见: ${remark}`,
+                  status: TaskStatus.PENDING,
+                  priority: 2,
+                },
+              });
+            }
+          } else {
+            await tx.refundRequest.update({
+              where: { id: item.refundId },
+              data: {
+                status: newStatus,
+                finalDecision: item.action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+                finalReviewerId: dto.reviewerId,
+                finalReviewTime: new Date(),
+              },
+            });
+          }
 
           await tx.refundFlowLog.create({
             data: {
@@ -337,12 +371,20 @@ export class WorkflowService {
             });
             
             if (currentPackage) {
-              const newUsedCount = Math.max(0, currentPackage.usedCount - refund.refundCount);
+              const newTotalCount = currentPackage.totalCount - refund.refundCount;
+              let newStatus: PackageStatus = currentPackage.status;
+              
+              if (newTotalCount <= 0) {
+                newStatus = PackageStatus.REFUNDED;
+              } else if (newTotalCount <= currentPackage.usedCount) {
+                newStatus = PackageStatus.USED_UP;
+              }
+
               await tx.customerPackage.update({
                 where: { id: refund.packageId },
                 data: {
-                  usedCount: newUsedCount,
-                  status: newUsedCount >= currentPackage.totalCount ? 'USED_UP' : currentPackage.status,
+                  totalCount: newTotalCount,
+                  status: newStatus,
                 },
               });
             }
