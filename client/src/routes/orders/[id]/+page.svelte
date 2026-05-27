@@ -2,10 +2,10 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { getOrder, fmtTime } from '../../lib/api';
-  import { currentUser } from '../../lib/user';
-  import ExceptionDrawer from '../../components/ExceptionDrawer.svelte';
-  import type { Order, User } from '../../lib/types';
+  import { getOrder, fmtTime } from '$lib/api';
+  import { currentUser } from '$lib/user';
+  import ExceptionDrawer from '$lib/components/ExceptionDrawer.svelte';
+  import type { Order, User } from '$lib/types';
 
   let order: Order | null = null;
   let loading = true;
@@ -24,8 +24,24 @@
   $: canManageException = user?.role === 'manager' || user?.role === 'service';
   $: canViewAll = user?.role === 'manager';
 
+  function canAccessOrder(o: Order): boolean {
+    if (!user) return false;
+    if (user.role === 'manager') return true;
+    if (user.role === 'editor') return o.editorId === user.id;
+    if (user.role === 'service') return o.serviceId === user.id;
+    return false;
+  }
+
   onMount(async () => {
-    try { order = await getOrder(orderId); } catch (e: any) { alert(e.message || '加载失败'); }
+    try {
+      const o = await getOrder(orderId);
+      if (!canAccessOrder(o)) {
+        alert('您无权访问该订单');
+        await goto('/orders');
+        return;
+      }
+      order = o;
+    } catch (e: any) { alert(e.message || '加载失败'); }
     loading = false;
   });
 

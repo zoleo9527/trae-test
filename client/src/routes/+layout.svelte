@@ -2,9 +2,9 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import AppShell from './components/AppShell.svelte';
-  import { currentUser } from './lib/user';
-  import type { User } from './lib/types';
+  import AppShell from '$lib/components/AppShell.svelte';
+  import { currentUser } from '$lib/user';
+  import type { User } from '$lib/types';
 
   let user: User | null = null;
   let ready = false;

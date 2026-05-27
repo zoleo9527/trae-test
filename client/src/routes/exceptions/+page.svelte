@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { listOrders, fmtTime } from '../../lib/api';
-  import { currentUser } from '../../lib/user';
-  import type { Order, User } from '../../lib/types';
+  import { listOrders, fmtTime } from '$lib/api';
+  import { currentUser } from '$lib/user';
+  import type { Order, User } from '$lib/types';
 
   let orders: Order[] = [];
   let allOrders: Order[] = [];

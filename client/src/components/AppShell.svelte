@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { currentUser } from '../lib/user';
-  import type { User } from '../lib/types';
+  import { currentUser } from '$lib/user';
+  import type { User } from '$lib/types';
 
   export let user: User;
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { login } from '../lib/api';
-  import { currentUser } from '../lib/user';
+  import { login } from '$lib/api';
+  import { currentUser } from '$lib/user';
 
   let username = 'manager';
   let password = '123456';

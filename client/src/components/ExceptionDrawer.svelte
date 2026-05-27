@@ -5,8 +5,8 @@
     addSlot,
     addSelection, confirmSelection,
     payPayment, fmtTime
-  } from '../lib/api';
-  import type { ExceptionItem, Order } from '../lib/types';
+  } from '$lib/api';
+  import type { ExceptionItem, Order } from '$lib/types';
 
   export let open: boolean;
   export let order: Order;

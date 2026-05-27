@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listOrders, fmtTime } from '../../lib/api';
-  import type { Order } from '../../lib/types';
+  import { listOrders, fmtTime } from '$lib/api';
+  import type { Order } from '$lib/types';
 
   let orders: Order[] = [];
   let loading = true;
