@@ -13,13 +13,10 @@ function getWarehouseFilter(user, tableAlias = 'b') {
   if (user.role === ROLES.MANAGER) {
     return { sql: '', params: [] };
   }
-  if (user.role === ROLES.WAREHOUSE) {
-    return {
-      sql: `AND ${tableAlias}.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)`,
-      params: [user.id]
-    };
-  }
-  return { sql: '', params: [] };
+  return {
+    sql: `AND ${tableAlias}.warehouse_id IN (SELECT warehouse_id FROM user_warehouse_access WHERE user_id = ?)`,
+    params: [user.id]
+  };
 }
 
 router.post('/auth/login', (req, res) => {
@@ -282,6 +279,13 @@ router.get('/stock-take/:id', authMiddleware, permissionMiddleware('stock_take:v
 router.post('/stock-take', authMiddleware, permissionMiddleware('stock_take:create'), (req, res) => {
   const { warehouse_id, title, type, planned_date, executor_id, remark, product_ids } = req.body;
   
+  if (req.user.role !== ROLES.MANAGER) {
+    const hasAccess = db.prepare('SELECT 1 FROM user_warehouse_access WHERE user_id = ? AND warehouse_id = ?').get(req.user.id, warehouse_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: '无权在该仓库创建盘点计划' });
+    }
+  }
+  
   const planNo = `PD${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
   
   const result = db.prepare(`
@@ -405,7 +409,7 @@ router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:vi
   
   const reports = db.prepare(sql).all(...params);
   res.json(reports);
-};
+});
 
 router.get('/loss-reports/:id', authMiddleware, permissionMiddleware('loss_report:view'), (req, res) => {
   const whFilter = getWarehouseFilter(req.user, 'lr');
@@ -460,6 +464,13 @@ router.get('/loss-reports/:id', authMiddleware, permissionMiddleware('loss_repor
 
 router.post('/loss-reports', authMiddleware, permissionMiddleware('loss_report:create'), (req, res) => {
   const { warehouse_id, title, loss_type, loss_reason, related_stock_take_id, remark, items } = req.body;
+  
+  if (req.user.role !== ROLES.MANAGER) {
+    const hasAccess = db.prepare('SELECT 1 FROM user_warehouse_access WHERE user_id = ? AND warehouse_id = ?').get(req.user.id, warehouse_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: '无权在该仓库创建损耗报告' });
+    }
+  }
   
   const reportNo = `SS${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
   

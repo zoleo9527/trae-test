@@ -19,6 +19,16 @@ function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS user_warehouse_access (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      warehouse_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, warehouse_id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+    );
+
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       sku TEXT UNIQUE NOT NULL,

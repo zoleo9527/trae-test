@@ -30,6 +30,19 @@ function seed() {
     const whInsert = db.prepare('INSERT INTO warehouses (code, name, location, manager_id) VALUES (?, ?, ?, ?)');
     warehouses.forEach(w => whInsert.run(w.code, w.name, w.location, w.manager_id));
 
+    const userWarehouseAccess = [
+      { user_id: 2, warehouse_id: 1 },
+      { user_id: 2, warehouse_id: 2 },
+      { user_id: 3, warehouse_id: 1 },
+      { user_id: 3, warehouse_id: 3 },
+      { user_id: 4, warehouse_id: 1 },
+      { user_id: 4, warehouse_id: 3 },
+      { user_id: 5, warehouse_id: 2 }
+    ];
+
+    const uwaInsert = db.prepare('INSERT INTO user_warehouse_access (user_id, warehouse_id) VALUES (?, ?)');
+    userWarehouseAccess.forEach(u => uwaInsert.run(u.user_id, u.warehouse_id));
+
     const products = [
       { sku: 'TEA001', name: '西湖龙井-明前特级', category: '绿茶', spec: '250g/盒', unit: '盒', base_price: 388.00, description: '杭州西湖核心产区，明前一芽一叶' },
       { sku: 'TEA002', name: '西湖龙井-雨前一级', category: '绿茶', spec: '250g/盒', unit: '盒', base_price: 218.00, description: '杭州西湖产区，雨前采摘' },
