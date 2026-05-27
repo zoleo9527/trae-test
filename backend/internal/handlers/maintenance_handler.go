@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 	"wedding-photo-backend/internal/models"
@@ -37,6 +38,15 @@ func (h *MaintenanceHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	if req.Type != string(models.MaintenanceCleaning) &&
+		req.Type != string(models.MaintenanceRepair) &&
+		req.Type != string(models.MaintenanceInspect) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "无效的保养类型",
+		})
+	}
+
 	tx := database.DB.Begin()
 
 	var costume models.Costume
@@ -46,6 +56,10 @@ func (h *MaintenanceHandler) Create(c *fiber.Ctx) error {
 			"success": false,
 			"message": "服装不存在",
 		})
+	}
+
+	oldData := map[string]interface{}{
+		"costume_status": costume.Status,
 	}
 
 	now := time.Now()
@@ -70,6 +84,7 @@ func (h *MaintenanceHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	oldCostumeStatus := costume.Status
 	if req.Type == string(models.MaintenanceRepair) {
 		costume.Status = models.CostumeStatusRepairing
 	} else {
@@ -85,7 +100,12 @@ func (h *MaintenanceHandler) Create(c *fiber.Ctx) error {
 
 	tx.Commit()
 
-	logOperation(userID, "create", "maintenance", maintenance.ID, "", string(maintenance.Status))
+	newData := map[string]interface{}{
+		"maintenance_id": maintenance.ID,
+		"type":           maintenance.Type,
+		"costume_status": map[string]interface{}{"from": oldCostumeStatus, "to": costume.Status},
+	}
+	logOperationDetail(userID, "create", "maintenance", maintenance.ID, oldData, newData, req.Remark)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -195,13 +215,32 @@ func (h *MaintenanceHandler) Complete(c *fiber.Ctx) error {
 		})
 	}
 
-	oldStatus := string(record.Status)
+	if err := models.ValidateMaintenanceTransition(record.Status, models.MaintenanceStatusDone); err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status":   record.Status,
+		"cost":     record.Cost,
+		"remark":   record.Remark,
+	}
+
 	record.Status = models.MaintenanceStatusDone
 	now := time.Now()
 	record.CompletedAt = &now
 	record.HandledByID = &userID
 	record.AfterImageURL = req.AfterImageURL
-	record.Remark = req.Remark
+	if req.Remark != "" {
+		if record.Remark != "" {
+			record.Remark = record.Remark + "\n" + req.Remark
+		} else {
+			record.Remark = req.Remark
+		}
+	}
 	if req.Cost > 0 {
 		record.Cost = req.Cost
 	}
@@ -215,26 +254,22 @@ func (h *MaintenanceHandler) Complete(c *fiber.Ctx) error {
 	}
 
 	var costume models.Costume
-	if err := tx.First(&costume, record.CostumeID).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "服装不存在",
-		})
-	}
-
-	costume.Status = models.CostumeStatusAvailable
-	if err := tx.Save(&costume).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "更新服装状态失败",
-		})
+	oldCostumeStatus := ""
+	if err := tx.First(&costume, record.CostumeID).Error; err == nil {
+		oldCostumeStatus = string(costume.Status)
+		costume.Status = models.CostumeStatusAvailable
+		tx.Save(&costume)
 	}
 
 	tx.Commit()
 
-	logOperation(userID, "complete", "maintenance", uint(id), oldStatus, string(record.Status))
+	newData := map[string]interface{}{
+		"status":         record.Status,
+		"cost":           record.Cost,
+		"completed_at":   record.CompletedAt,
+		"costume_status": map[string]interface{}{"from": oldCostumeStatus, "to": models.CostumeStatusAvailable},
+	}
+	logOperationDetail(userID, "complete", "maintenance", uint(id), oldData, newData, req.Remark)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -255,6 +290,7 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	var req struct {
 		Status string `json:"status" validate:"required"`
+		Remark string `json:"remark"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -271,8 +307,20 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	oldStatus := string(record.Status)
-	record.Status = models.MaintenanceStatus(req.Status)
+	newStatus := models.MaintenanceStatus(req.Status)
+	if err := models.ValidateMaintenanceTransition(record.Status, newStatus); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status": record.Status,
+	}
+
+	oldStatus := record.Status
+	record.Status = newStatus
 
 	if err := database.DB.Save(&record).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -281,11 +329,14 @@ func (h *MaintenanceHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	logOperation(userID, "status_change", "maintenance", uint(id), oldStatus, req.Status)
+	newData := map[string]interface{}{
+		"status": record.Status,
+	}
+	logOperationDetail(userID, "status_change", "maintenance", uint(id), oldData, newData, req.Remark)
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "更新成功",
+		"message": fmt.Sprintf("状态更新成功: %s -> %s", oldStatus, newStatus),
 		"data":    record,
 	})
 }

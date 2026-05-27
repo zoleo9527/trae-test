@@ -178,6 +178,192 @@ func (h *DispatchHandler) GetDetail(c *fiber.Ctx) error {
 	})
 }
 
+func (h *DispatchHandler) Confirm(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID参数错误",
+		})
+	}
+
+	var dispatch models.CostumeDispatch
+	if err := database.DB.First(&dispatch, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "调度记录不存在",
+		})
+	}
+
+	if err := models.ValidateDispatchTransition(dispatch.Status, models.DispatchStatusConfirmed); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status": dispatch.Status,
+	}
+
+	dispatch.Status = models.DispatchStatusConfirmed
+
+	if err := database.DB.Save(&dispatch).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "确认调度失败",
+		})
+	}
+
+	newData := map[string]interface{}{
+		"status": dispatch.Status,
+	}
+	logOperationDetail(userID, "confirm", "dispatch", uint(id), oldData, newData, "")
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "调度确认成功",
+		"data":    dispatch,
+	})
+}
+
+type RescheduleDispatchRequest struct {
+	NewCostumeID     *uint  `json:"new_costume_id"`
+	ExpectedPickupAt string `json:"expected_pickup_at"`
+	ExpectedReturnAt string `json:"expected_return_at"`
+	PickedUpByID     *uint  `json:"picked_up_by_id"`
+	Remark           string `json:"remark"`
+}
+
+func (h *DispatchHandler) Reschedule(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID参数错误",
+		})
+	}
+
+	var req RescheduleDispatchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "请求参数错误",
+		})
+	}
+
+	tx := database.DB.Begin()
+
+	var dispatch models.CostumeDispatch
+	if err := tx.First(&dispatch, id).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "调度记录不存在",
+		})
+	}
+
+	if err := models.ValidateDispatchTransition(dispatch.Status, models.DispatchStatusRescheduled); err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status":              dispatch.Status,
+		"costume_id":          dispatch.CostumeID,
+		"expected_pickup_at":  dispatch.ExpectedPickupAt,
+		"expected_return_at": dispatch.ExpectedReturnAt,
+		"picked_up_by_id":     dispatch.PickedUpByID,
+	}
+
+	oldCostumeID := dispatch.CostumeID
+
+	if req.NewCostumeID != nil && *req.NewCostumeID != dispatch.CostumeID {
+		var newCostume models.Costume
+		if err := tx.First(&newCostume, *req.NewCostumeID).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "新服装不存在",
+			})
+		}
+
+		if newCostume.Status != models.CostumeStatusAvailable {
+			tx.Rollback()
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "新服装当前状态不可预约",
+			})
+		}
+
+		var oldCostume models.Costume
+		if err := tx.First(&oldCostume, oldCostumeID).Error; err == nil {
+			oldCostume.Status = models.CostumeStatusAvailable
+			tx.Save(&oldCostume)
+		}
+
+		newCostume.Status = models.CostumeStatusReserved
+		tx.Save(&newCostume)
+
+		dispatch.CostumeID = *req.NewCostumeID
+	}
+
+	dispatch.Status = models.DispatchStatusRescheduled
+
+	if req.ExpectedPickupAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ExpectedPickupAt)
+		if err == nil {
+			dispatch.ExpectedPickupAt = &t
+		}
+	}
+	if req.ExpectedReturnAt != "" {
+		t, err := time.Parse(time.RFC3339, req.ExpectedReturnAt)
+		if err == nil {
+			dispatch.ExpectedReturnAt = &t
+		}
+	}
+	if req.PickedUpByID != nil {
+		dispatch.PickedUpByID = req.PickedUpByID
+	}
+	if req.Remark != "" {
+		if dispatch.Remark != "" {
+			dispatch.Remark = dispatch.Remark + "\n" + req.Remark
+		} else {
+			dispatch.Remark = req.Remark
+		}
+	}
+
+	if err := tx.Save(&dispatch).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "改期失败",
+		})
+	}
+
+	newData := map[string]interface{}{
+		"status":              dispatch.Status,
+		"costume_id":          dispatch.CostumeID,
+		"expected_pickup_at":  dispatch.ExpectedPickupAt,
+		"expected_return_at": dispatch.ExpectedReturnAt,
+		"picked_up_by_id":     dispatch.PickedUpByID,
+	}
+	logOperationDetail(userID, "reschedule", "dispatch", uint(id), oldData, newData, req.Remark)
+
+	tx.Commit()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "改期成功",
+		"data":    dispatch,
+	})
+}
+
 type PickupRequest struct {
 	ActualPickupAt string `json:"actual_pickup_at"`
 	Accessories    string `json:"accessories"`
@@ -213,15 +399,19 @@ func (h *DispatchHandler) Pickup(c *fiber.Ctx) error {
 		})
 	}
 
-	if dispatch.Status != models.DispatchStatusPending && dispatch.Status != models.DispatchStatusConfirmed {
+	if err := models.ValidateDispatchTransition(dispatch.Status, models.DispatchStatusPickedUp); err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "当前状态不可领取",
+			"message": err.Error(),
 		})
 	}
 
-	oldStatus := string(dispatch.Status)
+	oldData := map[string]interface{}{
+		"status":           dispatch.Status,
+		"actual_pickup_at": dispatch.ActualPickupAt,
+	}
+
 	dispatch.Status = models.DispatchStatusPickedUp
 	dispatch.PickedUpByID = &userID
 
@@ -259,6 +449,7 @@ func (h *DispatchHandler) Pickup(c *fiber.Ctx) error {
 		})
 	}
 
+	oldCostumeStatus := costume.Status
 	costume.Status = models.CostumeStatusLent
 	costume.TotalUseCount++
 	now := time.Now()
@@ -274,7 +465,12 @@ func (h *DispatchHandler) Pickup(c *fiber.Ctx) error {
 
 	tx.Commit()
 
-	logOperation(userID, "pickup", "dispatch", uint(id), oldStatus, string(dispatch.Status))
+	newData := map[string]interface{}{
+		"status":           dispatch.Status,
+		"actual_pickup_at": dispatch.ActualPickupAt,
+		"costume_status":   map[string]interface{}{"from": oldCostumeStatus, "to": costume.Status},
+	}
+	logOperationDetail(userID, "pickup", "dispatch", uint(id), oldData, newData, req.Remark)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -318,15 +514,21 @@ func (h *DispatchHandler) Return(c *fiber.Ctx) error {
 		})
 	}
 
-	if dispatch.Status != models.DispatchStatusPickedUp {
+	if err := models.ValidateDispatchTransition(dispatch.Status, models.DispatchStatusReturned); err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "当前状态不可归还",
+			"message": err.Error(),
 		})
 	}
 
-	oldStatus := string(dispatch.Status)
+	oldData := map[string]interface{}{
+		"status":            dispatch.Status,
+		"damage_remark":     dispatch.DamageRemark,
+		"actual_return_at":  dispatch.ActualReturnAt,
+		"returned_by_id":    dispatch.ReturnedByID,
+	}
+
 	dispatch.Status = models.DispatchStatusReturned
 	dispatch.ReturnedByID = &userID
 	dispatch.DamageRemark = req.DamageRemark
@@ -342,7 +544,11 @@ func (h *DispatchHandler) Return(c *fiber.Ctx) error {
 	}
 
 	if req.Remark != "" {
-		dispatch.Remark = req.Remark
+		if dispatch.Remark != "" {
+			dispatch.Remark = dispatch.Remark + "\n" + req.Remark
+		} else {
+			dispatch.Remark = req.Remark
+		}
 	}
 
 	if err := tx.Save(&dispatch).Error; err != nil {
@@ -362,11 +568,12 @@ func (h *DispatchHandler) Return(c *fiber.Ctx) error {
 		})
 	}
 
+	oldCostumeStatus := costume.Status
+	newCostumeStatus := models.CostumeStatusCleaning
 	if req.DamageRemark != "" {
-		costume.Status = models.CostumeStatusRepairing
-	} else {
-		costume.Status = models.CostumeStatusCleaning
+		newCostumeStatus = models.CostumeStatusRepairing
 	}
+	costume.Status = newCostumeStatus
 
 	if err := tx.Save(&costume).Error; err != nil {
 		tx.Rollback()
@@ -404,7 +611,16 @@ func (h *DispatchHandler) Return(c *fiber.Ctx) error {
 
 	tx.Commit()
 
-	logOperation(userID, "return", "dispatch", uint(id), oldStatus, string(dispatch.Status))
+	newData := map[string]interface{}{
+		"status":            dispatch.Status,
+		"damage_remark":     dispatch.DamageRemark,
+		"actual_return_at":  dispatch.ActualReturnAt,
+		"returned_by_id":    dispatch.ReturnedByID,
+		"costume_status":    map[string]interface{}{"from": oldCostumeStatus, "to": newCostumeStatus},
+		"maintenance_id":    maintenance.ID,
+		"maintenance_type":  maintenance.Type,
+	}
+	logOperationDetail(userID, "return", "dispatch", uint(id), oldData, newData, req.Remark)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -426,6 +642,11 @@ func (h *DispatchHandler) Cancel(c *fiber.Ctx) error {
 		})
 	}
 
+	var req struct {
+		Remark string `json:"remark"`
+	}
+	c.BodyParser(&req)
+
 	tx := database.DB.Begin()
 
 	var dispatch models.CostumeDispatch
@@ -437,15 +658,19 @@ func (h *DispatchHandler) Cancel(c *fiber.Ctx) error {
 		})
 	}
 
-	if dispatch.Status == models.DispatchStatusPickedUp || dispatch.Status == models.DispatchStatusReturned {
+	if err := models.ValidateDispatchTransition(dispatch.Status, models.DispatchStatusCancelled); err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "已领取的调度不可取消",
+			"message": err.Error(),
 		})
 	}
 
-	oldStatus := string(dispatch.Status)
+	oldData := map[string]interface{}{
+		"status":      dispatch.Status,
+		"costume_id":  dispatch.CostumeID,
+	}
+
 	dispatch.Status = models.DispatchStatusCancelled
 
 	if err := tx.Save(&dispatch).Error; err != nil {
@@ -457,27 +682,20 @@ func (h *DispatchHandler) Cancel(c *fiber.Ctx) error {
 	}
 
 	var costume models.Costume
-	if err := tx.First(&costume, dispatch.CostumeID).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "服装不存在",
-		})
-	}
-
-	costume.Status = models.CostumeStatusAvailable
-
-	if err := tx.Save(&costume).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "更新服装状态失败",
-		})
+	oldCostumeStatus := ""
+	if err := tx.First(&costume, dispatch.CostumeID).Error; err == nil {
+		oldCostumeStatus = string(costume.Status)
+		costume.Status = models.CostumeStatusAvailable
+		tx.Save(&costume)
 	}
 
 	tx.Commit()
 
-	logOperation(userID, "cancel", "dispatch", uint(id), oldStatus, string(dispatch.Status))
+	newData := map[string]interface{}{
+		"status":         dispatch.Status,
+		"costume_status": map[string]interface{}{"from": oldCostumeStatus, "to": models.CostumeStatusAvailable},
+	}
+	logOperationDetail(userID, "cancel", "dispatch", uint(id), oldData, newData, req.Remark)
 
 	return c.JSON(fiber.Map{
 		"success": true,

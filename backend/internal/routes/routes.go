@@ -39,7 +39,10 @@ func Setup(app *fiber.App, cfg *config.Config) {
 			schedules.Post("", scheduleHandler.Create)
 			schedules.Get("", scheduleHandler.GetList)
 			schedules.Get("/:id", scheduleHandler.GetDetail)
-			schedules.Patch("/:id/status", scheduleHandler.UpdateStatus)
+			schedules.Post("/:id/confirm", scheduleHandler.Confirm)
+			schedules.Post("/:id/reschedule", scheduleHandler.Reschedule)
+			schedules.Post("/:id/cancel", scheduleHandler.Cancel)
+			schedules.Post("/:id/complete", scheduleHandler.Complete)
 		}
 
 		dispatchHandler := handlers.NewDispatchHandler()
@@ -48,6 +51,8 @@ func Setup(app *fiber.App, cfg *config.Config) {
 			dispatches.Post("", dispatchHandler.Create)
 			dispatches.Get("", dispatchHandler.GetList)
 			dispatches.Get("/:id", dispatchHandler.GetDetail)
+			dispatches.Post("/:id/confirm", dispatchHandler.Confirm)
+			dispatches.Post("/:id/reschedule", dispatchHandler.Reschedule)
 			dispatches.Post("/:id/pickup", dispatchHandler.Pickup)
 			dispatches.Post("/:id/return", dispatchHandler.Return)
 			dispatches.Post("/:id/cancel", dispatchHandler.Cancel)

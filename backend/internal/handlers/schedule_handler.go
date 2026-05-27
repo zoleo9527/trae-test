@@ -224,26 +224,13 @@ func (h *ScheduleHandler) GetDetail(c *fiber.Ctx) error {
 	})
 }
 
-type UpdateScheduleStatusRequest struct {
-	Status string `json:"status" validate:"required"`
-	Remark string `json:"remark"`
-}
-
-func (h *ScheduleHandler) UpdateStatus(c *fiber.Ctx) error {
+func (h *ScheduleHandler) Confirm(c *fiber.Ctx) error {
 	userID := middleware.GetCurrentUserID(c)
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "ID参数错误",
-		})
-	}
-
-	var req UpdateScheduleStatusRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "请求参数错误",
 		})
 	}
 
@@ -255,21 +242,272 @@ func (h *ScheduleHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	oldStatus := string(schedule.Status)
-	schedule.Status = models.ScheduleStatus(req.Status)
+	if err := models.ValidateScheduleTransition(schedule.Status, models.ScheduleStatusConfirmed); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+
+	schedule.Status = models.ScheduleStatusConfirmed
 
 	if err := database.DB.Save(&schedule).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "更新状态失败",
+			"message": "确认档期失败",
 		})
 	}
 
-	logOperation(userID, "status_change", "schedule", uint(id), oldStatus, req.Status)
+	newData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+	logOperationDetail(userID, "confirm", "schedule", uint(id), oldData, newData, "档期确认")
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "更新成功",
+		"message": "档期确认成功",
+		"data":    schedule,
+	})
+}
+
+type RescheduleScheduleRequest struct {
+	ScheduleDate string  `json:"schedule_date" validate:"required"`
+	TimeSlot     string  `json:"time_slot" validate:"required"`
+	ButlerID     *uint   `json:"butler_id"`
+	SelectorID   *uint   `json:"selector_id"`
+	Remark       string  `json:"remark"`
+}
+
+func (h *ScheduleHandler) Reschedule(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID参数错误",
+		})
+	}
+
+	var req RescheduleScheduleRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "请求参数错误",
+		})
+	}
+
+	newDate, err := time.Parse("2006-01-02", req.ScheduleDate)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "日期格式错误",
+		})
+	}
+
+	tx := database.DB.Begin()
+
+	var schedule models.Schedule
+	if err := tx.First(&schedule, id).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "档期不存在",
+		})
+	}
+
+	if err := models.ValidateScheduleTransition(schedule.Status, models.ScheduleStatusRescheduled); err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status":        schedule.Status,
+		"schedule_date": schedule.ScheduleDate,
+		"time_slot":     schedule.TimeSlot,
+		"butler_id":     schedule.ButlerID,
+		"selector_id":   schedule.SelectorID,
+	}
+
+	schedule.Status = models.ScheduleStatusRescheduled
+	schedule.ScheduleDate = newDate
+	schedule.TimeSlot = req.TimeSlot
+	if req.ButlerID != nil {
+		schedule.ButlerID = req.ButlerID
+	}
+	if req.SelectorID != nil {
+		schedule.SelectorID = req.SelectorID
+	}
+	if req.Remark != "" {
+		if schedule.Remark != "" {
+			schedule.Remark = schedule.Remark + "\n" + req.Remark
+		} else {
+			schedule.Remark = req.Remark
+		}
+	}
+
+	if err := tx.Save(&schedule).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "改期失败",
+		})
+	}
+
+	newData := map[string]interface{}{
+		"status":        schedule.Status,
+		"schedule_date": schedule.ScheduleDate,
+		"time_slot":     schedule.TimeSlot,
+		"butler_id":     schedule.ButlerID,
+		"selector_id":   schedule.SelectorID,
+	}
+	logOperationDetail(userID, "reschedule", "schedule", uint(id), oldData, newData, req.Remark)
+
+	tx.Commit()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "改期成功",
+		"data":    schedule,
+	})
+}
+
+func (h *ScheduleHandler) Cancel(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID参数错误",
+		})
+	}
+
+	var req struct {
+		Remark string `json:"remark"`
+	}
+	c.BodyParser(&req)
+
+	tx := database.DB.Begin()
+
+	var schedule models.Schedule
+	if err := tx.First(&schedule, id).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "档期不存在",
+		})
+	}
+
+	if err := models.ValidateScheduleTransition(schedule.Status, models.ScheduleStatusCancelled); err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+
+	schedule.Status = models.ScheduleStatusCancelled
+
+	if err := tx.Save(&schedule).Error; err != nil {
+		tx.Rollback()
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "取消档期失败",
+		})
+	}
+
+	var dispatches []models.CostumeDispatch
+	tx.Where("schedule_id = ? AND status IN ?", id, []models.DispatchStatus{
+		models.DispatchStatusPending,
+		models.DispatchStatusConfirmed,
+		models.DispatchStatusRescheduled,
+	}).Find(&dispatches)
+
+	for _, d := range dispatches {
+		tx.Model(&d).Update("status", models.DispatchStatusCancelled)
+
+		var costume models.Costume
+		tx.First(&costume, d.CostumeID)
+		if costume.Status == models.CostumeStatusReserved {
+			tx.Model(&costume).Update("status", models.CostumeStatusAvailable)
+		}
+
+		logOperationDetail(userID, "auto_cancel", "dispatch", d.ID,
+			map[string]interface{}{"status": d.Status},
+			map[string]interface{}{"status": models.DispatchStatusCancelled},
+			"档期取消，自动取消关联调度")
+	}
+
+	newData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+	logOperationDetail(userID, "cancel", "schedule", uint(id), oldData, newData, req.Remark)
+
+	tx.Commit()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "档期取消成功",
+		"data":    schedule,
+	})
+}
+
+func (h *ScheduleHandler) Complete(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID参数错误",
+		})
+	}
+
+	var schedule models.Schedule
+	if err := database.DB.First(&schedule, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "档期不存在",
+		})
+	}
+
+	if err := models.ValidateScheduleTransition(schedule.Status, models.ScheduleStatusCompleted); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	oldData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+
+	schedule.Status = models.ScheduleStatusCompleted
+
+	if err := database.DB.Save(&schedule).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "完成档期失败",
+		})
+	}
+
+	newData := map[string]interface{}{
+		"status": schedule.Status,
+	}
+	logOperationDetail(userID, "complete", "schedule", uint(id), oldData, newData, "")
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "档期完成",
 		"data":    schedule,
 	})
 }

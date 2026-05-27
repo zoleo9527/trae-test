@@ -339,6 +339,177 @@ test_cancel_flow() {
         -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装状态:', d['data']['costume']['status'])"
 }
 
+test_reschedule_flow() {
+    echo ""
+    echo "======================================"
+    echo "  改期流程测试: 确认 -> 改期"
+    echo "======================================"
+
+    echo ""
+    echo "Step 1: 获取可用服装ID（2件）"
+    COSTUME_RESP=$(curl -s -X GET "$BASE_URL/costumes?status=available&page_size=2" \
+        -H "Authorization: Bearer $TOKEN")
+    COSTUME_ID_1=$(echo $COSTUME_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    COSTUME_ID_2=$(echo $COSTUME_RESP | grep -o '"id":[0-9]*' | head -2 | tail -1 | cut -d':' -f2)
+    echo "服装1 ID: $COSTUME_ID_1, 服装2 ID: $COSTUME_ID_2"
+
+    echo ""
+    echo "Step 2: 获取客户ID"
+    CUST_RESP=$(curl -s -X GET "$BASE_URL/schedules/customers?page_size=1" \
+        -H "Authorization: Bearer $TOKEN")
+    CUSTOMER_ID=$(echo $CUST_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+
+    echo ""
+    echo "Step 3: 创建档期"
+    SCHEDULE_RESP=$(curl -s -X POST "$BASE_URL/schedules" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"customer_id\": $CUSTOMER_ID,
+            \"schedule_date\": \"2024-12-15\",
+            \"time_slot\": \"09:00-12:00\",
+            \"type\": \"外景拍摄\"
+        }")
+    SCHEDULE_ID=$(echo $SCHEDULE_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的档期ID: $SCHEDULE_ID"
+
+    echo ""
+    echo "Step 4: 确认档期"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+    echo ""
+    echo "Step 5: 创建服装调度（使用服装1）"
+    DISPATCH_RESP=$(curl -s -X POST "$BASE_URL/dispatches" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_id\": $SCHEDULE_ID,
+            \"costume_id\": $COSTUME_ID_1,
+            \"customer_id\": $CUSTOMER_ID,
+            \"expected_pickup_at\": \"2024-12-14T10:00:00Z\",
+            \"expected_return_at\": \"2024-12-16T18:00:00Z\",
+            \"remark\": \"改期流程测试\"
+        }")
+    DISPATCH_ID=$(echo $DISPATCH_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的调度ID: $DISPATCH_ID"
+
+    echo ""
+    echo "Step 6: 确认调度"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+    echo ""
+    echo "Step 7: 服装1状态（已预约）, 服装2状态（可用）"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_1" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装1状态:', d['data']['costume']['status'])"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_2" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装2状态:', d['data']['costume']['status'])"
+
+    echo ""
+    echo "Step 8: 档期改期 + 更换服装"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/reschedule" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_date\": \"2024-12-20\",
+            \"time_slot\": \"14:00-18:00\",
+            \"remark\": \"客户要求改期到周末\"
+        }" | python3 -m json.tool
+
+    echo ""
+    echo "Step 9: 调度改期 + 更换服装（换成服装2）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/reschedule" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"new_costume_id\": $COSTUME_ID_2,
+            \"expected_pickup_at\": \"2024-12-19T10:00:00Z\",
+            \"expected_return_at\": \"2024-12-21T18:00:00Z\",
+            \"remark\": \"换一件更合适的\"
+        }" | python3 -m json.tool
+
+    echo ""
+    echo "Step 10: 服装1状态（应释放为可用）, 服装2状态（应变为已预约）"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_1" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装1状态:', d['data']['costume']['status'])"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_2" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装2状态:', d['data']['costume']['status'])"
+}
+
+test_statemachine_validation() {
+    echo ""
+    echo "======================================"
+    echo "  状态机约束验证测试"
+    echo "======================================"
+
+    echo ""
+    echo "Step 1: 创建档期（状态: pending）"
+    CUST_RESP=$(curl -s -X GET "$BASE_URL/schedules/customers?page_size=1" \
+        -H "Authorization: Bearer $TOKEN")
+    CUSTOMER_ID=$(echo $CUST_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    
+    SCHEDULE_RESP=$(curl -s -X POST "$BASE_URL/schedules" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"customer_id\": $CUSTOMER_ID,
+            \"schedule_date\": \"2024-12-25\",
+            \"time_slot\": \"09:00-12:00\",
+            \"type\": \"内景拍摄\"
+        }")
+    SCHEDULE_ID=$(echo $SCHEDULE_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的档期ID: $SCHEDULE_ID"
+
+    echo ""
+    echo "Step 2: 测试非法流转: pending -> completed（应失败）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+    echo ""
+    echo "Step 3: 确认档期（pending -> confirmed, 应成功）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 4: 再次确认（confirmed -> confirmed, 应失败）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 5: 创建调度（状态: pending）"
+    COSTUME_RESP=$(curl -s -X GET "$BASE_URL/costumes?status=available&page_size=1" \
+        -H "Authorization: Bearer $TOKEN")
+    COSTUME_ID=$(echo $COSTUME_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    
+    DISPATCH_RESP=$(curl -s -X POST "$BASE_URL/dispatches" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_id\": $SCHEDULE_ID,
+            \"costume_id\": $COSTUME_ID,
+            \"customer_id\": $CUSTOMER_ID
+        }")
+    DISPATCH_ID=$(echo $DISPATCH_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的调度ID: $DISPATCH_ID"
+
+    echo ""
+    echo "Step 6: 测试非法流转: pending -> returned（应失败）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 7: 查看操作日志 - 检查详细变更记录"
+    curl -s -X GET "$BASE_URL/logs?resource_type=schedule&resource_id=$SCHEDULE_ID" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('日志总数:', d['data']['total'])
+for log in d['data']['list'][:3]:
+    print(f\"  [{log['created_at']}] {log['action']}: {log['old_value'][:80]} -> {log['new_value'][:80]}\")
+"
+}
+
 show_help() {
     echo ""
     echo "使用方法:"
@@ -348,6 +519,8 @@ show_help() {
     echo "  $0 normal          - 正常流程测试"
     echo "  $0 problem         - 问题流程测试"
     echo "  $0 cancel          - 取消流程测试"
+    echo "  $0 reschedule      - 改期流程测试"
+    echo "  $0 statemachine    - 状态机约束验证测试"
     echo "  $0 exports         - 导出功能测试"
     echo "  $0 all             - 全部测试"
     echo ""
@@ -386,6 +559,14 @@ case "${1:-all}" in
         login
         test_cancel_flow
         ;;
+    "reschedule")
+        login
+        test_reschedule_flow
+        ;;
+    "statemachine")
+        login
+        test_statemachine_validation
+        ;;
     "exports")
         login
         test_exports
@@ -402,6 +583,8 @@ case "${1:-all}" in
         test_normal_flow
         test_problem_flow
         test_cancel_flow
+        test_reschedule_flow
+        test_statemachine_validation
         test_exports
         ;;
     *)

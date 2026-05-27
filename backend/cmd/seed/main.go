@@ -157,6 +157,12 @@ func seedNormalFlow() {
 	var butler models.User
 	database.DB.Where("role = ?", models.RoleButler).First(&butler)
 
+	var existingDispatch models.CostumeDispatch
+	if database.DB.Where("schedule_id = ? AND costume_id = ? AND remark = ?", schedule.ID, costume.ID, "正常流程样例").First(&existingDispatch).Error == nil {
+		fmt.Println("正常流程样例已存在，跳过创建")
+		return
+	}
+
 	dispatch := models.CostumeDispatch{
 		ScheduleID:  schedule.ID,
 		CustomerID:  customer.ID,
@@ -206,10 +212,25 @@ func seedProblemFlow() {
 	var costume models.Costume
 	database.DB.First(&costume, "name = ?", "鱼尾拖尾款")
 
+	var schedule models.Schedule
+	database.DB.Where("customer_id = ?", customer.ID).First(&schedule)
+
+	if schedule.ID == 0 {
+		fmt.Println("警告: 陈先生的档期不存在，无法创建问题流程样例")
+		return
+	}
+
 	var butler models.User
 	database.DB.Where("role = ?", models.RoleButler).First(&butler)
 
+	var existingDispatch models.CostumeDispatch
+	if database.DB.Where("schedule_id = ? AND costume_id = ? AND remark = ?", schedule.ID, costume.ID, "问题流程样例：服装损坏").First(&existingDispatch).Error == nil {
+		fmt.Println("问题流程样例已存在，跳过创建")
+		return
+	}
+
 	dispatch := models.CostumeDispatch{
+		ScheduleID:   schedule.ID,
 		CustomerID:   customer.ID,
 		CostumeID:    costume.ID,
 		Status:       models.DispatchStatusReturned,
@@ -226,9 +247,11 @@ func seedProblemFlow() {
 	dispatch.ActualReturnAt = &returnTime
 	dispatch.PickedUpByID = &butler.ID
 	dispatch.ReturnedByID = &butler.ID
+	dispatch.ExpectedPickupAt = &pickupTime
+	dispatch.ExpectedReturnAt = &returnTime
 
 	database.DB.Create(&dispatch)
-	fmt.Println("创建损坏归还的调度记录")
+	fmt.Println("创建损坏归还的调度记录（关联档期ID:", schedule.ID, "）")
 
 	maintenance := models.MaintenanceRecord{
 		CostumeID:         costume.ID,

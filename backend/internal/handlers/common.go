@@ -25,6 +25,22 @@ func logOperation(userID uint, action, resourceType string, resourceID uint, old
 	database.DB.Create(&log)
 }
 
+func logOperationDetail(userID uint, action, resourceType string, resourceID uint, oldData, newData interface{}, remark string) {
+	oldValue, _ := json.Marshal(oldData)
+	newValue, _ := json.Marshal(newData)
+
+	log := models.OperationLog{
+		UserID:       &userID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   &resourceID,
+		OldValue:     string(oldValue),
+		NewValue:     string(newValue),
+		Remark:       remark,
+	}
+	database.DB.Create(&log)
+}
+
 type ExportHandler struct{}
 
 func NewExportHandler() *ExportHandler {
