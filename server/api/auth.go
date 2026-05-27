@@ -86,12 +86,16 @@ func GetDashboardStats(c *fiber.Ctx) error {
 	rejectedItems := rejectedRepairs + rejectedRefunds
 
 	var escalatedRepairs int64
-	models.DB.Model(&models.RepairOrder{}).Where("status = ?", "escalated").Count(&escalatedRepairs)
+	escalatedQuery := models.DB.Model(&models.RepairOrder{}).Where("status = ?", "escalated")
+	if user.Role != "admin" {
+		escalatedQuery = escalatedQuery.Where("level >= 2")
+	}
+	escalatedQuery.Count(&escalatedRepairs)
 
-	var pendingOrders int64
-	models.DB.Model(&models.MembershipOrder{}).Where("status = ?", "pending").Count(&pendingOrders)
+	needReview := escalatedRepairs
 
-	needReview := escalatedRepairs + pendingOrders
+	var pendingPayment int64
+	models.DB.Model(&models.MembershipOrder{}).Where("status = ?", "pending").Count(&pendingPayment)
 
 	var expiringMembers int64
 	models.DB.Model(&models.Member{}).Where("membership_expire_at BETWEEN ? AND ?",
@@ -112,7 +116,11 @@ func GetDashboardStats(c *fiber.Ctx) error {
 		"pending_repairs":    pendingRepairs,
 		"pending_refunds":    pendingRefunds,
 		"rejected_items":     rejectedItems,
+		"rejected_repairs":   rejectedRepairs,
+		"rejected_refunds":   rejectedRefunds,
+		"escalated_repairs":  escalatedRepairs,
 		"need_review":        needReview,
+		"pending_payment":    pendingPayment,
 		"expiring_members":   expiringMembers,
 		"total_revenue":      totalRevenue,
 		"active_members":     activeMembers,

@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { page, goto } from '$app/stores';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { memberAPI, packageAPI, orderAPI } from '$lib/api';
-  import { ArrowLeft, CreditCard, Clock, User, Phone, Award, Wallet, TrendingUp } from 'lucide-svelte';
+  import { ArrowLeft, CreditCard, Clock, Award, Wallet, TrendingUp, History, Package } from 'lucide-svelte';
 
   let member = null;
   let logs = [];
@@ -12,11 +13,16 @@
   let showRenew = false;
   let selectedPackage = null;
   let renewRemark = '';
+  let renewLoading = false;
 
   async function loadData() {
     loading = true;
     try {
       const id = $page.params.id;
+      if (!id) {
+        goto('/members');
+        return;
+      }
       const [memberRes, logsRes, packagesRes, ordersRes] = await Promise.all([
         memberAPI.detail(id),
         memberAPI.logs(id),
@@ -27,13 +33,17 @@
       logs = logsRes;
       packages = packagesRes;
       orders = ordersRes.items.filter((o) => o.member_id === parseInt(id));
+    } catch (e) {
+      console.error('加载会员详情失败:', e);
+      goto('/members');
     } finally {
       loading = false;
     }
   }
 
   async function handleRenew() {
-    if (!selectedPackage) return;
+    if (!selectedPackage || renewLoading) return;
+    renewLoading = true;
     try {
       await orderAPI.create({
         member_id: member.id,
@@ -43,9 +53,13 @@
         remark: renewRemark,
       });
       showRenew = false;
-      loadData();
+      renewRemark = '';
+      selectedPackage = null;
+      await loadData();
     } catch (e) {
       alert(e.message);
+    } finally {
+      renewLoading = false;
     }
   }
 
@@ -190,25 +204,39 @@
         </div>
 
         <div class="card p-6">
-          <h3 class="font-semibold mb-4">操作时间轴</h3>
+          <h3 class="font-semibold mb-4 flex items-center gap-2">
+            <History class="w-5 h-5 text-gray-400" />
+            操作时间轴
+          </h3>
           <div class="space-y-4">
             {#each logs as log}
               <div class="flex gap-4">
                 <div class="relative">
                   <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                    <span class="text-xs font-medium text-primary-700">{log.operator?.charAt(0) || 'S'}</span>
+                    <span class="text-xs font-medium text-primary-700">{(log.operator_name || log.operator || 'S').charAt(0)}</span>
                   </div>
                   <div class="absolute top-8 bottom-0 left-1/2 w-px bg-gray-200 -translate-x-1/2"></div>
                 </div>
                 <div class="flex-1 pb-4">
-                  <div class="flex items-center gap-2">
-                    <span class="font-medium text-gray-900">{log.operator || '系统'}</span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-medium text-gray-900">{log.operator_name || log.operator || '系统'}</span>
                     <span class="text-gray-500">{log.title}</span>
                     <span class="badge bg-green-100 text-green-800">{log.status}</span>
                   </div>
-                  <p class="text-sm text-gray-500 mt-1">
-                    ¥{log.amount?.toFixed(2)} · 有效期+{log.package?.duration || 30}天
+                  <p class="text-sm text-gray-600 mt-1">
+                    <span class="font-medium">¥{Number(log.amount).toFixed(2)}</span>
+                    <span class="mx-2">·</span>
+                    <span>有效期+{log.extend_days || log.package?.duration || 30}天</span>
+                    {#if log.extend_days > 365}
+                      <span class="ml-2 text-xs badge bg-purple-100 text-purple-800">长期会员</span>
+                    {/if}
                   </p>
+                  {#if log.order_no}
+                    <p class="text-xs text-gray-400 mt-1">订单号: {log.order_no}</p>
+                  {/if}
+                  {#if log.remark}
+                    <p class="text-xs text-gray-500 mt-1 italic">"{log.remark}"</p>
+                  {/if}
                   <p class="text-xs text-gray-400 mt-1">{new Date(log.created_at).toLocaleString('zh-CN')}</p>
                 </div>
               </div>

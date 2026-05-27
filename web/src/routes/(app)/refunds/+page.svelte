@@ -16,6 +16,36 @@
   let currentUser = null;
   user.subscribe((v) => (currentUser = v));
 
+  function parseEvidence(evidence) {
+    if (!evidence) return [];
+    if (typeof evidence !== 'string') return [];
+    
+    const trimmed = evidence.trim();
+    if (!trimmed || trimmed === '[]' || trimmed === '{}') return [];
+    
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(u => u && typeof u === 'string' && u.trim());
+      }
+      return [trimmed];
+    } catch (e) {
+      return trimmed.split(/[,，\n]/)
+        .map(u => u.trim())
+        .filter(u => u && u !== '[]' && u !== '{}');
+    }
+  }
+
+  function isValidUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:');
+  }
+
+  function isImageUrl(url) {
+    if (!url) return false;
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url) || url.startsWith('data:image/');
+  }
+
   async function loadData() {
     loading = true;
     try {
@@ -183,33 +213,50 @@
         <p class="text-gray-700">{showDetail.reason}</p>
       </div>
 
-      {#if showDetail.evidence}
+      {#if parseEvidence(showDetail.evidence).length > 0}
         <div class="mb-6">
           <p class="text-sm text-gray-500 mb-3 flex items-center gap-2">
             <Paperclip class="w-4 h-4" />
-            凭证材料
+            凭证材料 ({parseEvidence(showDetail.evidence).length})
           </p>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {#each showDetail.evidence.split(',') as url, i}
-              {#if url.trim()}
+            {#each parseEvidence(showDetail.evidence) as url, i}
+              {#if isValidUrl(url)}
                 <a
-                  href={url.trim()}
+                  href={url}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
                 >
-                  <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                    {#if url.match(/\.(jpg|jpeg|png|gif|webp)$/i)}
-                      <img src={url.trim()} alt="凭证{i + 1}" class="w-full h-full object-cover rounded-lg" />
+                  <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                    {#if isImageUrl(url)}
+                      <img src={url} alt="凭证{i + 1}" class="w-full h-full object-cover rounded-lg" />
                     {:else}
                       <FileText class="w-6 h-6 text-gray-400" />
                     {/if}
                   </div>
                   <span class="text-xs text-gray-500 truncate w-full text-center">凭证 {i + 1}</span>
                 </a>
+              {:else if url}
+                <div class="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                  <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <FileText class="w-6 h-6 text-gray-400" />
+                  </div>
+                  <span class="text-xs text-gray-400 truncate w-full text-center" title={url}>
+                    {url.length > 20 ? url.slice(0, 20) + '...' : url}
+                  </span>
+                </div>
               {/if}
             {/each}
           </div>
+        </div>
+      {:else if showDetail.evidence && showDetail.evidence !== '[]'}
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+          <p class="text-sm text-gray-500 mb-2 flex items-center gap-2">
+            <Paperclip class="w-4 h-4" />
+            凭证材料
+          </p>
+          <p class="text-sm text-gray-600">{showDetail.evidence}</p>
         </div>
       {/if}
 

@@ -148,18 +148,27 @@ func GetMemberLogs(c *fiber.Ctx) error {
 
 	var orders []models.MembershipOrder
 	models.DB.Where("member_id = ?", memberID).Preload("Package").Preload("Operator").
-		Order("created_at DESC").Limit(20).Find(&orders)
+		Order("created_at DESC").Limit(50).Find(&orders)
 
-	var logs []map[string]interface{}
+	logs := make([]map[string]interface{}, 0, len(orders))
 	for _, order := range orders {
+		extendDays := order.ExtendDuration
+		if extendDays == 0 && order.Package.ID > 0 {
+			extendDays = order.Package.Duration
+		}
 		logs = append(logs, map[string]interface{}{
-			"type":       "membership",
-			"action":     "renew",
-			"title":      "续费" + order.Package.Name,
-			"amount":     order.Amount,
-			"operator":   order.Operator.Name,
-			"status":     order.Status,
-			"created_at": order.CreatedAt,
+			"type":          "membership",
+			"action":        "renew",
+			"title":         "续费" + order.Package.Name,
+			"amount":        order.Amount,
+			"operator":      order.Operator.Name,
+			"operator_name": order.Operator.Name,
+			"status":        order.Status,
+			"order_no":      order.OrderNo,
+			"extend_days":   extendDays,
+			"package":       order.Package,
+			"remark":        order.Remark,
+			"created_at":    order.CreatedAt,
 		})
 	}
 
@@ -239,9 +248,17 @@ func CreateOrder(c *fiber.Ctx) error {
 	if err := c.BodyParser(&order); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "参数错误"})
 	}
+
+	var pkg models.MembershipPackage
+	if err := models.DB.First(&pkg, order.PackageID).Error; err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "套餐不存在"})
+	}
+
 	user := middleware.GetCurrentUser(c)
 	order.OperatorID = user.UserID
 	order.Status = "paid"
+	order.ExtendDuration = pkg.Duration
+	order.OrderNo = "ME" + time.Now().Format("20060102") + strconv.Itoa(int(time.Now().UnixNano())%1000000)
 	now := time.Now()
 	order.PaymentTime = &now
 
@@ -254,9 +271,6 @@ func CreateOrder(c *fiber.Ctx) error {
 
 	var member models.Member
 	if err := tx.First(&member, order.MemberID).Error; err == nil {
-		var pkg models.MembershipPackage
-		tx.First(&pkg, order.PackageID)
-
 		if member.MembershipExpireAt.After(time.Now()) {
 			member.MembershipExpireAt = member.MembershipExpireAt.AddDate(0, 0, pkg.Duration)
 		} else {
@@ -267,6 +281,15 @@ func CreateOrder(c *fiber.Ctx) error {
 		member.TotalAmount += order.Amount
 		tx.Save(&member)
 	}
+
+	tx.Create(&models.TicketLog{
+		TicketType: "membership",
+		TicketID:   order.ID,
+		Action:     "renew",
+		OperatorID: user.UserID,
+		Remark:     order.Remark,
+		NewStatus:  "paid",
+	})
 
 	tx.Commit()
 
