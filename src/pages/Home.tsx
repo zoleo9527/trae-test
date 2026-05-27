@@ -48,9 +48,9 @@ export default function Home() {
   const filtered = filter === 'all' ? orders : orders.filter((o) => o.status === filter)
 
   const stats = [
-    { label: '已排期', value: alerts.awaitingPayment + alerts.rescheduling, icon: Clock, tone: 'text-gold-400' },
+    { label: '已排期', value: alerts.scheduled, icon: Clock, tone: 'text-gold-400' },
+    { label: '改期中', value: alerts.rescheduling, icon: CalendarDays, tone: 'text-status-rescheduling' },
     { label: '待尾款', value: alerts.awaitingPayment, icon: Wallet, tone: 'text-status-awaiting_payment' },
-    { label: '待审批改期', value: alerts.pendingReschedule, icon: CalendarDays, tone: 'text-status-rescheduling' },
     { label: '逾期订单', value: alerts.overdue, icon: AlertTriangle, tone: 'text-status-overdue' },
   ]
 
@@ -299,23 +299,13 @@ function AlertsCard({
   alerts,
   onClickAlert,
 }: {
-  alerts: { overdue: number; pendingReschedule: number; awaitingPayment: number; rescheduling: number }
+  alerts: { scheduled: number; rescheduling: number; awaitingPayment: number; overdue: number; pendingReschedule: number }
   onClickAlert: (k: string) => void
 }) {
   const items = [
     { label: '已逾期', value: alerts.overdue, k: 'overdue', tone: 'text-status-overdue' },
-    {
-      label: '改期中',
-      value: alerts.rescheduling + alerts.pendingReschedule,
-      k: 'rescheduling',
-      tone: 'text-status-rescheduling',
-    },
-    {
-      label: '待尾款',
-      value: alerts.awaitingPayment,
-      k: 'awaiting_payment',
-      tone: 'text-status-awaiting_payment',
-    },
+    { label: '待审批改期', value: alerts.pendingReschedule, k: 'rescheduling', tone: 'text-status-rescheduling' },
+    { label: '待尾款', value: alerts.awaitingPayment, k: 'awaiting_payment', tone: 'text-status-awaiting_payment' },
   ]
   return (
     <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">

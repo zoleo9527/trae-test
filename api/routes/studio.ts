@@ -230,23 +230,21 @@ router.post('/retouches', requireRole('selector', 'manager'), (req: Request, res
 })
 
 router.get('/alerts', (_req: Request, res: Response) => {
+  const scheduled = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'scheduled'`).get() as { c: number }
+  const rescheduling = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'rescheduling'`).get() as { c: number }
+  const awaitingPayment = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'awaiting_payment'`).get() as { c: number }
   const overdue = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'overdue'`).get() as { c: number }
   const pendingReschedule = db.prepare(
     `SELECT COUNT(*) as c FROM reschedule_requests WHERE status = 'pending'`
   ).get() as { c: number }
-  const awaiting = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'awaiting_payment'`).get() as {
-    c: number
-  }
-  const rescheduling = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'rescheduling'`).get() as {
-    c: number
-  }
   res.json({
     success: true,
     data: {
+      scheduled: scheduled.c,
+      rescheduling: rescheduling.c,
+      awaitingPayment: awaitingPayment.c,
       overdue: overdue.c,
       pendingReschedule: pendingReschedule.c,
-      awaitingPayment: awaiting.c,
-      rescheduling: rescheduling.c,
     },
   })
 })

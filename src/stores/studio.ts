@@ -90,10 +90,11 @@ export interface Retouch {
 }
 
 export interface Alerts {
+  scheduled: number
+  rescheduling: number
+  awaitingPayment: number
   overdue: number
   pendingReschedule: number
-  awaitingPayment: number
-  rescheduling: number
 }
 
 export interface FeedEvent extends TimelineEvent {
@@ -135,7 +136,7 @@ const defaultRole = (): Role => {
 export const useStudio = create<StudioState>((set, get) => ({
   role: defaultRole(),
   orders: [],
-  alerts: { overdue: 0, pendingReschedule: 0, awaitingPayment: 0, rescheduling: 0 },
+  alerts: { scheduled: 0, rescheduling: 0, awaitingPayment: 0, overdue: 0, pendingReschedule: 0 },
   feed: [],
   loading: false,
   setRole: (role) => {
@@ -154,7 +155,7 @@ export const useStudio = create<StudioState>((set, get) => ({
       ])
       set({
         orders: orders.data || [],
-        alerts: alerts.data || { overdue: 0, pendingReschedule: 0, awaitingPayment: 0, rescheduling: 0 },
+        alerts: alerts.data || { scheduled: 0, rescheduling: 0, awaitingPayment: 0, overdue: 0, pendingReschedule: 0 },
         feed: feed.data || [],
       })
     } finally {

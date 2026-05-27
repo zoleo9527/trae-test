@@ -400,29 +400,39 @@ export function seedIfEmpty() {
       payload: JSON.stringify({ from: 'selected', to: 'awaiting_payment', note: '选片完成，进入尾款阶段' }),
     },
     {
-      id: 'e-205', order_id: 'o-003', type: 'reschedule',
-      actor_role: 'butler', actor_name: '管家·谢予安', at: at(-4, 14, 0),
-      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'created', from: day(-7), to: day(2), reason: '客户要求再次改期，婚纱需重做' }),
-    },
-    {
-      id: 'e-206', order_id: 'o-003', type: 'reschedule',
-      actor_role: 'manager', actor_name: '店长·周嘉诚', at: at(-3, 10, 0),
-      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'rejected', reject_reason: '档期已满，先完成本次拍摄再协商' }),
-    },
-    {
       id: 'e-207', order_id: 'o-003', type: 'collection',
-      actor_role: 'butler', actor_name: '管家·谢予安', at: at(-6, 10, 30),
+      actor_role: 'butler', actor_name: '管家·谢予安', at: at(-7, 10, 30),
       payload: JSON.stringify({ method: 'phone', result: 'responded', remark: '电话沟通，客户说本周三前转账' }),
     },
     {
-      id: 'e-208', order_id: 'o-003', type: 'status',
-      actor_role: 'manager', actor_name: '店长·周嘉诚', at: at(-1, 9, 0),
-      payload: JSON.stringify({ from: 'awaiting_payment', to: 'overdue', note: '升级为逾期订单' }),
+      id: 'e-205', order_id: 'o-003', type: 'reschedule',
+      actor_role: 'butler', actor_name: '管家·谢予安', at: at(-6, 14, 0),
+      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'created', from: day(-7), to: day(2), reason: '客户要求再次改期，婚纱需重做' }),
+    },
+    {
+      id: 'e-211', order_id: 'o-003', type: 'status',
+      actor_role: 'butler', actor_name: '管家·谢予安', at: at(-6, 14, 1),
+      payload: JSON.stringify({ from: 'awaiting_payment', to: 'rescheduling', note: '进入改期流程' }),
+    },
+    {
+      id: 'e-206', order_id: 'o-003', type: 'reschedule',
+      actor_role: 'manager', actor_name: '店长·周嘉诚', at: at(-5, 10, 0),
+      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'rejected', reject_reason: '档期已满，先完成本次拍摄再协商' }),
+    },
+    {
+      id: 'e-212', order_id: 'o-003', type: 'status',
+      actor_role: 'manager', actor_name: '店长·周嘉诚', at: at(-5, 10, 1),
+      payload: JSON.stringify({ from: 'rescheduling', to: 'awaiting_payment', note: '改期申请被驳回，退回待尾款状态' }),
     },
     {
       id: 'e-209', order_id: 'o-003', type: 'collection',
       actor_role: 'selector', actor_name: '选片师·江书言', at: at(-2, 11, 0),
       payload: JSON.stringify({ method: 'wechat', result: 'escalated', remark: '客户未回复，已升级店长介入' }),
+    },
+    {
+      id: 'e-208', order_id: 'o-003', type: 'status',
+      actor_role: 'manager', actor_name: '店长·周嘉诚', at: at(-1, 9, 0),
+      payload: JSON.stringify({ from: 'awaiting_payment', to: 'overdue', note: '升级为逾期订单' }),
     },
     {
       id: 'e-210', order_id: 'o-003', type: 'note',
