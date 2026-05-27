@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { getOrder, fmtTime } from '$lib/api';
   import { currentUser } from '$lib/user';
-  import ExceptionDrawer from '$lib/components/ExceptionDrawer.svelte';
+  import ExceptionDrawer from '$components/ExceptionDrawer.svelte';
   import type { Order, User } from '$lib/types';
 
   let order: Order | null = null;

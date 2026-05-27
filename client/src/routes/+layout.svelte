@@ -1,26 +1,11 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import AppShell from '$lib/components/AppShell.svelte';
-  import { currentUser } from '$lib/user';
+  import AppShell from '$components/AppShell.svelte';
   import type { User } from '$lib/types';
 
-  let user: User | null = null;
-  let ready = false;
-
+  let data: { user: User | null };
+  $: user = data?.user || null;
   $: isLogin = $page.url.pathname === '/login';
-
-  currentUser.subscribe(u => { user = u; });
-
-  onMount(async () => {
-    if (!user && !isLogin) {
-      await goto('/login');
-    } else if (user && isLogin) {
-      await goto('/orders');
-    }
-    ready = true;
-  });
 </script>
 
 <svelte:head>
@@ -54,12 +39,10 @@
   </style>
 </svelte:head>
 
-{#if ready}
-  {#if isLogin || !user}
+{#if isLogin || !user}
+  <slot />
+{:else}
+  <AppShell {user}>
     <slot />
-  {:else}
-    <AppShell {user}>
-      <slot />
-    </AppShell>
-  {/if}
+  </AppShell>
 {/if}
