@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { refundAPI, memberAPI } from '$lib/api';
   import { user } from '../../stores/user';
-  import { Plus, RefreshCw, Filter, RefundCcw, AlertCircle, Check, X } from 'lucide-svelte';
+  import { Plus, RefreshCw, Filter, RefundCcw, AlertCircle, Check, X, FileText, Paperclip } from 'lucide-svelte';
 
   let refunds = [];
   let members = [];
@@ -130,6 +130,16 @@
         <label class="block text-sm font-medium text-gray-700 mb-2">退款原因</label>
         <textarea bind:value={form.reason} class="input" rows="3" placeholder="请详细说明退款原因..." />
       </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">凭证链接（逗号分隔多个）</label>
+        <input
+          type="text"
+          bind:value={form.evidence}
+          class="input"
+          placeholder="如：https://example.com/photo1.jpg,https://example.com/photo2.jpg"
+        />
+        <p class="text-xs text-gray-500 mt-1">支持上传图片或视频链接作为退款凭证</p>
+      </div>
       <div class="flex gap-3">
         <button on:click={handleCreate} class="btn-primary">提交申请</button>
         <button on:click={() => (showForm = false)} class="btn-secondary">取消</button>
@@ -172,6 +182,36 @@
         <p class="text-sm text-gray-500 mb-2">退款原因</p>
         <p class="text-gray-700">{showDetail.reason}</p>
       </div>
+
+      {#if showDetail.evidence}
+        <div class="mb-6">
+          <p class="text-sm text-gray-500 mb-3 flex items-center gap-2">
+            <Paperclip class="w-4 h-4" />
+            凭证材料
+          </p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {#each showDetail.evidence.split(',') as url, i}
+              {#if url.trim()}
+                <a
+                  href={url.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-colors"
+                >
+                  <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                    {#if url.match(/\.(jpg|jpeg|png|gif|webp)$/i)}
+                      <img src={url.trim()} alt="凭证{i + 1}" class="w-full h-full object-cover rounded-lg" />
+                    {:else}
+                      <FileText class="w-6 h-6 text-gray-400" />
+                    {/if}
+                  </div>
+                  <span class="text-xs text-gray-500 truncate w-full text-center">凭证 {i + 1}</span>
+                </a>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       {#if showDetail.review_opinion}
         <div class="mb-6 p-4 bg-gray-50 rounded-lg">

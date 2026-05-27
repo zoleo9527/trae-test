@@ -77,12 +77,21 @@ func GetDashboardStats(c *fiber.Ctx) error {
 	}
 	refundQuery.Count(&pendingRefunds)
 
-	var rejectedItems int64
-	models.DB.Model(&models.RepairOrder{}).Where("status = ?", "rejected").Count(&rejectedItems)
-	models.DB.Model(&models.RefundRequest{}).Where("status = ?", "rejected").Count(&rejectedItems)
+	var rejectedRepairs int64
+	models.DB.Model(&models.RepairOrder{}).Where("status = ?", "rejected").Count(&rejectedRepairs)
 
-	var needReview int64
-	models.DB.Model(&models.MembershipOrder{}).Where("status = ?", "pending").Count(&needReview)
+	var rejectedRefunds int64
+	models.DB.Model(&models.RefundRequest{}).Where("status = ?", "rejected").Count(&rejectedRefunds)
+
+	rejectedItems := rejectedRepairs + rejectedRefunds
+
+	var escalatedRepairs int64
+	models.DB.Model(&models.RepairOrder{}).Where("status = ?", "escalated").Count(&escalatedRepairs)
+
+	var pendingOrders int64
+	models.DB.Model(&models.MembershipOrder{}).Where("status = ?", "pending").Count(&pendingOrders)
+
+	needReview := escalatedRepairs + pendingOrders
 
 	var expiringMembers int64
 	models.DB.Model(&models.Member{}).Where("membership_expire_at BETWEEN ? AND ?",

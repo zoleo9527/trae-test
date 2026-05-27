@@ -244,6 +244,31 @@ func CreateOrder(c *fiber.Ctx) error {
 	order.Status = "paid"
 	now := time.Now()
 	order.PaymentTime = &now
-	models.DB.Create(&order)
+
+	tx := models.DB.Begin()
+
+	if err := tx.Create(&order).Error; err != nil {
+		tx.Rollback()
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "创建订单失败"})
+	}
+
+	var member models.Member
+	if err := tx.First(&member, order.MemberID).Error; err == nil {
+		var pkg models.MembershipPackage
+		tx.First(&pkg, order.PackageID)
+
+		if member.MembershipExpireAt.After(time.Now()) {
+			member.MembershipExpireAt = member.MembershipExpireAt.AddDate(0, 0, pkg.Duration)
+		} else {
+			member.MembershipExpireAt = time.Now().AddDate(0, 0, pkg.Duration)
+		}
+		member.Status = "active"
+		member.TotalOrders++
+		member.TotalAmount += order.Amount
+		tx.Save(&member)
+	}
+
+	tx.Commit()
+
 	return c.JSON(order)
 }

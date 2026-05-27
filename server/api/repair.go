@@ -91,10 +91,19 @@ type UpdateStatusRequest struct {
 }
 
 func UpdateRepairStatus(c *fiber.Ctx) error {
+	user := middleware.GetCurrentUser(c)
+	if user.Role == "service" {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "客服没有处理报修单的权限"})
+	}
+
 	id, _ := strconv.Atoi(c.Params("id"))
 	var order models.RepairOrder
 	if err := models.DB.First(&order, id).Error; err != nil {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "报修单不存在"})
+	}
+
+	if user.Role == "inspector" && order.HandlerID != nil && *order.HandlerID != user.UserID {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "只能处理分配给自己的报修单"})
 	}
 
 	var req UpdateStatusRequest
@@ -102,7 +111,6 @@ func UpdateRepairStatus(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "参数错误"})
 	}
 
-	user := middleware.GetCurrentUser(c)
 	oldStatus := order.Status
 	order.Status = req.Status
 
@@ -126,13 +134,21 @@ func UpdateRepairStatus(c *fiber.Ctx) error {
 }
 
 func EscalateRepair(c *fiber.Ctx) error {
+	user := middleware.GetCurrentUser(c)
+	if user.Role == "service" {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "客服没有升级报修单的权限"})
+	}
+
 	id, _ := strconv.Atoi(c.Params("id"))
 	var order models.RepairOrder
 	if err := models.DB.First(&order, id).Error; err != nil {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "报修单不存在"})
 	}
 
-	user := middleware.GetCurrentUser(c)
+	if user.Role == "inspector" && order.HandlerID != nil && *order.HandlerID != user.UserID {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "只能升级分配给自己的报修单"})
+	}
+
 	oldLevel := order.Level
 	order.Level++
 	order.Status = "escalated"
@@ -230,10 +246,19 @@ type ReviewRequest struct {
 }
 
 func ReviewRefund(c *fiber.Ctx) error {
+	user := middleware.GetCurrentUser(c)
+	if user.Role != "admin" {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "只有运营主管可以审核退款申请"})
+	}
+
 	id, _ := strconv.Atoi(c.Params("id"))
 	var req models.RefundRequest
 	if err := models.DB.First(&req, id).Error; err != nil {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "退款申请不存在"})
+	}
+
+	if req.Status != "pending" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "该申请已审核，无法重复操作"})
 	}
 
 	var review ReviewRequest
@@ -241,7 +266,6 @@ func ReviewRefund(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "参数错误"})
 	}
 
-	user := middleware.GetCurrentUser(c)
 	oldStatus := req.Status
 	req.Status = review.Status
 	req.ReviewOpinion = review.ReviewOpinion

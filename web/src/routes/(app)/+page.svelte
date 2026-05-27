@@ -11,6 +11,7 @@
     TrendingUp,
     Megaphone,
     ArrowRight,
+    AlertTriangle,
   } from 'lucide-svelte';
 
   let stats = null;
@@ -77,7 +78,7 @@
   </div>
 {:else}
   <div class="space-y-6">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       <a href="/repairs?status=pending" class="card p-6 hover:shadow-md transition-shadow cursor-pointer">
         <div class="flex items-center justify-between">
           <div>
@@ -122,6 +123,22 @@
         </div>
         <div class="mt-4 flex items-center text-sm text-red-600">
           <span>需重新处理</span>
+          <ArrowRight class="w-4 h-4 ml-1" />
+        </div>
+      </a>
+
+      <a href="/repairs?status=escalated" class="card p-6 hover:shadow-md transition-shadow cursor-pointer">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500">需回查</p>
+            <p class="text-3xl font-bold text-gray-900 mt-1">{stats?.need_review || 0}</p>
+          </div>
+          <div class="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center">
+            <AlertTriangle class="w-6 h-6 text-pink-600" />
+          </div>
+        </div>
+        <div class="mt-4 flex items-center text-sm text-pink-600">
+          <span>升级工单待处理</span>
           <ArrowRight class="w-4 h-4 ml-1" />
         </div>
       </a>
