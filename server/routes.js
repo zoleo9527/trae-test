@@ -1,12 +1,25 @@
 const express = require('express');
 const { db } = require('./database');
-const { authMiddleware, permissionMiddleware, hashPassword } = require('./auth');
+const { authMiddleware, permissionMiddleware, hashPassword, ROLES } = require('./auth');
 
 const router = express.Router();
 
 function logOperation(module, operation, recordId, userId, userName, content, oldValue = null, newValue = null) {
   db.prepare('INSERT INTO operation_logs (module, operation, record_id, operator_id, operator_name, content, old_value, new_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(module, operation, recordId, userId, userName, content, oldValue, newValue);
+}
+
+function getWarehouseFilter(user, tableAlias = 'b') {
+  if (user.role === ROLES.MANAGER) {
+    return { sql: '', params: [] };
+  }
+  if (user.role === ROLES.WAREHOUSE) {
+    return {
+      sql: `AND ${tableAlias}.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)`,
+      params: [user.id]
+    };
+  }
+  return { sql: '', params: [] };
 }
 
 router.post('/auth/login', (req, res) => {
@@ -91,7 +104,7 @@ router.get('/warehouses', authMiddleware, (req, res) => {
 
 router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'), (req, res) => {
   const { warehouseId, productId, lowStock } = req.query;
-  const user = req.user;
+  const whFilter = getWarehouseFilter(req.user, 'b');
   let sql = `
     SELECT 
       p.id as product_id,
@@ -109,13 +122,9 @@ router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'),
     LEFT JOIN products p ON b.product_id = p.id
     LEFT JOIN warehouses w ON b.warehouse_id = w.id
     WHERE b.available_quantity > 0
+    ${whFilter.sql}
   `;
-  const params = [];
-  
-  if (user.role !== 'manager') {
-    sql += ' AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-    params.push(user.id);
-  }
+  const params = [...whFilter.params];
   
   if (warehouseId) {
     sql += ' AND b.warehouse_id = ?';
@@ -140,7 +149,7 @@ router.get('/inventory', authMiddleware, permissionMiddleware('inventory:view'),
 
 router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory:view'), (req, res) => {
   const { warehouseId, productId, expiringSoon } = req.query;
-  const user = req.user;
+  const whFilter = getWarehouseFilter(req.user, 'b');
   let sql = `
     SELECT 
       b.*,
@@ -154,13 +163,9 @@ router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory
     LEFT JOIN products p ON b.product_id = p.id
     LEFT JOIN warehouses w ON b.warehouse_id = w.id
     WHERE 1=1
+    ${whFilter.sql}
   `;
-  const params = [];
-  
-  if (user.role !== 'manager') {
-    sql += ' AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-    params.push(user.id);
-  }
+  const params = [...whFilter.params];
   
   if (warehouseId) {
     sql += ' AND b.warehouse_id = ?';
@@ -182,7 +187,7 @@ router.get('/inventory/batches', authMiddleware, permissionMiddleware('inventory
 
 router.get('/stock-take', authMiddleware, permissionMiddleware('stock_take:view'), (req, res) => {
   const { status, warehouseId } = req.query;
-  const user = req.user;
+  const whFilter = getWarehouseFilter(req.user, 'sp');
   let sql = `
     SELECT 
       sp.*,
@@ -199,13 +204,9 @@ router.get('/stock-take', authMiddleware, permissionMiddleware('stock_take:view'
     LEFT JOIN users ur ON sp.reviewer_id = ur.id
     LEFT JOIN stock_take_items si ON sp.id = si.plan_id
     WHERE 1=1
+    ${whFilter.sql}
   `;
-  const params = [];
-  
-  if (user.role !== 'manager') {
-    sql += ' AND sp.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-    params.push(user.id);
-  }
+  const params = [...whFilter.params];
   
   if (status) {
     sql += ' AND sp.status = ?';
@@ -223,6 +224,7 @@ router.get('/stock-take', authMiddleware, permissionMiddleware('stock_take:view'
 });
 
 router.get('/stock-take/:id', authMiddleware, permissionMiddleware('stock_take:view'), (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'sp');
   const plan = db.prepare(`
     SELECT 
       sp.*,
@@ -236,10 +238,11 @@ router.get('/stock-take/:id', authMiddleware, permissionMiddleware('stock_take:v
     LEFT JOIN users ue ON sp.executor_id = ue.id
     LEFT JOIN users ur ON sp.reviewer_id = ur.id
     WHERE sp.id = ?
-  `).get(req.params.id);
+    ${whFilter.sql}
+  `).get(req.params.id, ...whFilter.params);
   
   if (!plan) {
-    return res.status(404).json({ error: '盘点计划不存在' });
+    return res.status(404).json({ error: '盘点计划不存在或无权限查看' });
   }
   
   const items = db.prepare(`
@@ -365,7 +368,7 @@ router.put('/stock-take/:id/items/:itemId', authMiddleware, permissionMiddleware
 
 router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:view'), (req, res) => {
   const { status, loss_type, warehouseId } = req.query;
-  const user = req.user;
+  const whFilter = getWarehouseFilter(req.user, 'lr');
   let sql = `
     SELECT 
       lr.*,
@@ -381,13 +384,9 @@ router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:vi
     LEFT JOIN users ua ON lr.approver_id = ua.id
     LEFT JOIN stock_take_plans sp ON lr.related_stock_take_id = sp.id
     WHERE 1=1
+    ${whFilter.sql}
   `;
-  const params = [];
-  
-  if (user.role !== 'manager') {
-    sql += ' AND lr.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-    params.push(user.id);
-  }
+  const params = [...whFilter.params];
   
   if (status) {
     sql += ' AND lr.status = ?';
@@ -406,9 +405,10 @@ router.get('/loss-reports', authMiddleware, permissionMiddleware('loss_report:vi
   
   const reports = db.prepare(sql).all(...params);
   res.json(reports);
-});
+};
 
 router.get('/loss-reports/:id', authMiddleware, permissionMiddleware('loss_report:view'), (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'lr');
   const report = db.prepare(`
     SELECT 
       lr.*,
@@ -424,10 +424,11 @@ router.get('/loss-reports/:id', authMiddleware, permissionMiddleware('loss_repor
     LEFT JOIN users ua ON lr.approver_id = ua.id
     LEFT JOIN stock_take_plans sp ON lr.related_stock_take_id = sp.id
     WHERE lr.id = ?
-  `).get(req.params.id);
+    ${whFilter.sql}
+  `).get(req.params.id, ...whFilter.params);
   
   if (!report) {
-    return res.status(404).json({ error: '损耗报告不存在' });
+    return res.status(404).json({ error: '损耗报告不存在或无权限查看' });
   }
   
   const items = db.prepare(`
@@ -541,9 +542,9 @@ router.put('/loss-reports/:id/approve', authMiddleware, permissionMiddleware('lo
 });
 
 router.get('/dashboard/summary', authMiddleware, (req, res) => {
-  const user = req.user;
-  const warehouseFilter = user.role === 'manager' ? '' : 'AND b.warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-  const warehouseParams = user.role === 'manager' ? [] : [user.id];
+  const whFilter = getWarehouseFilter(req.user, 'b');
+  const whFilter2 = getWarehouseFilter(req.user, 'lr');
+  const whFilter3 = getWarehouseFilter(req.user, 'sp');
   
   const totalInventory = db.prepare(`
     SELECT 
@@ -551,39 +552,38 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       SUM(available_quantity) as total_quantity,
       SUM(available_quantity * unit_price) as total_value
     FROM inventory_batches b
-    WHERE 1=1 ${warehouseFilter}
-  `).get(...warehouseParams);
+    WHERE 1=1 ${whFilter.sql}
+  `).get(...whFilter.params);
   
   const lowStock = db.prepare(`
     SELECT COUNT(*) as count
     FROM (
       SELECT product_id, warehouse_id, SUM(available_quantity) as qty
       FROM inventory_batches b
-      WHERE 1=1 ${warehouseFilter}
+      WHERE 1=1 ${whFilter.sql}
       GROUP BY product_id, warehouse_id
       HAVING qty < 20
     )
-  `).get(...warehouseParams);
+  `).get(...whFilter.params);
   
   const expiring = db.prepare(`
     SELECT COUNT(*) as count
     FROM inventory_batches b
     WHERE expiry_date <= DATE("now", "+6 month") AND available_quantity > 0
-    ${warehouseFilter}
-  `).get(...warehouseParams);
+    ${whFilter.sql}
+  `).get(...whFilter.params);
   
-  const planFilter = user.role === 'manager' ? '' : 'AND warehouse_id IN (SELECT id FROM warehouses WHERE manager_id = ?)';
-  const pendingTake = db.prepare(`SELECT COUNT(*) as count FROM stock_take_plans WHERE status IN ('pending', 'in_progress') ${planFilter}`).get(...warehouseParams);
-  const pendingLoss = db.prepare(`SELECT COUNT(*) as count FROM loss_reports WHERE status IN ('pending', 'reviewed') ${planFilter}`).get(...warehouseParams);
+  const pendingTake = db.prepare(`SELECT COUNT(*) as count FROM stock_take_plans sp WHERE status IN ('pending', 'in_progress') ${whFilter3.sql}`).get(...whFilter3.params);
+  const pendingLoss = db.prepare(`SELECT COUNT(*) as count FROM loss_reports lr WHERE status IN ('pending', 'reviewed') ${whFilter2.sql}`).get(...whFilter2.params);
   
   const thisMonthLoss = db.prepare(`
     SELECT 
       COALESCE(SUM(total_quantity), 0) as total_quantity,
       COALESCE(SUM(total_amount), 0) as total_amount
-    FROM loss_reports 
+    FROM loss_reports lr
     WHERE status = 'approved' AND strftime('%Y-%m', approved_at) = strftime('%Y-%m', 'now')
-    ${planFilter}
-  `).get(...warehouseParams);
+    ${whFilter2.sql}
+  `).get(...whFilter2.params);
   
   const lossByType = db.prepare(`
     SELECT 
@@ -591,10 +591,10 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       COUNT(*) as report_count,
       SUM(total_quantity) as total_quantity,
       SUM(total_amount) as total_amount
-    FROM loss_reports 
-    WHERE status = 'approved' ${planFilter}
+    FROM loss_reports lr
+    WHERE status = 'approved' ${whFilter2.sql}
     GROUP BY loss_type
-  `).all(...warehouseParams);
+  `).all(...whFilter2.params);
   
   const lossByResponsibility = db.prepare(`
     SELECT 
@@ -604,15 +604,18 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
       SUM(li.amount) as total_amount
     FROM loss_items li
     LEFT JOIN loss_reports lr ON li.report_id = lr.id
-    WHERE lr.status = 'approved' ${planFilter}
+    WHERE lr.status = 'approved' ${whFilter2.sql}
     GROUP BY li.responsibility
-  `).all(...warehouseParams);
+  `).all(...whFilter2.params);
   
-  const recentActivities = db.prepare(`
-    SELECT * FROM operation_logs 
-    ORDER BY created_at DESC 
-    LIMIT 20
-  `).all();
+  let activitiesSql = `SELECT * FROM operation_logs WHERE 1=1`;
+  const activitiesParams = [];
+  if (req.user.role !== ROLES.MANAGER) {
+    activitiesSql += ` AND operator_id = ?`;
+    activitiesParams.push(req.user.id);
+  }
+  activitiesSql += ` ORDER BY created_at DESC LIMIT 20`;
+  const recentActivities = db.prepare(activitiesSql).all(...activitiesParams);
   
   res.json({
     totalInventory,
@@ -628,6 +631,7 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
 });
 
 router.get('/dashboard/inventory-by-category', authMiddleware, (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'b');
   const data = db.prepare(`
     SELECT 
       p.category,
@@ -637,13 +641,15 @@ router.get('/dashboard/inventory-by-category', authMiddleware, (req, res) => {
     FROM inventory_batches b
     LEFT JOIN products p ON b.product_id = p.id
     WHERE b.available_quantity > 0
+    ${whFilter.sql}
     GROUP BY p.category
-  `).all();
+  `).all(...whFilter.params);
   
   res.json(data);
 });
 
 router.get('/dashboard/inventory-by-warehouse', authMiddleware, (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'b');
   const data = db.prepare(`
     SELECT 
       w.id,
@@ -654,13 +660,15 @@ router.get('/dashboard/inventory-by-warehouse', authMiddleware, (req, res) => {
     FROM inventory_batches b
     LEFT JOIN warehouses w ON b.warehouse_id = w.id
     WHERE b.available_quantity > 0
+    ${whFilter.sql}
     GROUP BY w.id
-  `).all();
+  `).all(...whFilter.params);
   
   res.json(data);
 });
 
 router.get('/dashboard/loss-trend', authMiddleware, (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'lr');
   const data = db.prepare(`
     SELECT 
       strftime('%Y-%m', lr.approved_at) as month,
@@ -669,10 +677,11 @@ router.get('/dashboard/loss-trend', authMiddleware, (req, res) => {
       SUM(lr.total_amount) as total_amount
     FROM loss_reports lr
     WHERE lr.status = 'approved' AND lr.approved_at IS NOT NULL
+    ${whFilter.sql}
     GROUP BY month
     ORDER BY month DESC
     LIMIT 6
-  `).all();
+  `).all(...whFilter.params);
   
   res.json(data);
 });
