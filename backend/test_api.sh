@@ -378,10 +378,128 @@ test_cancel_flow() {
         -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装状态:', d['data']['costume']['status'])"
 }
 
-test_reschedule_flow() {
+test_schedule_reschedule_flow() {
     echo ""
     echo "======================================"
-    echo "  改期流程测试: 确认 -> 改期"
+    echo "  档期改期流程: 确认档期 → 档期改期 → 自动更新调度 → 重新确认 → 完成"
+    echo "======================================"
+
+    echo ""
+    echo "Step 1: 获取可用服装ID"
+    COSTUME_RESP=$(curl -s -X GET "$BASE_URL/costumes?status=available&page_size=1" \
+        -H "Authorization: Bearer $TOKEN")
+    COSTUME_ID=$(echo $COSTUME_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "选中服装ID: $COSTUME_ID"
+
+    echo ""
+    echo "Step 2: 获取客户ID"
+    CUST_RESP=$(curl -s -X GET "$BASE_URL/schedules/customers?page_size=1" \
+        -H "Authorization: Bearer $TOKEN")
+    CUSTOMER_ID=$(echo $CUST_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "选中客户ID: $CUSTOMER_ID"
+
+    echo ""
+    echo "Step 3: 创建档期（状态: pending）"
+    SCHEDULE_RESP=$(curl -s -X POST "$BASE_URL/schedules" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"customer_id\": $CUSTOMER_ID,
+            \"schedule_date\": \"2024-12-15\",
+            \"time_slot\": \"09:00-12:00\",
+            \"type\": \"外景拍摄\"
+        }")
+    SCHEDULE_ID=$(echo $SCHEDULE_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的档期ID: $SCHEDULE_ID, 状态: pending"
+
+    echo ""
+    echo "Step 4: 确认档期（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 档期状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 5: 创建服装调度（状态: pending）"
+    DISPATCH_RESP=$(curl -s -X POST "$BASE_URL/dispatches" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_id\": $SCHEDULE_ID,
+            \"costume_id\": $COSTUME_ID,
+            \"customer_id\": $CUSTOMER_ID,
+            \"expected_pickup_at\": \"2024-12-14T10:00:00Z\",
+            \"expected_return_at\": \"2024-12-16T18:00:00Z\",
+            \"remark\": \"档期改期流程测试\"
+        }")
+    DISPATCH_ID=$(echo $DISPATCH_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "创建的调度ID: $DISPATCH_ID, 状态: pending"
+
+    echo ""
+    echo "Step 6: 确认调度（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 7: 服装状态应为 reserved（已预约）"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装状态:', d['data']['costume']['status'])"
+
+    echo ""
+    echo "Step 8: 档期改期（confirmed → rescheduled）"
+    echo "  * 注意：档期改期会自动将关联调度状态更新为 rescheduled"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/reschedule" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_date\": \"2024-12-20\",
+            \"time_slot\": \"14:00-18:00\",
+            \"remark\": \"客户要求改期到周末\"
+        }" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 档期状态:', d['data']['status'], '| 新日期:', d['data']['schedule_date'])"
+
+    echo ""
+    echo "Step 9: 验证调度状态已自动更新为 rescheduled"
+    curl -s -X GET "$BASE_URL/dispatches/$DISPATCH_ID" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  调度状态:', d['data']['dispatch']['status'])"
+
+    echo ""
+    echo "Step 10: 重新确认档期（rescheduled → confirmed）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 档期状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 11: 重新确认调度（rescheduled → confirmed）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 12: 领取服装（confirmed → picked_up）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 13: 归还服装（picked_up → returned）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"remark": "归还检查无误"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['dispatch']['status'])"
+
+    echo ""
+    echo "Step 14: 完成自动创建的保养记录"
+    MAINT_RESP=$(curl -s -X GET "$BASE_URL/maintenances?dispatch_id=$DISPATCH_ID" \
+        -H "Authorization: Bearer $TOKEN")
+    MAINT_ID=$(echo $MAINT_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    curl -s -X POST "$BASE_URL/maintenances/$MAINT_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 保养状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 15: 完成档期（confirmed → completed）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 档期状态:', d['data']['status'])"
+}
+
+test_dispatch_reschedule_flow() {
+    echo ""
+    echo "======================================"
+    echo "  调度改期流程: 确认调度 → 调度改期（换服装） → 重新确认 → 完成"
     echo "======================================"
 
     echo ""
@@ -397,6 +515,7 @@ test_reschedule_flow() {
     CUST_RESP=$(curl -s -X GET "$BASE_URL/schedules/customers?page_size=1" \
         -H "Authorization: Bearer $TOKEN")
     CUSTOMER_ID=$(echo $CUST_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    echo "选中客户ID: $CUSTOMER_ID"
 
     echo ""
     echo "Step 3: 创建档期"
@@ -405,9 +524,9 @@ test_reschedule_flow() {
         -H "Content-Type: application/json" \
         -d "{
             \"customer_id\": $CUSTOMER_ID,
-            \"schedule_date\": \"2024-12-15\",
+            \"schedule_date\": \"2024-12-25\",
             \"time_slot\": \"09:00-12:00\",
-            \"type\": \"外景拍摄\"
+            \"type\": \"内景拍摄\"
         }")
     SCHEDULE_ID=$(echo $SCHEDULE_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
     echo "创建的档期ID: $SCHEDULE_ID"
@@ -415,7 +534,7 @@ test_reschedule_flow() {
     echo ""
     echo "Step 4: 确认档期"
     curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
-        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 档期状态:', d['data']['status'])"
 
     echo ""
     echo "Step 5: 创建服装调度（使用服装1）"
@@ -426,54 +545,59 @@ test_reschedule_flow() {
             \"schedule_id\": $SCHEDULE_ID,
             \"costume_id\": $COSTUME_ID_1,
             \"customer_id\": $CUSTOMER_ID,
-            \"expected_pickup_at\": \"2024-12-14T10:00:00Z\",
-            \"expected_return_at\": \"2024-12-16T18:00:00Z\",
-            \"remark\": \"改期流程测试\"
+            \"expected_pickup_at\": \"2024-12-24T10:00:00Z\",
+            \"expected_return_at\": \"2024-12-26T18:00:00Z\",
+            \"remark\": \"调度改期流程测试\"
         }")
     DISPATCH_ID=$(echo $DISPATCH_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
     echo "创建的调度ID: $DISPATCH_ID"
 
     echo ""
-    echo "Step 6: 确认调度"
+    echo "Step 6: 确认调度（pending → confirmed）"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
-        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
 
     echo ""
-    echo "Step 7: 服装1状态（已预约）, 服装2状态（可用）"
+    echo "Step 7: 服装1状态: reserved, 服装2状态: available"
     curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_1" \
-        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装1状态:', d['data']['costume']['status'])"
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装1状态:', d['data']['costume']['status'])"
     curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_2" \
-        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装2状态:', d['data']['costume']['status'])"
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装2状态:', d['data']['costume']['status'])"
 
     echo ""
-    echo "Step 8: 档期改期 + 更换服装"
-    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/reschedule" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"schedule_date\": \"2024-12-20\",
-            \"time_slot\": \"14:00-18:00\",
-            \"remark\": \"客户要求改期到周末\"
-        }" | python3 -m json.tool
-
-    echo ""
-    echo "Step 9: 调度改期 + 更换服装（换成服装2）"
+    echo "Step 8: 调度改期 - 更换服装（confirmed → rescheduled）"
+    echo "  * 注意：调度改期会自动释放旧服装，占用新服装"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/reschedule" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -d "{
             \"new_costume_id\": $COSTUME_ID_2,
-            \"expected_pickup_at\": \"2024-12-19T10:00:00Z\",
-            \"expected_return_at\": \"2024-12-21T18:00:00Z\",
-            \"remark\": \"换一件更合适的\"
-        }" | python3 -m json.tool
+            \"expected_pickup_at\": \"2024-12-23T10:00:00Z\",
+            \"expected_return_at\": \"2024-12-27T18:00:00Z\",
+            \"remark\": \"客户要求换一件更合身的服装\"
+        }" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'], '| 新服装ID:', d['data']['costume_id'])"
 
     echo ""
-    echo "Step 10: 服装1状态（应释放为可用）, 服装2状态（应变为已预约）"
+    echo "Step 9: 验证服装状态变更"
     curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_1" \
-        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装1状态:', d['data']['costume']['status'])"
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装1状态（已释放）:', d['data']['costume']['status'])"
     curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID_2" \
-        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('服装2状态:', d['data']['costume']['status'])"
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装2状态（已占用）:', d['data']['costume']['status'])"
+
+    echo ""
+    echo "Step 10: 重新确认调度（rescheduled → confirmed）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 11: 领取服装（confirmed → picked_up）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['status'])"
+
+    echo ""
+    echo "Step 12: 归还服装（picked_up → returned）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| 调度状态:', d['data']['dispatch']['status'])"
 }
 
 test_statemachine_validation() {
@@ -610,10 +734,14 @@ show_help() {
     echo "  $0 normal          - 正常流程测试"
     echo "  $0 problem         - 问题流程测试"
     echo "  $0 cancel          - 取消流程测试"
-    echo "  $0 reschedule      - 改期流程测试"
+    echo "  $0 reschedule      - 改期流程测试（档期改期 + 调度改期换服装）"
     echo "  $0 statemachine    - 状态机约束验证测试"
     echo "  $0 exports         - 导出功能测试"
     echo "  $0 all             - 全部测试"
+    echo ""
+    echo "改期流程包含两个独立场景:"
+    echo "  1. 档期改期: 档期改期后自动更新关联调度，需重新确认后继续"
+    echo "  2. 调度改期: 直接对调度改期，支持更换服装（自动释放/占用）"
     echo ""
     echo "测试账号:"
     echo "  店长: 13800138001 / 123456"
@@ -652,7 +780,8 @@ case "${1:-all}" in
         ;;
     "reschedule")
         login
-        test_reschedule_flow
+        test_schedule_reschedule_flow
+        test_dispatch_reschedule_flow
         ;;
     "statemachine")
         login
@@ -674,7 +803,8 @@ case "${1:-all}" in
         test_normal_flow
         test_problem_flow
         test_cancel_flow
-        test_reschedule_flow
+        test_schedule_reschedule_flow
+        test_dispatch_reschedule_flow
         test_statemachine_validation
         test_exports
         ;;
