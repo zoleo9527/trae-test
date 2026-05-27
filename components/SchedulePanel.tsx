@@ -170,12 +170,12 @@ export function SchedulePanel() {
     .filter((item) => item.date === currentDate)
     .flatMap((item) => item.workOrderIds);
 
-  const availableWorkOrders = workOrders.filter(
-    (wo) =>
-      !scheduledWorkOrderIds.includes(wo.id) &&
-      wo.status !== "completed" &&
-      wo.status !== "rejected"
-  );
+  const availableWorkOrders = workOrders.filter((wo) => {
+    if (scheduledWorkOrderIds.includes(wo.id)) return false;
+    if (wo.status === "completed" || wo.status === "rejected") return false;
+    if (wo.status === "processing" || wo.status === "reviewing" || wo.status === "escalated") return false;
+    return true;
+  });
 
   const handleOpenAddModal = (inspectorId: string) => {
     setSelectedInspectorId(inspectorId);
@@ -186,7 +186,8 @@ export function SchedulePanel() {
   const handleAddToSchedule = () => {
     if (!selectedInspectorId || selectedWorkOrderIds.length === 0) return;
 
-    const firstWorkOrder = workOrders.find((wo) => wo.id === selectedWorkOrderIds[0]);
+    const store = useAppStore.getState();
+    const currentUser = store.currentUser;
 
     const newTasks = selectedWorkOrderIds.map((id) => {
       const wo = workOrders.find((w) => w.id === id);
@@ -198,47 +199,65 @@ export function SchedulePanel() {
         ? "例行巡检"
         : "投诉处理";
     });
+    const uniqueTasks = [...new Set(newTasks)];
 
-    const existingItem = scheduleItems.find(
+    const firstWorkOrder = workOrders.find((wo) => wo.id === selectedWorkOrderIds[0]);
+
+    const existingEmptyItem = scheduleItems.find(
       (item) =>
         item.inspectorId === selectedInspectorId &&
         item.date === currentDate &&
         item.workOrderIds.length === 0
     );
 
-    if (existingItem) {
-      updateScheduleItem(existingItem.id, {
-        stationId: firstWorkOrder?.stationId || existingItem.stationId,
-        workOrderIds: [...existingItem.workOrderIds, ...selectedWorkOrderIds],
-        tasks: [...existingItem.tasks, ...newTasks].filter(
-          (task, index, self) => self.indexOf(task) === index
-        ),
+    if (existingEmptyItem) {
+      updateScheduleItem(existingEmptyItem.id, {
+        stationId: firstWorkOrder?.stationId || existingEmptyItem.stationId,
+        workOrderIds: [...existingEmptyItem.workOrderIds, ...selectedWorkOrderIds],
+        tasks: uniqueTasks,
       });
     } else {
-      addScheduleItem({
-        inspectorId: selectedInspectorId,
-        stationId: firstWorkOrder?.stationId || stations[0].id,
-        date: currentDate,
-        timeSlot: "09:00-12:00",
-        tasks: newTasks.filter(
-          (task, index, self) => self.indexOf(task) === index
-        ),
-        status: "pending",
-        workOrderIds: selectedWorkOrderIds,
-      });
+      const existingWithOrders = scheduleItems.find(
+        (item) =>
+          item.inspectorId === selectedInspectorId &&
+          item.date === currentDate &&
+          item.workOrderIds.length > 0
+      );
+
+      if (existingWithOrders) {
+        updateScheduleItem(existingWithOrders.id, {
+          workOrderIds: [...existingWithOrders.workOrderIds, ...selectedWorkOrderIds],
+          tasks: [...new Set([...existingWithOrders.tasks, ...newTasks])],
+        });
+      } else {
+        addScheduleItem({
+          inspectorId: selectedInspectorId,
+          stationId: firstWorkOrder?.stationId || stations[0].id,
+          date: currentDate,
+          timeSlot: "09:00-12:00",
+          tasks: uniqueTasks,
+          status: "pending",
+          workOrderIds: selectedWorkOrderIds,
+        });
+      }
     }
 
     selectedWorkOrderIds.forEach((workOrderId) => {
-      const wo = workOrders.find((w) => w.id === workOrderId);
-      if (wo && wo.status !== "assigned" && wo.status !== "processing") {
-        useAppStore.getState().assignWorkOrder(
-          workOrderId,
-          selectedInspectorId!,
-          useAppStore.getState().currentUser.id
-        );
-      } else if (wo && wo.assigneeId !== selectedInspectorId) {
-        useAppStore.getState().updateWorkOrder(workOrderId, {
+      const wo = store.workOrders.find((w) => w.id === workOrderId);
+      if (!wo) return;
+
+      if (wo.status === "pending") {
+        store.assignWorkOrder(workOrderId, selectedInspectorId!, currentUser.id);
+      } else if (wo.assigneeId !== selectedInspectorId) {
+        const historyItem = {
+          status: wo.status,
+          operatorId: currentUser.id,
+          timestamp: new Date().toISOString(),
+          remark: `处理人已调整为${store.users.find((u) => u.id === selectedInspectorId)?.name || "未知"}`,
+        };
+        store.updateWorkOrder(workOrderId, {
           assigneeId: selectedInspectorId,
+          history: [...wo.history, historyItem],
         });
       }
     });

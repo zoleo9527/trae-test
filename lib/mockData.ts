@@ -618,7 +618,7 @@ export const mockScheduleItems: ScheduleItem[] = [
     stationId: "s4",
     date: "2024-01-17",
     timeSlot: "14:00-17:00",
-    tasks: ["例行巡检"],
+    tasks: [],
     status: "pending",
     workOrderIds: [],
   },
