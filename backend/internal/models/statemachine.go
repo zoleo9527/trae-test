@@ -12,7 +12,7 @@ var (
 	}
 
 	validDispatchTransitions = map[DispatchStatus][]DispatchStatus{
-		DispatchStatusPending:     {DispatchStatusConfirmed, DispatchStatusCancelled, DispatchStatusPickedUp},
+		DispatchStatusPending:     {DispatchStatusConfirmed, DispatchStatusCancelled},
 		DispatchStatusConfirmed:   {DispatchStatusPickedUp, DispatchStatusCancelled, DispatchStatusRescheduled},
 		DispatchStatusRescheduled: {DispatchStatusConfirmed, DispatchStatusCancelled},
 		DispatchStatusPickedUp:    {DispatchStatusReturned},
@@ -26,6 +26,88 @@ var (
 		MaintenanceStatusDone:    {},
 	}
 )
+
+func HasUnreturnedDispatches(dispatches []CostumeDispatch) bool {
+	for _, d := range dispatches {
+		if d.Status == DispatchStatusPickedUp {
+			return true
+		}
+	}
+	return false
+}
+
+func GetUnreturnedDispatchIDs(dispatches []CostumeDispatch) []uint {
+	var ids []uint
+	for _, d := range dispatches {
+		if d.Status == DispatchStatusPickedUp {
+			ids = append(ids, d.ID)
+		}
+	}
+	return ids
+}
+
+func GetDispatchStatusText(status DispatchStatus) string {
+	switch status {
+	case DispatchStatusPending:
+		return "待确认"
+	case DispatchStatusConfirmed:
+		return "已确认"
+	case DispatchStatusRescheduled:
+		return "已改期"
+	case DispatchStatusPickedUp:
+		return "已取件"
+	case DispatchStatusReturned:
+		return "已归还"
+	case DispatchStatusCancelled:
+		return "已取消"
+	default:
+		return string(status)
+	}
+}
+
+func GetScheduleStatusText(status ScheduleStatus) string {
+	switch status {
+	case ScheduleStatusPending:
+		return "待确认"
+	case ScheduleStatusConfirmed:
+		return "已确认"
+	case ScheduleStatusRescheduled:
+		return "已改期"
+	case ScheduleStatusCompleted:
+		return "已完成"
+	case ScheduleStatusCancelled:
+		return "已取消"
+	default:
+		return string(status)
+	}
+}
+
+func CanCancelSchedule(dispatches []CostumeDispatch) (bool, string) {
+	for _, d := range dispatches {
+		if d.Status == DispatchStatusPickedUp {
+			return false, fmt.Sprintf("存在已取件未归还的调度记录(ID:%d)，请先完成归还后再取消", d.ID)
+		}
+	}
+	return true, ""
+}
+
+func CanRescheduleSchedule(dispatches []CostumeDispatch) (bool, string) {
+	for _, d := range dispatches {
+		if d.Status == DispatchStatusPickedUp {
+			return false, fmt.Sprintf("存在已取件未归还的调度记录(ID:%d)，请先完成归还后再改期", d.ID)
+		}
+	}
+	return true, ""
+}
+
+func CanCompleteSchedule(dispatches []CostumeDispatch) (bool, string) {
+	for _, d := range dispatches {
+		if d.Status == DispatchStatusPickedUp {
+			return false, fmt.Sprintf("存在已取件未归还的调度记录(ID:%d)，请先完成归还后再完成", d.ID)
+		}
+	}
+	return true, ""
+}
 
 func IsValidScheduleStatus(status string) bool {
 	switch ScheduleStatus(status) {

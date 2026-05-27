@@ -327,6 +327,26 @@ func (h *ScheduleHandler) Reschedule(c *fiber.Ctx) error {
 		})
 	}
 
+	var relatedDispatches []models.CostumeDispatch
+	tx.Where("schedule_id = ?", id).Find(&relatedDispatches)
+
+	if can, reason := models.CanRescheduleSchedule(relatedDispatches); !can {
+		tx.Rollback()
+		logOperationDetail(userID, "reschedule_failed", "schedule", uint(id),
+			map[string]interface{}{
+				"status":       schedule.Status,
+				"reason":       reason,
+				"dispatches":   getDispatchStatusSummary(relatedDispatches),
+			},
+			map[string]interface{}{"error": reason},
+			reason,
+		)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": reason,
+		})
+	}
+
 	oldData := map[string]interface{}{
 		"status":        schedule.Status,
 		"schedule_date": schedule.ScheduleDate,
@@ -360,12 +380,23 @@ func (h *ScheduleHandler) Reschedule(c *fiber.Ctx) error {
 		})
 	}
 
+	for _, d := range relatedDispatches {
+		if d.Status == models.DispatchStatusConfirmed || d.Status == models.DispatchStatusRescheduled {
+			tx.Model(&d).Update("status", models.DispatchStatusRescheduled)
+			logOperationDetail(userID, "auto_reschedule", "dispatch", d.ID,
+				map[string]interface{}{"status": d.Status},
+				map[string]interface{}{"status": models.DispatchStatusRescheduled},
+				"档期改期，自动更新关联调度状态")
+		}
+	}
+
 	newData := map[string]interface{}{
 		"status":        schedule.Status,
 		"schedule_date": schedule.ScheduleDate,
 		"time_slot":     schedule.TimeSlot,
 		"butler_id":     schedule.ButlerID,
 		"selector_id":   schedule.SelectorID,
+		"related_dispatches": getDispatchStatusSummary(relatedDispatches),
 	}
 	logOperationDetail(userID, "reschedule", "schedule", uint(id), oldData, newData, req.Remark)
 
@@ -412,8 +443,29 @@ func (h *ScheduleHandler) Cancel(c *fiber.Ctx) error {
 		})
 	}
 
+	var relatedDispatches []models.CostumeDispatch
+	tx.Where("schedule_id = ?", id).Find(&relatedDispatches)
+
+	if can, reason := models.CanCancelSchedule(relatedDispatches); !can {
+		tx.Rollback()
+		logOperationDetail(userID, "cancel_failed", "schedule", uint(id),
+			map[string]interface{}{
+				"status":     schedule.Status,
+				"reason":     reason,
+				"dispatches": getDispatchStatusSummary(relatedDispatches),
+			},
+			map[string]interface{}{"error": reason},
+			reason,
+		)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": reason,
+		})
+	}
+
 	oldData := map[string]interface{}{
-		"status": schedule.Status,
+		"status":     schedule.Status,
+		"dispatches": getDispatchStatusSummary(relatedDispatches),
 	}
 
 	schedule.Status = models.ScheduleStatusCancelled
@@ -487,8 +539,28 @@ func (h *ScheduleHandler) Complete(c *fiber.Ctx) error {
 		})
 	}
 
+	var relatedDispatches []models.CostumeDispatch
+	database.DB.Where("schedule_id = ?", id).Find(&relatedDispatches)
+
+	if can, reason := models.CanCompleteSchedule(relatedDispatches); !can {
+		logOperationDetail(userID, "complete_failed", "schedule", uint(id),
+			map[string]interface{}{
+				"status":     schedule.Status,
+				"reason":     reason,
+				"dispatches": getDispatchStatusSummary(relatedDispatches),
+			},
+			map[string]interface{}{"error": reason},
+			reason,
+		)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": reason,
+		})
+	}
+
 	oldData := map[string]interface{}{
-		"status": schedule.Status,
+		"status":     schedule.Status,
+		"dispatches": getDispatchStatusSummary(relatedDispatches),
 	}
 
 	schedule.Status = models.ScheduleStatusCompleted
@@ -501,7 +573,8 @@ func (h *ScheduleHandler) Complete(c *fiber.Ctx) error {
 	}
 
 	newData := map[string]interface{}{
-		"status": schedule.Status,
+		"status":     schedule.Status,
+		"dispatches": getDispatchStatusSummary(relatedDispatches),
 	}
 	logOperationDetail(userID, "complete", "schedule", uint(id), oldData, newData, "")
 

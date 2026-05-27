@@ -41,6 +41,17 @@ func logOperationDetail(userID uint, action, resourceType string, resourceID uin
 	database.DB.Create(&log)
 }
 
+func getDispatchStatusSummary(dispatches []models.CostumeDispatch) []map[string]interface{} {
+	var summary []map[string]interface{}
+	for _, d := range dispatches {
+		summary = append(summary, map[string]interface{}{
+			"id":     d.ID,
+			"status": models.GetDispatchStatusText(d.Status),
+		})
+	}
+	return summary
+}
+
 type ExportHandler struct{}
 
 func NewExportHandler() *ExportHandler {

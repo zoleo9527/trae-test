@@ -464,7 +464,7 @@ test_statemachine_validation() {
     echo ""
     echo "Step 2: 测试非法流转: pending -> completed（应失败）"
     curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/complete" \
-        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
 
     echo ""
     echo "Step 3: 确认档期（pending -> confirmed, 应成功）"
@@ -499,14 +499,66 @@ test_statemachine_validation() {
         -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
 
     echo ""
-    echo "Step 7: 查看操作日志 - 检查详细变更记录"
+    echo "Step 7: 测试非法流转: pending -> picked_up（应失败，必须先确认）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 8: 确认调度（pending -> confirmed, 应成功）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 9: 领取服装（confirmed -> picked_up, 应成功）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 10: 测试跨实体约束: 已取件的档期禁止取消"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/cancel" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 11: 测试跨实体约束: 已取件的档期禁止改期"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/reschedule" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"schedule_date\": \"2024-12-28\",
+            \"time_slot\": \"14:00-18:00\"
+        }" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 12: 测试跨实体约束: 已取件的档期禁止完成"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 13: 归还服装（正常流程）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 14: 归还后完成档期（应成功）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success:', d['success'], '| message:', d['message'])"
+
+    echo ""
+    echo "Step 15: 查看操作日志 - 检查失败原因记录"
     curl -s -X GET "$BASE_URL/logs?resource_type=schedule&resource_id=$SCHEDULE_ID" \
         -H "Authorization: Bearer $TOKEN" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 print('日志总数:', d['data']['total'])
-for log in d['data']['list'][:3]:
-    print(f\"  [{log['created_at']}] {log['action']}: {log['old_value'][:80]} -> {log['new_value'][:80]}\")
+for log in d['data']['list'][:5]:
+    action = log['action']
+    old_val = log['old_value'][:100] if log['old_value'] else ''
+    new_val = log['new_value'][:100] if log['new_value'] else ''
+    remark = log.get('remark', '')[:50]
+    print(f'  [{log[\"created_at\"]}] {action}')
+    print(f'    old: {old_val}')
+    print(f'    new: {new_val}')
+    print(f'    remark: {remark}')
 "
 }
 
