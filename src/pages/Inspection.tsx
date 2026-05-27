@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { MapPin, Calendar, CheckCircle2, XCircle, Clock, Play, Check } from 'lucide-react'
 import { useSiteStore } from '@/store/useSiteStore'
+import { useWorkOrderStore } from '@/store/useWorkOrderStore'
 import { useAuthStore } from '@/store/useAuthStore'
-import type { InspectionTask, InspectionItemStatus } from '@/types'
+import type { InspectionTask, InspectionItemStatus, WorkOrder } from '@/types'
 
 function InspectionPage() {
   const { user } = useAuthStore()
   const { inspections, fetchInspections, updateInspectionItem, startInspection, completeInspection } = useSiteStore()
+  const { createWorkOrder } = useWorkOrderStore()
   const [activeTask, setActiveTask] = useState<InspectionTask | null>(null)
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
 
@@ -40,8 +42,27 @@ function InspectionPage() {
   }
 
   const handleCompleteInspection = () => {
-    if (!activeTask) return
+    if (!activeTask || !user) return
     completeInspection(activeTask.id)
+
+    const abnormalItems = activeTask.items.filter((item) => item.status === 'abnormal')
+    abnormalItems.forEach((item) => {
+      const isConsumable = item.name.includes('耗材') || item.name.includes('库存')
+      const orderType = isConsumable ? 'consumable' : 'repair'
+      const newWo: Omit<WorkOrder, 'id' | 'logs' | 'attachments' | 'createdAt'> = {
+        title: `${activeTask.siteName} - ${item.name}异常`,
+        description: `巡检发现异常：${item.remark || item.name}，巡检任务：${activeTask.id}`,
+        type: orderType,
+        priority: 'medium',
+        status: 'pending',
+        siteId: activeTask.siteId,
+        siteName: activeTask.siteName,
+        reporterId: user.id,
+        reporterName: user.name,
+      }
+      createWorkOrder(newWo)
+    })
+
     setActiveTask(null)
   }
 
@@ -77,8 +98,9 @@ function InspectionPage() {
   }
 
   if (activeTask) {
-    const progress = (activeTask.items.filter((i) => i.status !== 'normal').length / activeTask.items.length) * 100
-    const allChecked = activeTask.items.every((i) => i.status !== 'normal')
+    const checkedCount = activeTask.items.filter((i) => i.status !== 'pending').length
+    const progress = (checkedCount / activeTask.items.length) * 100
+    const allChecked = activeTask.items.every((i) => i.status !== 'pending')
 
     return (
       <div className="max-w-4xl mx-auto">
@@ -104,7 +126,7 @@ function InspectionPage() {
               <div className="flex items-center justify-between text-sm mb-2">
                 <span className="text-slate-600">巡检进度</span>
                 <span className="font-medium text-slate-900">
-                  {activeTask.items.filter((i) => i.status !== 'normal').length}/{activeTask.items.length}
+                  {checkedCount}/{activeTask.items.length}
                 </span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -119,7 +141,13 @@ function InspectionPage() {
               {activeTask.items.map((item, index) => (
                 <div
                   key={item.id}
-                  className="border border-slate-200 rounded-xl p-4 hover:border-indigo-200 transition-colors"
+                  className={`border rounded-xl p-4 transition-colors ${
+                    item.status === 'abnormal'
+                      ? 'border-red-200 bg-red-50/30'
+                      : item.status === 'normal'
+                      ? 'border-green-200'
+                      : 'border-slate-200 hover:border-indigo-200'
+                  }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start">
@@ -129,14 +157,12 @@ function InspectionPage() {
                       <div>
                         <p className="font-medium text-slate-900">{item.name}</p>
                         {item.remark && (
-                          <p className="text-sm text-slate-500 mt-1">备注：{item.remark}</p>
+                          <p className="text-sm text-red-600 mt-1">备注：{item.remark}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {item.status !== 'normal' ? (
-                        getItemStatusIcon(item.status)
-                      ) : (
+                      {item.status === 'pending' ? (
                         <>
                           <button
                             onClick={() => handleUpdateItem(item.id, 'normal')}
@@ -163,6 +189,17 @@ function InspectionPage() {
                             <Clock className="w-5 h-5" />
                           </button>
                         </>
+                      ) : (
+                        <div className="flex items-center">
+                          {getItemStatusIcon(item.status)}
+                          <button
+                            onClick={() => handleUpdateItem(item.id, 'pending')}
+                            className="ml-1 text-xs text-slate-400 hover:text-indigo-600"
+                            title="重新检查"
+                          >
+                            重选
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -180,6 +217,12 @@ function InspectionPage() {
                   <Check className="w-4 h-4 mr-2" />
                   完成巡检
                 </button>
+              </div>
+            )}
+
+            {activeTask.status === 'completed' && (
+              <div className="mt-4 text-center text-sm text-green-600 bg-green-50 rounded-lg py-3">
+                巡检已完成
               </div>
             )}
           </div>

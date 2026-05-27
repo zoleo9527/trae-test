@@ -93,7 +93,7 @@ export interface WorkOrder {
 }
 
 export type InspectionStatus = 'pending' | 'in_progress' | 'completed'
-export type InspectionItemStatus = 'normal' | 'abnormal' | 'skip'
+export type InspectionItemStatus = 'pending' | 'normal' | 'abnormal' | 'skip'
 
 export interface InspectionItem {
   id: string

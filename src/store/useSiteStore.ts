@@ -9,6 +9,9 @@ interface SiteState {
   devices: Device[]
   inspections: InspectionTask[]
   loading: boolean
+  _sitesLoaded: boolean
+  _devicesLoaded: boolean
+  _inspectionsLoaded: boolean
   fetchSites: () => Promise<void>
   fetchDevices: (siteId?: string) => Promise<void>
   fetchInspections: () => Promise<void>
@@ -26,24 +29,30 @@ export const useSiteStore = create<SiteState>((set) => ({
   devices: [],
   inspections: [],
   loading: false,
+  _sitesLoaded: false,
+  _devicesLoaded: false,
+  _inspectionsLoaded: false,
   fetchSites: async () => {
+    if (useSiteStore.getState()._sitesLoaded) return
     set({ loading: true })
     await new Promise((r) => setTimeout(r, 200))
-    set({ sites: mockSites, loading: false })
+    set({ sites: mockSites, loading: false, _sitesLoaded: true })
   },
   fetchDevices: async (siteId) => {
+    if (useSiteStore.getState()._devicesLoaded) return
     set({ loading: true })
     await new Promise((r) => setTimeout(r, 200))
     let result = mockDevices
     if (siteId) {
       result = mockDevices.filter((d) => d.siteId === siteId)
     }
-    set({ devices: result, loading: false })
+    set({ devices: result, loading: false, _devicesLoaded: true })
   },
   fetchInspections: async () => {
+    if (useSiteStore.getState()._inspectionsLoaded) return
     set({ loading: true })
     await new Promise((r) => setTimeout(r, 200))
-    set({ inspections: mockInspections, loading: false })
+    set({ inspections: mockInspections, loading: false, _inspectionsLoaded: true })
   },
   updateInspectionItem: (inspectionId, itemId, data) => {
     set((state) => ({

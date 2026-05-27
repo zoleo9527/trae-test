@@ -14,6 +14,7 @@ interface WorkOrderFilters {
 interface WorkOrderState {
   workOrders: WorkOrder[]
   loading: boolean
+  _loaded: boolean
   selectedWorkOrder: WorkOrder | null
   fetchWorkOrders: (filters?: WorkOrderFilters) => Promise<void>
   getWorkOrder: (id: string) => WorkOrder | undefined
@@ -29,33 +30,38 @@ interface WorkOrderState {
 export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
   workOrders: [],
   loading: false,
+  _loaded: false,
   selectedWorkOrder: null,
   fetchWorkOrders: async (filters) => {
-    set({ loading: true })
-    await new Promise((r) => setTimeout(r, 200))
-    let result = [...mockWorkOrders]
-    if (filters?.status) {
-      result = result.filter((wo) => wo.status === filters.status)
+    if (!get()._loaded) {
+      set({ loading: true })
+      await new Promise((r) => setTimeout(r, 200))
+      set({ workOrders: mockWorkOrders, loading: false, _loaded: true })
     }
-    if (filters?.priority) {
-      result = result.filter((wo) => wo.priority === filters.priority)
+    if (filters) {
+      let result = [...get().workOrders]
+      if (filters.status) {
+        result = result.filter((wo) => wo.status === filters.status)
+      }
+      if (filters.priority) {
+        result = result.filter((wo) => wo.priority === filters.priority)
+      }
+      if (filters.type) {
+        result = result.filter((wo) => wo.type === filters.type)
+      }
+      if (filters.siteId) {
+        result = result.filter((wo) => wo.siteId === filters.siteId)
+      }
+      if (filters.keyword) {
+        const kw = filters.keyword.toLowerCase()
+        result = result.filter(
+          (wo) =>
+            wo.title.toLowerCase().includes(kw) ||
+            wo.description.toLowerCase().includes(kw) ||
+            wo.siteName.toLowerCase().includes(kw)
+        )
+      }
     }
-    if (filters?.type) {
-      result = result.filter((wo) => wo.type === filters.type)
-    }
-    if (filters?.siteId) {
-      result = result.filter((wo) => wo.siteId === filters.siteId)
-    }
-    if (filters?.keyword) {
-      const kw = filters.keyword.toLowerCase()
-      result = result.filter(
-        (wo) =>
-          wo.title.toLowerCase().includes(kw) ||
-          wo.description.toLowerCase().includes(kw) ||
-          wo.siteName.toLowerCase().includes(kw)
-      )
-    }
-    set({ workOrders: result, loading: false })
   },
   getWorkOrder: (id) => {
     return get().workOrders.find((wo) => wo.id === id)
@@ -68,6 +74,10 @@ export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
       workOrders: state.workOrders.map((wo) =>
         wo.id === id ? { ...wo, ...data } : wo
       ),
+      selectedWorkOrder:
+        state.selectedWorkOrder?.id === id
+          ? { ...state.selectedWorkOrder, ...data }
+          : state.selectedWorkOrder,
     }))
   },
   createWorkOrder: async (data) => {
@@ -75,9 +85,19 @@ export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
       ...data,
       id: generateId(),
       createdAt: new Date().toISOString(),
-      logs: [],
+      logs: [
+        {
+          id: generateId(),
+          workOrderId: '',
+          operatorId: data.reporterId,
+          operatorName: data.reporterName,
+          action: '创建工单',
+          createdAt: new Date().toISOString(),
+        },
+      ],
       attachments: [],
     }
+    newWo.logs[0].workOrderId = newWo.id
     set((state) => ({
       workOrders: [newWo, ...state.workOrders],
     }))
@@ -113,6 +133,10 @@ export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
       workOrders: state.workOrders.map((wo) =>
         wo.id === id ? { ...wo, status: 'escalated' } : wo
       ),
+      selectedWorkOrder:
+        state.selectedWorkOrder?.id === id
+          ? { ...state.selectedWorkOrder, status: 'escalated' }
+          : state.selectedWorkOrder,
     }))
   },
   returnWorkOrder: async (id, reason, operatorId, operatorName) => {
@@ -126,6 +150,10 @@ export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
       workOrders: state.workOrders.map((wo) =>
         wo.id === id ? { ...wo, status: 'returned' } : wo
       ),
+      selectedWorkOrder:
+        state.selectedWorkOrder?.id === id
+          ? { ...state.selectedWorkOrder, status: 'returned' }
+          : state.selectedWorkOrder,
     }))
   },
   completeWorkOrder: async (id, remark, operatorId, operatorName) => {
@@ -139,6 +167,10 @@ export const useWorkOrderStore = create<WorkOrderState>((set, get) => ({
       workOrders: state.workOrders.map((wo) =>
         wo.id === id ? { ...wo, status: 'completed' } : wo
       ),
+      selectedWorkOrder:
+        state.selectedWorkOrder?.id === id
+          ? { ...state.selectedWorkOrder, status: 'completed' }
+          : state.selectedWorkOrder,
     }))
   },
 }))

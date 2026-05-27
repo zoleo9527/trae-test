@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Search, Filter, LayoutGrid, List, Plus } from 'lucide-react'
+import { Search, Filter, LayoutGrid, List, Plus, X, MapPin, Wrench, AlertCircle } from 'lucide-react'
 import { useWorkOrderStore } from '@/store/useWorkOrderStore'
 import { useSiteStore } from '@/store/useSiteStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import { WorkOrderCard } from '@/components/WorkOrderCard'
 import { WorkPanel } from '@/components/WorkPanel'
 import { StatusBadge, PriorityBadge, TypeBadge } from '@/components/Badge'
@@ -9,7 +10,8 @@ import { formatDateTime, isOverdue, getOverdueTime } from '@/utils/format'
 import type { WorkOrder, WorkOrderStatus, WorkOrderPriority, WorkOrderType } from '@/types'
 
 function WorkOrderPage() {
-  const { workOrders, fetchWorkOrders, selectedWorkOrder, setSelectedWorkOrder } = useWorkOrderStore()
+  const { user } = useAuthStore()
+  const { workOrders, fetchWorkOrders, selectedWorkOrder, setSelectedWorkOrder, createWorkOrder } = useWorkOrderStore()
   const { sites, fetchSites } = useSiteStore()
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -18,6 +20,13 @@ function WorkOrderPage() {
   const [typeFilter, setTypeFilter] = useState<WorkOrderType | 'all'>('all')
   const [siteFilter, setSiteFilter] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
+  const [newTitle, setNewTitle] = useState('')
+  const [newDesc, setNewDesc] = useState('')
+  const [newType, setNewType] = useState<WorkOrderType>('repair')
+  const [newPriority, setNewPriority] = useState<WorkOrderPriority>('medium')
+  const [newSiteId, setNewSiteId] = useState('')
 
   useEffect(() => {
     fetchWorkOrders()
@@ -50,6 +59,28 @@ function WorkOrderPage() {
     setSelectedWorkOrder(null)
   }
 
+  const handleCreateOrder = () => {
+    if (!user || !newTitle.trim() || !newSiteId) return
+    const site = sites.find((s) => s.id === newSiteId)
+    createWorkOrder({
+      title: newTitle.trim(),
+      description: newDesc.trim(),
+      type: newType,
+      priority: newPriority,
+      status: 'pending',
+      siteId: newSiteId,
+      siteName: site?.name || '',
+      reporterId: user.id,
+      reporterName: user.name,
+    })
+    setShowCreateModal(false)
+    setNewTitle('')
+    setNewDesc('')
+    setNewType('repair')
+    setNewPriority('medium')
+    setNewSiteId('')
+  }
+
   const statusGroups: WorkOrderStatus[] = ['pending', 'assigned', 'processing', 'returned', 'escalated', 'completed', 'closed']
 
   const groupByStatus = statusGroups.map((status) => ({
@@ -64,7 +95,10 @@ function WorkOrderPage() {
           <h1 className="text-2xl font-bold text-slate-900">工单中心</h1>
           <p className="text-slate-500 mt-1">管理所有工单，跟踪处理进度</p>
         </div>
-        <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center"
+        >
           <Plus className="w-4 h-4 mr-2" />
           创建工单
         </button>
@@ -270,6 +304,113 @@ function WorkOrderPage() {
 
       {selectedWorkOrder && (
         <WorkPanel workOrder={selectedWorkOrder} onClose={handleClosePanel} />
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">创建工单</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  工单标题 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="简要描述故障或问题"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  详细描述
+                </label>
+                <textarea
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  placeholder="详细描述问题情况、发生时间等"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    类型 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value as WorkOrderType)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="repair">设备维修</option>
+                    <option value="refund">退款申诉</option>
+                    <option value="consumable">耗材补货</option>
+                    <option value="other">其他</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    优先级 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={newPriority}
+                    onChange={(e) => setNewPriority(e.target.value as WorkOrderPriority)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                    <option value="urgent">紧急</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  站点 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newSiteId}
+                  onChange={(e) => setNewSiteId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">请选择站点</option>
+                  {sites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateOrder}
+                disabled={!newTitle.trim() || !newSiteId}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                <AlertCircle className="w-4 h-4 mr-2" />
+                提交工单
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
