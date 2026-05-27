@@ -1,0 +1,96 @@
+import type { InspectionTask } from '@/types'
+
+const now = new Date()
+const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+export const mockInspections: InspectionTask[] = [
+  {
+    id: 'insp001',
+    siteId: 's001',
+    siteName: '城东洗车场 A 站',
+    inspectorId: 'u002',
+    inspectorName: '李巡检',
+    scheduledDate: now.toISOString().split('T')[0],
+    status: 'pending',
+    items: [
+      { id: 'item001', name: '设备外观检查', status: 'normal' },
+      { id: 'item002', name: '高压水泵运行状态', status: 'normal' },
+      { id: 'item003', name: '泡沫枪出液正常', status: 'normal' },
+      { id: 'item004', name: '风干机风力检测', status: 'normal' },
+      { id: 'item005', name: '耗材库存检查', status: 'normal' },
+      { id: 'item006', name: '场地清洁卫生', status: 'normal' },
+    ],
+  },
+  {
+    id: 'insp002',
+    siteId: 's002',
+    siteName: '城西洗车场 B 站',
+    inspectorId: 'u002',
+    inspectorName: '李巡检',
+    scheduledDate: now.toISOString().split('T')[0],
+    status: 'in_progress',
+    startedAt: now.toISOString(),
+    items: [
+      { id: 'item007', name: '设备外观检查', status: 'normal' },
+      { id: 'item008', name: '高压水泵运行状态', status: 'abnormal', remark: '2号水泵异响' },
+      { id: 'item009', name: '泡沫枪出液正常', status: 'normal' },
+      { id: 'item010', name: '风干机风力检测', status: 'normal' },
+      { id: 'item011', name: '耗材库存检查', status: 'normal' },
+      { id: 'item012', name: '场地清洁卫生', status: 'normal' },
+    ],
+  },
+  {
+    id: 'insp003',
+    siteId: 's003',
+    siteName: '城南洗车场 C 站',
+    inspectorId: 'u002',
+    inspectorName: '李巡检',
+    scheduledDate: yesterday.toISOString().split('T')[0],
+    status: 'completed',
+    startedAt: yesterday.toISOString(),
+    completedAt: yesterday.toISOString(),
+    items: [
+      { id: 'item013', name: '设备外观检查', status: 'normal' },
+      { id: 'item014', name: '高压水泵运行状态', status: 'normal' },
+      { id: 'item015', name: '泡沫枪出液正常', status: 'normal' },
+      { id: 'item016', name: '风干机风力检测', status: 'normal' },
+      { id: 'item017', name: '耗材库存检查', status: 'normal' },
+      { id: 'item018', name: '场地清洁卫生', status: 'normal' },
+    ],
+  },
+  {
+    id: 'insp004',
+    siteId: 's004',
+    siteName: '城北洗车场 D 站',
+    inspectorId: 'u002',
+    inspectorName: '李巡检',
+    scheduledDate: tomorrow.toISOString().split('T')[0],
+    status: 'pending',
+    items: [
+      { id: 'item019', name: '设备外观检查', status: 'normal' },
+      { id: 'item020', name: '高压水泵运行状态', status: 'normal' },
+      { id: 'item021', name: '泡沫枪出液正常', status: 'normal' },
+      { id: 'item022', name: '风干机风力检测', status: 'normal' },
+      { id: 'item023', name: '耗材库存检查', status: 'normal' },
+      { id: 'item024', name: '场地清洁卫生', status: 'normal' },
+    ],
+  },
+  {
+    id: 'insp005',
+    siteId: 's005',
+    siteName: '市中心洗车场 E 站',
+    inspectorId: 'u002',
+    inspectorName: '李巡检',
+    scheduledDate: tomorrow.toISOString().split('T')[0],
+    status: 'pending',
+    items: [
+      { id: 'item025', name: '设备外观检查', status: 'normal' },
+      { id: 'item026', name: '高压水泵运行状态', status: 'normal' },
+      { id: 'item027', name: '泡沫枪出液正常', status: 'normal' },
+      { id: 'item028', name: '风干机风力检测', status: 'normal' },
+      { id: 'item029', name: '耗材库存检查', status: 'normal' },
+      { id: 'item030', name: '场地清洁卫生', status: 'normal' },
+    ],
+  },
+]
