@@ -149,7 +149,7 @@ export function seedIfEmpty() {
       id: 'o-002',
       customer_name: '许梦涵 & 陆知行',
       order_no: 'WS2026-0527-002',
-      shoot_date: day(3),
+      shoot_date: day(1),
       select_date: null,
       total_amount: 9800,
       paid_amount: 3000,

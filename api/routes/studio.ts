@@ -146,20 +146,30 @@ router.post('/reschedules/:id/reject', requireRole('manager'), (req: Request, re
   const r = db.prepare(`SELECT * FROM reschedule_requests WHERE id = ?`).get(req.params.id) as any
   if (!r) return res.status(404).json({ success: false, error: '改期申请不存在' })
   if (r.status !== 'pending') return res.status(400).json({ success: false, error: '申请已处理' })
+  const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(r.order_id) as any
+  if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
+  const now = new Date().toISOString()
+  const newStatus =
+    order.paid_amount === order.total_amount
+      ? 'completed'
+      : order.paid_amount > 0 && order.select_date
+        ? 'awaiting_payment'
+        : 'scheduled'
   db.prepare(
     `UPDATE reschedule_requests SET status = 'rejected', approver_role = ?, approver_name = ?, reject_reason = ?, approved_at = NULL WHERE id = ?`
   ).run(req.actor!.role, req.actor!.name, rejectReason, req.params.id)
   db.prepare(
-    `UPDATE orders SET status = CASE
-       WHEN paid_amount = total_amount THEN 'completed'
-       WHEN paid_amount > 0 AND paid_amount < total_amount THEN 'awaiting_payment'
-       ELSE 'scheduled' END,
-       current_reschedule_id = NULL, updated_at = ? WHERE id = ?`
-  ).run(new Date().toISOString(), r.order_id)
+    `UPDATE orders SET status = ?, current_reschedule_id = NULL, updated_at = ? WHERE id = ?`
+  ).run(newStatus, now, r.order_id)
   pushEvent(r.order_id, 'reschedule', req.actor!, {
     reschedule_id: r.id,
     action: 'rejected',
     reject_reason: rejectReason || '',
+  })
+  pushEvent(r.order_id, 'status', req.actor!, {
+    from: 'rescheduling',
+    to: newStatus,
+    note: `改期申请被驳回，退回${newStatus === 'awaiting_payment' ? '待尾款' : newStatus === 'scheduled' ? '已排期' : newStatus}状态`,
   })
   res.json({ success: true })
 })
