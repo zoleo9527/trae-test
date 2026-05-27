@@ -172,8 +172,7 @@ export function SchedulePanel() {
 
   const availableWorkOrders = workOrders.filter((wo) => {
     if (scheduledWorkOrderIds.includes(wo.id)) return false;
-    if (wo.status === "completed" || wo.status === "rejected") return false;
-    if (wo.status === "processing" || wo.status === "reviewing" || wo.status === "escalated") return false;
+    if (wo.status !== "pending") return false;
     return true;
   });
 
@@ -243,23 +242,7 @@ export function SchedulePanel() {
     }
 
     selectedWorkOrderIds.forEach((workOrderId) => {
-      const wo = store.workOrders.find((w) => w.id === workOrderId);
-      if (!wo) return;
-
-      if (wo.status === "pending") {
-        store.assignWorkOrder(workOrderId, selectedInspectorId!, currentUser.id);
-      } else if (wo.assigneeId !== selectedInspectorId) {
-        const historyItem = {
-          status: wo.status,
-          operatorId: currentUser.id,
-          timestamp: new Date().toISOString(),
-          remark: `处理人已调整为${store.users.find((u) => u.id === selectedInspectorId)?.name || "未知"}`,
-        };
-        store.updateWorkOrder(workOrderId, {
-          assigneeId: selectedInspectorId,
-          history: [...wo.history, historyItem],
-        });
-      }
+      store.assignWorkOrder(workOrderId, selectedInspectorId!, currentUser.id);
     });
 
     setShowAddWorkOrderModal(false);
