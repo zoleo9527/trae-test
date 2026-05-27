@@ -99,8 +99,10 @@ router.post('/reschedules', requireRole('butler', 'selector', 'manager'), (req: 
   }
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId) as any
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
+  if (order.status === 'rescheduling') return res.status(400).json({ success: false, error: '该订单已有待审批的改期申请' })
   const id = newId('rs')
   const now = new Date().toISOString()
+  const oldStatus = order.status
   db.prepare(
     `INSERT INTO reschedule_requests (id, order_id, suggested_from, suggested_to, reason, status, created_at)
      VALUES (?, ?, ?, ?, ?, 'pending', ?)`
@@ -114,6 +116,11 @@ router.post('/reschedules', requireRole('butler', 'selector', 'manager'), (req: 
     from,
     to,
     reason,
+  })
+  pushEvent(orderId, 'status', req.actor!, {
+    from: oldStatus,
+    to: 'rescheduling',
+    note: '进入改期流程，待店长审批',
   })
   res.json({ success: true, data: { id } })
 })
