@@ -225,6 +225,21 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_log_module ON operation_logs(module);
     CREATE INDEX IF NOT EXISTS idx_log_record ON operation_logs(module, record_id);
   `);
+
+  const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_warehouse_access'").get();
+  if (tableCheck) {
+    const accessCount = db.prepare('SELECT COUNT(*) as cnt FROM user_warehouse_access').get();
+    if (accessCount.cnt === 0) {
+      db.exec(`
+        INSERT OR IGNORE INTO user_warehouse_access (user_id, warehouse_id)
+        SELECT id, 1 FROM users WHERE role IN ('sales', 'warehouse');
+        INSERT OR IGNORE INTO user_warehouse_access (user_id, warehouse_id)
+        SELECT id, 2 FROM users WHERE role IN ('sales', 'warehouse');
+        INSERT OR IGNORE INTO user_warehouse_access (user_id, warehouse_id)
+        SELECT id, 3 FROM users WHERE role IN ('sales', 'warehouse');
+      `);
+    }
+  }
 }
 
 module.exports = { db, initDatabase };

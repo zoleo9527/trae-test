@@ -91,11 +91,14 @@ router.get('/products/:id', authMiddleware, permissionMiddleware('product:view')
 });
 
 router.get('/warehouses', authMiddleware, (req, res) => {
+  const whFilter = getWarehouseFilter(req.user, 'w');
   const warehouses = db.prepare(`
     SELECT w.*, u.name as manager_name 
     FROM warehouses w 
     LEFT JOIN users u ON w.manager_id = u.id
-  `).all();
+    WHERE 1=1
+    ${whFilter.sql}
+  `).all(...whFilter.params);
   res.json(warehouses);
 });
 
@@ -472,6 +475,25 @@ router.post('/loss-reports', authMiddleware, permissionMiddleware('loss_report:c
     }
   }
   
+  if (related_stock_take_id) {
+    const plan = db.prepare('SELECT warehouse_id FROM stock_take_plans WHERE id = ?').get(related_stock_take_id);
+    if (!plan || plan.warehouse_id !== warehouse_id) {
+      return res.status(400).json({ error: '关联的盘点计划与所选仓库不一致' });
+    }
+  }
+  
+  if (items && items.length > 0) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.batch_id) {
+        const batch = db.prepare('SELECT warehouse_id FROM inventory_batches WHERE id = ?').get(item.batch_id);
+        if (!batch || batch.warehouse_id !== warehouse_id) {
+          return res.status(400).json({ error: `第 ${i + 1} 条明细的批次与所选仓库不一致` });
+        }
+      }
+    }
+  }
+  
   const reportNo = `SS${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
   
   const total_quantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -622,8 +644,13 @@ router.get('/dashboard/summary', authMiddleware, (req, res) => {
   let activitiesSql = `SELECT * FROM operation_logs WHERE 1=1`;
   const activitiesParams = [];
   if (req.user.role !== ROLES.MANAGER) {
-    activitiesSql += ` AND operator_id = ?`;
-    activitiesParams.push(req.user.id);
+    activitiesSql += ` AND (
+      operator_id = ?
+      OR (module = 'stock_take' AND record_id IN (SELECT id FROM stock_take_plans sp WHERE sp.warehouse_id IN (SELECT warehouse_id FROM user_warehouse_access WHERE user_id = ?)))
+      OR (module = 'loss_report' AND record_id IN (SELECT id FROM loss_reports lr WHERE lr.warehouse_id IN (SELECT warehouse_id FROM user_warehouse_access WHERE user_id = ?)))
+      OR (module = 'inventory' AND record_id IN (SELECT id FROM inventory_batches b WHERE b.warehouse_id IN (SELECT warehouse_id FROM user_warehouse_access WHERE user_id = ?)))
+    )`;
+    activitiesParams.push(req.user.id, req.user.id, req.user.id, req.user.id);
   }
   activitiesSql += ` ORDER BY created_at DESC LIMIT 20`;
   const recentActivities = db.prepare(activitiesSql).all(...activitiesParams);
