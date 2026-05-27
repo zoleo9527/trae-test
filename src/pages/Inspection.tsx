@@ -192,13 +192,15 @@ function InspectionPage() {
                       ) : (
                         <div className="flex items-center">
                           {getItemStatusIcon(item.status)}
-                          <button
-                            onClick={() => handleUpdateItem(item.id, 'pending')}
-                            className="ml-1 text-xs text-slate-400 hover:text-indigo-600"
-                            title="重新检查"
-                          >
-                            重选
-                          </button>
+                          {activeTask.status !== 'completed' && (
+                            <button
+                              onClick={() => handleUpdateItem(item.id, 'pending')}
+                              className="ml-1 text-xs text-slate-400 hover:text-indigo-600"
+                              title="重新检查"
+                            >
+                              重选
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

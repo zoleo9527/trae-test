@@ -38,15 +38,11 @@ export const useSiteStore = create<SiteState>((set) => ({
     await new Promise((r) => setTimeout(r, 200))
     set({ sites: mockSites, loading: false, _sitesLoaded: true })
   },
-  fetchDevices: async (siteId) => {
+  fetchDevices: async (siteId?) => {
     if (useSiteStore.getState()._devicesLoaded) return
     set({ loading: true })
     await new Promise((r) => setTimeout(r, 200))
-    let result = mockDevices
-    if (siteId) {
-      result = mockDevices.filter((d) => d.siteId === siteId)
-    }
-    set({ devices: result, loading: false, _devicesLoaded: true })
+    set({ devices: mockDevices, loading: false, _devicesLoaded: true })
   },
   fetchInspections: async () => {
     if (useSiteStore.getState()._inspectionsLoaded) return
