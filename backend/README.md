@@ -94,12 +94,17 @@ chmod +x test_api.sh
 - `GET /api/schedules` - 档期列表
 - `POST /api/schedules` - 创建档期
 - `GET /api/schedules/:id` - 档期详情
-- `PATCH /api/schedules/:id/status` - 更新档期状态
+- `POST /api/schedules/:id/confirm` - 确认档期
+- `POST /api/schedules/:id/reschedule` - 改期档期
+- `POST /api/schedules/:id/cancel` - 取消档期
+- `POST /api/schedules/:id/complete` - 完成档期
 
 ### 服装调度
 - `GET /api/dispatches` - 调度记录列表
 - `POST /api/dispatches` - 创建调度（预约服装）
 - `GET /api/dispatches/:id` - 调度详情
+- `POST /api/dispatches/:id/confirm` - 确认调度
+- `POST /api/dispatches/:id/reschedule` - 改期调度（可换服装）
 - `POST /api/dispatches/:id/pickup` - 领取服装
 - `POST /api/dispatches/:id/return` - 归还服装
 - `POST /api/dispatches/:id/cancel` - 取消调度
@@ -123,12 +128,28 @@ chmod +x test_api.sh
 
 ### 正常流程
 ```
-创建档期 → 创建调度(预约) → 领取服装 → 归还服装 → 自动创建保养 → 完成保养 → 服装恢复可用
+创建档期(pending) → 确认档期(confirmed) → 创建调度(pending) → 确认调度(confirmed) 
+→ 领取服装(picked_up) → 归还服装(returned,无损坏) → 自动创建清洁保养(pending) 
+→ 完成保养(done) → 服装恢复可用(available)
 ```
 
 ### 问题流程（损坏归还）
 ```
-... → 归还服装(填写损坏备注) → 自动创建维修记录 → 服装状态变为维修中 → 完成维修 → 服装恢复可用
+创建档期 → 确认档期 → 创建调度 → 确认调度 → 领取服装 
+→ 归还服装(填写损坏备注) → 自动创建维修保养(pending) → 服装状态变为维修中(repairing) 
+→ 完成维修(done) → 服装恢复可用(available)
+```
+
+### 改期流程
+```
+已确认档期(confirmed) → 改期档期(rescheduled) → 自动更新关联调度状态(rescheduled) 
+→ 重新确认档期(confirmed) → 继续正常流程
+```
+
+### 调度改期（换服装）
+```
+已确认调度(confirmed) → 改期调度(rescheduled) + 更换服装 → 释放旧服装(available) 
+→ 占用新服装(reserved) → 更新取还件时间 → 确认调度(confirmed) → 继续正常流程
 ```
 
 ### 取消流程
@@ -138,20 +159,57 @@ chmod +x test_api.sh
 
 ## 状态机
 
-### 服装状态
+### 档期状态 (Schedule)
+```
+pending(待确认) → confirmed(已确认) → rescheduled(已改期) → confirmed(已确认)
+              → cancelled(已取消)
+                                          → completed(已完成)
+                                          → cancelled(已取消)
+```
+
+**合法流转表:**
+| From | To | 说明 |
+|------|-----|------|
+| pending | confirmed | 确认档期 |
+| pending | cancelled | 取消档期 |
+| confirmed | rescheduled | 改期档期 |
+| confirmed | completed | 完成档期 |
+| confirmed | cancelled | 取消档期 |
+| rescheduled | confirmed | 重新确认 |
+| rescheduled | cancelled | 取消档期 |
+
+**跨实体约束:**
+- 存在已取件(picked_up)的调度时，禁止 cancel/reschedule/complete
+- 取消档期会自动取消所有未取件的关联调度
+
+### 调度状态 (Dispatch)
+```
+pending(待确认) → confirmed(已确认) → picked_up(已取件) → returned(已归还)
+              → cancelled(已取消)              → rescheduled(已改期) → confirmed(已确认)
+                                                                    → cancelled(已取消)
+```
+
+**合法流转表:**
+| From | To | 说明 |
+|------|-----|------|
+| pending | confirmed | 确认调度 |
+| pending | cancelled | 取消调度 |
+| confirmed | picked_up | 领取服装（必须先确认） |
+| confirmed | rescheduled | 改期调度 |
+| confirmed | cancelled | 取消调度 |
+| rescheduled | confirmed | 重新确认 |
+| rescheduled | cancelled | 取消调度 |
+| picked_up | returned | 归还服装 |
+
+### 服装状态 (Costume)
 ```
 available(可用) → reserved(已预约) → lent(借出) → cleaning(清洁中)/repairing(维修中) → available
 ```
 
-### 调度状态
-```
-pending(待确认) → confirmed(已确认) → picked_up(已取件) → returned(已归还)
-              ↘ cancelled(已取消)
-```
-
-### 保养状态
+### 保养状态 (Maintenance)
 ```
 pending(待处理) → doing(处理中) → done(已完成)
+              → done(已完成)
 ```
 
 ## 筛选参数示例
@@ -174,12 +232,14 @@ GET /api/costumes?page=2&page_size=20
 
 ### 已实现
 - ✅ JWT 多角色鉴权
-- ✅ 服装状态机流转
+- ✅ 严格状态机流转验证
+- ✅ 跨实体约束检查（档期-调度关联）
 - ✅ 调度与保养自动衔接
-- ✅ 完整操作日志审计
+- ✅ 完整操作日志审计（含失败原因）
 - ✅ Excel 导出功能
 - ✅ 多维度筛选和分页
 - ✅ 事务保证数据一致性
+- ✅ 改期时自动释放/占用服装
 
 ### 设计取舍
 1. **服装状态驱动而非库存数量** - 每件服装独立追踪，更贴合高端婚纱租赁
@@ -187,6 +247,7 @@ GET /api/costumes?page=2&page_size=20
 3. **损坏备注驱动维修流程** - 业务逻辑与数据字段直接关联
 4. **操作日志独立表** - 不依赖数据库特性，便于迁移和查询
 5. **店长权限导出** - 敏感操作收拢，便于管理
+6. **语义化状态接口** - 不用通用 update 写入 status，避免任意字符串污染
 
 ### 未实现（后续扩展）
 1. 消息通知（微信/短信提醒）
@@ -197,6 +258,21 @@ GET /api/costumes?page=2&page_size=20
 6. 报表统计大屏
 7. 移动端适配
 8. 工作流审批
+
+## 测试脚本说明
+
+```bash
+./test_api.sh health          # 健康检查
+./test_api.sh login           # 登录获取token
+./test_api.sh basic           # 基础API测试
+./test_api.sh normal          # 正常流程测试（含确认步骤）
+./test_api.sh problem         # 问题流程测试（损坏归还→维修）
+./test_api.sh cancel          # 取消流程测试
+./test_api.sh reschedule      # 改期流程测试（换服装验证）
+./test_api.sh statemachine    # 状态机约束验证测试
+./test_api.sh exports         # 导出功能测试
+./test_api.sh all             # 全部测试
+```
 
 ## 扩展建议
 

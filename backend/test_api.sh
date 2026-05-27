@@ -112,7 +112,7 @@ test_exports() {
 test_normal_flow() {
     echo ""
     echo "======================================"
-    echo "  正常流程测试: 预约 -> 领取 -> 归还"
+    echo "  正常流程: 创建档期 → 确认档期 → 创建调度 → 确认调度 → 领取 → 归还 → 保养"
     echo "======================================"
 
     echo ""
@@ -130,7 +130,7 @@ test_normal_flow() {
     echo "选中客户ID: $CUSTOMER_ID"
 
     echo ""
-    echo "Step 3: 创建档期"
+    echo "Step 3: 创建档期（状态: pending）"
     SCHEDULE_RESP=$(curl -s -X POST "$BASE_URL/schedules" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
@@ -147,7 +147,12 @@ test_normal_flow() {
     echo "创建的档期ID: $SCHEDULE_ID"
 
     echo ""
-    echo "Step 4: 创建服装调度（预约）"
+    echo "Step 4: 确认档期（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
+
+    echo ""
+    echo "Step 5: 创建服装调度（状态: pending）"
     DISPATCH_RESP=$(curl -s -X POST "$BASE_URL/dispatches" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
@@ -165,29 +170,48 @@ test_normal_flow() {
     echo "创建的调度ID: $DISPATCH_ID"
 
     echo ""
-    echo "Step 5: 领取服装"
+    echo "Step 6: 确认调度（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
+
+    echo ""
+    echo "Step 7: 领取服装（confirmed → picked_up）"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
-        -d '{"remark": "客户准时取件，配件齐全"}' | python3 -m json.tool
+        -d '{"remark": "客户准时取件，配件齐全"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
 
     echo ""
-    echo "Step 6: 归还服装（无损坏）"
+    echo "Step 8: 归还服装（picked_up → returned，无损坏）"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
-        -d '{"remark": "检查无误，服装完好"}' | python3 -m json.tool
+        -d '{"remark": "检查无误，服装完好"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| dispatch_status:', d['data']['dispatch']['status'])"
 
     echo ""
-    echo "Step 7: 查看自动创建的保养记录"
-    curl -s -X GET "$BASE_URL/maintenances?dispatch_id=$DISPATCH_ID" \
-        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+    echo "Step 9: 查看自动创建的清洁保养记录"
+    MAINT_RESP=$(curl -s -X GET "$BASE_URL/maintenances?dispatch_id=$DISPATCH_ID" \
+        -H "Authorization: Bearer $TOKEN")
+    echo $MAINT_RESP | python3 -c "import sys,json;d=json.load(sys.stdin);print('  保养记录数:', d['data']['total']);[print(f'  - id:{r[\"id\"]} type:{r[\"type\"]} status:{r[\"status\"]}') for r in d['data']['list']]"
+    MAINT_ID=$(echo $MAINT_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+
+    echo ""
+    echo "Step 10: 完成保养（pending → done）"
+    curl -s -X POST "$BASE_URL/maintenances/$MAINT_ID/complete" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"cost": 50, "remark": "清洁完成，无异常"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
+
+    echo ""
+    echo "Step 11: 服装状态应恢复为 available"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装状态:', d['data']['costume']['status'])"
 }
 
 test_problem_flow() {
     echo ""
     echo "======================================"
-    echo "  问题流程测试: 预约 -> 领取 -> 损坏归还 -> 维修"
+    echo "  问题流程: 创建档期 → 确认 → 创建调度 → 确认 → 领取 → 损坏归还 → 维修"
     echo "======================================"
 
     echo ""
@@ -205,7 +229,7 @@ test_problem_flow() {
     echo "选中客户ID: $CUSTOMER_ID"
 
     echo ""
-    echo "Step 3: 创建档期"
+    echo "Step 3: 创建档期（状态: pending）"
     SCHEDULE_RESP=$(curl -s -X POST "$BASE_URL/schedules" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
@@ -221,7 +245,12 @@ test_problem_flow() {
     echo "创建的档期ID: $SCHEDULE_ID"
 
     echo ""
-    echo "Step 4: 创建服装调度"
+    echo "Step 4: 确认档期（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/schedules/$SCHEDULE_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
+
+    echo ""
+    echo "Step 5: 创建服装调度（状态: pending）"
     DISPATCH_RESP=$(curl -s -X POST "$BASE_URL/dispatches" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
@@ -237,44 +266,54 @@ test_problem_flow() {
     echo "创建的调度ID: $DISPATCH_ID"
 
     echo ""
-    echo "Step 5: 领取服装"
+    echo "Step 6: 确认调度（pending → confirmed）"
+    curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/confirm" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
+
+    echo ""
+    echo "Step 7: 领取服装（confirmed → picked_up）"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/pickup" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
-        -d '{}' > /dev/null
+        -d '{"remark": "客户取件，检查配件完好"}' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
 
     echo ""
-    echo "Step 6: 归还服装（有损坏）"
+    echo "Step 8: 归还服装（有损坏，picked_up → returned）"
     curl -s -X POST "$BASE_URL/dispatches/$DISPATCH_ID/return" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -d '{
             "damage_remark": "裙摆处有明显污渍，左侧拉链损坏",
             "remark": "外景拍摄时意外弄脏，需要深度清洁和维修"
-        }' | python3 -m json.tool
+        }' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| damage_remark:', d['data']['dispatch']['damage_remark'])"
 
     echo ""
-    echo "Step 7: 查看维修保养记录"
+    echo "Step 9: 查看自动创建的维修保养记录"
     MAINT_RESP=$(curl -s -X GET "$BASE_URL/maintenances?dispatch_id=$DISPATCH_ID" \
         -H "Authorization: Bearer $TOKEN")
-    echo $MAINT_RESP | python3 -m json.tool
+    echo $MAINT_RESP | python3 -c "import sys,json;d=json.load(sys.stdin);print('  保养记录数:', d['data']['total']);[print(f'  - id:{r[\"id\"]} type:{r[\"type\"]} status:{r[\"status\"]}') for r in d['data']['list']]"
     MAINT_ID=$(echo $MAINT_RESP | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
     echo "维修记录ID: $MAINT_ID"
 
     echo ""
-    echo "Step 8: 完成保养"
+    echo "Step 10: 服装状态应为 repairing（维修中）"
+    curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID" \
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装状态:', d['data']['costume']['status'])"
+
+    echo ""
+    echo "Step 11: 完成保养维修（pending → done）"
     curl -s -X POST "$BASE_URL/maintenances/$MAINT_ID/complete" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -d '{
             "cost": 280,
             "remark": "污渍已清洁，拉链已更换"
-        }' | python3 -m json.tool
+        }' | python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:', d['success'], '| status:', d['data']['status'])"
 
     echo ""
-    echo "Step 9: 查看服装状态是否恢复可用"
+    echo "Step 12: 服装状态应恢复为 available"
     curl -s -X GET "$BASE_URL/costumes/$COSTUME_ID" \
-        -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+        -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;d=json.load(sys.stdin);print('  服装状态:', d['data']['costume']['status'])"
 }
 
 test_cancel_flow() {
