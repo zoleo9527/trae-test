@@ -1,0 +1,239 @@
+:root {
+  --ws-primary: #9c6b4c;
+  --ws-bg: #faf7f2;
+  --ws-card: #ffffff;
+  --ws-text: #2b2b2b;
+  --ws-muted: #8c8c8c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #__nuxt {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  background: var(--ws-bg);
+  color: var(--ws-text);
+}
+
+.ws-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.ws-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ws-header h1 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--ws-primary);
+}
+
+.ws-header .ws-nav a {
+  margin-left: 16px;
+  color: #666;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.ws-header .ws-nav a.active {
+  color: var(--ws-primary);
+  font-weight: 600;
+}
+
+.ws-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ws-stat-card {
+  background: var(--ws-card);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ws-stat-card .label {
+  font-size: 13px;
+  color: var(--ws-muted);
+}
+
+.ws-stat-card .value {
+  font-size: 32px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--ws-text);
+}
+
+.ws-stat-card.pending .value { color: #c97b00; }
+.ws-stat-card.rejected .value { color: #c53030; }
+.ws-stat-card.recheck .value { color: #9c6b4c; }
+.ws-stat-card.unpaid .value { color: #2b6cb0; }
+
+.ws-section {
+  background: var(--ws-card);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ws-section h2 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+}
+
+.ws-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ws-photo-card {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.ws-photo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+}
+
+.ws-photo-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  background: #f0f0f0;
+}
+
+.ws-photo-meta {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ws-muted);
+}
+
+.ws-photo-meta .ws-photo-name {
+  color: var(--ws-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 6px;
+}
+
+.ws-badge.待复核, .ws-badge.复核中 { background: #fff3e0; color: #c97b00; }
+.ws-badge.已驳回 { background: #ffebee; color: #c53030; }
+.ws-badge.需回查 { background: #fce8d8; color: #9c6b4c; }
+.ws-badge.已通过 { background: #e8f5e9; color: #2e7d32; }
+.ws-badge.已回查 { background: #f3e5f5; color: #6a1b9a; }
+
+.ws-timeline {
+  border-left: 2px solid #eee;
+  padding-left: 16px;
+}
+
+.ws-timeline-item {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.ws-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ws-primary);
+}
+
+.ws-timeline-item .ws-tl-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ws-timeline-item .ws-tl-meta {
+  font-size: 12px;
+  color: var(--ws-muted);
+  margin-top: 2px;
+}
+
+.ws-timeline-item .ws-tl-detail {
+  font-size: 13px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.ws-order-row .ws-order-main {
+  font-weight: 600;
+}
+
+.ws-order-row .ws-order-sub {
+  font-size: 12px;
+  color: var(--ws-muted);
+  margin-top: 2px;
+}
+
+.ws-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ws-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ws-compare-item {
+  background: #fafafa;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.ws-compare-item img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #eee;
+}
+
+.ws-empty {
+  text-align: center;
+  color: var(--ws-muted);
+  padding: 40px 0;
+}
