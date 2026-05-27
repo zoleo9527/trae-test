@@ -186,6 +186,19 @@ export function SchedulePanel() {
   const handleAddToSchedule = () => {
     if (!selectedInspectorId || selectedWorkOrderIds.length === 0) return;
 
+    const firstWorkOrder = workOrders.find((wo) => wo.id === selectedWorkOrderIds[0]);
+
+    const newTasks = selectedWorkOrderIds.map((id) => {
+      const wo = workOrders.find((w) => w.id === id);
+      return wo?.type === "repair"
+        ? "设备维修"
+        : wo?.type === "restock"
+        ? "耗材补货"
+        : wo?.type === "inspection"
+        ? "例行巡检"
+        : "投诉处理";
+    });
+
     const existingItem = scheduleItems.find(
       (item) =>
         item.inspectorId === selectedInspectorId &&
@@ -195,29 +208,40 @@ export function SchedulePanel() {
 
     if (existingItem) {
       updateScheduleItem(existingItem.id, {
+        stationId: firstWorkOrder?.stationId || existingItem.stationId,
         workOrderIds: [...existingItem.workOrderIds, ...selectedWorkOrderIds],
+        tasks: [...existingItem.tasks, ...newTasks].filter(
+          (task, index, self) => self.indexOf(task) === index
+        ),
       });
     } else {
-      const firstWorkOrder = workOrders.find((wo) => wo.id === selectedWorkOrderIds[0]);
       addScheduleItem({
         inspectorId: selectedInspectorId,
         stationId: firstWorkOrder?.stationId || stations[0].id,
         date: currentDate,
         timeSlot: "09:00-12:00",
-        tasks: selectedWorkOrderIds.map((id) => {
-          const wo = workOrders.find((w) => w.id === id);
-          return wo?.type === "repair"
-            ? "设备维修"
-            : wo?.type === "restock"
-            ? "耗材补货"
-            : wo?.type === "inspection"
-            ? "例行巡检"
-            : "投诉处理";
-        }),
+        tasks: newTasks.filter(
+          (task, index, self) => self.indexOf(task) === index
+        ),
         status: "pending",
         workOrderIds: selectedWorkOrderIds,
       });
     }
+
+    selectedWorkOrderIds.forEach((workOrderId) => {
+      const wo = workOrders.find((w) => w.id === workOrderId);
+      if (wo && wo.status !== "assigned" && wo.status !== "processing") {
+        useAppStore.getState().assignWorkOrder(
+          workOrderId,
+          selectedInspectorId!,
+          useAppStore.getState().currentUser.id
+        );
+      } else if (wo && wo.assigneeId !== selectedInspectorId) {
+        useAppStore.getState().updateWorkOrder(workOrderId, {
+          assigneeId: selectedInspectorId,
+        });
+      }
+    });
 
     setShowAddWorkOrderModal(false);
     setSelectedInspectorId(null);

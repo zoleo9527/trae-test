@@ -2,7 +2,7 @@
 
 import { useAppStore } from "@/lib/store";
 import { cn, formatDate, stationStatusConfig } from "@/lib/utils";
-import { AlertTriangle, Package, Plus, Search } from "lucide-react";
+import { AlertTriangle, Check, Package, Plus, Search, X } from "lucide-react";
 import { useState } from "react";
 
 export function MaterialPanel() {
@@ -16,6 +16,9 @@ export function MaterialPanel() {
   } | null>(null);
   const [restockQuantity, setRestockQuantity] = useState("");
   const [restockRemark, setRestockRemark] = useState("");
+  const [showGlobalRestockModal, setShowGlobalRestockModal] = useState(false);
+  const [globalStationId, setGlobalStationId] = useState("");
+  const [globalMaterialId, setGlobalMaterialId] = useState("");
 
   const materials = useAppStore((state) => state.materials);
   const stationMaterials = useAppStore((state) => state.stationMaterials);
@@ -69,30 +72,30 @@ export function MaterialPanel() {
     setShowRestockModal(true);
   };
 
-  const handleSubmitRestock = () => {
-    if (!selectedMaterial || !restockQuantity) return;
+  const handleSubmitRestock = (stationId: string, materialId: string) => {
+    if (!stationId || !materialId || !restockQuantity) return;
 
-    const mat = materials.find((m) => m.id === selectedMaterial.materialId);
-    const station = stations.find((s) => s.id === selectedMaterial.stationId);
+    const mat = materials.find((m) => m.id === materialId);
+    const station = stations.find((s) => s.id === stationId);
     if (!mat || !station) return;
+
+    const sm = stationMaterials.find(
+      (x) => x.stationId === stationId && x.materialId === materialId
+    );
+    const status = getMaterialStatus({
+      stationId,
+      materialId,
+      currentStock: sm?.currentStock || 0,
+      lastRestock: "",
+    });
 
     const newWorkOrder = {
       type: "restock" as const,
       title: `${station.name} - ${mat.name}补货`,
       description: restockRemark || `库存不足，申请补货${restockQuantity}${mat.unit}`,
-      stationId: selectedMaterial.stationId,
-      materialId: selectedMaterial.materialId,
-      priority: (getMaterialStatus({
-        ...selectedMaterial,
-        currentStock: stationMaterials.find(
-          (sm) =>
-            sm.stationId === selectedMaterial.stationId &&
-            sm.materialId === selectedMaterial.materialId
-        )?.currentStock || 0,
-        lastRestock: "",
-      }) === "out_of_stock"
-        ? "urgent"
-        : "medium") as "urgent" | "medium",
+      stationId,
+      materialId,
+      priority: (status === "out_of_stock" ? "urgent" : "medium") as "urgent" | "medium",
       status: "pending" as const,
       creatorId: currentUser.id,
       attachments: [],
@@ -100,8 +103,28 @@ export function MaterialPanel() {
 
     addWorkOrder(newWorkOrder);
 
+    setTimeout(() => {
+      const state = useAppStore.getState();
+      const workOrder = state.workOrders.find(
+        (wo) => wo.title === newWorkOrder.title && wo.creatorId === currentUser.id
+      );
+      if (workOrder) {
+        addHistoryRemark({
+          workOrderId: workOrder.id,
+          content: restockRemark
+            ? `补货申请已提交，数量：${restockQuantity}${mat.unit}。备注：${restockRemark}`
+            : `补货申请已提交，数量：${restockQuantity}${mat.unit}`,
+          authorId: currentUser.id,
+          type: "manual" as const,
+        });
+      }
+    }, 50);
+
     setShowRestockModal(false);
+    setShowGlobalRestockModal(false);
     setSelectedMaterial(null);
+    setGlobalStationId("");
+    setGlobalMaterialId("");
     setRestockQuantity("");
     setRestockRemark("");
   };
@@ -111,7 +134,16 @@ export function MaterialPanel() {
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800">耗材盘点</h2>
-          <button className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white text-sm rounded-lg hover:bg-primary-600 transition-colors">
+          <button
+            onClick={() => {
+              setGlobalStationId("");
+              setGlobalMaterialId("");
+              setRestockQuantity("");
+              setRestockRemark("");
+              setShowGlobalRestockModal(true);
+            }}
+            className="flex items-center gap-2 px-3 py-2 bg-primary-500 text-white text-sm rounded-lg hover:bg-primary-600 transition-colors"
+          >
             <Plus className="w-4 h-4" />
             补货申请
           </button>
@@ -450,8 +482,120 @@ export function MaterialPanel() {
                   取消
                 </button>
                 <button
-                  onClick={handleSubmitRestock}
+                  onClick={() =>
+                    selectedMaterial &&
+                    handleSubmitRestock(
+                      selectedMaterial.stationId,
+                      selectedMaterial.materialId
+                    )
+                  }
                   disabled={!restockQuantity}
+                  className="flex-1 py-2 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  提交申请
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showGlobalRestockModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">补货申请</h3>
+                <button
+                  onClick={() => setShowGlobalRestockModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    站点
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={globalStationId}
+                    onChange={(e) => setGlobalStationId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">请选择站点</option>
+                    {stations.map((station) => (
+                      <option key={station.id} value={station.id}>
+                        {station.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    耗材
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={globalMaterialId}
+                    onChange={(e) => setGlobalMaterialId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    disabled={!globalStationId}
+                  >
+                    <option value="">请选择耗材</option>
+                    {stationMaterials
+                      .filter((sm) => sm.stationId === globalStationId)
+                      .map((sm) => {
+                        const mat = materials.find((m) => m.id === sm.materialId);
+                        if (!mat) return null;
+                        return (
+                          <option key={sm.materialId} value={sm.materialId}>
+                            {mat.name} (当前: {sm.currentStock} {mat.unit})
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    补货数量
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={restockQuantity}
+                    onChange={(e) => setRestockQuantity(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="请输入补货数量"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    备注说明（选填）
+                  </label>
+                  <textarea
+                    value={restockRemark}
+                    onChange={(e) => setRestockRemark(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="请输入备注说明..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowGlobalRestockModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() =>
+                    globalStationId &&
+                    globalMaterialId &&
+                    handleSubmitRestock(globalStationId, globalMaterialId)
+                  }
+                  disabled={!globalStationId || !globalMaterialId || !restockQuantity}
                   className="flex-1 py-2 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Check className="w-4 h-4" />
