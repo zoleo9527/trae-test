@@ -143,8 +143,8 @@
                 <div class="detail-item">
                   <div class="detail-item-label">订单状态</div>
                   <div class="detail-item-value">
-                    <span :class="['badge', `badge-${STATUS_COLORS[orderDetail.status]}`]">
-                      {{ STATUS_LABELS[orderDetail.status] }}
+                    <span :class="['badge', `badge-${getOrderStatusColor(orderDetail)}`]">
+                      {{ getOrderStatusLabel(orderDetail) }}
                     </span>
                   </div>
                 </div>
@@ -168,6 +168,20 @@
                 </div>
               </div>
               <div style="margin-top: 12px;">
+                <div class="detail-item-label">订单状态</div>
+                <div style="margin-top: 4px;">
+                  <template v-if="orderDetail?.is_rescheduled">
+                    <span class="badge badge-info">📅 已改约 - 从本路线移除</span>
+                  </template>
+                  <template v-else-if="orderDetail?.status === 'pending'">
+                    <span class="badge badge-warning">📦 待补送 - 已恢复到路线中</span>
+                  </template>
+                  <template v-else-if="orderDetail?.status === 'delivered'">
+                    <span class="badge badge-success">✅ 已完成 - 标记为已签收</span>
+                  </template>
+                </div>
+              </div>
+              <div style="margin-top: 12px;">
                 <div class="detail-item-label">解决方案</div>
                 <div style="padding: 12px; background-color: #d1fae5; color: #065f46; border-radius: 6px; font-size: 14px;">
                   {{ selectedException.resolution }}
@@ -178,12 +192,31 @@
             <div v-if="selectedException.status === 'pending'" class="detail-section">
               <div class="detail-section-title">处理异常</div>
               <div class="form-group">
-                <label class="input-label">解决方案</label>
+                <label class="input-label">处理方式</label>
+                <select v-model="handleType" class="input">
+                  <option v-for="ht in HANDLE_TYPES" :key="ht.value" :value="ht.value">
+                    {{ ht.label }}
+                  </option>
+                </select>
+                <div style="font-size: 12px; color: var(--gray-500); margin-top: 4px;">
+                  <template v-if="handleType === 're_deliver'">
+                    📦 订单将恢复为「待配送」，可继续在本路线中签收
+                  </template>
+                  <template v-else-if="handleType === 'reschedule'">
+                    📅 订单将标记为「已改约」，从本路线移除，后续重新安排
+                  </template>
+                  <template v-else>
+                    ✅ 订单将直接标记为「已签收」，无需补送
+                  </template>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="input-label">解决方案说明</label>
                 <textarea
                   v-model="resolution"
                   class="input"
-                  rows="4"
-                  placeholder="请输入解决方案..."
+                  rows="3"
+                  placeholder="请详细描述处理方案..."
                 ></textarea>
               </div>
             </div>
@@ -200,7 +233,7 @@
             @click="handleException"
             :disabled="!resolution.trim()"
           >
-            ✅ 标记已解决
+            ✅ 确认处理
           </button>
         </div>
       </div>
@@ -210,7 +243,8 @@
 
 <script setup lang="ts">
 import type { ExceptionReport, Order } from '~/types'
-import { EXCEPTION_TYPES, STATUS_LABELS, STATUS_COLORS } from '~/types'
+import { EXCEPTION_TYPES, STATUS_LABELS, STATUS_COLORS, HANDLE_TYPES } from '~/types'
+import { useAuth } from '~/composables/useAuth'
 
 definePageMeta({
   layout: 'default'
@@ -225,6 +259,17 @@ const orderDetail = ref<Order | null>(null)
 const statusFilter = ref('')
 const typeFilter = ref('')
 const resolution = ref('')
+const handleType = ref('re_deliver')
+
+const getOrderStatusLabel = (order: Order) => {
+  if (order.is_rescheduled) return STATUS_LABELS.rescheduled
+  return STATUS_LABELS[order.status] || order.status
+}
+
+const getOrderStatusColor = (order: Order) => {
+  if (order.is_rescheduled) return 'info'
+  return STATUS_COLORS[order.status] || 'warning'
+}
 
 const filteredExceptions = computed(() => {
   let result = [...exceptions.value]
@@ -260,6 +305,7 @@ const formatTime = (timeStr: string) => {
 const selectException = async (exc: ExceptionReport) => {
   selectedException.value = exc
   resolution.value = exc.resolution || ''
+  handleType.value = 're_deliver'
   try {
     orderDetail.value = await $fetch<Order>(`${config.public.apiBase}/orders/${exc.order_id}`)
   } catch (error) {
@@ -283,13 +329,15 @@ const handleException = async () => {
       method: 'POST',
       body: {
         resolution: resolution.value,
-        handled_by: user.value?.name || '系统'
+        handled_by: user.value?.name || '系统',
+        handle_type: handleType.value
       }
     })
     await loadExceptions()
     const updated = exceptions.value.find(e => e.id === selectedException.value!.id)
     if (updated) {
-      selectException(updated)
+      selectedException.value = updated
+      orderDetail.value = await $fetch<Order>(`${config.public.apiBase}/orders/${updated.order_id}`)
     }
   } catch (error) {
     console.error('处理异常失败:', error)

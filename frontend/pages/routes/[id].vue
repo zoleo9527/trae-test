@@ -64,6 +64,7 @@
               <option value="pending">待配送</option>
               <option value="delivered">已签收</option>
               <option value="exception">异常</option>
+              <option value="rescheduled">已改约</option>
             </select>
           </div>
         </div>
@@ -77,8 +78,8 @@
           >
             <div class="list-item-title">
               <span>{{ order.customer_name }}</span>
-              <span :class="['badge', `badge-${STATUS_COLORS[order.status]}`]">
-                {{ STATUS_LABELS[order.status] }}
+              <span :class="['badge', `badge-${getOrderStatusColor(order)}`]">
+                {{ getOrderStatusLabel(order) }}
               </span>
             </div>
             <div class="list-item-subtitle">
@@ -103,7 +104,7 @@
         <div v-if="selectedOrder" class="detail-header">
           <div class="detail-title">{{ selectedOrder.customer_name }}</div>
           <div class="detail-subtitle">
-            订单号：{{ selectedOrder.id }} · {{ STATUS_LABELS[selectedOrder.status] }}
+            订单号：{{ selectedOrder.id }} · {{ getOrderStatusLabel(selectedOrder) }}
           </div>
         </div>
         <div v-else class="detail-header">
@@ -274,17 +275,34 @@
           </div>
         </div>
 
-        <div v-if="selectedOrder && selectedOrder.status === 'pending' && routeData?.status === 'in_progress'" class="detail-actions">
-          <button class="btn btn-warning" @click="showExceptionModal = true">
-            ⚠️ 上报异常
-          </button>
-          <button
-            class="btn btn-success"
-            @click="submitDelivery"
-            :disabled="!canSign"
-          >
-            ✅ 确认签收
-          </button>
+        <div v-if="selectedOrder && routeData?.status === 'in_progress'" class="detail-actions">
+          <template v-if="selectedOrder.status === 'pending'">
+            <button class="btn btn-warning" @click="showExceptionModal = true">
+              ⚠️ 上报异常
+            </button>
+            <button
+              class="btn btn-success"
+              @click="submitDelivery"
+              :disabled="!canSign"
+            >
+              ✅ 确认签收
+            </button>
+          </template>
+          <template v-else-if="selectedOrder.status === 'exception' && !selectedOrder.is_rescheduled">
+            <div style="color: var(--warning); font-size: 13px; text-align: left; flex: 1;">
+              ⚠️ 该订单存在未处理异常，请先在「异常处理中心」处理
+            </div>
+          </template>
+          <template v-else-if="selectedOrder.is_rescheduled">
+            <div style="color: var(--info); font-size: 13px; text-align: left; flex: 1;">
+              📅 该订单已改约，已从本路线移除
+            </div>
+          </template>
+          <template v-else-if="selectedOrder.status === 'delivered'">
+            <div style="color: var(--success); font-size: 13px; text-align: left; flex: 1;">
+              ✅ 该订单已完成签收
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -368,12 +386,26 @@ const exceptionForm = ref({
   description: ''
 })
 
+const getOrderStatusLabel = (order: Order) => {
+  if (order.is_rescheduled) return STATUS_LABELS.rescheduled
+  return STATUS_LABELS[order.status] || order.status
+}
+
+const getOrderStatusColor = (order: Order) => {
+  if (order.is_rescheduled) return 'info'
+  return STATUS_COLORS[order.status] || 'warning'
+}
+
 const filteredOrders = computed(() => {
   let result = [...orders.value]
   if (orderStatusFilter.value) {
-    result = result.filter(o => o.status === orderStatusFilter.value)
+    if (orderStatusFilter.value === 'rescheduled') {
+      result = result.filter(o => o.is_rescheduled)
+    } else {
+      result = result.filter(o => o.status === orderStatusFilter.value && !o.is_rescheduled)
+    }
   }
-  result.sort((a, b) => (a.delivery_sequence || 0) - (b.delivery_sequence || 0))
+  result.sort((a, b) => (a.delivery_sequence || 999) - (b.delivery_sequence || 999))
   return result
 })
 
@@ -447,8 +479,10 @@ const completeRoute = async () => {
       method: 'POST'
     })
     await loadRouteDetail()
-  } catch (error) {
+  } catch (error: any) {
     console.error('完成路线失败:', error)
+    const message = error?.data?.detail || '完成路线失败，请重试'
+    alert(message)
   }
 }
 

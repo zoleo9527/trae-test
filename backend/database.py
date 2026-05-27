@@ -156,7 +156,8 @@ class InMemoryDB:
                 "delivered_quantity": 0,
                 "returned_empty_buckets": 0,
                 "actual_delivered_at": None,
-                "recipient_signature": None
+                "recipient_signature": None,
+                "is_rescheduled": False
             },
             {
                 "id": "ord_20260527_002",
@@ -167,16 +168,17 @@ class InMemoryDB:
                 "quantity": 10,
                 "price_per_bucket": 30,
                 "total_amount": 300,
-                "status": "pending",
-                "delivery_route_id": "route_20260527_01",
-                "delivery_sequence": 2,
+                "status": "exception",
+                "delivery_route_id": None,
+                "delivery_sequence": None,
                 "note": "送到前台即可",
                 "created_at": "2026-05-27T07:45:00",
                 "signed_photo_url": None,
                 "delivered_quantity": 0,
                 "returned_empty_buckets": 0,
                 "actual_delivered_at": None,
-                "recipient_signature": None
+                "recipient_signature": None,
+                "is_rescheduled": True
             },
             {
                 "id": "ord_20260527_003",
@@ -187,7 +189,7 @@ class InMemoryDB:
                 "quantity": 8,
                 "price_per_bucket": 22,
                 "total_amount": 176,
-                "status": "pending",
+                "status": "exception",
                 "delivery_route_id": "route_20260527_01",
                 "delivery_sequence": 3,
                 "note": "请送到后勤仓库",
@@ -196,7 +198,8 @@ class InMemoryDB:
                 "delivered_quantity": 0,
                 "returned_empty_buckets": 0,
                 "actual_delivered_at": None,
-                "recipient_signature": None
+                "recipient_signature": None,
+                "is_rescheduled": False
             },
             {
                 "id": "ord_20260527_004",
@@ -216,7 +219,8 @@ class InMemoryDB:
                 "delivered_quantity": 2,
                 "returned_empty_buckets": 2,
                 "actual_delivered_at": "2026-05-27T10:20:00",
-                "recipient_signature": "李先生"
+                "recipient_signature": "李先生",
+                "is_rescheduled": False
             },
             {
                 "id": "ord_20260527_005",
@@ -236,7 +240,8 @@ class InMemoryDB:
                 "delivered_quantity": 3,
                 "returned_empty_buckets": 0,
                 "actual_delivered_at": "2026-05-27T11:05:00",
-                "recipient_signature": None
+                "recipient_signature": None,
+                "is_rescheduled": False
             },
             {
                 "id": "ord_20260527_006",
@@ -256,7 +261,8 @@ class InMemoryDB:
                 "delivered_quantity": 0,
                 "returned_empty_buckets": 0,
                 "actual_delivered_at": None,
-                "recipient_signature": None
+                "recipient_signature": None,
+                "is_rescheduled": False
             }
         ]
 
@@ -270,8 +276,8 @@ class InMemoryDB:
                 "status": "in_progress",
                 "total_orders": 5,
                 "delivered_orders": 1,
-                "pending_orders": 3,
-                "exception_orders": 1,
+                "pending_orders": 1,
+                "exception_orders": 2,
                 "total_buckets": 28,
                 "delivered_buckets": 5,
                 "returned_buckets": 2,

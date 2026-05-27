@@ -56,6 +56,7 @@ class Order(BaseModel):
     returned_empty_buckets: int
     actual_delivered_at: Optional[str]
     recipient_signature: Optional[str]
+    is_rescheduled: bool = False
 
     class Config:
         from_attributes = True
@@ -127,6 +128,7 @@ class ExceptionCreate(BaseModel):
 class ExceptionHandle(BaseModel):
     resolution: str
     handled_by: str
+    handle_type: str  # re_deliver: 补送, reschedule: 改约, other: 其他
 
 
 class BucketTransaction(BaseModel):

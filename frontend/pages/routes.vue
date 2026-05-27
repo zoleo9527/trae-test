@@ -296,8 +296,10 @@ const completeRoute = async () => {
     if (selectedRoute.value) {
       selectRoute(routes.value.find(r => r.id === selectedRoute.value!.id)!)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('完成路线失败:', error)
+    const message = error?.data?.detail || '完成路线失败，请重试'
+    alert(message)
   }
 }
 

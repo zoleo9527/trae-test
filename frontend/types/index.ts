@@ -31,6 +31,7 @@ export interface Order {
   returned_empty_buckets: number
   actual_delivered_at: string | null
   recipient_signature: string | null
+  is_rescheduled: boolean
 }
 
 export interface Route {
@@ -100,9 +101,16 @@ export const STATUS_LABELS: Record<string, string> = {
   pending: '待配送',
   delivered: '已签收',
   exception: '异常',
+  rescheduled: '已改约',
   in_progress: '进行中',
   completed: '已完成'
 }
+
+export const HANDLE_TYPES = [
+  { value: 're_deliver', label: '补送 - 订单恢复待配送' },
+  { value: 'reschedule', label: '改约 - 从本路线移除' },
+  { value: 'other', label: '其他 - 标记为已完成' }
+]
 
 export const STATUS_COLORS: Record<string, string> = {
   pending: 'warning',

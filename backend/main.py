@@ -114,6 +114,11 @@ async def complete_route(route_id: str):
     if not route:
         raise HTTPException(status_code=404, detail="路线不存在")
     
+    if route["pending_orders"] > 0:
+        raise HTTPException(status_code=400, detail="还有待配送的订单，无法完成路线")
+    if route["exception_orders"] > 0:
+        raise HTTPException(status_code=400, detail="还有未处理的异常订单，无法完成路线")
+    
     route["status"] = "completed"
     route["end_time"] = datetime.now().isoformat()
     return {"status": "success", "message": "路线已完成"}
@@ -225,12 +230,13 @@ async def create_exception(exception_data: ExceptionCreate):
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
     
+    was_pending = order["status"] == "pending"
     order["status"] = "exception"
     
     route = next((r for r in db.routes if r["id"] == exception_data.route_id), None)
     if route:
         route["exception_orders"] += 1
-        if order["status"] == "pending":
+        if was_pending:
             route["pending_orders"] -= 1
     
     driver_name = route["driver_name"] if route else "司机"
@@ -265,6 +271,24 @@ async def handle_exception(exception_id: str, handle_data: ExceptionHandle):
     exception["handled_by"] = handle_data.handled_by
     exception["handled_at"] = datetime.now().isoformat()
     exception["resolution"] = handle_data.resolution
+    
+    order = next((o for o in db.orders if o["id"] == exception["order_id"]), None)
+    route = next((r for r in db.routes if r["id"] == exception["route_id"]), None)
+    
+    if order and route:
+        route["exception_orders"] -= 1
+        
+        if handle_data.handle_type == "re_deliver":
+            order["status"] = "pending"
+            order["is_rescheduled"] = False
+            route["pending_orders"] += 1
+        elif handle_data.handle_type == "reschedule":
+            order["status"] = "exception"
+            order["is_rescheduled"] = True
+            order["delivery_route_id"] = None
+            order["delivery_sequence"] = None
+        else:
+            order["status"] = "delivered"
     
     return {"status": "success", "message": "异常已处理"}
 
