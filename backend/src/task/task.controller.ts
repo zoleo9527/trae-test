@@ -2,6 +2,12 @@ import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { UserRole } from '@prisma/client';
 
+interface CompleteTaskDto {
+  resultNote: string;
+  inspectionResult?: string;
+  inspectionPhoto?: string;
+}
+
 @Controller('api/tasks')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
@@ -30,8 +36,12 @@ export class TaskController {
   }
 
   @Post(':id/complete')
-  completeTask(@Param('id') id: string, @Body('resultNote') resultNote: string) {
-    return this.taskService.completeTask(id, resultNote);
+  completeTask(@Param('id') id: string, @Body() body: CompleteTaskDto) {
+    return this.taskService.completeTask(id, {
+      resultNote: body.resultNote,
+      inspectionResult: body.inspectionResult,
+      inspectionPhoto: body.inspectionPhoto,
+    });
   }
 
   @Post('replenishment')

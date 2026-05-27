@@ -62,8 +62,12 @@ export const taskApi = {
     api.post(`/tasks/${id}/assign`, { assigneeId }),
   start: (id: string, assigneeId: string) =>
     api.post(`/tasks/${id}/start`, { assigneeId }),
-  complete: (id: string, resultNote: string) =>
-    api.post(`/tasks/${id}/complete`, { resultNote }),
+  complete: (id: string, data: {
+    resultNote: string;
+    inspectionResult?: string;
+    inspectionPhoto?: string;
+  }) =>
+    api.post(`/tasks/${id}/complete`, data),
   createReplenishment: (stationId: string, supplyType: string) =>
     api.post('/tasks/replenishment', { stationId, supplyType }),
 };

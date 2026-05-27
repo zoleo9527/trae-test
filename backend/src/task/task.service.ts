@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TaskStatus, TaskType, UserRole } from '@prisma/client';
+import { TaskStatus, TaskType, UserRole, RefundStatus } from '@prisma/client';
+
+interface CompleteTaskData {
+  resultNote: string;
+  inspectionResult?: string;
+  inspectionPhoto?: string;
+}
 
 @Injectable()
 export class TaskService {
@@ -95,19 +101,53 @@ export class TaskService {
     });
   }
 
-  async completeTask(taskId: string, resultNote: string) {
+  async completeTask(taskId: string, data: CompleteTaskData) {
     return this.prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id: taskId },
         data: {
           status: TaskStatus.COMPLETED,
           completedAt: new Date(),
-          resultNote,
+          resultNote: data.resultNote,
         },
         include: {
           station: true,
+          assignee: true,
         },
       });
+
+      if (task.type === TaskType.REFUND_REVIEW && task.relatedId) {
+        const refund = await tx.refundRequest.findUnique({
+          where: { id: task.relatedId },
+        });
+
+        if (refund && refund.status === RefundStatus.INSPECTION_REQUIRED) {
+          const inspectionResult = data.inspectionResult || data.resultNote;
+          
+          await tx.refundRequest.update({
+            where: { id: task.relatedId },
+            data: {
+              status: RefundStatus.CS_REVIEWING,
+              inspectorId: task.assigneeId,
+              inspectionResult,
+              inspectionPhoto: data.inspectionPhoto,
+              inspectionTime: new Date(),
+            },
+          });
+
+          await tx.refundFlowLog.create({
+            data: {
+              refundId: task.relatedId,
+              fromStatus: RefundStatus.INSPECTION_REQUIRED,
+              toStatus: RefundStatus.CS_REVIEWING,
+              operatorId: task.assigneeId || 'unknown',
+              operatorName: task.assignee?.name || '未知巡检员',
+              operatorRole: UserRole.INSPECTOR,
+              remark: inspectionResult,
+            },
+          });
+        }
+      }
 
       if (task.type === TaskType.STATION_INSPECTION) {
         const openIssues = await tx.deviceReport.count({

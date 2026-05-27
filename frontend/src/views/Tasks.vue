@@ -12,6 +12,8 @@ const userStore = useUserStore();
 const taskBoard = ref<any>(null);
 const loading = ref(true);
 const resultNote = ref('');
+const inspectionResult = ref('');
+const inspectionPhoto = ref('');
 const showCompleteModal = ref(false);
 const selectedTask = ref<Task | null>(null);
 
@@ -67,12 +69,24 @@ const startTask = async (task: Task) => {
 const openCompleteModal = (task: Task) => {
   selectedTask.value = task;
   resultNote.value = '';
+  inspectionResult.value = '';
+  inspectionPhoto.value = '';
   showCompleteModal.value = true;
 };
 
 const completeTask = async () => {
   if (!selectedTask.value || !resultNote.value) return;
-  await taskApi.complete(selectedTask.value.id, resultNote.value);
+  
+  const data: any = {
+    resultNote: resultNote.value,
+  };
+  
+  if (selectedTask.value.type === TaskType.REFUND_REVIEW) {
+    data.inspectionResult = inspectionResult.value || resultNote.value;
+    data.inspectionPhoto = inspectionPhoto.value;
+  }
+  
+  await taskApi.complete(selectedTask.value.id, data);
   showCompleteModal.value = false;
   await loadTasks();
 };
@@ -84,6 +98,8 @@ watch(() => userStore.currentRole, () => {
 onMounted(() => {
   loadTasks();
 });
+
+const isRefundReviewTask = (type: TaskType) => type === TaskType.REFUND_REVIEW;
 
 const showUnassignedColumn = () => {
   return userStore.currentRole === UserRole.OPERATION_MANAGER || 
@@ -216,17 +232,48 @@ const columns = [
             <div class="font-medium mb-1">{{ selectedTask?.title }}</div>
             <div class="text-sm text-gray-500">{{ selectedTask?.station.name }}</div>
           </div>
+
+          <div v-if="selectedTask && isRefundReviewTask(selectedTask.type)" class="mb-4 p-3 bg-blue-50 rounded-lg">
+            <div class="text-sm text-blue-800 font-medium mb-2">📋 退款核验专用</div>
+            <div class="text-xs text-blue-600">
+              完成后将自动更新退款状态为「待最终审核」，并记录巡检结论
+            </div>
+          </div>
+
+          <div v-if="selectedTask && isRefundReviewTask(selectedTask.type)" class="mb-4">
+            <label class="text-sm text-gray-500 mb-1 block">巡检结论 <span class="text-red-500">*</span></label>
+            <textarea 
+              v-model="inspectionResult" 
+              class="textarea"
+              placeholder="请详细描述现场核验情况，例如：设备状态、故障原因等..."
+            ></textarea>
+          </div>
+
+          <div v-if="selectedTask && isRefundReviewTask(selectedTask.type)" class="mb-4">
+            <label class="text-sm text-gray-500 mb-1 block">现场照片URL（可选）</label>
+            <input 
+              v-model="inspectionPhoto" 
+              type="text"
+              class="input"
+              placeholder="输入照片链接..."
+            />
+            <div class="text-xs text-gray-400 mt-1">支持上传后粘贴图片地址</div>
+          </div>
+
           <div class="mb-4">
-            <label class="text-sm text-gray-500 mb-1 block">处理结果</label>
+            <label class="text-sm text-gray-500 mb-1 block">
+              {{ selectedTask && isRefundReviewTask(selectedTask.type) ? '任务备注' : '处理结果' }} <span class="text-red-500">*</span>
+            </label>
             <textarea 
               v-model="resultNote" 
               class="textarea"
-              placeholder="请输入处理结果详情..."
+              :placeholder="selectedTask && isRefundReviewTask(selectedTask.type) ? '补充备注（可选填，如巡检结论已填写）' : '请输入处理结果详情...'"
             ></textarea>
           </div>
+
           <button 
             class="btn btn-success w-full"
-            :disabled="!resultNote"
+            :disabled="selectedTask && isRefundReviewTask(selectedTask.type) ? !inspectionResult && !resultNote : !resultNote"
             @click="completeTask"
           >
             确认完成
