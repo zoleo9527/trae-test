@@ -55,7 +55,8 @@ const password = ref('admin123')
 const loading = ref(false)
 const error = ref('')
 
-const { login, isAuthenticated } = useAuth()
+const { l
+ogin, isAuthenticated, user, getDefaultPage } = useAuth()
 
 const handleLogin = async () => {
   loading.value = true
@@ -63,8 +64,9 @@ const handleLogin = async () => {
 
   const result = await login(username.value, password.value)
 
-  if (result.success) {
-    navigateTo('/dashboard')
+  if (result.success && user.value) {
+    const defaultPage = getDefaultPage(user.value.role)
+    navigateTo(defaultPage)
   } else {
     error.value = '用户名或密码错误，请重试'
   }
@@ -73,8 +75,9 @@ const handleLogin = async () => {
 }
 
 watch(isAuthenticated, (val) => {
-  if (val) {
-    navigateTo('/dashboard')
+  if (val && user.value) {
+    const defaultPage = getDefaultPage(user.value.role)
+    navigateTo(defaultPage)
   }
 })
 </script>

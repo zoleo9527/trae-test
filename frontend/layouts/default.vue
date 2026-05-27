@@ -60,18 +60,34 @@
 </template>
 
 <script setup lang="ts">
-const { user, logout, getRoleLabel, isAuthenticated } = useAuth()
+const { user, logout, getRoleLabel, isAuthenticated, canViewDashboard, canViewRoutes, canViewExceptions, canViewCustomers, canViewBuckets, getDefaultPage } = useAuth()
 const route = useRoute()
 
 const pendingExceptions = ref(0)
 
-const menuItems = computed(() => [
-  { path: '/dashboard', label: '仪表板', icon: '📊', badge: null },
-  { path: '/routes', label: '配送路线', icon: '🗺️', badge: null },
-  { path: '/exceptions', label: '异常处理', icon: '⚠️', badge: pendingExceptions.value > 0 ? pendingExceptions.value : null },
-  { path: '/customers', label: '客户管理', icon: '👥', badge: null },
-  { path: '/buckets', label: '空桶对账', icon: '🪣', badge: null }
-])
+const menuItems = computed(() => {
+  if (!user.value) return []
+  const role = user.value.role
+  const items = []
+  
+  if (canViewDashboard(role)) {
+    items.push({ path: '/dashboard', label: '仪表板', icon: '📊', badge: null })
+  }
+  if (canViewRoutes(role)) {
+    items.push({ path: '/routes', label: '配送路线', icon: '🗺️', badge: null })
+  }
+  if (canViewExceptions(role)) {
+    items.push({ path: '/exceptions', label: '异常处理', icon: '⚠️', badge: pendingExceptions.value > 0 ? pendingExceptions.value : null })
+  }
+  if (canViewCustomers(role)) {
+    items.push({ path: '/customers', label: '客户管理', icon: '👥', badge: null })
+  }
+  if (canViewBuckets(role)) {
+    items.push({ path: '/buckets', label: '空桶对账', icon: '🪣', badge: null })
+  }
+  
+  return items
+})
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {

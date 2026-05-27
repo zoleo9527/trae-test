@@ -9,8 +9,22 @@ export interface User {
   avatar: string
 }
 
+export type UserRole = 'station_master' | 'driver' | 'customer_service'
+
 const user = ref<User | null>(null)
 const isAuthenticated = ref(false)
+
+const ROLE_DEFAULT_PAGES: Record<UserRole, string> = {
+  station_master: '/dashboard',
+  driver: '/routes',
+  customer_service: '/exceptions'
+}
+
+const ROLE_ALLOWED_PAGES: Record<UserRole, string[]> = {
+  station_master: ['/dashboard', '/routes', '/exceptions', '/customers', '/buckets'],
+  driver: ['/routes', '/exceptions'],
+  customer_service: ['/exceptions', '/customers', '/routes']
+}
 
 export function useAuth() {
   const config = useRuntimeConfig()
@@ -54,12 +68,37 @@ export function useAuth() {
     return labels[role] || role
   }
 
+  const getDefaultPage = (role: string) => {
+    return ROLE_DEFAULT_PAGES[role as UserRole] || '/dashboard'
+  }
+
+  const hasAccessToPage = (role: string, path: string) => {
+    const normalizedPath = path.split('/').slice(0, 2).join('/') || '/'
+    if (normalizedPath === '/login') return true
+    const allowedPages = ROLE_ALLOWED_PAGES[role as UserRole]
+    if (!allowedPages) return false
+    return allowedPages.includes(normalizedPath)
+  }
+
+  const canViewDashboard = (role: string) => role === 'station_master'
+  const canViewRoutes = (role: string) => ['station_master', 'driver', 'customer_service'].includes(role)
+  const canViewExceptions = (role: string) => ['station_master', 'driver', 'customer_service'].includes(role)
+  const canViewCustomers = (role: string) => ['station_master', 'customer_service'].includes(role)
+  const canViewBuckets = (role: string) => role === 'station_master'
+
   return {
     user,
     isAuthenticated,
     login,
     logout,
     checkAuth,
-    getRoleLabel
+    getRoleLabel,
+    getDefaultPage,
+    hasAccessToPage,
+    canViewDashboard,
+    canViewRoutes,
+    canViewExceptions,
+    canViewCustomers,
+    canViewBuckets
   }
 }
