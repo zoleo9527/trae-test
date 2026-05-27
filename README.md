@@ -1,57 +1,197 @@
-# React + TypeScript + Vite
+# 自助洗车运维系统 - 场站巡检与故障报修
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 项目概述
 
-Currently, two official plugins are available:
+本系统旨在解决自助洗车场站巡检与故障报修流程中信息割裂的问题，实现运营主管、巡检员、客服在同一条链路中高效接力。从巡检发现异常、自动生成工单、派单处理、升级退回、到最终完成归档，全流程可追溯。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**核心目标**：让场站巡检到故障报修之间不再断档，谁今天该处理什么、哪里超时、哪里被退回，打开就能看见。
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 技术栈
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+- **前端框架**：React 18 + TypeScript
+- **构建工具**：Vite 6
+- **路由**：React Router v7
+- **状态管理**：Zustand
+- **样式**：TailwindCSS 3
+- **图表**：Recharts
+- **图标**：Lucide React
+- **数据层**：本地 Mock 数据 + Zustand 内存状态（演示版本）
+
+---
+
+## 快速开始
+
+### 本地启动
+
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 启动开发服务器
+npm run dev
+
+# 3. 访问应用
+# 浏览器打开 http://localhost:5174/
+
+# 其他命令
+npm run build    # 构建生产版本
+npm run check    # TypeScript 类型检查
+npm run lint     # ESLint 代码检查
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 测试账号
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| 角色 | 账号 | 密码 | 核心权限 |
+|------|------|------|----------|
+| 运营主管 | `admin` | `123456` | 全局监控、工单分配、异常升级处理、数据统计 |
+| 巡检员 | `inspector01` | `123456` | 执行巡检任务、处理工单、上报故障、申请耗材 |
+| 客服 | `service01` | `123456` | 受理用户报修、创建工单、跟进退款申诉 |
 
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+**角色切换入口**：登录后点击左侧边栏底部的用户头像区域，可快速切换角色（演示专用，实际生产环境应走独立登录流程）。
+
+---
+
+## 功能模块
+
+### 1. 工作台（/dashboard）
+- 个人待办清单，支持按「全部 / 我的 / 超时」筛选
+- 数据统计概览：待处理工单、超时工单、今日完成、耗材预警
+- 本周工单趋势图表
+- 站点状态一览
+- 今日巡检任务快速入口
+
+### 2. 巡检任务（/inspection）
+- 巡检任务列表（待执行 / 进行中 / 已完成）
+- 一键开始巡检，巡检项逐项检查（正常 / 异常 / 跳过）
+- **异常项自动生成关联工单**：完成巡检后，标记为异常的检查项会自动创建维修或耗材补货工单
+- 异常情况备注说明
+
+### 3. 工单中心（/workorders）
+- 列表视图与看板视图切换
+- 多维度筛选：状态、优先级、类型、站点、关键词搜索
+- 点击工单打开**右侧处理台**，无需跳转即可：
+  - 查看完整工单信息和附件
+  - 添加处理备注
+  - 接收工单
+  - 标记完成
+  - 申请升级
+  - 退回工单
+- 创建新工单：支持手动录入，快速响应用户报修
+- 完整的操作日志时间线
+
+### 4. 站点管理（/sites）
+- 站点列表及状态概览（正常 / 预警 / 异常）
+- 站点详情查看，含站点照片和位置信息
+- 设备状态监控
+- 耗材库存预警（低于阈值红色高亮）
+
+---
+
+## 核心流程与联动示例
+
+### 巡检 → 工单自动联动
+
+**演示路径**：
+1. 以「巡检员」身份登录（`inspector01` / `123456`）
+2. 进入「巡检任务」→ 找到「城东洗车场 A 站」待执行任务
+3. 点击「开始巡检」
+4. 将第 3 项「泡沫枪出液正常」标记为 **异常**，备注：「泡沫泵密封圈老化，不出泡沫」
+5. 将第 5 项「耗材库存检查」标记为 **异常**，备注：「洗车液仅剩 5L，低于阈值」
+6. 其余项标记为「正常」，点击「完成巡检」
+7. 切换到「工单中心」，可见系统已自动生成 2 条工单：
+   - 🔧 **维修工单**：「城东洗车场 A 站 - 泡沫枪出液正常异常」
+   - 🧴 **耗材工单**：「城东洗车场 A 站 - 耗材库存检查异常」
+
+### 异常场景演示数据
+
+系统预置了以下典型异常场景，可直接用于演示：
+
+| 工单编号 | 标题 | 类型 | 状态 | 说明 |
+|---------|------|------|------|------|
+| WO-001 | 1号高压水泵异常异响 | 维修 | 处理中 | **超时场景**：已超时约 2 小时，红色高亮显示 |
+| WO-002 | 2号泡沫枪不出泡沫 | 维修 | 已退回 | **退回场景**：因缺少配件被退回，待重新分配 |
+| WO-003 | 退款申诉 - 设备故障无法使用 | 退款 | 已分配 | **退款场景**：用户支付后设备故障，要求退款 50 元 |
+| WO-004 | 洗车液库存预警 | 耗材 | 待分配 | **耗材预警**：A 站洗车液库存不足 10% |
+| WO-005 | 1号主机主板烧毁需第三方维修 | 维修 | 已升级 | **升级场景**：主板烧毁，已升级等待第三方维修 |
+
+### 工单处理流程
+
 ```
+用户报修 / 巡检发现
+       ↓
+客服创建工单 / 系统自动生成
+       ↓
+待分配 → 主管分配 / 自动派单 → 已分配
+       ↓
+巡检员接收 → 处理中
+       ├─→ 维修完成 → 已完成 → 归档
+       ├─→ 缺少配件 → 申请耗材补货 → 补货完成 → 继续处理
+       ├─→ 无法处理 → 申请升级 → 主管协调 → 继续处理
+       ├─→ 被退回 → 已退回 → 重新分配 → 继续处理
+       └─→ 退款申诉 → 客服核实 → 退款处理 → 已完成
+```
+
+---
+
+## 刻意简化的范围
+
+为了聚焦核心流程演示，本系统做了以下简化，实际生产环境需补充：
+
+1. **后端服务**：使用本地 Mock 数据 + Zustand 内存状态，未连接真实后端 API
+2. **数据持久化**：仅内存存储，刷新页面后恢复为初始 Mock 数据（未使用 localStorage）
+3. **权限控制**：简化了细粒度权限校验，仅做路由级别的登录校验，不同角色登录后看到相同菜单
+4. **文件上传**：附件仅支持查看预置 Mock 图片，未实现真实的文件上传功能
+5. **实时通知**：未实现 WebSocket 实时消息推送，工单状态变化需手动刷新或重新进入页面查看
+6. **导出功能**：未实现数据导出（Excel / PDF）功能
+7. **多用户协作**：数据为单用户会话，未实现多用户实时同步
+8. **地图集成**：站点位置未接入真实地图服务，仅显示文字地址
+9. **支付集成**：退款流程仅记录状态和金额，未对接真实支付网关
+10. **图片生成**：站点照片和附件使用 AI 生成图片，仅作演示用途
+
+---
+
+## 目录结构
+
+```
+src/
+├── components/         # 公共组件
+│   ├── Badge.tsx       # 状态标签组件
+│   ├── Layout.tsx      # 布局组件
+│   ├── Sidebar.tsx     # 侧边导航栏
+│   ├── WorkPanel.tsx   # 右侧处理台（侧边处理台）
+│   └── WorkOrderCard.tsx  # 工单卡片
+├── pages/              # 页面组件
+│   ├── Login.tsx       # 登录页（角色选择）
+│   ├── Dashboard.tsx   # 工作台
+│   ├── Inspection.tsx  # 巡检任务
+│   ├── WorkOrder.tsx   # 工单中心
+│   └── Site.tsx        # 站点管理
+├── store/              # 状态管理（Zustand）
+│   ├── useAuthStore.ts       # 认证状态
+│   ├── useWorkOrderStore.ts  # 工单状态
+│   └── useSiteStore.ts       # 站点 / 设备 / 巡检状态
+├── mock/               # Mock 数据
+│   ├── users.ts        # 用户账号
+│   ├── sites.ts        # 站点数据
+│   ├── devices.ts      # 设备与耗材数据
+│   ├── workorders.ts   # 工单数据（含异常场景）
+│   └── inspections.ts  # 巡检任务数据
+├── types/              # TypeScript 类型定义
+│   └── index.ts
+├── utils/              # 工具函数
+│   └── format.ts       # 日期格式化、状态映射等
+├── App.tsx             # 根组件（路由配置）
+├── main.tsx            # 入口文件
+└── index.css           # 全局样式
+```
+
+---
+
+## 设计说明
+
+- **侧边处理台**：交互重点放在右侧可折叠处理台，一线人员无需跳转页面即可完成工单处理，管理者回看时也能在列表与详情间快速切换
+- **三栏布局**：左侧固定导航 + 主内容区 + 右侧可折叠处理台，桌面端优先
+- **状态可视化**：超时工单红色高亮、异常巡检项红色背景、耗材预警红色标记，关键信息第一眼可见
+- **角色接力**：工单流转记录每个操作人和操作时间，前后文完整，避免扯皮
