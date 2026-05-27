@@ -11,8 +11,33 @@
   let showPush = false;
   let editing = null;
   let pushingActivity = null;
+  let pushedMembers = new Set();
   let selectedMembers = new Set();
   let pushChannel = 'sms';
+
+  const levelMap = { normal: 0, silver: 1, gold: 2, platinum: 3 };
+
+  $: eligibleMembers = members.filter(m => {
+    if (!pushingActivity) return false;
+    if (pushedMembers.has(m.id)) return false;
+
+    const memberLevel = levelMap[m.level] ?? 0;
+    const minLevel = levelMap[pushingActivity.min_level] ?? 0;
+    if (memberLevel < minLevel) return false;
+
+    if (!pushingActivity.target_tags) return true;
+    const targetTags = pushingActivity.target_tags.split(',').map(t => t.trim()).filter(t => t);
+    if (targetTags.length === 0) return true;
+
+    const memberTags = m.tags || '';
+    return targetTags.some(tag => memberTags.includes(tag));
+  });
+
+  $: ineligibleMembers = members.filter(m => {
+    if (!pushingActivity) return false;
+    if (pushedMembers.has(m.id)) return false;
+    return !eligibleMembers.includes(m);
+  });
   let form = {
     name: '',
     type: 'coupon',
@@ -78,9 +103,20 @@
     }
   }
 
-  function openPush(act) {
+  async function openPush(act) {
     pushingActivity = act;
     selectedMembers.clear();
+    pushedMembers.clear();
+
+    try {
+      const stats = await activityAPI.stats(act.id);
+      if (stats.member_ids) {
+        stats.member_ids.forEach(id => pushedMembers.add(id));
+      }
+    } catch (e) {
+      console.error('加载推送记录失败', e);
+    }
+
     showPush = true;
   }
 
@@ -96,10 +132,13 @@
   async function handlePush() {
     if (selectedMembers.size === 0) return;
     try {
-      await activityAPI.push(pushingActivity.id, {
+      const res = await activityAPI.push(pushingActivity.id, {
         member_ids: Array.from(selectedMembers),
         channel: pushChannel,
       });
+      const skipped = res.skipped_count || 0;
+      const msg = `推送完成：成功 ${res.count} 位${skipped > 0 ? `，跳过 ${skipped} 位` : ''}`;
+      alert(msg);
       showPush = false;
       loadData();
     } catch (e) {
@@ -208,6 +247,17 @@
   {#if showPush && pushingActivity}
     <div class="card p-6">
       <h3 class="text-lg font-semibold mb-4">推送活动 - {pushingActivity.name}</h3>
+
+      <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+        <p class="text-sm text-gray-600">
+          <span class="font-medium">推送规则：</span>
+          最低等级 <span class="text-primary-600 font-medium">{pushingActivity.min_level}</span>
+          {#if pushingActivity.target_tags}
+            ，目标标签 <span class="text-primary-600 font-medium">{pushingActivity.target_tags}</span>
+          {/if}
+        </p>
+      </div>
+
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 mb-2">推送渠道</label>
         <select bind:value={pushChannel} class="input w-48">
@@ -216,21 +266,52 @@
           <option value="wechat">微信</option>
         </select>
       </div>
+
       <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-2">选择推送会员（已选 {selectedMembers.size} 人）</label>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          选择推送会员（已选 {selectedMembers.size} 人，符合条件 {eligibleMembers.length} 人）
+        </label>
+
         <div class="border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
-          {#each members as member}
+          {#each eligibleMembers as member}
             <label class="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0">
               <input type="checkbox" checked={selectedMembers.has(member.id)} on:change={() => toggleMember(member.id)} class="w-4 h-4" />
               <div class="flex-1">
                 <p class="font-medium">{member.name}</p>
-                <p class="text-sm text-gray-500">{member.phone} · {member.tags}</p>
+                <p class="text-sm text-gray-500">{member.phone} · {member.tags || '无标签'}</p>
               </div>
+              <span class="badge bg-green-100 text-green-800 text-xs">符合条件</span>
             </label>
+          {/each}
+
+          {#each ineligibleMembers as member}
+            <div class="flex items-center gap-3 p-3 bg-gray-50 border-b border-gray-100 last:border-b-0 opacity-60">
+              <input type="checkbox" disabled class="w-4 h-4" />
+              <div class="flex-1">
+                <p class="font-medium">{member.name}</p>
+                <p class="text-sm text-gray-500">{member.phone} · {member.tags || '无标签'}</p>
+              </div>
+              <span class="badge bg-red-100 text-red-800 text-xs">不符合条件</span>
+            </div>
+          {/each}
+
+          {#each members.filter(m => pushedMembers.has(m.id)) as member}
+            <div class="flex items-center gap-3 p-3 bg-blue-50 border-b border-gray-100 last:border-b-0">
+              <span class="w-4 h-4 flex items-center justify-center text-blue-500">✓</span>
+              <div class="flex-1">
+                <p class="font-medium text-gray-600">{member.name}</p>
+                <p class="text-sm text-gray-400">{member.phone}</p>
+              </div>
+              <span class="badge bg-blue-100 text-blue-800 text-xs">已推送</span>
+            </div>
           {/each}
         </div>
       </div>
+
       <div class="flex gap-3">
+        <button on:click={() => eligibleMembers.forEach(m => selectedMembers.add(m.id)) || (selectedMembers = new Set(selectedMembers))} class="btn-secondary">
+          全选符合条件
+        </button>
         <button on:click={handlePush} disabled={selectedMembers.size === 0} class="btn-primary flex items-center gap-2">
           <Send class="w-4 h-4" />
           确认推送

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"carwash-system/middleware"
@@ -99,9 +100,57 @@ func PushActivity(c *fiber.Ctx) error {
 	}
 
 	user := middleware.GetCurrentUser(c)
+	levelMap := map[string]int{"normal": 0, "silver": 1, "gold": 2, "platinum": 3}
+	minLevelValue := levelMap[activity.MinLevel]
+
+	var targetTags []string
+	if activity.TargetTags != "" {
+		for _, t := range strings.Split(activity.TargetTags, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				targetTags = append(targetTags, t)
+			}
+		}
+	}
+
 	successCount := 0
+	skippedCount := 0
+
+	tx := models.DB.Begin()
 
 	for _, memberID := range req.MemberIDs {
+		var existingPush models.ActivityPush
+		if tx.Where("activity_id = ? AND member_id = ?", id, memberID).First(&existingPush).Error == nil {
+			skippedCount++
+			continue
+		}
+
+		var member models.Member
+		if err := tx.First(&member, memberID).Error; err != nil {
+			skippedCount++
+			continue
+		}
+
+		memberLevelValue := levelMap[member.Level]
+		if memberLevelValue < minLevelValue {
+			skippedCount++
+			continue
+		}
+
+		if len(targetTags) > 0 {
+			hasMatch := false
+			for _, tag := range targetTags {
+				if strings.Contains(member.Tags, tag) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
+				skippedCount++
+				continue
+			}
+		}
+
 		push := models.ActivityPush{
 			ActivityID: uint(id),
 			MemberID:   memberID,
@@ -109,21 +158,30 @@ func PushActivity(c *fiber.Ctx) error {
 			ReadStatus: "unread",
 			Channel:    req.Channel,
 		}
-		models.DB.Create(&push)
+		tx.Create(&push)
 		successCount++
 	}
 
-	models.DB.Create(&models.TicketLog{
+	if activity.Status == "pending" && successCount > 0 {
+		activity.Status = "active"
+		tx.Save(&activity)
+	}
+
+	tx.Create(&models.TicketLog{
 		TicketType: "activity",
 		TicketID:   uint(id),
 		Action:     "push",
 		OperatorID: user.UserID,
-		Remark:     "推送活动给" + strconv.Itoa(successCount) + "位会员",
+		Remark:     "推送活动给" + strconv.Itoa(successCount) + "位会员（跳过" + strconv.Itoa(skippedCount) + "位）",
 	})
 
+	tx.Commit()
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"count":   successCount,
+		"success":         true,
+		"count":           successCount,
+		"skipped_count":   skippedCount,
+		"activity_status": activity.Status,
 	})
 }
 
@@ -139,6 +197,9 @@ func GetActivityStats(c *fiber.Ctx) error {
 	var totalMembers int64
 	models.DB.Model(&models.Member{}).Where("status = ?", "active").Count(&totalMembers)
 
+	var pushedMemberIDs []uint
+	models.DB.Model(&models.ActivityPush{}).Where("activity_id = ?", id).Pluck("member_id", &pushedMemberIDs)
+
 	readRate := 0.0
 	if totalPushes > 0 {
 		readRate = float64(readCount) / float64(totalPushes) * 100
@@ -150,6 +211,7 @@ func GetActivityStats(c *fiber.Ctx) error {
 		"read_rate":     readRate,
 		"total_members": totalMembers,
 		"coverage_rate": float64(totalPushes) / float64(totalMembers) * 100,
+		"member_ids":    pushedMemberIDs,
 	})
 }
 
