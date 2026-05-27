@@ -184,9 +184,9 @@ type Activity struct {
 
 type ActivityPush struct {
 	BaseModel
-	ActivityID uint       `json:"activity_id"`
+	ActivityID uint       `gorm:"uniqueIndex:idx_activity_member;index" json:"activity_id"`
 	Activity   Activity   `gorm:"foreignKey:ActivityID" json:"activity"`
-	MemberID   uint       `json:"member_id"`
+	MemberID   uint       `gorm:"uniqueIndex:idx_activity_member;index" json:"member_id"`
 	Member     Member     `gorm:"foreignKey:MemberID" json:"member"`
 	PushTime   time.Time  `json:"push_time"`
 	ReadStatus string     `gorm:"size:20" json:"read_status"`

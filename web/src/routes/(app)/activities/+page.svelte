@@ -11,15 +11,19 @@
   let showPush = false;
   let editing = null;
   let pushingActivity = null;
-  let pushedMembers = new Set();
+  let pushedMemberIds = [];
   let selectedMembers = new Set();
   let pushChannel = 'sms';
 
   const levelMap = { normal: 0, silver: 1, gold: 2, platinum: 3 };
 
+  function isPushed(memberId) {
+    return pushedMemberIds.includes(memberId);
+  }
+
   $: eligibleMembers = members.filter(m => {
     if (!pushingActivity) return false;
-    if (pushedMembers.has(m.id)) return false;
+    if (isPushed(m.id)) return false;
 
     const memberLevel = levelMap[m.level] ?? 0;
     const minLevel = levelMap[pushingActivity.min_level] ?? 0;
@@ -35,9 +39,11 @@
 
   $: ineligibleMembers = members.filter(m => {
     if (!pushingActivity) return false;
-    if (pushedMembers.has(m.id)) return false;
+    if (isPushed(m.id)) return false;
     return !eligibleMembers.includes(m);
   });
+
+  $: pushedMembersList = members.filter(m => isPushed(m.id));
   let form = {
     name: '',
     type: 'coupon',
@@ -106,12 +112,12 @@
   async function openPush(act) {
     pushingActivity = act;
     selectedMembers.clear();
-    pushedMembers.clear();
+    pushedMemberIds = [];
 
     try {
       const stats = await activityAPI.stats(act.id);
       if (stats.member_ids) {
-        stats.member_ids.forEach(id => pushedMembers.add(id));
+        pushedMemberIds = stats.member_ids;
       }
     } catch (e) {
       console.error('加载推送记录失败', e);
@@ -295,16 +301,21 @@
             </div>
           {/each}
 
-          {#each members.filter(m => pushedMembers.has(m.id)) as member}
-            <div class="flex items-center gap-3 p-3 bg-blue-50 border-b border-gray-100 last:border-b-0">
-              <span class="w-4 h-4 flex items-center justify-center text-blue-500">✓</span>
-              <div class="flex-1">
-                <p class="font-medium text-gray-600">{member.name}</p>
-                <p class="text-sm text-gray-400">{member.phone}</p>
-              </div>
-              <span class="badge bg-blue-100 text-blue-800 text-xs">已推送</span>
+          {#if pushedMembersList.length > 0}
+            <div class="p-3 bg-blue-50 border-b border-gray-100 text-sm text-blue-800 font-medium">
+              已推送会员 ({pushedMembersList.length} 人)
             </div>
-          {/each}
+            {#each pushedMembersList as member}
+              <div class="flex items-center gap-3 p-3 bg-blue-50 border-b border-gray-100 last:border-b-0">
+                <span class="w-4 h-4 flex items-center justify-center text-blue-500">✓</span>
+                <div class="flex-1">
+                  <p class="font-medium text-gray-600">{member.name}</p>
+                  <p class="text-sm text-gray-400">{member.phone}</p>
+                </div>
+                <span class="badge bg-blue-100 text-blue-800 text-xs">已推送</span>
+              </div>
+            {/each}
+          {/if}
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import (
 	"carwash-system/models"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm/clause"
 )
 
 func GetActivities(c *fiber.Ctx) error {
@@ -99,6 +100,10 @@ func PushActivity(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "参数错误"})
 	}
 
+	if len(req.MemberIDs) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "请选择推送会员"})
+	}
+
 	user := middleware.GetCurrentUser(c)
 	levelMap := map[string]int{"normal": 0, "silver": 1, "gold": 2, "platinum": 3}
 	minLevelValue := levelMap[activity.MinLevel]
@@ -113,20 +118,36 @@ func PushActivity(c *fiber.Ctx) error {
 		}
 	}
 
-	successCount := 0
-	skippedCount := 0
-
 	tx := models.DB.Begin()
 
+	var existingPushedIDs []uint
+	tx.Model(&models.ActivityPush{}).
+		Where("activity_id = ? AND member_id IN ?", id, req.MemberIDs).
+		Pluck("member_id", &existingPushedIDs)
+	existingPushedSet := make(map[uint]bool)
+	for _, mid := range existingPushedIDs {
+		existingPushedSet[mid] = true
+	}
+
+	var members []models.Member
+	tx.Where("id IN ?", req.MemberIDs).Find(&members)
+	memberMap := make(map[uint]models.Member)
+	for _, m := range members {
+		memberMap[m.ID] = m
+	}
+
+	now := time.Now()
+	var pushes []models.ActivityPush
+	skippedCount := 0
+
 	for _, memberID := range req.MemberIDs {
-		var existingPush models.ActivityPush
-		if tx.Where("activity_id = ? AND member_id = ?", id, memberID).First(&existingPush).Error == nil {
+		if existingPushedSet[memberID] {
 			skippedCount++
 			continue
 		}
 
-		var member models.Member
-		if err := tx.First(&member, memberID).Error; err != nil {
+		member, exists := memberMap[memberID]
+		if !exists {
 			skippedCount++
 			continue
 		}
@@ -151,15 +172,22 @@ func PushActivity(c *fiber.Ctx) error {
 			}
 		}
 
-		push := models.ActivityPush{
+		pushes = append(pushes, models.ActivityPush{
 			ActivityID: uint(id),
 			MemberID:   memberID,
-			PushTime:   time.Now(),
+			PushTime:   now,
 			ReadStatus: "unread",
 			Channel:    req.Channel,
-		}
-		tx.Create(&push)
-		successCount++
+		})
+	}
+
+	successCount := 0
+	if len(pushes) > 0 {
+		result := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "activity_id"}, {Name: "member_id"}},
+			DoNothing: true,
+		}).Create(&pushes)
+		successCount = int(result.RowsAffected)
 	}
 
 	if activity.Status == "pending" && successCount > 0 {
