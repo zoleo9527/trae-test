@@ -231,14 +231,20 @@ export class WorkflowService {
       });
 
       if (dto.finalDecision === 'APPROVED') {
-        await tx.customerPackage.update({
+        const currentPackage = await tx.customerPackage.findUnique({
           where: { id: refund.packageId },
-          data: {
-            usedCount: {
-              decrement: refund.refundCount,
-            },
-          },
         });
+        
+        if (currentPackage) {
+          const newUsedCount = Math.max(0, currentPackage.usedCount - refund.refundCount);
+          await tx.customerPackage.update({
+            where: { id: refund.packageId },
+            data: {
+              usedCount: newUsedCount,
+              status: newUsedCount >= currentPackage.totalCount ? 'USED_UP' : currentPackage.status,
+            },
+          });
+        }
       }
 
       return updated;
@@ -326,14 +332,20 @@ export class WorkflowService {
           });
 
           if (item.action === 'APPROVE') {
-            await tx.customerPackage.update({
+            const currentPackage = await tx.customerPackage.findUnique({
               where: { id: refund.packageId },
-              data: {
-                usedCount: {
-                  decrement: refund.refundCount,
-                },
-              },
             });
+            
+            if (currentPackage) {
+              const newUsedCount = Math.max(0, currentPackage.usedCount - refund.refundCount);
+              await tx.customerPackage.update({
+                where: { id: refund.packageId },
+                data: {
+                  usedCount: newUsedCount,
+                  status: newUsedCount >= currentPackage.totalCount ? 'USED_UP' : currentPackage.status,
+                },
+              });
+            }
           }
         });
 

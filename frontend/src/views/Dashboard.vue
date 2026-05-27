@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { stationApi } from '@/api';
 import type { DashboardStats, Station } from '@/types';
+import { useUserStore } from '@/stores/user';
 
-interface Props {
-  userRole?: string;
-}
-
-const props = defineProps<Props>();
+const router = useRouter();
+const userStore = useUserStore();
 
 const stats = ref<DashboardStats>({
   totalStations: 0,
@@ -45,6 +44,10 @@ const getWarningLevelColor = (level: number) => {
   if (level >= 2) return 'warning';
   return 'success';
 };
+
+const goTo = (path: string) => {
+  router.push(path);
+};
 </script>
 
 <template>
@@ -74,7 +77,7 @@ const getWarningLevelColor = (level: number) => {
     <div class="card">
       <div class="card-header flex items-center justify-between">
         <span>站点状态概览</span>
-        <span class="text-sm text-gray-500">点击站点可查看详情</span>
+        <span class="text-sm text-gray-500">当前用户：{{ userStore.currentUser.name }}</span>
       </div>
       <div class="card-body">
         <div class="grid grid-cols-3 gap-4">
@@ -127,13 +130,13 @@ const getWarningLevelColor = (level: number) => {
       <div class="card-header">快捷操作</div>
       <div class="card-body">
         <div class="flex gap-4">
-          <button class="btn btn-primary" onclick="location.hash = '#/workflow'">
+          <button class="btn btn-primary" @click="goTo('/workflow')">
             处理退款申诉
           </button>
-          <button class="btn btn-success" onclick="location.hash = '#/batch-review'">
+          <button class="btn btn-success" @click="goTo('/batch-review')">
             批量复核
           </button>
-          <button class="btn btn-warning" onclick="location.hash = '#/tasks'">
+          <button class="btn btn-warning" @click="goTo('/tasks')">
             查看任务
           </button>
         </div>

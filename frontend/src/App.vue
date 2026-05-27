@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { useUserStore } from '@/stores/user';
+import { UserRole } from '@/types';
 
 const route = useRoute();
-const currentRole = ref('OPERATION_MANAGER');
+const router = useRouter();
+const userStore = useUserStore();
 
 const menuItems = [
   { path: '/dashboard', name: '控制台', icon: '📊' },
@@ -42,11 +44,16 @@ const roleLabels: Record<string, string> = {
       </nav>
 
       <div class="role-switcher">
-        <span class="text-sm text-gray-500">当前角色：</span>
-        <select v-model="currentRole" class="select mt-1">
-          <option value="OPERATION_MANAGER">运营主管</option>
-          <option value="INSPECTOR">巡检员</option>
-          <option value="CUSTOMER_SERVICE">客服</option>
+        <div class="text-sm text-gray-500 mb-1">当前用户：</div>
+        <div class="font-medium">{{ userStore.currentUser.name }}</div>
+        <select 
+          :value="userStore.currentRole" 
+          @change="userStore.setRole(($event.target as HTMLSelectElement).value as UserRole)"
+          class="select mt-2"
+        >
+          <option value="OPERATION_MANAGER">运营主管视角</option>
+          <option value="INSPECTOR">巡检员视角</option>
+          <option value="CUSTOMER_SERVICE">客服视角</option>
         </select>
       </div>
     </aside>
@@ -55,13 +62,11 @@ const roleLabels: Record<string, string> = {
       <header class="header">
         <h1 class="page-title">{{ menuItems.find(m => m.path === route.path)?.name }}</h1>
         <div class="header-right">
-          <span class="badge badge-info">{{ roleLabels[currentRole] }}</span>
+          <span class="badge badge-info">{{ roleLabels[userStore.currentRole] }}</span>
         </div>
       </header>
       <div class="content">
-        <router-view v-slot="{ Component }">
-          <component :is="Component" :userRole="currentRole" />
-        </router-view>
+        <router-view />
       </div>
     </main>
   </div>

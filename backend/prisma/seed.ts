@@ -2,6 +2,12 @@ import { PrismaClient, UserRole, StationStatus, RefundStatus, TaskStatus, TaskTy
 
 const prisma = new PrismaClient();
 
+const USER_IDS = {
+  MANAGER: 'manager-001',
+  INSPECTOR: 'inspector-001',
+  CS: 'cs-user-001',
+};
+
 async function main() {
   console.log('🌱 开始生成种子数据...');
 
@@ -15,15 +21,30 @@ async function main() {
   await prisma.station.deleteMany();
   await prisma.user.deleteMany();
 
-  const users = await Promise.all([
+  const [manager, inspector, csUser] = await Promise.all([
     prisma.user.create({
-      data: { name: '张主管', role: UserRole.OPERATION_MANAGER, phone: '13800000001' },
+      data: {
+        id: USER_IDS.MANAGER,
+        name: '张主管',
+        role: UserRole.OPERATION_MANAGER,
+        phone: '13800000001',
+      },
     }),
     prisma.user.create({
-      data: { name: '李巡检', role: UserRole.INSPECTOR, phone: '13800000002' },
+      data: {
+        id: USER_IDS.INSPECTOR,
+        name: '李巡检',
+        role: UserRole.INSPECTOR,
+        phone: '13800000002',
+      },
     }),
     prisma.user.create({
-      data: { name: '王客服', role: UserRole.CUSTOMER_SERVICE, phone: '13800000003' },
+      data: {
+        id: USER_IDS.CS,
+        name: '王客服',
+        role: UserRole.CUSTOMER_SERVICE,
+        phone: '13800000003',
+      },
     }),
   ]);
   console.log('✅ 用户数据已创建');
@@ -196,7 +217,7 @@ async function main() {
         customerReason: '洗不干净，设备老化严重，要求退款',
         refundCount: 1,
         status: RefundStatus.CS_REVIEWING,
-        csReviewerId: users[2].id,
+        csReviewerId: csUser.id,
         csOpinion: '客户反馈属实，站点设备确实存在老化问题，建议批准退款',
         csReviewTime: new Date(),
       },
@@ -208,7 +229,7 @@ async function main() {
         customerReason: '烘干机坏了，车没吹干就走了，感冒了',
         refundCount: 1,
         status: RefundStatus.INSPECTION_REQUIRED,
-        csReviewerId: users[2].id,
+        csReviewerId: csUser.id,
         csOpinion: '需要现场核实设备状态，确认烘干机是否真的故障',
         csReviewTime: new Date(),
       },
@@ -219,11 +240,11 @@ async function main() {
         customerReason: '买错了，不需要这个套餐，想换成其他的',
         refundCount: 9,
         status: RefundStatus.APPROVED,
-        csReviewerId: users[2].id,
+        csReviewerId: csUser.id,
         csOpinion: '未使用可退款',
         csReviewTime: new Date(),
         finalDecision: 'APPROVED',
-        finalReviewerId: users[0].id,
+        finalReviewerId: manager.id,
         finalReviewTime: new Date(),
       },
     }),
@@ -234,11 +255,11 @@ async function main() {
         customerReason: '设备没问题，就是不想用了',
         refundCount: 1,
         status: RefundStatus.REJECTED,
-        csReviewerId: users[2].id,
+        csReviewerId: csUser.id,
         csOpinion: '核销成功，设备正常，不符合退款条件',
         csReviewTime: new Date(),
         finalDecision: 'REJECTED',
-        finalReviewerId: users[0].id,
+        finalReviewerId: manager.id,
         finalReviewTime: new Date(),
       },
     }),
@@ -249,7 +270,7 @@ async function main() {
     data: [
       {
         refundId: refunds[0].id,
-        fromStatus: null as any,
+        fromStatus: null,
         toStatus: RefundStatus.SUBMITTED,
         operatorId: 'system',
         operatorName: '系统自动',
@@ -258,7 +279,7 @@ async function main() {
       },
       {
         refundId: refunds[1].id,
-        fromStatus: null as any,
+        fromStatus: null,
         toStatus: RefundStatus.SUBMITTED,
         operatorId: 'system',
         operatorName: '系统自动',
@@ -269,14 +290,14 @@ async function main() {
         refundId: refunds[1].id,
         fromStatus: RefundStatus.SUBMITTED,
         toStatus: RefundStatus.CS_REVIEWING,
-        operatorId: users[2].id,
-        operatorName: users[2].name,
+        operatorId: csUser.id,
+        operatorName: csUser.name,
         operatorRole: UserRole.CUSTOMER_SERVICE,
         remark: '客户反馈属实，站点设备确实存在老化问题，建议批准退款',
       },
       {
         refundId: refunds[2].id,
-        fromStatus: null as any,
+        fromStatus: null,
         toStatus: RefundStatus.SUBMITTED,
         operatorId: 'system',
         operatorName: '系统自动',
@@ -287,14 +308,14 @@ async function main() {
         refundId: refunds[2].id,
         fromStatus: RefundStatus.SUBMITTED,
         toStatus: RefundStatus.INSPECTION_REQUIRED,
-        operatorId: users[2].id,
-        operatorName: users[2].name,
+        operatorId: csUser.id,
+        operatorName: csUser.name,
         operatorRole: UserRole.CUSTOMER_SERVICE,
         remark: '需要现场核实设备状态，确认烘干机是否真的故障',
       },
       {
         refundId: refunds[3].id,
-        fromStatus: null as any,
+        fromStatus: null,
         toStatus: RefundStatus.SUBMITTED,
         operatorId: 'system',
         operatorName: '系统自动',
@@ -305,8 +326,8 @@ async function main() {
         refundId: refunds[3].id,
         fromStatus: RefundStatus.SUBMITTED,
         toStatus: RefundStatus.CS_REVIEWING,
-        operatorId: users[2].id,
-        operatorName: users[2].name,
+        operatorId: csUser.id,
+        operatorName: csUser.name,
         operatorRole: UserRole.CUSTOMER_SERVICE,
         remark: '未使用可退款',
       },
@@ -314,8 +335,8 @@ async function main() {
         refundId: refunds[3].id,
         fromStatus: RefundStatus.CS_REVIEWING,
         toStatus: RefundStatus.APPROVED,
-        operatorId: users[0].id,
-        operatorName: users[0].name,
+        operatorId: manager.id,
+        operatorName: manager.name,
         operatorRole: UserRole.OPERATION_MANAGER,
         remark: '运营主管批准退款',
       },
@@ -333,7 +354,7 @@ async function main() {
         title: '退款申诉现场核验 - 西城区金融街站',
         description: '退款原因: 烘干机坏了，车没吹干就走了，感冒了\n客服意见: 需要现场核实设备状态',
         status: TaskStatus.PENDING,
-        assigneeId: users[1].id,
+        assigneeId: inspector.id,
         priority: 2,
       },
       {
@@ -342,7 +363,7 @@ async function main() {
         title: '站点异常紧急处理 - 西城区金融街站',
         description: '设备故障较多，水压不稳定，烘干机完全不工作',
         status: TaskStatus.IN_PROGRESS,
-        assigneeId: users[1].id,
+        assigneeId: inspector.id,
         priority: 3,
         escalated: true,
         escalateNote: '多个设备同时故障，需紧急处理',
@@ -361,7 +382,7 @@ async function main() {
         title: '耗材补货 - 西城区金融街站',
         description: '洗车液库存严重不足',
         status: TaskStatus.PENDING,
-        assigneeId: users[1].id,
+        assigneeId: inspector.id,
         priority: 2,
       },
       {
@@ -370,7 +391,7 @@ async function main() {
         title: '设备检查 - 海淀区中关村站',
         description: '吸尘器吸力减弱，需要检查维护',
         status: TaskStatus.COMPLETED,
-        assigneeId: users[1].id,
+        assigneeId: inspector.id,
         priority: 1,
         completedAt: new Date(),
         resultNote: '已清理滤网，吸力恢复正常',
@@ -382,6 +403,9 @@ async function main() {
   console.log('\n🎉 所有种子数据生成完成！');
   console.log('\n📊 数据概览：');
   console.log('  - 用户: 3人 (1主管 + 1巡检 + 1客服)');
+  console.log(`    - 张主管: ${USER_IDS.MANAGER}`);
+  console.log(`    - 李巡检: ${USER_IDS.INSPECTOR}`);
+  console.log(`    - 王客服: ${USER_IDS.CS}`);
   console.log('  - 站点: 3个 (1正常 + 1预警 + 1异常)');
   console.log('  - 套餐: 5个');
   console.log('  - 退款申诉: 5条 (1待审核 + 1待最终 + 1待核验 + 1已批 + 1已驳)');

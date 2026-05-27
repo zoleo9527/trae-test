@@ -139,16 +139,16 @@ model RefundRequest {
 }
 
 model RefundFlowLog {
-  id            String        @id @default(cuid())
+  id            String         @id @default(cuid())
   refundId      String
-  refund        RefundRequest @relation(fields: [refundId], references: [id])
-  fromStatus    RefundStatus
+  refund        RefundRequest  @relation(fields: [refundId], references: [id])
+  fromStatus    RefundStatus?
   toStatus      RefundStatus
   operatorId    String
   operatorName  String
   operatorRole  UserRole
   remark        String?
-  createdAt     DateTime      @default(now())
+  createdAt     DateTime       @default(now())
 }
 
 model DeviceReport {

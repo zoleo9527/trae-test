@@ -39,7 +39,7 @@ export class TaskService {
         }
         break;
       case UserRole.CUSTOMER_SERVICE:
-        taskTypes = [TaskType.VERIFICATION_DISPUTE];
+        taskTypes = [TaskType.VERIFICATION_DISPUTE, TaskType.REFUND_REVIEW];
         where = {
           type: { in: taskTypes },
           status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },

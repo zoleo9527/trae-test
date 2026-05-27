@@ -3,12 +3,9 @@ import { ref, onMounted, computed } from 'vue';
 import { workflowApi } from '@/api';
 import { RefundStatus, UserRole } from '@/types';
 import type { RefundRequest, RefundFlowLog } from '@/types';
+import { useUserStore } from '@/stores/user';
 
-interface Props {
-  userRole?: string;
-}
-
-const props = defineProps<Props>();
+const userStore = useUserStore();
 
 const statusFilter = ref<RefundStatus | ''>('');
 const refunds = ref<RefundRequest[]>([]);
@@ -45,15 +42,15 @@ const statusLabelMap: Record<RefundStatus, string> = {
 };
 
 const canCsReview = computed(() => 
-  props.userRole === UserRole.CUSTOMER_SERVICE || props.userRole === UserRole.OPERATION_MANAGER
+  userStore.currentRole === UserRole.CUSTOMER_SERVICE || userStore.currentRole === UserRole.OPERATION_MANAGER
 );
 
 const canInspect = computed(() => 
-  props.userRole === UserRole.INSPECTOR || props.userRole === UserRole.OPERATION_MANAGER
+  userStore.currentRole === UserRole.INSPECTOR || userStore.currentRole === UserRole.OPERATION_MANAGER
 );
 
 const canFinalReview = computed(() => 
-  props.userRole === UserRole.OPERATION_MANAGER
+  userStore.currentRole === UserRole.OPERATION_MANAGER
 );
 
 const loadRefunds = async () => {
@@ -80,7 +77,7 @@ const handleCsReview = async (needInspection: boolean) => {
   
   await workflowApi.csReview({
     refundId: selectedRefund.value.id,
-    csReviewerId: 'cs-user-001',
+    csReviewerId: userStore.currentUser.id,
     csOpinion: opinion,
     needInspection,
   });
@@ -95,7 +92,7 @@ const handleInspection = async () => {
   
   await workflowApi.submitInspection({
     refundId: selectedRefund.value.id,
-    inspectorId: 'inspector-001',
+    inspectorId: userStore.currentUser.id,
     inspectionResult: result,
   });
   await loadRefunds();
@@ -106,7 +103,7 @@ const handleFinalReview = async (approved: boolean) => {
   if (!selectedRefund.value) return;
   await workflowApi.finalReview({
     refundId: selectedRefund.value.id,
-    reviewerId: 'manager-001',
+    reviewerId: userStore.currentUser.id,
     finalDecision: approved ? 'APPROVED' : 'REJECTED',
   });
   await loadRefunds();

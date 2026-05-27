@@ -3,12 +3,9 @@ import { ref, computed, onMounted } from 'vue';
 import { workflowApi } from '@/api';
 import { RefundStatus } from '@/types';
 import type { RefundRequest, BatchReviewItem } from '@/types';
+import { useUserStore } from '@/stores/user';
 
-interface Props {
-  userRole?: string;
-}
-
-defineProps<Props>();
+const userStore = useUserStore();
 
 const refunds = ref<RefundRequest[]>([]);
 const selectedIds = ref<Set<string>>(new Set());
@@ -71,7 +68,7 @@ const executeBatch = async () => {
     }));
 
     await workflowApi.batchReview({
-      reviewerId: 'manager-001',
+      reviewerId: userStore.currentUser.id,
       items,
     });
 

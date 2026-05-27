@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { taskApi } from '@/api';
 import { TaskStatus, TaskType, UserRole } from '@/types';
 import type { Task } from '@/types';
+import { useUserStore } from '@/stores/user';
 
-interface Props {
-  userRole?: string;
-}
-
-const props = defineProps<Props>();
+const router = useRouter();
+const userStore = useUserStore();
 
 const taskBoard = ref<any>(null);
 const loading = ref(true);
@@ -19,11 +18,11 @@ const selectedTask = ref<Task | null>(null);
 const loadTasks = async () => {
   loading.value = true;
   try {
-    if (props.userRole === UserRole.OPERATION_MANAGER) {
+    if (userStore.currentRole === UserRole.OPERATION_MANAGER) {
       const res = await taskApi.getBoard();
       taskBoard.value = res.data;
     } else {
-      const res = await taskApi.getMyTasks(props.userRole as UserRole);
+      const res = await taskApi.getMyTasks(userStore.currentRole, userStore.currentUser.id);
       taskBoard.value = {
         pending: res.data.filter((t: Task) => t.status === TaskStatus.PENDING),
         inProgress: res.data.filter((t: Task) => t.status === TaskStatus.IN_PROGRESS),
@@ -53,12 +52,12 @@ const taskTypeColors: Record<TaskType, string> = {
 const priorityLabels = ['低', '中', '高'];
 
 const assignTask = async (task: Task) => {
-  await taskApi.assign(task.id, 'inspector-001');
+  await taskApi.assign(task.id, userStore.currentUser.id);
   await loadTasks();
 };
 
 const startTask = async (task: Task) => {
-  await taskApi.start(task.id, 'inspector-001');
+  await taskApi.start(task.id, userStore.currentUser.id);
   await loadTasks();
 };
 
@@ -75,7 +74,7 @@ const completeTask = async () => {
   await loadTasks();
 };
 
-watch(() => props.userRole, () => {
+watch(() => userStore.currentRole, () => {
   loadTasks();
 });
 
@@ -150,11 +149,11 @@ const columns = [
 
             <div class="mt-3 flex gap-2">
               <button
-                v-if="col.key === 'unassigned' && userRole === UserRole.OPERATION_MANAGER"
+                v-if="col.key === 'unassigned' && userStore.currentRole === UserRole.OPERATION_MANAGER"
                 class="btn btn-primary text-xs flex-1"
                 @click="assignTask(task)"
               >
-                分配
+                分配给我
               </button>
               <button
                 v-if="col.key === 'pending'"
