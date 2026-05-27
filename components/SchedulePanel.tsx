@@ -22,7 +22,7 @@ import {
     verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, ChevronLeft, ChevronRight, Clock, GripVertical, Plus, User } from "lucide-react";
+import { Calendar, Check, ChevronLeft, ChevronRight, Clock, GripVertical, Plus, User, X } from "lucide-react";
 import { useState } from "react";
 
 const timeSlots = [
@@ -153,13 +153,84 @@ function SortableScheduleItem({ item, onClick }: SortableScheduleItemProps) {
 export function SchedulePanel() {
   const [currentDate, setCurrentDate] = useState("2024-01-17");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
+  const [selectedInspectorId, setSelectedInspectorId] = useState<string | null>(null);
+  const [selectedWorkOrderIds, setSelectedWorkOrderIds] = useState<string[]>([]);
 
   const scheduleItems = useAppStore((state) => state.scheduleItems);
   const updateScheduleItem = useAppStore((state) => state.updateScheduleItem);
+  const addScheduleItem = useAppStore((state) => state.addScheduleItem);
   const users = useAppStore((state) => state.users);
   const stations = useAppStore((state) => state.stations);
+  const workOrders = useAppStore((state) => state.workOrders);
 
   const inspectors = users.filter((u) => u.role === "inspector");
+
+  const scheduledWorkOrderIds = scheduleItems
+    .filter((item) => item.date === currentDate)
+    .flatMap((item) => item.workOrderIds);
+
+  const availableWorkOrders = workOrders.filter(
+    (wo) =>
+      !scheduledWorkOrderIds.includes(wo.id) &&
+      wo.status !== "completed" &&
+      wo.status !== "rejected"
+  );
+
+  const handleOpenAddModal = (inspectorId: string) => {
+    setSelectedInspectorId(inspectorId);
+    setSelectedWorkOrderIds([]);
+    setShowAddWorkOrderModal(true);
+  };
+
+  const handleAddToSchedule = () => {
+    if (!selectedInspectorId || selectedWorkOrderIds.length === 0) return;
+
+    const existingItem = scheduleItems.find(
+      (item) =>
+        item.inspectorId === selectedInspectorId &&
+        item.date === currentDate &&
+        item.workOrderIds.length === 0
+    );
+
+    if (existingItem) {
+      updateScheduleItem(existingItem.id, {
+        workOrderIds: [...existingItem.workOrderIds, ...selectedWorkOrderIds],
+      });
+    } else {
+      const firstWorkOrder = workOrders.find((wo) => wo.id === selectedWorkOrderIds[0]);
+      addScheduleItem({
+        inspectorId: selectedInspectorId,
+        stationId: firstWorkOrder?.stationId || stations[0].id,
+        date: currentDate,
+        timeSlot: "09:00-12:00",
+        tasks: selectedWorkOrderIds.map((id) => {
+          const wo = workOrders.find((w) => w.id === id);
+          return wo?.type === "repair"
+            ? "设备维修"
+            : wo?.type === "restock"
+            ? "耗材补货"
+            : wo?.type === "inspection"
+            ? "例行巡检"
+            : "投诉处理";
+        }),
+        status: "pending",
+        workOrderIds: selectedWorkOrderIds,
+      });
+    }
+
+    setShowAddWorkOrderModal(false);
+    setSelectedInspectorId(null);
+    setSelectedWorkOrderIds([]);
+  };
+
+  const toggleWorkOrderSelection = (workOrderId: string) => {
+    setSelectedWorkOrderIds((prev) =>
+      prev.includes(workOrderId)
+        ? prev.filter((id) => id !== workOrderId)
+        : [...prev, workOrderId]
+    );
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -292,7 +363,10 @@ export function SchedulePanel() {
                       )}
                     </SortableContext>
 
-                    <button className="w-full mt-2 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-primary-400 hover:text-primary-500 transition-colors">
+                    <button
+                      onClick={() => handleOpenAddModal(inspector.id)}
+                      className="w-full mt-2 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-primary-400 hover:text-primary-500 transition-colors"
+                    >
                       + 添加工单到此排班
                     </button>
                   </div>
@@ -305,31 +379,73 @@ export function SchedulePanel() {
         <div className="w-72 border-l border-gray-200 bg-white p-4 overflow-y-auto">
           <h3 className="font-medium text-gray-800 mb-3">待分配工单</h3>
           <p className="text-xs text-gray-500 mb-4">
-            可拖拽左侧排班卡片调整时间段
+            点击"添加工单到此排班"按钮选择工单
           </p>
 
-          <div className="space-y-3">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm font-medium text-blue-800 mb-1">3号吸尘器吸力不足</p>
-              <p className="text-xs text-blue-600">朝阳路站 · 紧急</p>
+          {availableWorkOrders.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              暂无待分配工单
             </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-sm font-medium text-yellow-800 mb-1">玻璃清洁剂缺货</p>
-              <p className="text-xs text-yellow-600">朝阳路站 · 紧急</p>
+          ) : (
+            <div className="space-y-3">
+              {availableWorkOrders.map((wo) => {
+                const station = stations.find((s) => s.id === wo.stationId);
+                return (
+                  <div
+                    key={wo.id}
+                    className={cn(
+                      "rounded-lg p-3 border",
+                      wo.type === "repair"
+                        ? "bg-red-50 border-red-200"
+                        : wo.type === "restock"
+                        ? "bg-green-50 border-green-200"
+                        : wo.type === "inspection"
+                        ? "bg-blue-50 border-blue-200"
+                        : "bg-purple-50 border-purple-200"
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "text-sm font-medium mb-1",
+                        wo.type === "repair"
+                          ? "text-red-800"
+                          : wo.type === "restock"
+                          ? "text-green-800"
+                          : wo.type === "inspection"
+                          ? "text-blue-800"
+                          : "text-purple-800"
+                      )}
+                    >
+                      {wo.title}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs",
+                        wo.type === "repair"
+                          ? "text-red-600"
+                          : wo.type === "restock"
+                          ? "text-green-600"
+                          : wo.type === "inspection"
+                          ? "text-blue-600"
+                          : "text-purple-600"
+                      )}
+                    >
+                      {station?.name} ·{" "}
+                      {{ low: "低", medium: "中", high: "高", urgent: "紧急" }[wo.priority]}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm font-medium text-green-800 mb-1">纳米镀膜蜡库存预警</p>
-              <p className="text-xs text-green-600">中关村站 · 中</p>
-            </div>
-          </div>
+          )}
 
           <div className="mt-6 p-3 bg-gray-50 rounded-lg">
             <h4 className="text-sm font-medium text-gray-700 mb-2">使用说明</h4>
             <ul className="text-xs text-gray-500 space-y-1">
               <li>• 拖拽排班卡片可调整顺序</li>
               <li>• 松开后自动更新时间段</li>
-              <li>• 点击卡片查看详情</li>
-              <li>• 待分配工单可直接拖拽到排班</li>
+              <li>• 点击"添加工单到此排班"选择工单</li>
+              <li>• 已分配的工单会从列表移除</li>
             </ul>
           </div>
         </div>
@@ -345,6 +461,108 @@ export function SchedulePanel() {
           </div>
         ) : null}
       </DragOverlay>
+
+      {showAddWorkOrderModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">选择要添加的工单</h3>
+              <button
+                onClick={() => {
+                  setShowAddWorkOrderModal(false);
+                  setSelectedInspectorId(null);
+                  setSelectedWorkOrderIds([]);
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+              {availableWorkOrders.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  没有可分配的工单
+                </div>
+              ) : (
+                availableWorkOrders.map((wo) => {
+                  const station = stations.find((s) => s.id === wo.stationId);
+                  const isSelected = selectedWorkOrderIds.includes(wo.id);
+                  return (
+                    <div
+                      key={wo.id}
+                      onClick={() => toggleWorkOrderSelection(wo.id)}
+                      className={cn(
+                        "p-3 rounded-lg border cursor-pointer transition-colors",
+                        isSelected
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0",
+                            isSelected
+                              ? "bg-primary-500 border-primary-500"
+                              : "border-gray-300"
+                          )}
+                        >
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-800 text-sm">{wo.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {station?.name} ·{" "}
+                            {{
+                              low: "低",
+                              medium: "中",
+                              high: "高",
+                              urgent: "紧急",
+                            }[wo.priority]}
+                            ·{" "}
+                            {{
+                              repair: "设备维修",
+                              restock: "耗材补货",
+                              inspection: "例行巡检",
+                              complaint: "投诉退款",
+                            }[wo.type]}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                已选择 {selectedWorkOrderIds.length} 个工单
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowAddWorkOrderModal(false);
+                    setSelectedInspectorId(null);
+                    setSelectedWorkOrderIds([]);
+                  }}
+                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleAddToSchedule}
+                  disabled={selectedWorkOrderIds.length === 0}
+                  className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  确认添加
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

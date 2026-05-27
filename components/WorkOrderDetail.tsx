@@ -13,6 +13,7 @@ import {
 import {
     AlertTriangle,
     ArrowUpRight,
+    Check,
     CheckCircle,
     Clock,
     FileText,
@@ -62,6 +63,8 @@ export function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectSupplement, setRejectSupplement] = useState("");
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
 
   const stations = useAppStore((state) => state.stations);
   const users = useAppStore((state) => state.users);
@@ -71,6 +74,9 @@ export function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
   const updateWorkOrderStatus = useAppStore((state) => state.updateWorkOrderStatus);
   const updateWorkOrder = useAppStore((state) => state.updateWorkOrder);
   const addHistoryRemark = useAppStore((state) => state.addHistoryRemark);
+  const assignWorkOrder = useAppStore((state) => state.assignWorkOrder);
+
+  const inspectors = users.filter((u) => u.role === "inspector");
 
   const station = stations.find((s) => s.id === workOrder.stationId);
   const assignee = users.find((u) => u.id === workOrder.assigneeId);
@@ -83,12 +89,23 @@ export function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
       setShowRejectModal(true);
       return;
     }
+    if (actionLabel === "派单" || actionLabel === "转派") {
+      setShowAssignModal(true);
+      return;
+    }
     updateWorkOrderStatus(
       workOrder.id,
       nextStatus,
       currentUser.id,
       `${currentUser.name}${actionLabel}`
     );
+  };
+
+  const handleAssign = () => {
+    if (!selectedAssignee) return;
+    assignWorkOrder(workOrder.id, selectedAssignee, currentUser.id);
+    setShowAssignModal(false);
+    setSelectedAssignee("");
   };
 
   const handleReject = () => {
@@ -463,6 +480,73 @@ export function WorkOrderDetail({ workOrder, onClose }: WorkOrderDetailProps) {
                 className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 确认驳回
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="font-semibold text-lg mb-4">选择处理人</h3>
+            <div className="space-y-3">
+              {inspectors.map((inspector) => (
+                <div
+                  key={inspector.id}
+                  onClick={() => setSelectedAssignee(inspector.id)}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    selectedAssignee === inspector.id
+                      ? "border-primary-500 bg-primary-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  )}
+                >
+                  <img
+                    src={inspector.avatar}
+                    alt={inspector.name}
+                    className="w-10 h-10 rounded-full bg-gray-200"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-800">{inspector.name}</p>
+                    <p className="text-xs text-gray-500">
+                      当前任务数：
+                      {
+                        useAppStore
+                          .getState()
+                          .workOrders.filter(
+                            (wo) =>
+                              wo.assigneeId === inspector.id &&
+                              wo.status !== "completed" &&
+                              wo.status !== "rejected"
+                          ).length
+                      }
+                    </p>
+                  </div>
+                  {selectedAssignee === inspector.id && (
+                    <div className="ml-auto w-5 h-5 rounded-full bg-primary-500 flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setSelectedAssignee("");
+                }}
+                className="flex-1 py-2 px-4 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAssign}
+                disabled={!selectedAssignee}
+                className="flex-1 py-2 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                确认派单
               </button>
             </div>
           </div>

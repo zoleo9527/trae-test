@@ -30,6 +30,7 @@ export function RefundPanel() {
   const stations = useAppStore((state) => state.stations);
   const updateWorkOrder = useAppStore((state) => state.updateWorkOrder);
   const updateWorkOrderStatus = useAppStore((state) => state.updateWorkOrderStatus);
+  const updateRefundRequest = useAppStore((state) => state.updateRefundRequest);
 
   let filteredRequests = refundRequests;
 
@@ -52,6 +53,7 @@ export function RefundPanel() {
     if (!refund) return;
 
     const newStatus: RefundStatus = approved ? "approved" : "rejected";
+    const now = new Date().toISOString();
 
     updateWorkOrder(refund.workOrderId, {
       status: approved ? "completed" : "rejected",
@@ -60,7 +62,7 @@ export function RefundPanel() {
         : {
             reason: reviewRemark || "退款申请被驳回",
             operatorId: currentUser.id,
-            timestamp: new Date().toISOString(),
+            timestamp: now,
             supplement: "",
           },
     });
@@ -71,6 +73,13 @@ export function RefundPanel() {
       currentUser.id,
       approved ? "退款审核通过" : `退款驳回：${reviewRemark}`
     );
+
+    updateRefundRequest(refundId, {
+      status: newStatus,
+      reviewedBy: currentUser.id,
+      reviewedAt: now,
+      transferedAt: approved ? now : undefined,
+    });
 
     setReviewRemark("");
     setExpandedId(null);

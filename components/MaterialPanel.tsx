@@ -9,26 +9,102 @@ export function MaterialPanel() {
   const [selectedStationId, setSelectedStationId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<string>("all");
+  const [showRestockModal, setShowRestockModal] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<{
+    stationId: string;
+    materialId: string;
+  } | null>(null);
+  const [restockQuantity, setRestockQuantity] = useState("");
+  const [restockRemark, setRestockRemark] = useState("");
 
   const materials = useAppStore((state) => state.materials);
   const stationMaterials = useAppStore((state) => state.stationMaterials);
   const stations = useAppStore((state) => state.stations);
+  const currentUser = useAppStore((state) => state.currentUser);
+  const addWorkOrder = useAppStore((state) => state.addWorkOrder);
+  const addHistoryRemark = useAppStore((state) => state.addHistoryRemark);
 
   const view = selectedStationId === "all" ? "overview" : "detail";
 
-  let filteredMaterials = materials;
-  if (searchQuery) {
-    const query = searchQuery.toLowerCase();
-    filteredMaterials = materials.filter(
-      (m) =>
-        m.name.toLowerCase().includes(query) ||
-        m.sku.toLowerCase().includes(query)
-    );
-  }
+  const getMaterialStatus = (sm: typeof stationMaterials[0]) => {
+    const mat = materials.find((m) => m.id === sm.materialId);
+    if (!mat) return "normal";
+    if (sm.currentStock === 0) return "out_of_stock";
+    if (sm.currentStock < mat.minStock) return "low";
+    return "normal";
+  };
 
-  if (stockFilter !== "all") {
-    filteredMaterials = filteredMaterials.filter((m) => m.status === stockFilter);
-  }
+  const filteredStationMaterials = stationMaterials.filter((sm) => {
+    const mat = materials.find((m) => m.id === sm.materialId);
+    if (!mat) return false;
+
+    if (selectedStationId !== "all" && sm.stationId !== selectedStationId) {
+      return false;
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (
+        !mat.name.toLowerCase().includes(query) &&
+        !mat.sku.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+    }
+
+    if (stockFilter !== "all") {
+      const status = getMaterialStatus(sm);
+      if (status !== stockFilter) return false;
+    }
+
+    return true;
+  });
+
+  const handleOpenRestockModal = (stationId: string, materialId: string) => {
+    const mat = materials.find((m) => m.id === materialId);
+    if (mat) {
+      setRestockQuantity(String(mat.minStock * 2));
+    }
+    setSelectedMaterial({ stationId, materialId });
+    setShowRestockModal(true);
+  };
+
+  const handleSubmitRestock = () => {
+    if (!selectedMaterial || !restockQuantity) return;
+
+    const mat = materials.find((m) => m.id === selectedMaterial.materialId);
+    const station = stations.find((s) => s.id === selectedMaterial.stationId);
+    if (!mat || !station) return;
+
+    const newWorkOrder = {
+      type: "restock" as const,
+      title: `${station.name} - ${mat.name}补货`,
+      description: restockRemark || `库存不足，申请补货${restockQuantity}${mat.unit}`,
+      stationId: selectedMaterial.stationId,
+      materialId: selectedMaterial.materialId,
+      priority: (getMaterialStatus({
+        ...selectedMaterial,
+        currentStock: stationMaterials.find(
+          (sm) =>
+            sm.stationId === selectedMaterial.stationId &&
+            sm.materialId === selectedMaterial.materialId
+        )?.currentStock || 0,
+        lastRestock: "",
+      }) === "out_of_stock"
+        ? "urgent"
+        : "medium") as "urgent" | "medium",
+      status: "pending" as const,
+      creatorId: currentUser.id,
+      attachments: [],
+    };
+
+    addWorkOrder(newWorkOrder);
+
+    setShowRestockModal(false);
+    setSelectedMaterial(null);
+    setRestockQuantity("");
+    setRestockRemark("");
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -83,14 +159,20 @@ export function MaterialPanel() {
         {view === "overview" ? (
           <div className="space-y-6">
             {stations.map((station) => {
-              const stationMats = stationMaterials.filter(
+              const stationMats = filteredStationMaterials.filter(
                 (sm) => sm.stationId === station.id
               );
-              const lowStockCount = stationMats.filter((sm) => {
+              if (stationMats.length === 0 && (searchQuery || stockFilter !== "all")) {
+                return null;
+              }
+              const allStationMats = stationMaterials.filter(
+                (sm) => sm.stationId === station.id
+              );
+              const lowStockCount = allStationMats.filter((sm) => {
                 const mat = materials.find((m) => m.id === sm.materialId);
                 return mat && sm.currentStock < mat.minStock;
               }).length;
-              const outOfStockCount = stationMats.filter(
+              const outOfStockCount = allStationMats.filter(
                 (sm) => sm.currentStock === 0
               ).length;
 
@@ -130,7 +212,7 @@ export function MaterialPanel() {
                     </div>
                   </div>
                   <div className="divide-y divide-gray-100">
-                    {stationMats.map((sm) => {
+                    {(stationMats.length > 0 ? stationMats : allStationMats).map((sm) => {
                       const mat = materials.find((m) => m.id === sm.materialId);
                       if (!mat) return null;
                       const ratio = (sm.currentStock / mat.minStock) * 100;
@@ -183,9 +265,17 @@ export function MaterialPanel() {
                               {isOut ? "缺货" : isLow ? "库存低" : "正常"}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 mt-2">
-                            上次补货：{formatDate(sm.lastRestock)}
-                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-xs text-gray-400">
+                              上次补货：{formatDate(sm.lastRestock)}
+                            </p>
+                            <button
+                              onClick={() => handleOpenRestockModal(station.id, mat.id)}
+                              className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                            >
+                              申请补货
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -229,7 +319,7 @@ export function MaterialPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {stationMaterials
+                  {filteredStationMaterials
                     .filter((sm) => sm.stationId === selectedStationId)
                     .map((sm) => {
                       const mat = materials.find((m) => m.id === sm.materialId);
@@ -285,7 +375,10 @@ export function MaterialPanel() {
                             {formatDate(sm.lastRestock)}
                           </td>
                           <td className="px-4 py-3">
-                            <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                            <button
+                              onClick={() => handleOpenRestockModal(selectedStationId, mat.id)}
+                              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                            >
                               申请补货
                             </button>
                           </td>
@@ -294,6 +387,77 @@ export function MaterialPanel() {
                     })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {showRestockModal && selectedMaterial && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">补货申请</h3>
+                <button
+                  onClick={() => setShowRestockModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">站点</p>
+                  <p className="font-medium">
+                    {stations.find((s) => s.id === selectedMaterial.stationId)?.name}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">耗材</p>
+                  <p className="font-medium">
+                    {materials.find((m) => m.id === selectedMaterial.materialId)?.name}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    补货数量
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={restockQuantity}
+                    onChange={(e) => setRestockQuantity(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="请输入补货数量"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    备注说明（选填）
+                  </label>
+                  <textarea
+                    value={restockRemark}
+                    onChange={(e) => setRestockRemark(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="请输入备注说明..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowRestockModal(false)}
+                  className="flex-1 py-2 px-4 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSubmitRestock}
+                  disabled={!restockQuantity}
+                  className="flex-1 py-2 px-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  提交申请
+                </button>
+              </div>
             </div>
           </div>
         )}
