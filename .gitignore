@@ -1,0 +1,25 @@
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+server/vendor/
+
+# Build
+web/.svelte-kit/
+web/build/
+server/main
+server/*.db
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,21 @@
+{
+    "name": "carwash-system",
+    "version": "1.0.0",
+    "private": true,
+    "description": "自助洗车 - 会员续费与活动推送系统",
+    "scripts": {
+        "install:all": "cd server && go mod download && cd ../web && npm install",
+        "dev:server": "cd server && go run main.go",
+        "dev:web": "cd web && npm run dev",
+        "build:web": "cd web && npm run build",
+        "start:web": "cd web && npm run preview"
+    },
+    "keywords": [
+        "carwash",
+        "membership",
+        "sveltekit",
+        "go-fiber"
+    ],
+    "author": "",
+    "license": "MIT"
+}
