@@ -118,7 +118,7 @@ export class WorkflowService {
               relatedType: 'RefundRequest',
               title: `退款申诉现场核验 - ${refundWithStation.verification.station.name}`,
               description: `退款原因: ${refund.customerReason}\n客服意见: ${dto.csOpinion}`,
-              status: TaskStatus.PENDING,
+              status: TaskStatus.UNASSIGNED,
               priority: 2,
             },
           });
@@ -336,7 +336,7 @@ export class WorkflowService {
                   relatedType: 'RefundRequest',
                   title: `退款申诉现场核验 - ${refund.verification.station.name}`,
                   description: `退款原因: ${refund.customerReason}\n客服意见: ${remark}`,
-                  status: TaskStatus.PENDING,
+                  status: TaskStatus.UNASSIGNED,
                   priority: 2,
                 },
               });

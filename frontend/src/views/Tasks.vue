@@ -23,11 +23,14 @@ const loadTasks = async () => {
       taskBoard.value = res.data;
     } else {
       const res = await taskApi.getMyTasks(userStore.currentRole, userStore.currentUser.id);
+      const allTasks = res.data;
       taskBoard.value = {
-        pending: res.data.filter((t: Task) => t.status === TaskStatus.PENDING),
-        inProgress: res.data.filter((t: Task) => t.status === TaskStatus.IN_PROGRESS),
+        unassigned: userStore.currentRole === UserRole.INSPECTOR 
+          ? allTasks.filter((t: Task) => t.status === TaskStatus.UNASSIGNED)
+          : [],
+        pending: allTasks.filter((t: Task) => t.status === TaskStatus.PENDING),
+        inProgress: allTasks.filter((t: Task) => t.status === TaskStatus.IN_PROGRESS),
         completed: [],
-        unassigned: [],
       };
     }
   } finally {
@@ -82,11 +85,16 @@ onMounted(() => {
   loadTasks();
 });
 
+const showUnassignedColumn = () => {
+  return userStore.currentRole === UserRole.OPERATION_MANAGER || 
+         userStore.currentRole === UserRole.INSPECTOR;
+};
+
 const columns = [
-  { key: 'unassigned', label: '待分配', color: 'gray' },
-  { key: 'pending', label: '待处理', color: 'warning' },
-  { key: 'inProgress', label: '处理中', color: 'info' },
-  { key: 'completed', label: '已完成', color: 'success' },
+  { key: 'unassigned', label: '待分配', color: 'gray', show: showUnassignedColumn() },
+  { key: 'pending', label: '待处理', color: 'warning', show: true },
+  { key: 'inProgress', label: '处理中', color: 'info', show: true },
+  { key: 'completed', label: '已完成', color: 'success', show: userStore.currentRole === UserRole.OPERATION_MANAGER },
 ];
 </script>
 
@@ -95,7 +103,15 @@ const columns = [
     <div class="card mb-4">
       <div class="card-body flex items-center justify-between">
         <div class="text-sm text-gray-500">
-          按角色过滤后显示相关任务，运营主管可查看全部任务看板
+          <span v-if="userStore.currentRole === UserRole.OPERATION_MANAGER">
+            全局任务看板：运营主管可分配所有任务
+          </span>
+          <span v-else-if="userStore.currentRole === UserRole.INSPECTOR">
+            巡检员视角：可在待分配列抢单，或处理分配给我的任务
+          </span>
+          <span v-else>
+            客服视角：查看核销争议和退款相关任务
+          </span>
         </div>
         <button class="btn btn-outline" @click="loadTasks">刷新</button>
       </div>
@@ -103,9 +119,9 @@ const columns = [
 
     <div v-if="loading" class="text-center py-16 text-gray-500">加载中...</div>
 
-    <div v-else class="grid gap-4" style="grid-template-columns: repeat(4, 1fr)">
+    <div v-else class="grid gap-4" :style="{ gridTemplateColumns: `repeat(${columns.filter(c => c.show).length}, 1fr)` }">
       <div
-        v-for="col in columns"
+        v-for="col in columns.filter(c => c.show)"
         :key="col.key"
         class="card"
       >
@@ -146,6 +162,9 @@ const columns = [
             <div v-if="task.assignee" class="mt-2 text-xs text-gray-500">
               负责人: {{ task.assignee.name }}
             </div>
+            <div v-else class="mt-2 text-xs text-orange-500">
+              待认领
+            </div>
 
             <div class="mt-3 flex gap-2">
               <button
@@ -153,7 +172,14 @@ const columns = [
                 class="btn btn-primary text-xs flex-1"
                 @click="assignTask(task)"
               >
-                分配给我
+                分配
+              </button>
+              <button
+                v-if="col.key === 'unassigned' && userStore.currentRole === UserRole.INSPECTOR"
+                class="btn btn-primary text-xs flex-1"
+                @click="assignTask(task)"
+              >
+                抢单
               </button>
               <button
                 v-if="col.key === 'pending'"

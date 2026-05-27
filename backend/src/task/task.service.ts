@@ -32,10 +32,13 @@ export class TaskService {
         taskTypes = [TaskType.STATION_INSPECTION, TaskType.REFUND_REVIEW, TaskType.SUPPLY_REPLENISHMENT];
         where = {
           type: { in: taskTypes },
-          status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
+          status: { in: [TaskStatus.UNASSIGNED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
         };
         if (assigneeId) {
-          where.assigneeId = assigneeId;
+          where.OR = [
+            { assigneeId: null },
+            { assigneeId }
+          ];
         }
         break;
       case UserRole.CUSTOMER_SERVICE:
