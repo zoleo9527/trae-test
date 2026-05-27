@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OPERATION_MANAGER
+  INSPECTOR
+  CUSTOMER_SERVICE
+}
+
+enum StationStatus {
+  NORMAL
+  WARNING
+  ABNORMAL
+  MAINTENANCE
+}
+
+enum PackageStatus {
+  ACTIVE
+  USED_UP
+  EXPIRED
+  REFUNDED
+}
+
+enum VerificationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  DISPUTED
+}
+
+enum RefundStatus {
+  SUBMITTED
+  CS_REVIEWING
+  INSPECTION_REQUIRED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum TaskType {
+  VERIFICATION_DISPUTE
+  REFUND_REVIEW
+  STATION_INSPECTION
+  SUPPLY_REPLENISHMENT
+}
+
+enum TaskStatus {
+  UNASSIGNED
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ESCALATED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  role      UserRole
+  phone     String   @unique
+  createdAt DateTime @default(now())
+  tasks     Task[]   @relation("assignee")
+}
+
+model Station {
+  id           String              @id @default(cuid())
+  name         String
+  address      String
+  status       StationStatus       @default(NORMAL)
+  lastCheckAt  DateTime?
+  supplies     SupplyRecord[]
+  devices      DeviceReport[]
+  verifications VerificationRecord[]
+  tasks        Task[]
+  warningLevel Int                 @default(0)
+  createdAt    DateTime            @default(now())
+}
+
+model CustomerPackage {
+  id            String               @id @default(cuid())
+  customerName  String
+  customerPhone String
+  packageType   String
+  totalCount    Int
+  usedCount     Int                  @default(0)
+  price         Decimal
+  status        PackageStatus        @default(ACTIVE)
+  purchaseAt    DateTime
+  expireAt      DateTime
+  verifications VerificationRecord[]
+  refunds       RefundRequest[]
+}
+
+model VerificationRecord {
+  id             String            @id @default(cuid())
+  packageId      String
+  package        CustomerPackage   @relation(fields: [packageId], references: [id])
+  stationId      String
+  station        Station           @relation(fields: [stationId], references: [id])
+  status         VerificationStatus @default(SUCCESS)
+  verifyTime     DateTime          @default(now())
+  operatorName   String?
+  photoUrl       String?
+  remark         String?
+  refundRequest  RefundRequest?
+  disputed       Boolean           @default(false)
+  disputedReason String?
+}
+
+model RefundRequest {
+  id                String          @id @default(cuid())
+  packageId         String
+  package           CustomerPackage @relation(fields: [packageId], references: [id])
+  verificationId    String?
+  verification      VerificationRecord? @relation(fields: [verificationId], references: [id])
+  status            RefundStatus    @default(SUBMITTED)
+  customerReason    String
+  refundCount       Int
+  submitTime        DateTime        @default(now())
+  csReviewerId      String?
+  csReviewer        User?           @relation(fields: [csReviewerId], references: [id])
+  csOpinion         String?
+  csReviewTime      DateTime?
+  inspectorId       String?
+  inspector         User?           @relation(fields: [inspectorId], references: [id])
+  inspectionResult  String?
+  inspectionPhoto   String?
+  inspectionTime    DateTime?
+  finalDecision     String?
+  finalReviewerId   String?
+  finalReviewer     User?           @relation(fields: [finalReviewerId], references: [id])
+  finalReviewTime   DateTime?
+  flowLogs          RefundFlowLog[]
+}
+
+model RefundFlowLog {
+  id            String        @id @default(cuid())
+  refundId      String
+  refund        RefundRequest @relation(fields: [refundId], references: [id])
+  fromStatus    RefundStatus
+  toStatus      RefundStatus
+  operatorId    String
+  operatorName  String
+  operatorRole  UserRole
+  remark        String?
+  createdAt     DateTime      @default(now())
+}
+
+model DeviceReport {
+  id           String   @id @default(cuid())
+  stationId    String
+  station      Station  @relation(fields: [stationId], references: [id])
+  deviceType   String
+  issueDesc    String
+  photoUrl     String?
+  reporterName String
+  reportTime   DateTime @default(now())
+  resolved     Boolean  @default(false)
+  resolverId   String?
+  resolver     User?    @relation(fields: [resolverId], references: [id])
+  resolveTime  DateTime?
+  resolveNote  String?
+}
+
+model SupplyRecord {
+  id         String   @id @default(cuid())
+  stationId  String
+  station    Station  @relation(fields: [stationId], references: [id])
+  supplyType String
+  currentQty Int
+  warningQty Int
+  lastFillAt DateTime?
+  updatedAt  DateTime @default(now())
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  type         TaskType
+  stationId    String
+  station      Station    @relation(fields: [stationId], references: [id])
+  relatedId    String?
+  relatedType  String?
+  title        String
+  description  String?
+  status       TaskStatus @default(UNASSIGNED)
+  assigneeId   String?
+  assignee     User?      @relation("assignee", fields: [assigneeId], references: [id])
+  priority     Int        @default(1)
+  deadline     DateTime?
+  completedAt  DateTime?
+  resultNote   String?
+  createdAt    DateTime   @default(now())
+  escalated    Boolean    @default(false)
+  escalateNote String?
+}
