@@ -3,7 +3,7 @@
   import AppShell from '$components/AppShell.svelte';
   import type { User } from '$lib/types';
 
-  let data: { user: User | null };
+  export let data: { user: User | null };
   $: user = data?.user || null;
   $: isLogin = $page.url.pathname === '/login';
 </script>

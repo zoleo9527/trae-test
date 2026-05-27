@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { getOrder, fmtTime } from '$lib/api';
@@ -7,8 +6,8 @@
   import ExceptionDrawer from '$components/ExceptionDrawer.svelte';
   import type { Order, User } from '$lib/types';
 
-  let order: Order | null = null;
-  let loading = true;
+  export let data: { order: Order | null };
+
   let drawerOpen = false;
   let drawerMode: 'new' | 'view' = 'new';
   let activeExceptionId: string | null = null;
@@ -16,6 +15,7 @@
 
   currentUser.subscribe(u => { user = u; });
 
+  $: order = data?.order || null;
   $: orderId = $page.params.id;
 
   $: canManageSlot = user?.role === 'manager' || user?.role === 'service';
@@ -24,29 +24,9 @@
   $: canManageException = user?.role === 'manager' || user?.role === 'service';
   $: canViewAll = user?.role === 'manager';
 
-  function canAccessOrder(o: Order): boolean {
-    if (!user) return false;
-    if (user.role === 'manager') return true;
-    if (user.role === 'editor') return o.editorId === user.id;
-    if (user.role === 'service') return o.serviceId === user.id;
-    return false;
-  }
-
-  onMount(async () => {
-    try {
-      const o = await getOrder(orderId);
-      if (!canAccessOrder(o)) {
-        alert('您无权访问该订单');
-        await goto('/orders');
-        return;
-      }
-      order = o;
-    } catch (e: any) { alert(e.message || '加载失败'); }
-    loading = false;
-  });
-
   async function refresh() {
-    order = await getOrder(orderId);
+    const fresh = await getOrder(orderId);
+    data = { order: fresh };
   }
 
   function openNewExc() { drawerMode = 'new'; activeExceptionId = null; drawerOpen = true; }
@@ -54,10 +34,8 @@
   function closeDrawer() { drawerOpen = false; }
 </script>
 
-{#if loading}
+{#if !order}
   <div class="state">加载中…</div>
-{:else if !order}
-  <div class="state">订单不存在</div>
 {:else}
   <div class="crumb">
     <button class="link" on:click={() => goto('/orders')}>
