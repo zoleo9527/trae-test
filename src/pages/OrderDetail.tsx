@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { CalendarDays, AlertTriangle, Receipt, MessageSquare, RotateCcw, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  apiGet,
+  apiPost,
   collectionMethodLabel,
   collectionResultLabel,
   roleLabel,
@@ -12,6 +14,7 @@ import {
   type Order,
   type Reschedule,
   type Retouch,
+  type Role,
   type TimelineEvent,
 } from '@/stores/studio'
 import { cn } from '@/lib/utils'
@@ -25,6 +28,22 @@ interface Detail {
   reschedules: Reschedule[]
   collections: Collection[]
   retouches: Retouch[]
+}
+
+function canInitiateReschedule(role: Role): boolean {
+  return ['butler', 'selector', 'manager'].includes(role)
+}
+
+function canManageCollection(role: Role): boolean {
+  return ['butler', 'manager'].includes(role)
+}
+
+function canManageRetouch(role: Role): boolean {
+  return ['selector', 'manager'].includes(role)
+}
+
+function canApproveReschedule(role: Role): boolean {
+  return role === 'manager'
 }
 
 export default function OrderDetail() {
@@ -42,15 +61,12 @@ export default function OrderDetail() {
 
   useEffect(() => {
     if (!id) return
-    fetch(`/api/studio/orders/${id}`)
-      .then((r) => r.json())
-      .then((j) => setDetail(j.data))
-  }, [id])
+    apiGet(role, `/api/studio/orders/${id}`).then((j) => setDetail(j.data))
+  }, [id, role])
 
   async function refresh() {
     if (!id) return
-    const r = await fetch(`/api/studio/orders/${id}`)
-    const j = await r.json()
+    const j = await apiGet(role, `/api/studio/orders/${id}`)
     setDetail(j.data)
     loadAll()
   }
@@ -58,11 +74,7 @@ export default function OrderDetail() {
   async function submitNote() {
     if (!id || !note.trim()) return
     setBusy(true)
-    await fetch(`/api/studio/orders/${id}/note`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: note.trim(), actorRole: role }),
-    })
+    await apiPost(role, `/api/studio/orders/${id}/note`, { content: note.trim() })
     setNote('')
     setBusy(false)
     refresh()
@@ -70,315 +82,336 @@ export default function OrderDetail() {
 
   async function remind() {
     if (!id) return
-    await fetch(`/api/studio/orders/${id}/remind`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actorRole: role }),
-    })
+    await apiPost(role, `/api/studio/orders/${id}/remind`)
     refresh()
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate('/')}
-          className="rounded-lg border border-ink-600 px-3 py-1 text-xs text-ink-500 hover:border-gold-400 hover:text-gold-300"
-        >
-          ← 返回
-        </button>
-        <div className="text-xs text-ink-500">当前身份：{roleLabel[role]}</div>
-      </div>
+    <div className="min-h-screen bg-ink-950 px-4 py-4 text-ink-100">
+      <div className="mx-auto max-w-6xl space-y-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg border border-ink-600 px-3 py-1 text-xs text-ink-500 hover:border-gold-400 hover:text-gold-300"
+          >
+            ← 返回
+          </button>
+          <div className="text-xs text-ink-500">当前身份：{roleLabel[role]}</div>
+        </div>
 
-      {!detail && <div className="text-sm text-ink-500">加载中...</div>}
+        {!detail && <div className="text-sm text-ink-500">加载中...</div>}
 
-      {detail && (
-        <>
-          <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5 shadow-glow">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn('h-2.5 w-2.5 rounded-full', statusDot[detail.order.status] || 'bg-ink-500')}
-                  />
-                  <h2 className="font-serif text-2xl text-gold-300">{detail.order.customer_name}</h2>
+        {detail && (
+          <>
+            <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5 shadow-glow">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn('h-2.5 w-2.5 rounded-full', statusDot[detail.order.status] || 'bg-ink-500')}
+                    />
+                    <h2 className="font-serif text-2xl text-gold-300">{detail.order.customer_name}</h2>
+                  </div>
+                  <div className="mt-1 text-xs text-ink-500">
+                    {detail.order.order_no} · 拍摄 {detail.order.shoot_date}
+                    {detail.order.select_date ? ` · 选片 ${detail.order.select_date}` : ''}
+                  </div>
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-3 py-1 text-xs text-ink-300">
+                    {statusLabel[detail.order.status] || detail.order.status}
+                    {detail.order.collection_level > 0 && (
+                      <span className="text-gold-400">催收 L{detail.order.collection_level}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-1 text-xs text-ink-500">
-                  {detail.order.order_no} · 拍摄 {detail.order.shoot_date}
-                  {detail.order.select_date ? ` · 选片 ${detail.order.select_date}` : ''}
-                </div>
-                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900 px-3 py-1 text-xs text-ink-300">
-                  {statusLabel[detail.order.status] || detail.order.status}
-                  {detail.order.collection_level > 0 && (
-                    <span className="text-gold-400">催收 L{detail.order.collection_level}</span>
-                  )}
+                <div className="grid grid-cols-3 gap-3 text-right">
+                  <div>
+                    <div className="text-xs text-ink-500">套餐金额</div>
+                    <div className="text-lg text-ink-100">¥{detail.order.total_amount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink-500">已收</div>
+                    <div className="text-lg text-ink-100">¥{detail.order.paid_amount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink-500">尾款</div>
+                    <div className="text-lg text-gold-400">
+                      ¥{(detail.order.total_amount - detail.order.paid_amount).toLocaleString()}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-right">
-                <div>
-                  <div className="text-xs text-ink-500">套餐金额</div>
-                  <div className="text-lg text-ink-100">¥{detail.order.total_amount.toLocaleString()}</div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {canManageCollection(role) && (
+                  <>
+                    <button
+                      onClick={remind}
+                      className="inline-flex items-center gap-1 rounded-lg border border-gold-500/60 bg-gold-500/10 px-3 py-1.5 text-sm text-gold-300 hover:bg-gold-500/20"
+                    >
+                      <Receipt size={14} /> 触发催收提醒
+                    </button>
+                    <button
+                      onClick={() => setCollectionOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
+                    >
+                      <AlertTriangle size={14} /> 登记催收记录
+                    </button>
+                  </>
+                )}
+                {canManageRetouch(role) && (
+                  <button
+                    onClick={() => setRetouchOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
+                  >
+                    <RotateCcw size={14} /> 上传修片版本
+                  </button>
+                )}
+                {canInitiateReschedule(role) && (
+                  <button
+                    onClick={() => setRescheduleOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
+                  >
+                    <CalendarDays size={14} /> 发起改期
+                  </button>
+                )}
+                <button
+                  onClick={() => setTab('timeline')}
+                  className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
+                >
+                  <MessageSquare size={14} /> 时间线
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-4 lg:col-span-2">
+                <div className="flex gap-1 rounded-xl border border-ink-700/70 bg-ink-900/60 p-1">
+                  {(
+                    [
+                      { k: 'timeline', label: '时间线' },
+                      { k: 'reschedule', label: '改期记录' },
+                      { k: 'collection', label: '催收记录' },
+                      { k: 'retouch', label: '修片版本' },
+                    ] as { k: Tab; label: string }[]
+                  ).map((t) => (
+                    <button
+                      key={t.k}
+                      onClick={() => setTab(t.k)}
+                      className={cn(
+                        'flex-1 rounded-lg px-3 py-1.5 text-sm transition',
+                        tab === t.k
+                          ? 'bg-gold-500/15 text-gold-300'
+                          : 'text-ink-500 hover:text-ink-200'
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <div className="text-xs text-ink-500">已收</div>
-                  <div className="text-lg text-ink-100">¥{detail.order.paid_amount.toLocaleString()}</div>
+
+                {tab === 'timeline' && (
+                  <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
+                    <Timeline events={detail.events} />
+                  </div>
+                )}
+
+                {tab === 'reschedule' && (
+                  <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
+                    {detail.reschedules.length === 0 ? (
+                      <div className="text-sm text-ink-500">无改期申请</div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {detail.reschedules.map((r) => (
+                          <li
+                            key={r.id}
+                            className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-ink-100">
+                                {r.suggested_from} → {r.suggested_to}
+                              </div>
+                              <StatusTag status={r.status} />
+                            </div>
+                            <div className="mt-1 text-xs text-ink-500">原因：{r.reason}</div>
+                            <div className="mt-1 text-[11px] text-ink-500">
+                              申请时间：{new Date(r.created_at).toLocaleString('zh-CN', { hour12: false })}
+                            </div>
+                            {r.status === 'rejected' && r.reject_reason && (
+                              <div className="mt-1 text-xs text-status-overdue">
+                                驳回理由：{r.reject_reason}
+                              </div>
+                            )}
+                            {r.status === 'approved' && r.approver_name && (
+                              <div className="mt-1 text-xs text-status-completed">
+                                批准人：{r.approver_name}
+                              </div>
+                            )}
+                            {r.status === 'pending' && canApproveReschedule(role) && (
+                              <ManagerRescheduleActions id={r.id} role={role} onDone={refresh} />
+                            )}
+                            {r.status === 'pending' && !canApproveReschedule(role) && (
+                              <div className="mt-1 text-[11px] text-ink-500">
+                                待店长审批，当前角色无权限
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {tab === 'collection' && (
+                  <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
+                    {detail.collections.length === 0 ? (
+                      <div className="text-sm text-ink-500">暂无催收记录</div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {detail.collections.map((c) => (
+                          <li
+                            key={c.id}
+                            className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-ink-100">
+                                {collectionMethodLabel[c.method] || c.method} ·{' '}
+                                {collectionResultLabel[c.result] || c.result}
+                              </div>
+                              <div className="text-[11px] text-ink-500">{c.actor_name}</div>
+                            </div>
+                            {c.remark && <div className="mt-1 text-xs text-ink-500">{c.remark}</div>}
+                            <div className="mt-1 text-[11px] text-ink-500">
+                              {new Date(c.created_at).toLocaleString('zh-CN', { hour12: false })}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {tab === 'retouch' && (
+                  <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
+                    {detail.retouches.length === 0 ? (
+                      <div className="text-sm text-ink-500">暂无修片版本</div>
+                    ) : (
+                      <ul className="space-y-3">
+                        {detail.retouches.map((r) => (
+                          <li
+                            key={r.id}
+                            className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-ink-100">V{r.version_no}</div>
+                              <div className="text-[11px] text-ink-500">{r.actor_name}</div>
+                            </div>
+                            {r.remark && <div className="mt-1 text-xs text-ink-500">{r.remark}</div>}
+                            <div className="mt-1 text-[11px] text-ink-500">
+                              {new Date(r.created_at).toLocaleString('zh-CN', { hour12: false })}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">
+                  <div className="mb-2 text-sm text-gold-300">新增备注</div>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={4}
+                    placeholder="在此记录与客户沟通要点，例如：客户担心修片肤色、要求加拍花絮等"
+                    className="w-full resize-none rounded-lg border border-ink-700 bg-ink-900/80 p-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-gold-500 focus:outline-none"
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-[11px] text-ink-500">
+                      将以 {roleLabel[role]} 身份写入时间线
+                    </span>
+                    <button
+                      disabled={busy || !note.trim()}
+                      onClick={submitNote}
+                      className="rounded-lg border border-gold-500/60 bg-gold-500/10 px-3 py-1 text-sm text-gold-300 hover:bg-gold-500/20 disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs text-ink-500">尾款</div>
-                  <div className="text-lg text-gold-400">
-                    ¥{(detail.order.total_amount - detail.order.paid_amount).toLocaleString()}
+
+                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">
+                  <div className="mb-2 text-sm text-gold-300">流程快照</div>
+                  <div className="space-y-2 text-xs text-ink-500">
+                    <div>改期申请：{detail.reschedules.length} 条</div>
+                    <div>催收记录：{detail.collections.length} 条</div>
+                    <div>修片版本：{detail.retouches.length} 个</div>
+                    <div>时间线事件：{detail.events.length} 条</div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">
+                  <div className="mb-2 text-sm text-gold-300">当前角色权限</div>
+                  <div className="space-y-1 text-[11px] text-ink-500">
+                    <div className={canInitiateReschedule(role) ? 'text-status-completed' : 'text-ink-600'}>
+                      {canInitiateReschedule(role) ? '✓' : '✗'} 发起改期申请
+                    </div>
+                    <div className={canApproveReschedule(role) ? 'text-status-completed' : 'text-ink-600'}>
+                      {canApproveReschedule(role) ? '✓' : '✗'} 审批改期（批准/驳回）
+                    </div>
+                    <div className={canManageCollection(role) ? 'text-status-completed' : 'text-ink-600'}>
+                      {canManageCollection(role) ? '✓' : '✗'} 登记催收记录
+                    </div>
+                    <div className={canManageRetouch(role) ? 'text-status-completed' : 'text-ink-600'}>
+                      {canManageRetouch(role) ? '✓' : '✗'} 上传修片版本
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+          </>
+        )}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {role === 'butler' && (
-                <>
-                  <button
-                    onClick={remind}
-                    className="inline-flex items-center gap-1 rounded-lg border border-gold-500/60 bg-gold-500/10 px-3 py-1.5 text-sm text-gold-300 hover:bg-gold-500/20"
-                  >
-                    <Receipt size={14} /> 触发催收提醒
-                  </button>
-                  <button
-                    onClick={() => setCollectionOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
-                  >
-                    <AlertTriangle size={14} /> 登记催收记录
-                  </button>
-                </>
-              )}
-              {(role === 'selector' || role === 'butler') && (
-                <button
-                  onClick={() => setRetouchOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
-                >
-                  <RotateCcw size={14} /> 上传修片版本
-                </button>
-              )}
-              {(role === 'selector' || role === 'butler') && (
-                <button
-                  onClick={() => setRescheduleOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
-                >
-                  <CalendarDays size={14} /> 发起改期
-                </button>
-              )}
-              <button
-                onClick={() => setTab('timeline')}
-                className="inline-flex items-center gap-1 rounded-lg border border-ink-600 px-3 py-1.5 text-sm text-ink-200 hover:border-gold-500/60"
-              >
-                <MessageSquare size={14} /> 时间线
-              </button>
-            </div>
-          </div>
+        {rescheduleOpen && detail && (
+          <Modal title="发起改期申请" onClose={() => setRescheduleOpen(false)}>
+            <RescheduleForm
+              orderId={detail.order.id}
+              role={role}
+              onDone={() => {
+                setRescheduleOpen(false)
+                refresh()
+              }}
+            />
+          </Modal>
+        )}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="space-y-4 lg:col-span-2">
-              <div className="flex gap-1 rounded-xl border border-ink-700/70 bg-ink-900/60 p-1">
-                {(
-                  [
-                    { k: 'timeline', label: '时间线' },
-                    { k: 'reschedule', label: '改期记录' },
-                    { k: 'collection', label: '催收记录' },
-                    { k: 'retouch', label: '修片版本' },
-                  ] as { k: Tab; label: string }[]
-                ).map((t) => (
-                  <button
-                    key={t.k}
-                    onClick={() => setTab(t.k)}
-                    className={cn(
-                      'flex-1 rounded-lg px-3 py-1.5 text-sm transition',
-                      tab === t.k
-                        ? 'bg-gold-500/15 text-gold-300'
-                        : 'text-ink-500 hover:text-ink-200'
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+        {collectionOpen && detail && (
+          <Modal title="登记催收记录" onClose={() => setCollectionOpen(false)}>
+            <CollectionForm
+              orderId={detail.order.id}
+              role={role}
+              onDone={() => {
+                setCollectionOpen(false)
+                refresh()
+              }}
+            />
+          </Modal>
+        )}
 
-              {tab === 'timeline' && (
-                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
-                  <Timeline events={detail.events} />
-                </div>
-              )}
-
-              {tab === 'reschedule' && (
-                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
-                  {detail.reschedules.length === 0 ? (
-                    <div className="text-sm text-ink-500">无改期申请</div>
-                  ) : (
-                    <ul className="space-y-3">
-                      {detail.reschedules.map((r) => (
-                        <li
-                          key={r.id}
-                          className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-ink-100">
-                              {r.suggested_from} → {r.suggested_to}
-                            </div>
-                            <StatusTag status={r.status} />
-                          </div>
-                          <div className="mt-1 text-xs text-ink-500">原因：{r.reason}</div>
-                          <div className="mt-1 text-[11px] text-ink-500">
-                            申请时间：{new Date(r.created_at).toLocaleString('zh-CN', { hour12: false })}
-                          </div>
-                          {r.status === 'rejected' && r.reject_reason && (
-                            <div className="mt-1 text-xs text-status-overdue">
-                              驳回理由：{r.reject_reason}
-                            </div>
-                          )}
-                          {r.status === 'approved' && r.approver_name && (
-                            <div className="mt-1 text-xs text-status-completed">
-                              批准人：{r.approver_name}
-                            </div>
-                          )}
-                          {r.status === 'pending' && role === 'manager' && (
-                            <ManagerRescheduleActions id={r.id} onDone={refresh} />
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {tab === 'collection' && (
-                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
-                  {detail.collections.length === 0 ? (
-                    <div className="text-sm text-ink-500">暂无催收记录</div>
-                  ) : (
-                    <ul className="space-y-3">
-                      {detail.collections.map((c) => (
-                        <li
-                          key={c.id}
-                          className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-ink-100">
-                              {collectionMethodLabel[c.method] || c.method} ·{' '}
-                              {collectionResultLabel[c.result] || c.result}
-                            </div>
-                            <div className="text-[11px] text-ink-500">{c.actor_name}</div>
-                          </div>
-                          {c.remark && <div className="mt-1 text-xs text-ink-500">{c.remark}</div>}
-                          <div className="mt-1 text-[11px] text-ink-500">
-                            {new Date(c.created_at).toLocaleString('zh-CN', { hour12: false })}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {tab === 'retouch' && (
-                <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-5">
-                  {detail.retouches.length === 0 ? (
-                    <div className="text-sm text-ink-500">暂无修片版本</div>
-                  ) : (
-                    <ul className="space-y-3">
-                      {detail.retouches.map((r) => (
-                        <li
-                          key={r.id}
-                          className="rounded-xl border border-ink-700 bg-ink-900/80 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm text-ink-100">V{r.version_no}</div>
-                            <div className="text-[11px] text-ink-500">{r.actor_name}</div>
-                          </div>
-                          {r.remark && <div className="mt-1 text-xs text-ink-500">{r.remark}</div>}
-                          <div className="mt-1 text-[11px] text-ink-500">
-                            {new Date(r.created_at).toLocaleString('zh-CN', { hour12: false })}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">
-                <div className="mb-2 text-sm text-gold-300">新增备注</div>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={4}
-                  placeholder="在此记录与客户沟通要点，例如：客户担心修片肤色、要求加拍花絮等"
-                  className="w-full resize-none rounded-lg border border-ink-700 bg-ink-900/80 p-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-gold-500 focus:outline-none"
-                />
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-[11px] text-ink-500">
-                    将以 {roleLabel[role]} 身份写入时间线
-                  </span>
-                  <button
-                    disabled={busy || !note.trim()}
-                    onClick={submitNote}
-                    className="rounded-lg border border-gold-500/60 bg-gold-500/10 px-3 py-1 text-sm text-gold-300 hover:bg-gold-500/20 disabled:opacity-50"
-                  >
-                    保存
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-ink-700/70 bg-ink-900/60 p-4">
-                <div className="mb-2 text-sm text-gold-300">流程快照</div>
-                <div className="space-y-2 text-xs text-ink-500">
-                  <div>改期申请：{detail.reschedules.length} 条</div>
-                  <div>催收记录：{detail.collections.length} 条</div>
-                  <div>修片版本：{detail.retouches.length} 个</div>
-                  <div>时间线事件：{detail.events.length} 条</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {rescheduleOpen && detail && (
-        <Modal title="发起改期申请" onClose={() => setRescheduleOpen(false)}>
-          <RescheduleForm
-            orderId={detail.order.id}
-            role={role}
-            onDone={() => {
-              setRescheduleOpen(false)
-              refresh()
-            }}
-          />
-        </Modal>
-      )}
-
-      {collectionOpen && detail && (
-        <Modal title="登记催收记录" onClose={() => setCollectionOpen(false)}>
-          <CollectionForm
-            orderId={detail.order.id}
-            role={role}
-            onDone={() => {
-              setCollectionOpen(false)
-              refresh()
-            }}
-          />
-        </Modal>
-      )}
-
-      {retouchOpen && detail && (
-        <Modal title="上传修片版本" onClose={() => setRetouchOpen(false)}>
-          <RetouchForm
-            orderId={detail.order.id}
-            role={role}
-            onDone={() => {
-              setRetouchOpen(false)
-              refresh()
-            }}
-          />
-        </Modal>
-      )}
+        {retouchOpen && detail && (
+          <Modal title="上传修片版本" onClose={() => setRetouchOpen(false)}>
+            <RetouchForm
+              orderId={detail.order.id}
+              role={role}
+              onDone={() => {
+                setRetouchOpen(false)
+                refresh()
+              }}
+            />
+          </Modal>
+        )}
+      </div>
     </div>
   )
 }
@@ -401,23 +434,23 @@ function StatusTag({ status }: { status: string }) {
   )
 }
 
-function ManagerRescheduleActions({ id, onDone }: { id: string; onDone: () => void }) {
+function ManagerRescheduleActions({
+  id,
+  role,
+  onDone,
+}: {
+  id: string
+  role: Role
+  onDone: () => void
+}) {
   const [reason, setReason] = useState('')
   const [showReject, setShowReject] = useState(false)
   async function approve() {
-    await fetch(`/api/studio/reschedules/${id}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actorRole: 'manager' }),
-    })
+    await apiPost(role, `/api/studio/reschedules/${id}/approve`)
     onDone()
   }
   async function reject() {
-    await fetch(`/api/studio/reschedules/${id}/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actorRole: 'manager', rejectReason: reason }),
-    })
+    await apiPost(role, `/api/studio/reschedules/${id}/reject`, { rejectReason: reason })
     onDone()
   }
   return (
@@ -505,18 +538,14 @@ function RescheduleForm({
   onDone,
 }: {
   orderId: string
-  role: string
+  role: Role
   onDone: () => void
 }) {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [reason, setReason] = useState('')
   async function submit() {
-    await fetch('/api/studio/reschedules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, from, to, reason, actorRole: role }),
-    })
+    await apiPost(role, '/api/studio/reschedules', { orderId, from, to, reason })
     onDone()
   }
   return (
@@ -553,18 +582,14 @@ function CollectionForm({
   onDone,
 }: {
   orderId: string
-  role: string
+  role: Role
   onDone: () => void
 }) {
   const [method, setMethod] = useState('wechat')
   const [result, setResult] = useState('contacted')
   const [remark, setRemark] = useState('')
   async function submit() {
-    await fetch('/api/studio/collections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, method, result, remark, actorRole: role }),
-    })
+    await apiPost(role, '/api/studio/collections', { orderId, method, result, remark })
     onDone()
   }
   return (
@@ -611,16 +636,12 @@ function RetouchForm({
   onDone,
 }: {
   orderId: string
-  role: string
+  role: Role
   onDone: () => void
 }) {
   const [remark, setRemark] = useState('')
   async function submit() {
-    await fetch('/api/studio/retouches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId, remark, actorRole: role }),
-    })
+    await apiPost(role, '/api/studio/retouches', { orderId, remark })
     onDone()
   }
   return (

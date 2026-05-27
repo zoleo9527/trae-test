@@ -59,7 +59,7 @@ interface Props {
 }
 
 export default function Timeline({ events, compact }: Props) {
-  const list = [...events].sort((a, b) => a.at.localeCompare(b.at))
+  const list = [...events].sort((a, b) => b.at.localeCompare(a.at))
   return (
     <div className="relative">
       <div className="absolute left-2 top-2 bottom-2 w-px bg-ink-700" />

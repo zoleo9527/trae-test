@@ -160,7 +160,7 @@ export function seedIfEmpty() {
       id: 'o-003',
       customer_name: '苏婉清 & 何承骏',
       order_no: 'WS2026-0527-003',
-      shoot_date: day(-14),
+      shoot_date: day(-7),
       select_date: day(-10),
       total_amount: 15800,
       paid_amount: 6000,
@@ -175,7 +175,7 @@ export function seedIfEmpty() {
       select_date: day(-1),
       total_amount: 8800,
       paid_amount: 3000,
-      status: 'selected',
+      status: 'awaiting_payment',
       collection_level: 0,
     },
     {
@@ -232,7 +232,7 @@ export function seedIfEmpty() {
     {
       id: 'rs-003',
       order_id: 'o-003',
-      suggested_from: day(-5),
+      suggested_from: day(-7),
       suggested_to: day(2),
       reason: '客户要求再次改期，婚纱需重做',
       status: 'rejected',
@@ -402,7 +402,7 @@ export function seedIfEmpty() {
     {
       id: 'e-205', order_id: 'o-003', type: 'reschedule',
       actor_role: 'butler', actor_name: '管家·谢予安', at: at(-4, 14, 0),
-      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'created', from: day(-5), to: day(2), reason: '客户要求再次改期，婚纱需重做' }),
+      payload: JSON.stringify({ reschedule_id: 'rs-003', action: 'created', from: day(-7), to: day(2), reason: '客户要求再次改期，婚纱需重做' }),
     },
     {
       id: 'e-206', order_id: 'o-003', type: 'reschedule',

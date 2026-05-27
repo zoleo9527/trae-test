@@ -2,6 +2,27 @@ import { create } from 'zustand'
 
 export type Role = 'manager' | 'selector' | 'butler'
 
+function apiHeaders(role: Role): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'X-Role': role,
+  }
+}
+
+export async function apiGet(role: Role, path: string) {
+  const res = await fetch(path, { headers: apiHeaders(role) })
+  return res.json()
+}
+
+export async function apiPost(role: Role, path: string, body?: any) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: apiHeaders(role),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  return res.json()
+}
+
 export interface Order {
   id: string
   customer_name: string
@@ -120,18 +141,17 @@ export const useStudio = create<StudioState>((set, get) => ({
   setRole: (role) => {
     if (typeof window !== 'undefined') window.localStorage.setItem(ROLE_STORAGE_KEY, role)
     set({ role })
+    get().loadAll()
   },
   loadAll: async () => {
     set({ loading: true })
     try {
-      const [ordersRes, alertsRes, feedRes] = await Promise.all([
-        fetch('/api/studio/orders'),
-        fetch('/api/studio/alerts'),
-        fetch('/api/studio/timeline'),
+      const role = get().role
+      const [orders, alerts, feed] = await Promise.all([
+        apiGet(role, '/api/studio/orders'),
+        apiGet(role, '/api/studio/alerts'),
+        apiGet(role, '/api/studio/timeline'),
       ])
-      const orders = await ordersRes.json()
-      const alerts = await alertsRes.json()
-      const feed = await feedRes.json()
       set({
         orders: orders.data || [],
         alerts: alerts.data || { overdue: 0, pendingReschedule: 0, awaitingPayment: 0, rescheduling: 0 },

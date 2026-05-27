@@ -1,29 +1,23 @@
 import { db } from '../db/schema.js'
 import { Router, type Request, type Response } from 'express'
+import { withActor, requireRole } from '../middleware/auth.js'
+import type { Role } from '../types.js'
 
 const router = Router()
 
-const ROLE_NAME: Record<string, string> = {
-  manager: '店长·周嘉诚',
-  selector: '选片师·江书言',
-  butler: '客服管家·谢予安',
-}
-
-function roleName(role: string) {
-  return ROLE_NAME[role] || role
-}
+router.use(withActor)
 
 function newId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-function pushEvent(orderId: string, type: string, actorRole: string, payload: any) {
+function pushEvent(orderId: string, type: string, actor: { role: Role; name: string }, payload: any) {
   const id = newId('e')
   const at = new Date().toISOString()
   db.prepare(
     `INSERT INTO timeline_events (id, order_id, type, actor_role, actor_name, at, payload)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, orderId, type, actorRole, roleName(actorRole), at, JSON.stringify(payload))
+  ).run(id, orderId, type, actor.role, actor.name, at, JSON.stringify(payload))
   return id
 }
 
@@ -49,7 +43,7 @@ router.get('/orders/:id', (req: Request, res: Response) => {
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(req.params.id)
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
   const events = db
-    .prepare(`SELECT * FROM timeline_events WHERE order_id = ? ORDER BY at ASC`)
+    .prepare(`SELECT * FROM timeline_events WHERE order_id = ? ORDER BY at DESC`)
     .all(req.params.id)
   const reschedules = db
     .prepare(`SELECT * FROM reschedule_requests WHERE order_id = ? ORDER BY created_at ASC`)
@@ -64,18 +58,17 @@ router.get('/orders/:id', (req: Request, res: Response) => {
 })
 
 router.post('/orders/:id/note', (req: Request, res: Response) => {
-  const { content, actorRole } = req.body as { content: string; actorRole: string }
+  const { content } = req.body as { content: string }
   if (!content?.trim()) return res.status(400).json({ success: false, error: '内容不能为空' })
-  pushEvent(req.params.id, 'note', actorRole || 'butler', { content: content.trim() })
+  pushEvent(req.params.id, 'note', req.actor!, { content: content.trim() })
   touchOrder(req.params.id)
   res.json({ success: true })
 })
 
-router.post('/orders/:id/remind', (req: Request, res: Response) => {
-  const { actorRole } = req.body as { actorRole: string }
+router.post('/orders/:id/remind', requireRole('butler', 'manager'), (req: Request, res: Response) => {
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(req.params.id) as any
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
-  pushEvent(req.params.id, 'remind', actorRole || 'butler', {
+  pushEvent(req.params.id, 'remind', req.actor!, {
     content: `触发尾款催收提醒（当前级别 ${order.collection_level}）`,
   })
   db.prepare(`UPDATE orders SET collection_level = collection_level + 1, updated_at = ? WHERE id = ?`).run(
@@ -97,13 +90,12 @@ router.get('/reschedules', (req: Request, res: Response) => {
   res.json({ success: true, data: rows })
 })
 
-router.post('/reschedules', (req: Request, res: Response) => {
-  const { orderId, from, to, reason, actorRole } = req.body as {
+router.post('/reschedules', requireRole('butler', 'selector', 'manager'), (req: Request, res: Response) => {
+  const { orderId, from, to, reason } = req.body as {
     orderId: string
     from: string
     to: string
     reason: string
-    actorRole: string
   }
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId) as any
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
@@ -116,7 +108,7 @@ router.post('/reschedules', (req: Request, res: Response) => {
   db.prepare(
     `UPDATE orders SET status = 'rescheduling', current_reschedule_id = ?, updated_at = ? WHERE id = ?`
   ).run(id, now, orderId)
-  pushEvent(orderId, 'reschedule', actorRole || 'selector', {
+  pushEvent(orderId, 'reschedule', req.actor!, {
     reschedule_id: id,
     action: 'created',
     from,
@@ -126,23 +118,22 @@ router.post('/reschedules', (req: Request, res: Response) => {
   res.json({ success: true, data: { id } })
 })
 
-router.post('/reschedules/:id/approve', (req: Request, res: Response) => {
-  const { actorRole } = req.body as { actorRole: string }
+router.post('/reschedules/:id/approve', requireRole('manager'), (req: Request, res: Response) => {
   const r = db.prepare(`SELECT * FROM reschedule_requests WHERE id = ?`).get(req.params.id) as any
   if (!r) return res.status(404).json({ success: false, error: '改期申请不存在' })
   if (r.status !== 'pending') return res.status(400).json({ success: false, error: '申请已处理' })
   const now = new Date().toISOString()
   db.prepare(
     `UPDATE reschedule_requests SET status = 'approved', approver_role = ?, approver_name = ?, approved_at = ? WHERE id = ?`
-  ).run(actorRole || 'manager', roleName(actorRole || 'manager'), now, req.params.id)
+  ).run(req.actor!.role, req.actor!.name, now, req.params.id)
   db.prepare(
     `UPDATE orders SET shoot_date = ?, status = 'scheduled', current_reschedule_id = NULL, updated_at = ? WHERE id = ?`
   ).run(r.suggested_to, now, r.order_id)
-  pushEvent(r.order_id, 'reschedule', actorRole || 'manager', {
+  pushEvent(r.order_id, 'reschedule', req.actor!, {
     reschedule_id: r.id,
     action: 'approved',
   })
-  pushEvent(r.order_id, 'status', actorRole || 'manager', {
+  pushEvent(r.order_id, 'status', req.actor!, {
     from: 'rescheduling',
     to: 'scheduled',
     note: `改期已确认，新档期：${r.suggested_to}`,
@@ -150,14 +141,14 @@ router.post('/reschedules/:id/approve', (req: Request, res: Response) => {
   res.json({ success: true })
 })
 
-router.post('/reschedules/:id/reject', (req: Request, res: Response) => {
-  const { rejectReason, actorRole } = req.body as { rejectReason: string; actorRole: string }
+router.post('/reschedules/:id/reject', requireRole('manager'), (req: Request, res: Response) => {
+  const { rejectReason } = req.body as { rejectReason: string }
   const r = db.prepare(`SELECT * FROM reschedule_requests WHERE id = ?`).get(req.params.id) as any
   if (!r) return res.status(404).json({ success: false, error: '改期申请不存在' })
   if (r.status !== 'pending') return res.status(400).json({ success: false, error: '申请已处理' })
   db.prepare(
     `UPDATE reschedule_requests SET status = 'rejected', approver_role = ?, approver_name = ?, reject_reason = ?, approved_at = NULL WHERE id = ?`
-  ).run(actorRole || 'manager', roleName(actorRole || 'manager'), rejectReason, req.params.id)
+  ).run(req.actor!.role, req.actor!.name, rejectReason, req.params.id)
   db.prepare(
     `UPDATE orders SET status = CASE
        WHEN paid_amount = total_amount THEN 'completed'
@@ -165,7 +156,7 @@ router.post('/reschedules/:id/reject', (req: Request, res: Response) => {
        ELSE 'scheduled' END,
        current_reschedule_id = NULL, updated_at = ? WHERE id = ?`
   ).run(new Date().toISOString(), r.order_id)
-  pushEvent(r.order_id, 'reschedule', actorRole || 'manager', {
+  pushEvent(r.order_id, 'reschedule', req.actor!, {
     reschedule_id: r.id,
     action: 'rejected',
     reject_reason: rejectReason || '',
@@ -173,13 +164,12 @@ router.post('/reschedules/:id/reject', (req: Request, res: Response) => {
   res.json({ success: true })
 })
 
-router.post('/collections', (req: Request, res: Response) => {
-  const { orderId, method, result, remark, actorRole } = req.body as {
+router.post('/collections', requireRole('butler', 'manager'), (req: Request, res: Response) => {
+  const { orderId, method, result, remark } = req.body as {
     orderId: string
     method: string
     result: string
     remark: string
-    actorRole: string
   }
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId) as any
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
@@ -188,13 +178,13 @@ router.post('/collections', (req: Request, res: Response) => {
   db.prepare(
     `INSERT INTO collection_records (id, order_id, method, result, remark, actor_role, actor_name, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, orderId, method, result, remark || '', actorRole || 'butler', roleName(actorRole || 'butler'), now)
-  pushEvent(orderId, 'collection', actorRole || 'butler', { method, result, remark: remark || '' })
+  ).run(id, orderId, method, result, remark || '', req.actor!.role, req.actor!.name, now)
+  pushEvent(orderId, 'collection', req.actor!, { method, result, remark: remark || '' })
   if (result === 'paid') {
     db.prepare(
       `UPDATE orders SET paid_amount = total_amount, status = 'completed', collection_level = 0, updated_at = ? WHERE id = ?`
     ).run(now, orderId)
-    pushEvent(orderId, 'status', actorRole || 'butler', {
+    pushEvent(orderId, 'status', req.actor!, {
       from: order.status,
       to: 'completed',
       note: '尾款结清，订单完成',
@@ -204,11 +194,10 @@ router.post('/collections', (req: Request, res: Response) => {
   res.json({ success: true, data: { id } })
 })
 
-router.post('/retouches', (req: Request, res: Response) => {
-  const { orderId, remark, actorRole } = req.body as {
+router.post('/retouches', requireRole('selector', 'manager'), (req: Request, res: Response) => {
+  const { orderId, remark } = req.body as {
     orderId: string
     remark: string
-    actorRole: string
   }
   const order = db.prepare(`SELECT * FROM orders WHERE id = ?`).get(orderId) as any
   if (!order) return res.status(404).json({ success: false, error: '订单不存在' })
@@ -221,8 +210,8 @@ router.post('/retouches', (req: Request, res: Response) => {
   db.prepare(
     `INSERT INTO retouch_versions (id, order_id, version_no, remark, created_at, actor_role, actor_name)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, orderId, next, remark || '', now, actorRole || 'selector', roleName(actorRole || 'selector'))
-  pushEvent(orderId, 'retouch', actorRole || 'selector', {
+  ).run(id, orderId, next, remark || '', now, req.actor!.role, req.actor!.name)
+  pushEvent(orderId, 'retouch', req.actor!, {
     version_no: next,
     remark: remark || '',
   })
@@ -263,6 +252,10 @@ router.get('/timeline', (_req: Request, res: Response) => {
     )
     .all()
   res.json({ success: true, data: rows })
+})
+
+router.get('/me', (req: Request, res: Response) => {
+  res.json({ success: true, data: req.actor })
 })
 
 export default router
