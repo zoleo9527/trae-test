@@ -163,7 +163,7 @@ npm run tauri:dev
 ### 2. 扫码页快速发货只弹窗不写入
 **问题**：`quickShip` 函数只 alert 弹窗，没有真正写入订单数据
 **修复**：调用 `appStore.updateShipment` 真正写入发货记录，计算剩余数量自动发货
-**位置**：[Scan.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L175-L194)
+**位置**：[Scan.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L252-L284)
 
 ### 3. 补单/退款按钮状态判断错误（越级完成风险）
 **问题**：
@@ -177,22 +177,82 @@ npm run tauri:dev
 - 更新 `canProcessAfterSale` 函数，退款单在 `approved` 和 `processing` 状态都可处理
 **位置**：[OrderDetail.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/OrderDetail.vue#L131-L157)
 
-### 4. 补齐演示数据链路
-**退款责任链**（GT202405002 阿里巴巴）：
-- 申请：客户反馈尺寸问题 + 照片对比
-- 审核：核实版本覆盖问题 + 同意退款
-- 处理：财务发起退款 + 客户致歉 + 优惠承诺
+### 4. 扫码录入不区分订单号与运单扫码
+**问题**：扫码匹配时不区分是订单号还是运单号，且不拦截重复单号
+**修复**：
+- 区分 `matchType`：`order`（订单号匹配）、`shipment`（运单号匹配）
+- 运单号匹配时显示已发货信息，禁用快速发货按钮
+- 重复单号拦截：全局检查所有订单的运单号，禁止重复使用
+- 售后中订单禁止快速发货
+**位置**：[Scan.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L174-L240)
 
-**版本覆盖**（GT202405002 阿里巴巴）：
-- 打样 v1.0 → v1.5 版本更新记录
-- 版本覆盖风险预警记录
-- 问题发现→核实→追责完整链路
+### 5. 发货写入覆盖售后中订单状态
+**问题**：`updateShipment` 函数在订单处于 `after_sale` 状态时仍会更新订单状态为 `shipped` 或 `partial_shipped`
+**修复**：
+- 增加 `forceUpdate` 参数，默认 `false`
+- 非强制更新时，如果订单处于售后中，抛出错误禁止发货
+- 增加全局运单号重复检查
+- 非强制更新时，如果订单处于售后中，不更新订单状态
+**位置**：[app.js](file:///Users/liu/Documents/private/model-test/trae-test-4/src/stores/app.js#L105-L137)
 
-**拆单漏件**（GT202405001 腾讯科技）：
-- 拆单两批发货记录（300 + 180，少20）
-- 客户反馈（漏件+质量问题共40件）
-- 仓配核实漏件 + 打样核实质量
-- 合并补单 40 件完整流程
+### 6. 售后处理页待我处理逻辑不完整
+**问题**："待我处理"筛选仅包含 `pending` 状态，打样跟单看不到 `approved` 和 `processing` 状态的退款单
+**修复**：
+- 打样跟单：`pending`（待审核）+ 退款单 `approved`（待处理）+ 退款单 `processing`（待完成）
+- 仓配协调：补单 `approved`（待处理）+ 补单 `processing`（待完成）
+**位置**：[AfterSales.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/AfterSales.vue#L142-L153)
+
+### 7. 工作台待我处理逻辑不完整
+**问题**：工作台待办仅包含部分状态，打样跟单看不到 `approved` 和 `processing` 状态的退款单
+**修复**：
+- 打样跟单：退款待审核、退款待处理、退款待完成
+- 仓配协调：补单待处理、补单待完成
+- 每条待办都有明确的标题区分状态
+**位置**：[Dashboard.vue](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Dashboard.vue#L102-L202)
+
+### 8. 扫码录入订单号直接当运单号发货
+**问题**：扫码匹配到订单号时，允许直接快速发货，把订单号字符串当作运单号写入发货记录
+**修复**：
+- `matchType='order'`（订单号匹配）：禁用"快速发货"按钮，显示"补充运单"按钮
+- "补充运单"按钮弹出表单，强制用户输入真实快递单号、选择快递公司、填写发货数量
+- 订单号匹配时只允许跳转订单详情或补充真实运单
+**位置**：
+  - 交互逻辑：[canQuickShip + canAddShipment](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L288-L311)
+  - 补充运单弹窗：[submitAddShipment](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L323-L354)
+
+### 9. forceUpdate 参数阻止正常订单状态更新
+**问题**：`if (!forceUpdate && order.status !== 'after_sale')` 逻辑错误，传入 `forceUpdate=true` 时即使是正常订单也不更新状态
+**修复**：
+- 改为 `if (order.status !== 'after_sale')`，forceUpdate 只用于跳过售后状态检查，不影响正常订单的状态更新
+- 正常订单（非售后中）发货后继续按剩余数量回写 `partial_shipped` 或 `shipped`
+- 售后中订单：`forceUpdate=false` 时抛出错误禁止发货；`forceUpdate=true` 时允许写入发货记录但**不更新订单状态**（保持 `after_sale`）
+**位置**：[updateShipment](file:///Users/liu/Documents/private/model-test/trae-test-4/src/stores/app.js#L105-L137)
+
+```javascript
+// 修复后逻辑
+// 1. 重复单号检查（所有情况都执行）
+// 2. 售后状态检查（forceUpdate=true 时跳过）
+if (!forceUpdate && order.status === 'after_sale') {
+  throw new Error('订单处于售后中...')
+}
+// 3. 写入发货记录（所有情况都执行）
+// 4. 更新订单状态（仅非售后中订单执行）
+if (order.status !== 'after_sale') {
+  if (totalShipped >= order.quantity) {
+    order.status = 'shipped'
+  } else {
+    order.status = 'partial_shipped'
+  }
+}
+```
+
+### 10. 扫码快速发货调用 forceUpdate 导致状态不更新
+**问题**：`quickShip` 调用 `updateShipment` 时传入 `forceUpdate=true`，导致正常订单发货后状态不更新
+**修复**：
+- 移除 `quickShip` 调用时的 `forceUpdate` 参数（使用默认值 `false`）
+- 扫码前已做重复单号和售后状态检查，无需强制更新
+- 正常订单扫码发货后状态正确更新为 `partial_shipped` 或 `shipped`
+**位置**：[quickShip](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L366-L402)
 
 ---
 

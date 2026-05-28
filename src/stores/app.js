@@ -124,7 +124,7 @@ export const useAppStore = defineStore('app', () => {
       })
 
       const totalShipped = order.shipments.reduce((sum, s) => sum + s.quantity, 0)
-      if (!forceUpdate && order.status !== 'after_sale') {
+      if (order.status !== 'after_sale') {
         if (totalShipped >= order.quantity) {
           order.status = 'shipped'
         } else {

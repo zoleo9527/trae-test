@@ -66,6 +66,11 @@
                           @click="quickShip(result.matchedOrder, result.code)">
                     快速发货
                   </button>
+                  <button v-if="canAddShipment(result)"
+                          class="btn btn-primary btn-sm"
+                          @click="showAddShipmentModal(result)">
+                    补充运单
+                  </button>
                   <button v-if="result.isDuplicate" class="btn btn-warning btn-sm" disabled>
                     重复单号
                   </button>
@@ -104,11 +109,50 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showAddShipment" class="modal-overlay" @click.self="showAddShipment = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>补充运单信息</h3>
+          <button class="close-btn" @click="showAddShipment = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="order-summary">
+            <p><strong>订单：</strong>{{ selectedResult?.matchedOrder?.orderNo }}</p>
+            <p><strong>客户：</strong>{{ selectedResult?.matchedOrder?.customer }}</p>
+            <p><strong>产品：</strong>{{ selectedResult?.matchedOrder?.productName }}</p>
+            <p><strong>剩余发货：</strong>{{ remainingQuantity }} 件</p>
+          </div>
+          <div class="form-group">
+            <label>快递公司</label>
+            <select v-model="shipmentForm.courier" class="select full-width">
+              <option value="顺丰">顺丰</option>
+              <option value="京东">京东</option>
+              <option value="圆通">圆通</option>
+              <option value="中通">中通</option>
+              <option value="扫码识别">扫码识别</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>快递单号</label>
+            <input v-model="shipmentForm.trackingNo" class="input full-width" placeholder="请输入真实快递单号" />
+          </div>
+          <div class="form-group">
+            <label>发货数量</label>
+            <input v-model.number="shipmentForm.quantity" type="number" class="input full-width" :placeholder="`最多 ${remainingQuantity} 件`" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" @click="showAddShipment = false">取消</button>
+          <button class="btn btn-primary" @click="submitAddShipment">确认发货</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
@@ -123,7 +167,21 @@ const videoRef = ref(null)
 const scannerActive = ref(false)
 const scanResults = ref([])
 const manualInput = ref('')
+const showAddShipment = ref(false)
+const selectedResult = ref(null)
+const shipmentForm = ref({
+  courier: '顺丰',
+  trackingNo: '',
+  quantity: 0
+})
 let scanner = null
+
+const remainingQuantity = computed(() => {
+  if (!selectedResult.value?.matchedOrder) return 0
+  const order = selectedResult.value.matchedOrder
+  const shipped = order.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0
+  return order.quantity - shipped
+})
 
 async function startScanner() {
   try {
@@ -231,12 +289,68 @@ function canQuickShip(result) {
   if (currentRole.value !== 'warehouse') return false
   if (!result.matchedOrder) return false
   if (result.isDuplicate) return false
+  if (result.matchType === 'order') return false
   if (result.matchType === 'shipment') return false
   if (result.isAfterSale) return false
 
   const remaining = result.matchedOrder.quantity -
     (result.matchedOrder.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
   return remaining > 0
+}
+
+function canAddShipment(result) {
+  if (currentRole.value !== 'warehouse') return false
+  if (!result.matchedOrder) return false
+  if (result.isDuplicate && result.matchType !== 'order') return false
+  if (result.isAfterSale) return false
+  if (result.matchType !== 'order') return false
+
+  const remaining = result.matchedOrder.quantity -
+    (result.matchedOrder.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
+  return remaining > 0
+}
+
+function showAddShipmentModal(result) {
+  selectedResult.value = result
+  shipmentForm.value = {
+    courier: '顺丰',
+    trackingNo: '',
+    quantity: remainingQuantity.value
+  }
+  showAddShipment.value = true
+}
+
+function submitAddShipment() {
+  if (!shipmentForm.value.trackingNo || shipmentForm.value.quantity <= 0) {
+    alert('请填写完整的运单信息')
+    return
+  }
+  if (shipmentForm.value.quantity > remainingQuantity.value) {
+    alert(`发货数量不能超过剩余数量 ${remainingQuantity.value} 件`)
+    return
+  }
+
+  try {
+    appStore.updateShipment(selectedResult.value.matchedOrder.id, {
+      courier: shipmentForm.value.courier,
+      trackingNo: shipmentForm.value.trackingNo,
+      quantity: shipmentForm.value.quantity
+    })
+
+    alert(`发货成功！\n订单: ${selectedResult.value.matchedOrder.orderNo}\n单号: ${shipmentForm.value.trackingNo}\n数量: ${shipmentForm.value.quantity} 件`)
+
+    const result = scanResults.value.find(r => r.code === selectedResult.value.code)
+    if (result) {
+      const updated = matchOrder(selectedResult.value.code)
+      result.matchedOrder = updated.order
+      result.shipmentInfo = updated.shipment
+      result.isDuplicate = true
+    }
+
+    showAddShipment.value = false
+  } catch (err) {
+    alert(err.message)
+  }
 }
 
 function handleManualInput() {
@@ -266,20 +380,24 @@ function quickShip(order, trackingNo) {
     return
   }
 
-  appStore.updateShipment(order.id, {
-    courier: '扫码识别',
-    trackingNo: trackingNo,
-    quantity: remaining
-  }, true)
+  try {
+    appStore.updateShipment(order.id, {
+      courier: '扫码识别',
+      trackingNo: trackingNo,
+      quantity: remaining
+    })
 
-  alert(`快速发货成功！\n订单: ${order.orderNo}\n单号: ${trackingNo}\n数量: ${remaining} 件`)
+    alert(`快速发货成功！\n订单: ${order.orderNo}\n单号: ${trackingNo}\n数量: ${remaining} 件`)
 
-  const result = scanResults.value.find(r => r.code === trackingNo)
-  if (result) {
-    const updated = matchOrder(trackingNo)
-    result.matchedOrder = updated.order
-    result.shipmentInfo = updated.shipment
-    result.isDuplicate = true
+    const result = scanResults.value.find(r => r.code === trackingNo)
+    if (result) {
+      const updated = matchOrder(trackingNo)
+      result.matchedOrder = updated.order
+      result.shipmentInfo = updated.shipment
+      result.isDuplicate = true
+    }
+  } catch (err) {
+    alert(err.message)
   }
 }
 
@@ -551,5 +669,88 @@ onUnmounted(() => {
 
 .manual-input-row .input {
   flex: 1;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #8c8c8c;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.order-summary {
+  background: #fafafa;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.order-summary p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.full-width {
+  width: 100%;
 }
 </style>
