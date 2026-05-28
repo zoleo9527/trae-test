@@ -22,7 +22,8 @@
   let newTreatment = '';
 
   $: selectedId = selectedRecord?.id || null;
-  $: canHandle = auth.hasRole(['director', 'teacher', 'logistics']);
+  $: canResolve = auth.hasRole(['director', 'logistics']);
+  $: canFollowup = auth.hasRole(['director', 'teacher']);
   $: canCreate = auth.isLoggedIn;
   $: unresolvedRecords = records.filter(r => r.status !== 'resolved');
   $: resolvedRecords = records.filter(r => r.status === 'resolved');
@@ -111,7 +112,7 @@
   }
 
   async function handleResolve() {
-    if (!selectedRecord || !canHandle) return;
+    if (!selectedRecord || !canResolve) return;
     try {
       const updated = await api.resolveMedical(selectedRecord.id);
       records = records.map(r => r.id === updated.id ? updated : r);
@@ -122,7 +123,7 @@
   }
 
   async function handleFollowup() {
-    if (!selectedRecord || !canHandle || !followupContent.trim()) return;
+    if (!selectedRecord || !canFollowup || !followupContent.trim()) return;
     try {
       const updated = await api.addFollowup(selectedRecord.id, followupContent);
       records = records.map(r => r.id === updated.id ? updated : r);
@@ -255,20 +256,40 @@
                   </span>
                 </div>
               </div>
-              {#if canHandle && selectedRecord.status !== 'resolved'}
+              {#if selectedRecord.status !== 'resolved'}
                 <div class="flex gap-2">
-                  <button
-                    on:click={handleResolve}
-                    class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    ✓ 标记解决
-                  </button>
-                  <button
-                    on:click={() => showFollowupModal = true}
-                    class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    📝 添加随访
-                  </button>
+                  {#if canResolve}
+                    <button
+                      on:click={handleResolve}
+                      class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      ✓ 标记解决
+                    </button>
+                  {:else}
+                    <button
+                      disabled
+                      title="仅营地主任和后勤协调可标记解决"
+                      class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                    >
+                      ✓ 标记解决
+                    </button>
+                  {/if}
+                  {#if canFollowup}
+                    <button
+                      on:click={() => showFollowupModal = true}
+                      class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      📝 添加随访
+                    </button>
+                  {:else}
+                    <button
+                      disabled
+                      title="仅营地主任和班务老师可添加随访"
+                      class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                    >
+                      📝 添加随访
+                    </button>
+                  {/if}
                 </div>
               {/if}
             </div>

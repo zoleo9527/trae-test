@@ -22,7 +22,7 @@
   let newRemark = '';
 
   $: selectedId = selectedRecord?.id || null;
-  $: canApprove = auth.hasRole(['director', 'teacher']);
+  $: canApprove = auth.hasRole(['director']);
   $: canCreate = auth.hasRole(['director', 'teacher']);
   $: pendingRecords = records.filter(r => r.approval_status === 'pending');
   $: approvedRecords = records.filter(r => r.approval_status === 'approved');
@@ -250,20 +250,37 @@
                   <StatusBadge status={getApprovalStatus(selectedRecord)} />
                 </div>
               </div>
-              {#if canApprove && selectedRecord.approval_status === 'pending'}
+              {#if selectedRecord.approval_status === 'pending'}
                 <div class="flex gap-2">
-                  <button
-                    on:click={handleApprove}
-                    class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    ✓ 通过
-                  </button>
-                  <button
-                    on:click={() => showRejectModal = true}
-                    class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    ✕ 驳回
-                  </button>
+                  {#if canApprove}
+                    <button
+                      on:click={handleApprove}
+                      class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      ✓ 通过
+                    </button>
+                    <button
+                      on:click={() => showRejectModal = true}
+                      class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      ✕ 驳回
+                    </button>
+                  {:else}
+                    <button
+                      disabled
+                      title="仅营地主任可审批考勤"
+                      class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                    >
+                      ✓ 通过
+                    </button>
+                    <button
+                      disabled
+                      title="仅营地主任可驳回考勤"
+                      class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+                    >
+                      ✕ 驳回
+                    </button>
+                  {/if}
                 </div>
               {/if}
             </div>

@@ -2,6 +2,8 @@
   export let leftTitle: string;
   export let selectedId: string | null = null;
   export let showCreate: boolean = false;
+  export let createDisabled: boolean = false;
+  export let createDisabledTitle: string = '';
   export let createLabel: string = '新建';
 
   let showCreateModal = false;
@@ -20,12 +22,22 @@
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
       <h2 class="text-lg font-semibold text-gray-800">{leftTitle}</h2>
       {#if showCreate}
-        <button
-          on:click={handleCreate}
-          class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          + {createLabel}
-        </button>
+        {#if createDisabled}
+          <button
+            disabled
+            title={createDisabledTitle}
+            class="px-3 py-1.5 text-sm bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
+          >
+            + {createLabel}
+          </button>
+        {:else}
+          <button
+            on:click={handleCreate}
+            class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            + {createLabel}
+          </button>
+        {/if}
       {/if}
     </div>
     <div class="flex-1 overflow-y-auto min-h-0">

@@ -29,7 +29,9 @@
   let activeTab: 'info' | 'timeline' = 'info';
 
   $: selectedId = selectedCamper?.id || null;
-  $: canEdit = auth.hasRole(['director', 'teacher']);
+  $: canEdit = auth.hasRole(['director']);
+  $: canCreateDisabled = !canEdit;
+  $: canCreateDisabledTitle = '仅营地主任可添加营员';
 
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('zh-CN');
@@ -88,7 +90,9 @@
   <DualPanel
     leftTitle="营员列表"
     selectedId={selectedId}
-    showCreate={canEdit}
+    showCreate={true}
+    createDisabled={canCreateDisabled}
+    createDisabledTitle={canCreateDisabledTitle}
     createLabel="添加营员"
   >
     <div slot="list">
