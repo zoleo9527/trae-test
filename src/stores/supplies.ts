@@ -188,6 +188,15 @@ export const useSuppliesStore = defineStore('supplies', () => {
     const app = applications.value.find(a => a.id === applicationId)
     if (!app) return { success: false, message: '申请不存在' }
 
+    const isAlreadyPaid = app.status === 'paid'
+
+    if (isAlreadyPaid && paymentData.paymentStatus && paymentData.paymentStatus !== 'paid') {
+      return {
+        success: false,
+        message: '已结算申请的付款状态不可回退，仅允许补录金额或到期日'
+      }
+    }
+
     const isSettingPaid = paymentData.paymentStatus === 'paid'
     
     if (isSettingPaid && !canSetToPaid(app)) {
@@ -195,6 +204,38 @@ export const useSuppliesStore = defineStore('supplies', () => {
         success: false, 
         message: '仅已完成的申请可以标记为已结清，请先完成补给流程' 
       }
+    }
+
+    if (isAlreadyPaid) {
+      const changes: string[] = []
+      
+      if (paymentData.actualPayment !== undefined && paymentData.actualPayment !== app.actualPayment) {
+        app.actualPayment = paymentData.actualPayment
+        changes.push(`实际支付: ¥${paymentData.actualPayment.toLocaleString()}`)
+      }
+      
+      if (paymentData.paymentDueDate !== undefined && paymentData.paymentDueDate !== app.paymentDueDate) {
+        app.paymentDueDate = paymentData.paymentDueDate
+        changes.push(`付款截止日: ${paymentData.paymentDueDate}`)
+      }
+
+      app.currentHandlerId = userStore.currentUser.id
+      app.currentHandlerName = userStore.currentUser.name
+      app.updatedAt = new Date().toISOString()
+
+      if (changes.length > 0) {
+        app.statusHistory.push({
+          id: `h${Date.now()}`,
+          status: 'paid',
+          timestamp: new Date().toISOString(),
+          userId: userStore.currentUser.id,
+          userName: userStore.currentUser.name,
+          remark: `已结算补录 - ${changes.join(', ')}`
+        })
+        addComment(applicationId, `已结算补录 - ${changes.join(', ')}`, 'system')
+      }
+
+      return { success: true }
     }
     
     if (paymentData.paymentStatus !== undefined) {
@@ -204,6 +245,7 @@ export const useSuppliesStore = defineStore('supplies', () => {
     if (isSettingPaid) {
       app.actualPayment = app.totalAmount
       app.status = 'paid'
+      app.paymentStatus = 'paid'
       const handler = getHandlerForStatus('paid')
       if (handler) {
         app.currentHandlerId = handler.id

@@ -144,6 +144,10 @@ const canMarkAsPaid = computed(() => {
   return application.value.status === 'completed' || application.value.status === 'paid'
 })
 
+const isAlreadyPaid = computed(() => {
+  return application.value?.status === 'paid'
+})
+
 const markPaid = () => {
   if (!application.value) return
   if (!canMarkAsPaid.value) {
@@ -482,7 +486,16 @@ const confirmPaymentUpdate = () => {
 
     <el-dialog v-model="paymentDialog" title="更新付款信息" width="500px">
       <el-alert 
-        v-if="!canMarkAsPaid" 
+        v-if="isAlreadyPaid" 
+        type="info" 
+        size="small" 
+        show-icon 
+        style="margin-bottom: 16px"
+      >
+        已结算申请仅允许补录金额或到期日，付款状态不可回退
+      </el-alert>
+      <el-alert 
+        v-else-if="!canMarkAsPaid" 
         type="warning" 
         size="small" 
         show-icon 
@@ -493,8 +506,16 @@ const confirmPaymentUpdate = () => {
       <el-form label-width="100px">
         <el-form-item label="付款状态">
           <el-select v-model="paymentForm.paymentStatus" style="width: 100%">
-            <el-option label="未付" value="unpaid" />
-            <el-option label="部分支付" value="partial" />
+            <el-option 
+              label="未付" 
+              value="unpaid" 
+              :disabled="isAlreadyPaid"
+            />
+            <el-option 
+              label="部分支付" 
+              value="partial" 
+              :disabled="isAlreadyPaid"
+            />
             <el-option 
               label="已结清" 
               value="paid" 
