@@ -125,10 +125,60 @@ const auditService = {
     };
   },
 
-  async getAuditSummary(options = {}) {
-    const { startDate, endDate, userId } = options;
+  async getAuditLogs(filters = {}, options = {}) {
+    const { page = 1, pageSize = 20 } = options;
+    const { chainId, entityType, action, userId, startDate, endDate } = filters;
 
     const where = {};
+    if (chainId) {
+      where.OR = [
+        { chainId },
+        { entityType: 'BerthingPlan', entityId: chainId },
+      ];
+    }
+    if (entityType) where.entityType = entityType;
+    if (action) where.action = action;
+    if (userId) where.userId = userId;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          user: { select: { name: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      data: logs,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
+  },
+
+  async getAuditSummary(options = {}) {
+    const { startDate, endDate, userId, chainId } = options;
+
+    const where = {};
+    if (chainId) {
+      where.OR = [
+        { chainId },
+        { entityType: 'BerthingPlan', entityId: chainId },
+      ];
+    }
     if (startDate) where.createdAt = { ...where.createdAt, gte: startDate };
     if (endDate) where.createdAt = { ...where.createdAt, lte: endDate };
     if (userId) where.userId = userId;

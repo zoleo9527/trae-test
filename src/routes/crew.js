@@ -9,7 +9,7 @@ router.use(authMiddleware);
 
 const createCrewSchema = z.object({
   berthingPlanId: z.string().min(1, '靠泊计划ID不能为空'),
-  type: z.enum(['EMBARKATION', 'DISEMBARKATION', 'TRANSFER']),
+  type: z.enum(['SIGN_ON', 'SIGN_OFF', 'TRANSFER', 'SHORE_LEAVE']),
   crewName: z.string().min(1, '船员姓名不能为空'),
   position: z.string().min(1, '职位不能为空'),
   nationality: z.string().min(1, '国籍不能为空'),
@@ -19,7 +19,7 @@ const createCrewSchema = z.object({
 });
 
 const updateCrewSchema = z.object({
-  type: z.enum(['EMBARKATION', 'DISEMBARKATION', 'TRANSFER']).optional(),
+  type: z.enum(['SIGN_ON', 'SIGN_OFF', 'TRANSFER', 'SHORE_LEAVE']).optional(),
   crewName: z.string().optional(),
   position: z.string().optional(),
   nationality: z.string().optional(),
@@ -29,7 +29,7 @@ const updateCrewSchema = z.object({
 });
 
 const statusSchema = z.object({
-  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED']),
+  status: z.enum(['PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED']),
 });
 
 router.get('/', requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR', 'DOCUMENT_SPECIALIST']), async (req, res, next) => {

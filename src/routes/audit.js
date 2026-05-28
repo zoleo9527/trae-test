@@ -8,8 +8,10 @@ router.use(authMiddleware);
 router.get('/', requireRole('AGENT_MANAGER'), async (req, res, next) => {
   try {
     const filters = {
+      chainId: req.query.chainId,
       entityType: req.query.entityType,
       action: req.query.action,
+      userId: req.query.userId,
       startDate: req.query.startDate,
       endDate: req.query.endDate,
     };
@@ -17,7 +19,7 @@ router.get('/', requireRole('AGENT_MANAGER'), async (req, res, next) => {
       page: parseInt(req.query.page) || 1,
       pageSize: parseInt(req.query.pageSize) || 20,
     };
-    const result = await auditService.getUserActivity(req.query.userId || req.user.id, { ...filters, ...options });
+    const result = await auditService.getAuditLogs(filters, options);
     res.json({
       success: true,
       data: result.data,
