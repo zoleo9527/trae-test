@@ -65,7 +65,11 @@ export const useSplitStore = create<SplitState>()(
 
         if (hasMissing) {
           const missingItems = missing.map((m) => `${m.name}还差${m.quantity}件`).join('，')
-          useOrderStore.getState().setNeedsReview(orderId, true, `拆单漏件：${missingItems}`)
+          useOrderStore.getState().addReviewSource(orderId, {
+            type: 'split_missing',
+            reason: missingItems,
+            sourceId: newSplit.id,
+          })
         }
 
         useOrderStore.getState().updateOrderStatus(orderId, 'split')

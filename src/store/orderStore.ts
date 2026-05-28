@@ -1,22 +1,25 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { nanoid } from 'nanoid'
-import type { Order, OrderItem, OrderVersion, OrderStatus } from '../types'
+import type { Order, OrderItem, OrderVersion, OrderStatus, ReviewSource, ReviewSourceType } from '../types'
 import { mockOrders, mockTimeline } from '../data/mockData'
 import type { TimelineEvent } from '../types'
 import { useSplitStore } from './splitStore'
 import { useReceiptStore } from './receiptStore'
 import { useRefundStore } from './refundStore'
+import { ReviewSourceLabels } from '../types'
 
 interface OrderState {
   orders: Order[]
   timeline: TimelineEvent[]
-  addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt' | 'versions' | 'needsReview'>) => void
+  addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt' | 'versions' | 'needsReview' | 'reviewSources'>) => void
   updateOrder: (id: string, patch: Partial<Order>) => void
   updateOrderStatus: (id: string, status: OrderStatus) => void
   addVersion: (orderId: string, version: Omit<OrderVersion, 'id' | 'createdAt'>, overrideReason?: string) => void
   addTimelineEvent: (event: Omit<TimelineEvent, 'id' | 'timestamp'>) => void
-  setNeedsReview: (orderId: string, needsReview: boolean, reviewReason?: string) => void
+  addReviewSource: (orderId: string, source: Omit<ReviewSource, 'createdAt'>) => void
+  removeReviewSource: (orderId: string, type: ReviewSourceType, sourceId?: string) => void
+  recalculateReviewReason: (orderId: string) => void
   markAsReviewed: (orderId: string) => void
   getOrderById: (id: string) => Order | undefined
   detectMissingItems: (orderId: string, splitItems: OrderItem[]) => OrderItem[]
@@ -36,6 +39,7 @@ export const useOrderStore = create<OrderState>()(
           updatedAt: new Date(),
           versions: [],
           needsReview: false,
+          reviewSources: [],
         }
         const event: Omit<TimelineEvent, 'id' | 'timestamp'> = {
           type: 'order_create',
@@ -59,9 +63,10 @@ export const useOrderStore = create<OrderState>()(
           o.id === id ? { ...o, status, updatedAt: new Date() } : o
         ),
       })),
-      addVersion: (orderId, version, overrideReason) => set((state) => {
+      addVersion: (orderId, version, overrideReason) => {
+        const state = get()
         const order = state.orders.find((o) => o.id === orderId)
-        if (!order) return state
+        if (!order) return
 
         const hasExistingCurrent = order.versions.some((v) => v.isCurrent)
         const newVersion: OrderVersion = {
@@ -88,61 +93,145 @@ export const useOrderStore = create<OrderState>()(
           needsReview: hasExistingCurrent,
         }
 
-        return {
+        set((state) => ({
           orders: state.orders.map((o) =>
             o.id === orderId
               ? {
                   ...o,
                   versions: updatedVersions,
-                  needsReview: hasExistingCurrent || o.needsReview,
-                  reviewReason: hasExistingCurrent ? '版本被覆盖，需确认变更影响' : o.reviewReason,
                   updatedAt: new Date(),
                 }
               : o
           ),
           timeline: [...state.timeline, { ...event, id: nanoid(), timestamp: new Date() }],
+        }))
+
+        if (hasExistingCurrent) {
+          get().addReviewSource(orderId, {
+            type: 'version_override',
+            reason: '版本被覆盖，需确认变更影响',
+            sourceId: newVersion.id,
+          })
         }
-      }),
+      },
       addTimelineEvent: (event) => set((state) => ({
         timeline: [...state.timeline, { ...event, id: nanoid(), timestamp: new Date() }],
       })),
-      setNeedsReview: (orderId, needsReview, reviewReason) => set((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === orderId
-            ? {
-                ...o,
-                needsReview,
-                reviewReason: needsReview ? (reviewReason || o.reviewReason) : undefined,
-                updatedAt: new Date(),
+      addReviewSource: (orderId, source) => {
+        const newSource: ReviewSource = {
+          ...source,
+          createdAt: new Date(),
+        }
+        set((state) => {
+          const order = state.orders.find((o) => o.id === orderId)
+          if (!order) return state
+
+          const existingSources = order.reviewSources.filter(
+            (s) => !(s.type === source.type && s.sourceId === source.sourceId)
+          )
+          const updatedSources = [...existingSources, newSource]
+
+          const typeLabels = updatedSources.map(
+            (s) => `${ReviewSourceLabels[s.type]}：${s.reason}`
+          )
+          const combinedReason = typeLabels.join('；')
+
+          return {
+            orders: state.orders.map((o) =>
+              o.id === orderId
+                ? {
+                    ...o,
+                    reviewSources: updatedSources,
+                    needsReview: updatedSources.length > 0,
+                    reviewReason: updatedSources.length > 0 ? combinedReason : undefined,
+                    updatedAt: new Date(),
+                  }
+                : o
+            ),
+          }
+        })
+      },
+      removeReviewSource: (orderId, type, sourceId) => {
+        set((state) => {
+          const order = state.orders.find((o) => o.id === orderId)
+          if (!order) return state
+
+          let updatedSources = order.reviewSources.filter(
+            (s) => {
+              if (sourceId) {
+                return !(s.type === type && s.sourceId === sourceId)
               }
-            : o
-        ),
-      })),
+              return s.type !== type
+            }
+          )
+
+          const typeLabels = updatedSources.map(
+            (s) => `${ReviewSourceLabels[s.type]}：${s.reason}`
+          )
+          const combinedReason = typeLabels.join('；')
+
+          return {
+            orders: state.orders.map((o) =>
+              o.id === orderId
+                ? {
+                    ...o,
+                    reviewSources: updatedSources,
+                    needsReview: updatedSources.length > 0,
+                    reviewReason: updatedSources.length > 0 ? combinedReason : undefined,
+                    updatedAt: new Date(),
+                  }
+                : o
+            ),
+          }
+        })
+      },
+      recalculateReviewReason: (orderId) => {
+        set((state) => {
+          const order = state.orders.find((o) => o.id === orderId)
+          if (!order) return state
+
+          const typeLabels = order.reviewSources.map(
+            (s) => `${ReviewSourceLabels[s.type]}：${s.reason}`
+          )
+          const combinedReason = typeLabels.join('；')
+
+          return {
+            orders: state.orders.map((o) =>
+              o.id === orderId
+                ? {
+                    ...o,
+                    needsReview: o.reviewSources.length > 0,
+                    reviewReason: o.reviewSources.length > 0 ? combinedReason : undefined,
+                    updatedAt: new Date(),
+                  }
+                : o
+            ),
+          }
+        })
+      },
       markAsReviewed: (orderId) => {
         const splitState = useSplitStore.getState()
-        const receiptState = useReceiptStore.getState()
-        const refundState = useRefundStore.getState()
+        const state = get()
+        const order = state.orders.find((o) => o.id === orderId)
+        if (!order) return
 
-        const orderSplits = splitState.splits.filter((s) => s.orderId === orderId)
-        const orderReceipts = receiptState.receipts.filter((r) => {
-          const split = splitState.splits.find((s) => s.id === r.splitId)
-          return split?.orderId === orderId
-        })
-        const orderRefunds = refundState.refunds.filter((r) => r.orderId === orderId)
+        const updatedSources = order.reviewSources.filter(
+          (s) => s.type !== 'split_missing'
+        )
 
-        const hasUnresolvedMissing = orderSplits.some((s) => s.missingWarning)
-        const hasUnresolvedException = orderReceipts.some((r) => r.status === 'exception')
-        const hasUnresolvedRejection = orderRefunds.some((r) => r.status === 'rejected')
+        const typeLabels = updatedSources.map(
+          (s) => `${ReviewSourceLabels[s.type]}：${s.reason}`
+        )
+        const combinedReason = typeLabels.length > 0 ? typeLabels.join('；') : undefined
 
         set((state) => ({
           orders: state.orders.map((o) =>
             o.id === orderId
               ? {
                   ...o,
-                  needsReview: hasUnresolvedMissing || hasUnresolvedException || hasUnresolvedRejection,
-                  reviewReason: hasUnresolvedMissing || hasUnresolvedException || hasUnresolvedRejection
-                    ? o.reviewReason
-                    : undefined,
+                  reviewSources: updatedSources,
+                  needsReview: updatedSources.length > 0,
+                  reviewReason: combinedReason,
                   updatedAt: new Date(),
                 }
               : o

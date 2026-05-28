@@ -210,7 +210,8 @@ export const Dashboard: React.FC = () => {
     }
   }
 
-  const getItemTypeLabel = (type: string) => {
+  const getItemTypeLabel = (type: string, status?: string) => {
+    if (status === 'needsReview') return '需回查'
     const labels: Record<string, string> = {
       order: '订单',
       split: '拆单',
@@ -276,15 +277,18 @@ export const Dashboard: React.FC = () => {
                     className="w-full flex items-center justify-between px-6 py-4 hover:bg-dark-50 transition-colors text-left"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-dark-100 rounded-lg flex items-center justify-center text-dark-500">
-                        {item.type === 'order' && '📋'}
-                        {item.type === 'split' && '📦'}
-                        {item.type === 'receipt' && '📨'}
-                        {item.type === 'refund' && '💰'}
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        item.status === 'needsReview' ? 'bg-yellow-100 text-yellow-600' : 'bg-dark-100 text-dark-500'
+                      }`}>
+                        {item.status === 'needsReview' && '⚠️'}
+                        {item.status !== 'needsReview' && item.type === 'order' && '📋'}
+                        {item.status !== 'needsReview' && item.type === 'split' && '📦'}
+                        {item.status !== 'needsReview' && item.type === 'receipt' && '📨'}
+                        {item.status !== 'needsReview' && item.type === 'refund' && '💰'}
                       </div>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs text-dark-400">{getItemTypeLabel(item.type)}</span>
+                          <span className="text-xs text-dark-400">{getItemTypeLabel(item.type, item.status)}</span>
                           <PriorityBadge priority={item.priority} />
                         </div>
                         <p className="font-medium text-dark-800 mt-0.5">{item.title}</p>

@@ -57,6 +57,22 @@ export const ResponsibilityTypeLabels: Record<ResponsibilityType, string> = {
   other: '其他原因',
 }
 
+export type ReviewSourceType = 'version_override' | 'split_missing' | 'receipt_exception' | 'refund_rejected'
+
+export const ReviewSourceLabels: Record<ReviewSourceType, string> = {
+  version_override: '版本覆盖',
+  split_missing: '拆单漏件',
+  receipt_exception: '回执异常',
+  refund_rejected: '退款驳回',
+}
+
+export interface ReviewSource {
+  type: ReviewSourceType
+  reason: string
+  sourceId?: string
+  createdAt: Date
+}
+
 export interface OrderItem {
   id: string
   name: string
@@ -92,6 +108,7 @@ export interface Order {
   versions: OrderVersion[]
   needsReview: boolean
   reviewReason?: string
+  reviewSources: ReviewSource[]
   rejectionReason?: string
 }
 

@@ -4,6 +4,7 @@ import { Timeline } from '../components/common/Timeline'
 import { EmptyState } from '../components/common/EmptyState'
 import { useOrderStore } from '../store/orderStore'
 import type { TimelineEvent } from '../types'
+import { ReviewSourceLabels } from '../types'
 
 export const ReviewPanel: React.FC = () => {
   const { orders, timeline, markAsReviewed } = useOrderStore()
@@ -12,19 +13,23 @@ export const ReviewPanel: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'exception' | 'review'>('all')
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
 
+  const needsReviewOrderIds = useMemo(() => {
+    return new Set(orders.filter((o) => o.needsReview).map((o) => o.id))
+  }, [orders])
+
   const filteredTimeline = useMemo(() => {
     let events = [...timeline]
 
     if (filter === 'exception') {
       events = events.filter((e) => e.isException)
     } else if (filter === 'review') {
-      events = events.filter((e) => e.needsReview)
+      events = events.filter((e) => needsReviewOrderIds.has(e.orderId))
     }
 
     return events.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
-  }, [timeline, filter])
+  }, [timeline, filter, needsReviewOrderIds])
 
   const needsReviewOrders = useMemo(() => {
     return orders.filter((o) => o.needsReview)
@@ -99,19 +104,31 @@ export const ReviewPanel: React.FC = () => {
                       setSelectedOrderId(order.id)
                       navigate(`/orders/${order.id}`)
                     }}
-                    className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white border border-yellow-300 rounded hover:bg-yellow-100 transition-colors"
+                    className="inline-flex flex-col items-start px-3 py-2 bg-white border border-yellow-300 rounded hover:bg-yellow-100 transition-colors"
                   >
-                    <span className="font-mono text-sm">{order.orderNo}</span>
-                    <span className="text-xs text-yellow-700">{order.reviewReason}</span>
-                    <span
-                      className="text-xs text-success hover:text-green-700 ml-2"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        markAsReviewed(order.id)
-                      }}
-                    >
-                      标记已阅
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-sm font-medium">{order.orderNo}</span>
+                      <span
+                        className="text-xs text-success hover:text-green-700"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          markAsReviewed(order.id)
+                        }}
+                      >
+                        [标记已阅]
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {order.reviewSources.map((source, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded"
+                        >
+                          {ReviewSourceLabels[source.type]}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-yellow-600 mt-1 text-left">{order.reviewReason}</p>
                   </button>
                 ))}
               </div>
@@ -160,8 +177,8 @@ export const ReviewPanel: React.FC = () => {
                 全部订单
               </button>
               {orders.map((order) => {
-                const hasException = timeline.some(
-                  (e) => e.orderId === order.id && (e.isException || e.needsReview)
+                const hasException = order.needsReview || timeline.some(
+                  (e) => e.orderId === order.id && e.isException
                 )
                 return (
                   <button
@@ -174,8 +191,11 @@ export const ReviewPanel: React.FC = () => {
                     }`}
                   >
                     <span className="truncate">{order.orderNo}</span>
-                    {hasException && (
-                      <span className="w-2 h-2 bg-danger rounded-full flex-shrink-0" />
+                    {order.needsReview && (
+                      <span className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0" title="待回查" />
+                    )}
+                    {!order.needsReview && hasException && (
+                      <span className="w-2 h-2 bg-danger rounded-full flex-shrink-0" title="有异常" />
                     )}
                   </button>
                 )

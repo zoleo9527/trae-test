@@ -50,12 +50,13 @@ export const useReceiptStore = create<ReceiptState>()(
 
         if (receipt.status !== 'exception') {
           useSplitStore.getState().updateSplitStatus(splitId, 'completed')
+          useOrderStore.getState().removeReviewSource(split.orderId, 'receipt_exception', newReceipt.id)
         } else {
-          useOrderStore.getState().setNeedsReview(
-            split.orderId,
-            true,
-            `回执异常：${receipt.exceptionNote || '签收异常，需确认处理'}`
-          )
+          useOrderStore.getState().addReviewSource(split.orderId, {
+            type: 'receipt_exception',
+            reason: receipt.exceptionNote || '签收异常，需确认处理',
+            sourceId: newReceipt.id,
+          })
         }
       },
       updateReceipt: (id, patch) => set((state) => ({

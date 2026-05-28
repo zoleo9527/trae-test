@@ -37,7 +37,16 @@ export const mockOrders: Order[] = [
     updatedAt: hoursAgo(4),
     items: createItems(),
     versions: [createVersion('ord-001', 1, createItems())],
-    needsReview: false,
+    needsReview: true,
+    reviewReason: '拆单漏件：定制U盘还差200件，礼品袋还差1000件',
+    reviewSources: [
+      {
+        type: 'split_missing',
+        reason: '拆单漏件：定制U盘还差200件，礼品袋还差1000件',
+        sourceId: 'split-002',
+        createdAt: daysAgo(5),
+      },
+    ],
   },
   {
     id: 'ord-002',
@@ -51,6 +60,7 @@ export const mockOrders: Order[] = [
     items: createItems(),
     versions: [createVersion('ord-002', 1, createItems())],
     needsReview: false,
+    reviewSources: [],
     rejectionReason: '报价超出客户预算，需要重新核算成本',
   },
   {
@@ -68,7 +78,15 @@ export const mockOrders: Order[] = [
       createVersion('ord-003', 2, createItems().map(i => ({ ...i, quantity: i.quantity + 100 })), true, '客户临时加量20%，原版本已覆盖'),
     ],
     needsReview: true,
-    reviewReason: '版本被覆盖，需确认变更影响',
+    reviewReason: '版本覆盖，需确认变更影响',
+    reviewSources: [
+      {
+        type: 'version_override',
+        reason: '版本被覆盖，需确认变更影响',
+        sourceId: 'ver-ord-003-2',
+        createdAt: hoursAgo(2),
+      },
+    ],
   },
   {
     id: 'ord-004',
@@ -82,6 +100,7 @@ export const mockOrders: Order[] = [
     items: createItems(),
     versions: [createVersion('ord-004', 1, createItems())],
     needsReview: false,
+    reviewSources: [],
   },
   {
     id: 'ord-005',
@@ -94,7 +113,16 @@ export const mockOrders: Order[] = [
     updatedAt: hoursAgo(48),
     items: createItems(),
     versions: [createVersion('ord-005', 1, createItems())],
-    needsReview: false,
+    needsReview: true,
+    reviewReason: '回执异常：客户反馈部分商品破损，需补发',
+    reviewSources: [
+      {
+        type: 'receipt_exception',
+        reason: '回执异常：客户反馈部分商品破损，需补发',
+        sourceId: 'receipt-002',
+        createdAt: daysAgo(1),
+      },
+    ],
   },
   {
     id: 'ord-006',
@@ -108,6 +136,7 @@ export const mockOrders: Order[] = [
     items: createItems(),
     versions: [],
     needsReview: false,
+    reviewSources: [],
   },
 ]
 
