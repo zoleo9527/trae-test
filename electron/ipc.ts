@@ -3,6 +3,7 @@ import { getDb, getDbPath, setDb } from './database'
 import dayjs from 'dayjs'
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import Papa from 'papaparse'
 import Database from 'better-sqlite3'
 import type { Statement } from 'better-sqlite3'
@@ -552,29 +553,127 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:restore-database', async (_, filePath: string) => {
-    if (!fs.existsSync(filePath)) {
-      throw new Error('备份文件不存在')
+    let tempDbPath: string | null = null
+    let originalBackupPath: string | null = null
+    let tempDb: Database | null = null
+    let cleanupSucceeded = false
+    let originalDbClosed = false
+    const originalDbPath = getDbPath()
+
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error('备份文件不存在')
+      }
+
+      const backupStat = fs.statSync(filePath)
+      if (backupStat.size === 0) {
+        throw new Error('备份文件为空，无法恢复')
+      }
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'film-restore-'))
+      tempDbPath = path.join(tempDir, 'temp_restore.db')
+      originalBackupPath = path.join(tempDir, 'original_backup.db')
+
+      try {
+        fs.copyFileSync(filePath, tempDbPath)
+      } catch (e: any) {
+        throw new Error(`复制备份文件失败: ${e.message}`)
+      }
+
+      try {
+        tempDb = new Database(tempDbPath, { readonly: true, fileMustExist: true })
+      } catch (e: any) {
+        throw new Error(`无法打开备份文件: ${e.message}，文件可能已损坏`)
+      }
+
+      const requiredTables = ['members', 'films', 'process_records', 'reminders', 'audit_logs']
+      for (const table of requiredTables) {
+        try {
+          const result = tempDb.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
+          ).get(table)
+          if (!result) {
+            throw new Error(`备份文件缺少核心表: ${table}`)
+          }
+        } catch (e: any) {
+          throw new Error(`验证表 ${table} 失败: ${e.message}`)
+        }
+      }
+
+      for (const table of requiredTables) {
+        try {
+          tempDb.prepare(`SELECT COUNT(*) as count FROM ${table}`).get()
+        } catch (e: any) {
+          throw new Error(`读取 ${table} 表数据失败: ${e.message}，备份文件可能已损坏`)
+        }
+      }
+
+      tempDb.close()
+      tempDb = null
+
+      try {
+        fs.copyFileSync(originalDbPath, originalBackupPath)
+      } catch (e: any) {
+        throw new Error(`备份当前数据库失败: ${e.message}`)
+      }
+
+      const oldDb = getDb()
+      oldDb.close()
+      originalDbClosed = true
+
+      try {
+        fs.copyFileSync(tempDbPath, originalDbPath)
+      } catch (e: any) {
+        throw new Error(`写入正式数据库失败: ${e.message}`)
+      }
+
+      let newDb: Database
+      try {
+        newDb = new Database(originalDbPath)
+        newDb.pragma('journal_mode = WAL')
+        newDb.pragma('foreign_keys = ON')
+      } catch (e: any) {
+        throw new Error(`打开新数据库失败: ${e.message}`)
+      }
+
+      try {
+        newDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
+          .run('restore', 'database', 'current_user', `从备份恢复: ${filePath}`, getNow())
+      } catch (e: any) {
+        newDb.close()
+        throw new Error(`写入恢复日志失败: ${e.message}，恢复已中止`)
+      }
+
+      setDb(newDb)
+      cleanupSucceeded = true
+
+      const win = BrowserWindow.getAllWindows()[0]
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('database-restored')
+      }
+
+      return true
+    } finally {
+      if (tempDb) {
+        try { tempDb.close() } catch (_) { /* ignore */ }
+      }
+      if (!cleanupSucceeded && originalDbClosed && originalBackupPath && fs.existsSync(originalBackupPath)) {
+        try {
+          fs.copyFileSync(originalBackupPath, originalDbPath)
+          const restoredDb = new Database(originalDbPath)
+          restoredDb.pragma('journal_mode = WAL')
+          restoredDb.pragma('foreign_keys = ON')
+          setDb(restoredDb)
+        } catch (e2: any) {
+          throw new Error(`恢复失败，无法回滚到原始数据库: ${e2.message}，请重启应用`)
+        }
+      }
+      if (tempDbPath && fs.existsSync(tempDbPath)) {
+        try {
+          const tempDir = path.dirname(tempDbPath)
+          fs.rmSync(tempDir, { recursive: true, force: true })
+        } catch (_) { /* ignore */ }
+      }
     }
-
-    const dbPath = getDbPath()
-    const oldDb = getDb()
-    oldDb.close()
-
-    fs.copyFileSync(filePath, dbPath)
-
-    const newDb = new Database(dbPath)
-    newDb.pragma('journal_mode = WAL')
-    newDb.pragma('foreign_keys = ON')
-    setDb(newDb)
-
-    newDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
-      .run('restore', 'database', 'current_user', `从备份恢复: ${filePath}`, getNow())
-
-    const win = BrowserWindow.getAllWindows()[0]
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('database-restored')
-    }
-
-    return true
   })
 }
