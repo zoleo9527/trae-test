@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Layout } from '../components/layout/Layout'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { EmptyState } from '../components/common/EmptyState'
 import { useRefundStore } from '../store/refundStore'
@@ -120,142 +119,129 @@ export const Refunds: React.FC = () => {
   }
 
   return (
-    <Layout
-      title="退款处理"
-      subtitle="退款申请、责任链绑定与审批流程"
-      action={permissions.canCreateRefund && (
-        <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center space-x-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span>新建退款</span>
-        </button>
-      )}
-    >
-      <div className="space-y-6">
-        <div className="card p-4">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-dark-600">审批状态：</span>
-            <div className="flex flex-wrap gap-2">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setStatusFilter(option.value)}
-                  className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
-                    statusFilter === option.value
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+    <div className="space-y-6">
+      <div className="card p-4">
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-dark-600">审批状态：</span>
+          <div className="flex flex-wrap gap-2">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setStatusFilter(option.value)}
+                className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
+                  statusFilter === option.value
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        <div className="card overflow-hidden">
-          {filteredRefunds.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-dark-200">
-                    <th className="table-header">退款金额</th>
-                    <th className="table-header">关联订单</th>
-                    <th className="table-header">责任类型</th>
-                    <th className="table-header">责任人</th>
-                    <th className="table-header">状态</th>
-                    <th className="table-header">申请时间</th>
-                    <th className="table-header text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-dark-100">
-                  {filteredRefunds.map((refund) => {
-                    const order = orders.find((o) => o.id === refund.orderId)
-                    const responsibility = getResponsibilityChainById(refund.responsibilityChainId)
-                    const approvalLevel = getApprovalLevel(refund)
-                    const canApprove = approvalLevel === 'finance' && permissions.canApproveRefundFinance
-                      || approvalLevel === 'manager' && permissions.canApproveRefundManager
+      <div className="card overflow-hidden">
+        {filteredRefunds.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-dark-200">
+                  <th className="table-header">退款金额</th>
+                  <th className="table-header">关联订单</th>
+                  <th className="table-header">责任类型</th>
+                  <th className="table-header">责任人</th>
+                  <th className="table-header">状态</th>
+                  <th className="table-header">申请时间</th>
+                  <th className="table-header text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-100">
+                {filteredRefunds.map((refund) => {
+                  const order = orders.find((o) => o.id === refund.orderId)
+                  const responsibility = getResponsibilityChainById(refund.responsibilityChainId)
+                  const approvalLevel = getApprovalLevel(refund)
+                  const canApprove = approvalLevel === 'finance' && permissions.canApproveRefundFinance
+                    || approvalLevel === 'manager' && permissions.canApproveRefundManager
 
-                    return (
-                      <tr key={refund.id} className="hover:bg-dark-50 transition-colors">
-                        <td className="table-cell">
-                          <span className="text-xl font-bold font-mono text-danger">
-                            ¥{refund.amount.toFixed(2)}
+                  return (
+                    <tr key={refund.id} className="hover:bg-dark-50 transition-colors">
+                      <td className="table-cell">
+                        <span className="text-xl font-bold font-mono text-danger">
+                          ¥{refund.amount.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <Link to={`/orders/${order?.id}`} className="text-primary-600 hover:text-primary-700 font-medium">
+                          {order?.orderNo}
+                        </Link>
+                        <div className="text-xs text-dark-500">{order?.customerName}</div>
+                      </td>
+                      <td className="table-cell">
+                        {responsibility && (
+                          <div>
+                            <div className="font-medium text-dark-900">
+                              {ResponsibilityTypeLabels[responsibility.type]}
+                            </div>
+                            <div className="text-xs text-dark-500">{responsibility.description}</div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="table-cell text-dark-600">
+                        {responsibility?.responsiblePerson}
+                      </td>
+                      <td className="table-cell">
+                        <StatusBadge status={refund.status} />
+                      </td>
+                      <td className="table-cell text-dark-500">
+                        {format(new Date(refund.createdAt), 'yyyy-MM-dd', { locale: zhCN })}
+                      </td>
+                      <td className="table-cell text-right">
+                        {canApprove && (
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => {
+                                setShowApproveModal({ id: refund.id, level: approvalLevel! })
+                                setOpinion('同意退款')
+                              }}
+                              className="text-success hover:text-green-700 text-sm font-medium"
+                            >
+                              通过
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowApproveModal({ id: refund.id, level: approvalLevel! })
+                                setOpinion('')
+                              }}
+                              className="text-danger hover:text-red-700 text-sm font-medium"
+                            >
+                              驳回
+                            </button>
+                          </div>
+                        )}
+                        {!canApprove && refund.status !== 'completed' && refund.status !== 'rejected' && (
+                          <span className="text-xs text-dark-400">
+                            {approvalLevel === 'finance' ? '待财务审核' : '待管理层确认'}
                           </span>
-                        </td>
-                        <td className="table-cell">
-                          <Link to={`/orders/${order?.id}`} className="text-primary-600 hover:text-primary-700 font-medium">
-                            {order?.orderNo}
-                          </Link>
-                          <div className="text-xs text-dark-500">{order?.customerName}</div>
-                        </td>
-                        <td className="table-cell">
-                          {responsibility && (
-                            <div>
-                              <div className="font-medium text-dark-900">
-                                {ResponsibilityTypeLabels[responsibility.type]}
-                              </div>
-                              <div className="text-xs text-dark-500">{responsibility.description}</div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="table-cell text-dark-600">
-                          {responsibility?.responsiblePerson}
-                        </td>
-                        <td className="table-cell">
-                          <StatusBadge status={refund.status} />
-                        </td>
-                        <td className="table-cell text-dark-500">
-                          {format(new Date(refund.createdAt), 'yyyy-MM-dd', { locale: zhCN })}
-                        </td>
-                        <td className="table-cell text-right">
-                          {canApprove && (
-                            <div className="flex items-center justify-end space-x-2">
-                              <button
-                                onClick={() => {
-                                  setShowApproveModal({ id: refund.id, level: approvalLevel! })
-                                  setOpinion('同意退款')
-                                }}
-                                className="text-success hover:text-green-700 text-sm font-medium"
-                              >
-                                通过
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowApproveModal({ id: refund.id, level: approvalLevel! })
-                                  setOpinion('')
-                                }}
-                                className="text-danger hover:text-red-700 text-sm font-medium"
-                              >
-                                驳回
-                              </button>
-                            </div>
-                          )}
-                          {!canApprove && refund.status !== 'completed' && refund.status !== 'rejected' && (
-                            <span className="text-xs text-dark-400">
-                              {approvalLevel === 'finance' ? '待财务审核' : '待管理层确认'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState
-              title="暂无退款记录"
-              description={statusFilter !== 'all' ? '没有找到符合条件的退款申请' : '还没有任何退款申请'}
-              action={permissions.canCreateRefund && (
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-                  创建第一笔退款
-                </button>
-              )}
-            />
-          )}
-        </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            title="暂无退款记录"
+            description={statusFilter !== 'all' ? '没有找到符合条件的退款申请' : '还没有任何退款申请'}
+            action={permissions.canCreateRefund && (
+              <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+                创建第一笔退款
+              </button>
+            )}
+          />
+        )}
       </div>
 
       {showCreateModal && (
@@ -428,6 +414,6 @@ export const Refunds: React.FC = () => {
           </div>
         </div>
       )}
-    </Layout>
+    </div>
   )
 }

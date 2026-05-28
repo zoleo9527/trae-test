@@ -26,7 +26,15 @@ export const useSplitStore = create<SplitState>()(
         const existingSplits = get().getSplitsByOrderId(orderId)
         const splitNo = `${order.orderNo}-S${String(existingSplits.length + 1).padStart(2, '0')}`
 
-        const { missing } = get().detectMissingItems(orderId, [...existingSplits])
+        const tempSplit: SplitOrder = {
+          id: 'temp',
+          orderId,
+          splitNo,
+          items,
+          status: 'pending',
+          createdAt: new Date(),
+        }
+        const { missing } = get().detectMissingItems(orderId, [...existingSplits, tempSplit])
         const hasMissing = missing.length > 0
 
         const newSplit: SplitOrder = {

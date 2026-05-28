@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Layout } from '../components/layout/Layout'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { EmptyState } from '../components/common/EmptyState'
 import { useSplitStore } from '../store/splitStore'
@@ -83,121 +82,116 @@ export const Receipts: React.FC = () => {
   }, [receiptData])
 
   return (
-    <Layout
-      title="回执汇总"
-      subtitle="管理所有发货单的签收回执"
-    >
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="card p-4">
-            <p className="text-sm text-dark-500">待回执</p>
-            <p className="text-3xl font-bold font-mono text-yellow-600 mt-1">{stats.pending}</p>
-          </div>
-          <div className="card p-4">
-            <p className="text-sm text-dark-500">已签收</p>
-            <p className="text-3xl font-bold font-mono text-green-600 mt-1">{stats.signed}</p>
-          </div>
-          <div className="card p-4">
-            <p className="text-sm text-dark-500">异常</p>
-            <p className="text-3xl font-bold font-mono text-danger mt-1">{stats.exception}</p>
-          </div>
-        </div>
-
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card p-4">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-dark-600">回执状态：</span>
-            <div className="flex flex-wrap gap-2">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setStatusFilter(option.value)}
-                  className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
-                    statusFilter === option.value
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+          <p className="text-sm text-dark-500">待回执</p>
+          <p className="text-3xl font-bold font-mono text-yellow-600 mt-1">{stats.pending}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-dark-500">已签收</p>
+          <p className="text-3xl font-bold font-mono text-green-600 mt-1">{stats.signed}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-dark-500">异常</p>
+          <p className="text-3xl font-bold font-mono text-danger mt-1">{stats.exception}</p>
+        </div>
+      </div>
+
+      <div className="card p-4">
+        <div className="flex items-center space-x-4">
+          <span className="text-sm text-dark-600">回执状态：</span>
+          <div className="flex flex-wrap gap-2">
+            {statusOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setStatusFilter(option.value)}
+                className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
+                  statusFilter === option.value
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        <div className="card overflow-hidden">
-          {receiptData.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-dark-200">
-                    <th className="table-header">子单号</th>
-                    <th className="table-header">关联订单</th>
-                    <th className="table-header">商品</th>
-                    <th className="table-header">物流单号</th>
-                    <th className="table-header">发货时间</th>
-                    <th className="table-header">回执状态</th>
-                    <th className="table-header">签收人</th>
-                    <th className="table-header text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-dark-100">
-                  {receiptData.map(({ split, order, receipt }) => (
-                    <tr key={split.id} className="hover:bg-dark-50 transition-colors">
-                      <td className="table-cell font-mono font-medium">{split.splitNo}</td>
-                      <td className="table-cell">
-                        <Link to={`/orders/${order?.id}`} className="text-primary-600 hover:text-primary-700">
-                          {order?.orderNo}
-                        </Link>
-                        <div className="text-xs text-dark-500">{order?.customerName}</div>
-                      </td>
-                      <td className="table-cell">
-                        <div className="max-w-xs truncate text-sm text-dark-600">
-                          {split.items.map((i) => `${i.name}x${i.quantity}`).join('，')}
+      <div className="card overflow-hidden">
+        {receiptData.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-dark-200">
+                  <th className="table-header">子单号</th>
+                  <th className="table-header">关联订单</th>
+                  <th className="table-header">商品</th>
+                  <th className="table-header">物流单号</th>
+                  <th className="table-header">发货时间</th>
+                  <th className="table-header">回执状态</th>
+                  <th className="table-header">签收人</th>
+                  <th className="table-header text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-100">
+                {receiptData.map(({ split, order, receipt }) => (
+                  <tr key={split.id} className="hover:bg-dark-50 transition-colors">
+                    <td className="table-cell font-mono font-medium">{split.splitNo}</td>
+                    <td className="table-cell">
+                      <Link to={`/orders/${order?.id}`} className="text-primary-600 hover:text-primary-700">
+                        {order?.orderNo}
+                      </Link>
+                      <div className="text-xs text-dark-500">{order?.customerName}</div>
+                    </td>
+                    <td className="table-cell">
+                      <div className="max-w-xs truncate text-sm text-dark-600">
+                        {split.items.map((i) => `${i.name}x${i.quantity}`).join('，')}
+                      </div>
+                    </td>
+                    <td className="table-cell font-mono">{split.trackingNo}</td>
+                    <td className="table-cell text-dark-500">
+                      {split.shippedAt ? format(new Date(split.shippedAt), 'yyyy-MM-dd', { locale: zhCN }) : '-'}
+                    </td>
+                    <td className="table-cell">
+                      <StatusBadge status={receipt?.status || 'pending'} />
+                      {receipt?.exceptionNote && (
+                        <div className="mt-1 text-xs text-danger max-w-xs truncate">
+                          {receipt.exceptionNote}
                         </div>
-                      </td>
-                      <td className="table-cell font-mono">{split.trackingNo}</td>
-                      <td className="table-cell text-dark-500">
-                        {split.shippedAt ? format(new Date(split.shippedAt), 'yyyy-MM-dd', { locale: zhCN }) : '-'}
-                      </td>
-                      <td className="table-cell">
-                        <StatusBadge status={receipt?.status || 'pending'} />
-                        {receipt?.exceptionNote && (
-                          <div className="mt-1 text-xs text-danger max-w-xs truncate">
-                            {receipt.exceptionNote}
-                          </div>
-                        )}
-                      </td>
-                      <td className="table-cell text-dark-600">{receipt?.signedBy || '-'}</td>
-                      <td className="table-cell text-right">
-                        {!receipt && permissions.canEnterReceipt && (
-                          <button
-                            onClick={() => handleOpenReceipt(split.id)}
-                            className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                          >
-                            录入回执
-                          </button>
-                        )}
-                        {receipt && (
-                          <Link
-                            to={`/orders/${order?.id}`}
-                            className="text-dark-500 hover:text-dark-700 text-sm"
-                          >
-                            查看详情
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState
-              title="暂无回执记录"
-              description={statusFilter !== 'all' ? '没有找到符合条件的回执' : '还没有已发货的子单需要回执'}
-            />
-          )}
-        </div>
+                      )}
+                    </td>
+                    <td className="table-cell text-dark-600">{receipt?.signedBy || '-'}</td>
+                    <td className="table-cell text-right">
+                      {!receipt && permissions.canEnterReceipt && (
+                        <button
+                          onClick={() => handleOpenReceipt(split.id)}
+                          className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                        >
+                          录入回执
+                        </button>
+                      )}
+                      {receipt && (
+                        <Link
+                          to={`/orders/${order?.id}`}
+                          className="text-dark-500 hover:text-dark-700 text-sm"
+                        >
+                          查看详情
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            title="暂无回执记录"
+            description={statusFilter !== 'all' ? '没有找到符合条件的回执' : '还没有已发货的子单需要回执'}
+          />
+        )}
       </div>
 
       {showReceiptPanel && (
@@ -302,6 +296,6 @@ export const Receipts: React.FC = () => {
           </div>
         </>
       )}
-    </Layout>
+    </div>
   )
 }
