@@ -273,48 +273,58 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
 
 @app.post("/api/payments", response_model=schemas.Payment)
 def create_payment(payment: schemas.PaymentCreate, db: Session = Depends(get_db)):
-    db_payment = models.Payment(**payment.model_dump())
+    customer = db.query(models.Customer).filter(models.Customer.id == payment.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="客户不存在")
+
+    old_debt = customer.current_debt
+    actual_payment = min(payment.amount, max(0, old_debt))
+
+    if actual_payment <= 0:
+        raise HTTPException(status_code=400, detail="该客户当前无欠款，无需收款")
+
+    payment_data = payment.model_dump()
+    payment_data['amount'] = actual_payment
+    db_payment = models.Payment(**payment_data)
     db.add(db_payment)
     db.flush()
 
-    customer = db.query(models.Customer).filter(models.Customer.id == payment.customer_id).first()
-    if customer:
-        old_debt = customer.current_debt
-        customer.current_debt -= payment.amount
+    customer.current_debt -= actual_payment
 
-        db_log = models.OperationLog(
-            customer_id=payment.customer_id,
-            operator=payment.operator or "system",
-            action="收款登记",
-            old_value=f"原欠款: {old_debt}元",
-            new_value=f"收款: {payment.amount}元, 方式: {payment.payment_method}, 剩余欠款: {customer.current_debt}元"
-        )
-        db.add(db_log)
+    db_log = models.OperationLog(
+        customer_id=payment.customer_id,
+        operator=payment.operator or "system",
+        action="收款登记",
+        old_value=f"原欠款: {old_debt}元",
+        new_value=f"收款: {actual_payment}元, 方式: {payment.payment_method}, 剩余欠款: {customer.current_debt}元"
+    )
+    db.add(db_log)
 
-        pending_reminder = db.query(models.PaymentReminder).filter(
-            models.PaymentReminder.customer_id == payment.customer_id,
-            models.PaymentReminder.status == "pending"
-        ).first()
+    pending_reminder = db.query(models.PaymentReminder).filter(
+        models.PaymentReminder.customer_id == payment.customer_id,
+        models.PaymentReminder.status == "pending"
+    ).first()
 
-        if pending_reminder:
-            if customer.current_debt <= 0:
-                pending_reminder.status = "completed"
-                db.add(models.OperationLog(
-                    customer_id=payment.customer_id,
-                    operator=payment.operator or "system",
-                    action="回款提醒完成",
-                    old_value=f"待回款金额: {pending_reminder.amount_due}元",
-                    new_value="已全部回款，提醒标记为完成"
-                ))
-            else:
-                pending_reminder.amount_due = customer.current_debt
-                db.add(models.OperationLog(
-                    customer_id=payment.customer_id,
-                    operator=payment.operator or "system",
-                    action="更新回款提醒金额",
-                    old_value=f"原提醒金额: {pending_reminder.amount_due + payment.amount}元",
-                    new_value=f"新提醒金额: {customer.current_debt}元"
-                ))
+    if pending_reminder:
+        if customer.current_debt <= 0:
+            pending_reminder.status = "completed"
+            db.add(models.OperationLog(
+                customer_id=payment.customer_id,
+                operator=payment.operator or "system",
+                action="回款提醒完成",
+                old_value=f"待回款金额: {pending_reminder.amount_due}元",
+                new_value="已全部回款，提醒标记为完成"
+            ))
+        else:
+            old_reminder_amount = pending_reminder.amount_due
+            pending_reminder.amount_due = customer.current_debt
+            db.add(models.OperationLog(
+                customer_id=payment.customer_id,
+                operator=payment.operator or "system",
+                action="更新回款提醒金额",
+                old_value=f"原提醒金额: {old_reminder_amount}元",
+                new_value=f"新提醒金额: {customer.current_debt}元"
+            ))
 
     db.commit()
     db.refresh(db_payment)
@@ -533,8 +543,8 @@ def update_exception(
         action = f"解决异常: {type_label}"
 
     new_value = f"状态: {db_exception.status}"
-    if exception_update.handler_note:
-        new_value += f", 处理备注: {exception_update.handler_note}"
+    if exception_update.handle_result:
+        new_value += f", 处理结果: {exception_update.handle_result}"
 
     db_log = models.OperationLog(
         order_id=db_exception.order_id,

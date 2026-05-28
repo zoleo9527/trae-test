@@ -7,7 +7,7 @@ const typeMap: Record<string, { label: string; icon: any; color: string }> = {
   bucket_dispute: { label: '空桶争议', icon: Package, color: 'text-orange-600 bg-orange-100' },
   photo_issue: { label: '照片问题', icon: MessageSquare, color: 'text-purple-600 bg-purple-100' },
   complaint: { label: '客户投诉', icon: AlertTriangle, color: 'text-red-600 bg-red-100' },
-  delivery_late: { label: '配送延迟', icon: Clock, color: 'text-blue-600 bg-blue-100' },
+  delivery_delay: { label: '配送延迟', icon: Clock, color: 'text-blue-600 bg-blue-100' },
 }
 
 const statusMap: Record<string, { label: string; className: string }> = {
@@ -122,7 +122,7 @@ export default function Exceptions() {
               <option value="bucket_dispute">空桶争议</option>
               <option value="photo_issue">照片问题</option>
               <option value="complaint">客户投诉</option>
-              <option value="delivery_late">配送延迟</option>
+              <option value="delivery_delay">配送延迟</option>
             </select>
             <select
               value={statusFilter}
@@ -250,7 +250,7 @@ export default function Exceptions() {
                   <option value="bucket_dispute">空桶争议</option>
                   <option value="photo_issue">照片问题</option>
                   <option value="complaint">客户投诉</option>
-                  <option value="delivery_late">配送延迟</option>
+                  <option value="delivery_delay">配送延迟</option>
                 </select>
               </div>
               <div>
