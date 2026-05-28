@@ -9,9 +9,15 @@
   let campers: Camper[] = [];
   let selectedRoom: Room | null = null;
   let loading = true;
+  let submitting = false;
   let error: string | null = null;
   let selectedCamperId = '';
   let showAssignModal = false;
+  let showCreateModal = false;
+
+  let newRoomName = '';
+  let newBuilding = '';
+  let newCapacity = 1;
 
   $: selectedId = selectedRoom?.id || null;
   $: canManage = auth.hasRole(['director', 'logistics']);
@@ -55,7 +61,7 @@
       selectedRoom = updated;
       showAssignModal = false;
       selectedCamperId = '';
-      campers = await api.getCampers();
+      await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : '分配失败');
     }
@@ -68,10 +74,35 @@
       const updated = await api.unassignRoom(selectedRoom.id, camperId);
       rooms = rooms.map(r => r.id === updated.id ? updated : r);
       selectedRoom = updated;
-      campers = await api.getCampers();
+      await loadData();
     } catch (err) {
       alert(err instanceof Error ? err.message : '操作失败');
     }
+  }
+
+  async function handleCreate() {
+    if (!newRoomName || !newBuilding || newCapacity <= 0) return;
+    submitting = true;
+    try {
+      await api.createRoom({
+        name: newRoomName,
+        building: newBuilding,
+        capacity: newCapacity,
+      });
+      await loadData();
+      showCreateModal = false;
+      resetCreateForm();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function resetCreateForm() {
+    newRoomName = '';
+    newBuilding = '';
+    newCapacity = 1;
   }
 
   onMount(() => {
@@ -85,6 +116,22 @@
     selectedId={selectedId}
   >
     <div slot="list">
+      <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-500">
+            共 {rooms.length} 个房间
+          </div>
+          {#if canManage}
+            <button
+              on:click={() => showCreateModal = true}
+              class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              + 新增房间
+            </button>
+          {/if}
+        </div>
+      </div>
+
       {#if loading}
         <div class="flex items-center justify-center py-12">
           <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -218,8 +265,68 @@
   </DualPanel>
 </div>
 
+{#if showCreateModal}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showCreateModal = false; resetCreateForm(); }}>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h3 class="text-lg font-semibold text-gray-800">新增房间</h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">房间名称 <span class="text-red-500">*</span></label>
+          <input
+            type="text"
+            bind:value={newRoomName}
+            placeholder="如 A-101"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">楼栋 <span class="text-red-500">*</span></label>
+          <input
+            type="text"
+            bind:value={newBuilding}
+            placeholder="如 A栋"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">容量 <span class="text-red-500">*</span></label>
+          <input
+            type="number"
+            bind:value={newCapacity}
+            min="1"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            on:click={() => { showCreateModal = false; resetCreateForm(); }}
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            on:click={handleCreate}
+            disabled={!newRoomName || !newBuilding || newCapacity <= 0 || submitting}
+            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {#if submitting}
+              <span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            {/if}
+            {submitting ? '提交中...' : '提交'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if showAssignModal && selectedRoom}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showAssignModal = false; selectedCamperId = ''; }}>
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
       <div class="px-6 py-4 border-b border-gray-100">
         <h3 class="text-lg font-semibold text-gray-800">分配营员到 {selectedRoom.name}</h3>

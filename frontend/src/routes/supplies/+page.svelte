@@ -1,17 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type Supply } from '../../lib/api/client';
+  import { api, type Supply, type Camper } from '../../lib/api/client';
   import { auth } from '../../lib/stores/auth';
   import DualPanel from '../../lib/components/DualPanel.svelte';
   import StatusBadge from '../../lib/components/StatusBadge.svelte';
 
   let records: Supply[] = [];
+  let campers: Camper[] = [];
   let selectedRecord: Supply | null = null;
   let loading = true;
+  let submitting = false;
   let error: string | null = null;
+  let showCreateModal = false;
+
+  let newCamperId = '';
+  let newItemName = '';
+  let newQuantity = 1;
+  let newReason = '';
 
   $: selectedId = selectedRecord?.id || null;
   $: canFulfill = auth.hasRole(['director', 'logistics']);
+  $: canCreate = auth.hasRole(['director', 'logistics']);
   $: pendingRecords = records.filter(r => r.status === 'pending');
   $: fulfilledRecords = records.filter(r => r.status === 'fulfilled');
 
@@ -57,6 +66,14 @@
     }
   }
 
+  async function loadCampers() {
+    try {
+      campers = await api.getCampers();
+    } catch (err) {
+      console.error('加载营员列表失败:', err);
+    }
+  }
+
   function selectRecord(record: Supply) {
     selectedRecord = record;
   }
@@ -73,8 +90,36 @@
     }
   }
 
+  async function handleCreate() {
+    if (!newCamperId || !newItemName || newQuantity <= 0 || !newReason) return;
+    submitting = true;
+    try {
+      await api.createSupply({
+        camper_id: newCamperId,
+        item_name: newItemName,
+        quantity: newQuantity,
+        reason: newReason,
+      });
+      await loadRecords();
+      showCreateModal = false;
+      resetCreateForm();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '申请失败');
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function resetCreateForm() {
+    newCamperId = '';
+    newItemName = '';
+    newQuantity = 1;
+    newReason = '';
+  }
+
   onMount(() => {
     loadRecords();
+    loadCampers();
   });
 </script>
 
@@ -85,18 +130,28 @@
   >
     <div slot="list">
       <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
-        <div class="flex gap-2">
-          {#each filterOptions as option}
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex gap-2">
+            {#each filterOptions as option}
+              <button
+                on:click={() => filter = option.key}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              >
+                {option.label}
+                <span class="ml-1">{getFilterCount(option.key)}</span>
+              </button>
+            {/each}
+          </div>
+          {#if canCreate}
             <button
-              on:click={() => filter = option.key}
-              class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              on:click={() => showCreateModal = true}
+              class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
             >
-              {option.label}
-              <span class="ml-1">{getFilterCount(option.key)}</span>
+              + 申请物资
             </button>
-          {/each}
+          {/if}
         </div>
       </div>
 
@@ -199,3 +254,76 @@
     </div>
   </DualPanel>
 </div>
+
+{#if showCreateModal}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showCreateModal = false; resetCreateForm(); }}>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h3 class="text-lg font-semibold text-gray-800">申请物资</h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">选择营员 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newCamperId}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">请选择营员</option>
+            {#each campers as camper}
+              <option value={camper.id}>{camper.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">物品名称 <span class="text-red-500">*</span></label>
+          <input
+            type="text"
+            bind:value={newItemName}
+            placeholder="请输入物品名称"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">数量 <span class="text-red-500">*</span></label>
+          <input
+            type="number"
+            bind:value={newQuantity}
+            min="1"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">申请理由 <span class="text-red-500">*</span></label>
+          <textarea
+            bind:value={newReason}
+            rows="3"
+            placeholder="请输入申请理由"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            on:click={() => { showCreateModal = false; resetCreateForm(); }}
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            on:click={handleCreate}
+            disabled={!newCamperId || !newItemName || newQuantity <= 0 || !newReason || submitting}
+            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {#if submitting}
+              <span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            {/if}
+            {submitting ? '提交中...' : '提交'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}

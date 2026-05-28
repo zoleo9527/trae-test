@@ -1,19 +1,28 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type Feedback } from '../../lib/api/client';
+  import { api, type Feedback, type Camper } from '../../lib/api/client';
   import { auth } from '../../lib/stores/auth';
   import DualPanel from '../../lib/components/DualPanel.svelte';
   import StatusBadge from '../../lib/components/StatusBadge.svelte';
 
   let records: Feedback[] = [];
+  let campers: Camper[] = [];
   let selectedRecord: Feedback | null = null;
   let loading = true;
+  let submitting = false;
   let error: string | null = null;
   let responseText = '';
   let showCompleteModal = false;
+  let showCreateModal = false;
+
+  let newCamperId = '';
+  let newType = '家长投诉';
+  let newContent = '';
+  let newParentResponse = '';
 
   $: selectedId = selectedRecord?.id || null;
   $: canHandle = auth.hasRole(['director', 'teacher']);
+  $: canCreate = auth.hasRole(['director', 'teacher']);
   $: pendingRecords = records.filter(r => r.status === 'pending');
   $: completedRecords = records.filter(r => r.status === 'completed');
 
@@ -24,6 +33,8 @@
     { key: 'pending', label: '待处理' },
     { key: 'completed', label: '已完成' },
   ];
+
+  const typeOptions = ['家长投诉', '建议', '咨询', '表扬', '其他'];
 
   $: filteredRecords = filter === 'all' ? records :
     filter === 'pending' ? pendingRecords : completedRecords;
@@ -63,6 +74,14 @@
     }
   }
 
+  async function loadCampers() {
+    try {
+      campers = await api.getCampers();
+    } catch (err) {
+      console.error('加载营员列表失败:', err);
+    }
+  }
+
   function selectRecord(record: Feedback) {
     selectedRecord = record;
   }
@@ -80,8 +99,36 @@
     }
   }
 
+  async function handleCreate() {
+    if (!newCamperId || !newType || !newContent) return;
+    submitting = true;
+    try {
+      await api.createFeedback({
+        camper_id: newCamperId,
+        type: newType,
+        content: newContent,
+        parent_response: newParentResponse || undefined,
+      });
+      await loadRecords();
+      showCreateModal = false;
+      resetCreateForm();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function resetCreateForm() {
+    newCamperId = '';
+    newType = '家长投诉';
+    newContent = '';
+    newParentResponse = '';
+  }
+
   onMount(() => {
     loadRecords();
+    loadCampers();
   });
 </script>
 
@@ -92,18 +139,28 @@
   >
     <div slot="list">
       <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
-        <div class="flex gap-2">
-          {#each filterOptions as option}
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex gap-2">
+            {#each filterOptions as option}
+              <button
+                on:click={() => filter = option.key}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              >
+                {option.label}
+                <span class="ml-1">{getFilterCount(option.key)}</span>
+              </button>
+            {/each}
+          </div>
+          {#if canCreate}
             <button
-              on:click={() => filter = option.key}
-              class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              on:click={() => showCreateModal = true}
+              class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
             >
-              {option.label}
-              <span class="ml-1">{getFilterCount(option.key)}</span>
+              + 新增回访
             </button>
-          {/each}
+          {/if}
         </div>
       </div>
 
@@ -204,8 +261,83 @@
   </DualPanel>
 </div>
 
+{#if showCreateModal}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showCreateModal = false; resetCreateForm(); }}>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h3 class="text-lg font-semibold text-gray-800">新增家长回访</h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">选择营员 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newCamperId}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">请选择营员</option>
+            {#each campers as camper}
+              <option value={camper.id}>{camper.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">类型 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newType}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {#each typeOptions as type}
+              <option value={type}>{type}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">反馈内容 <span class="text-red-500">*</span></label>
+          <textarea
+            bind:value={newContent}
+            rows="4"
+            placeholder="请输入反馈内容"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">家长回复</label>
+          <textarea
+            bind:value={newParentResponse}
+            rows="3"
+            placeholder="请输入家长回复（可选）"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            on:click={() => { showCreateModal = false; resetCreateForm(); }}
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            on:click={handleCreate}
+            disabled={!newCamperId || !newType || !newContent || submitting}
+            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {#if submitting}
+              <span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            {/if}
+            {submitting ? '提交中...' : '提交'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if showCompleteModal && selectedRecord}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showCompleteModal = false; responseText = ''; }}>
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
       <div class="px-6 py-4 border-b border-gray-100">
         <h3 class="text-lg font-semibold text-gray-800">完成家长回访</h3>

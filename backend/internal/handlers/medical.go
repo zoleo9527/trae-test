@@ -130,7 +130,9 @@ func (h *MedicalHandler) Resolve(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "医疗记录已解决"})
+	h.db.Preload("Camper").Preload("Reporter").Preload("Resolver").Preload("FollowUps.Author").First(&record, "id = ?", id)
+
+	return c.JSON(fiber.Map{"data": record})
 }
 
 func (h *MedicalHandler) AddFollowUp(c *fiber.Ctx) error {
@@ -162,5 +164,7 @@ func (h *MedicalHandler) AddFollowUp(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": followUp})
+	h.db.Preload("Camper").Preload("Reporter").Preload("Resolver").Preload("FollowUps.Author").First(&record, "id = ?", id)
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": record})
 }

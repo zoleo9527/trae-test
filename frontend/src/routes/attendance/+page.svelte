@@ -1,19 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type Attendance } from '../../lib/api/client';
+  import { api, type Attendance, type Camper } from '../../lib/api/client';
   import { auth } from '../../lib/stores/auth';
   import DualPanel from '../../lib/components/DualPanel.svelte';
   import StatusBadge from '../../lib/components/StatusBadge.svelte';
 
   let records: Attendance[] = [];
+  let campers: Camper[] = [];
   let selectedRecord: Attendance | null = null;
   let loading = true;
+  let submitting = false;
   let error: string | null = null;
   let rejectReason = '';
   let showRejectModal = false;
+  let showCreateModal = false;
+
+  let newCamperId = '';
+  let newDate = new Date().toISOString().split('T')[0];
+  let newSession = '上午';
+  let newStatus: 'present' | 'absent' | 'late' = 'present';
+  let newRemark = '';
 
   $: selectedId = selectedRecord?.id || null;
   $: canApprove = auth.hasRole(['director', 'teacher']);
+  $: canCreate = auth.hasRole(['director', 'teacher']);
   $: pendingRecords = records.filter(r => r.approval_status === 'pending');
   $: approvedRecords = records.filter(r => r.approval_status === 'approved');
   $: rejectedRecords = records.filter(r => r.approval_status === 'rejected');
@@ -25,6 +35,13 @@
     { key: 'pending', label: '待审批' },
     { key: 'approved', label: '已通过' },
     { key: 'rejected', label: '已驳回' },
+  ];
+
+  const sessionOptions = ['上午', '下午', '晚间'];
+  const statusOptions = [
+    { value: 'present', label: '出勤' },
+    { value: 'absent', label: '缺勤' },
+    { value: 'late', label: '迟到' },
   ];
 
   $: filteredRecords = filter === 'all' ? records :
@@ -76,6 +93,14 @@
     }
   }
 
+  async function loadCampers() {
+    try {
+      campers = await api.getCampers();
+    } catch (err) {
+      console.error('加载营员列表失败:', err);
+    }
+  }
+
   function selectRecord(record: Attendance) {
     selectedRecord = record;
   }
@@ -104,8 +129,39 @@
     }
   }
 
+  async function handleCreate() {
+    if (!newCamperId || !newDate || !newSession || !newStatus) return;
+    submitting = true;
+    try {
+      const newRecord = await api.createAttendance({
+        camper_id: newCamperId,
+        date: newDate,
+        session: newSession,
+        status: newStatus,
+        remark: newRemark,
+      });
+      await loadRecords();
+      selectedRecord = records.find(r => r.id === newRecord.id) || newRecord;
+      showCreateModal = false;
+      resetCreateForm();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function resetCreateForm() {
+    newCamperId = '';
+    newDate = new Date().toISOString().split('T')[0];
+    newSession = '上午';
+    newStatus = 'present';
+    newRemark = '';
+  }
+
   onMount(() => {
     loadRecords();
+    loadCampers();
   });
 </script>
 
@@ -116,18 +172,28 @@
   >
     <div slot="list">
       <div class="px-6 py-3 border-b border-gray-100 bg-gray-50">
-        <div class="flex gap-2">
-          {#each filterOptions as option}
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex gap-2">
+            {#each filterOptions as option}
+              <button
+                on:click={() => filter = option.key}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              >
+                {option.label}
+                <span class="ml-1">{getFilterCount(option.key)}</span>
+              </button>
+            {/each}
+          </div>
+          {#if canCreate}
             <button
-              on:click={() => filter = option.key}
-              class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors {filter === option.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}"
+              on:click={() => showCreateModal = true}
+              class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
             >
-              {option.label}
-              <span class="ml-1">{getFilterCount(option.key)}</span>
+              + 新增考勤
             </button>
-          {/each}
+          {/if}
         </div>
       </div>
 
@@ -246,6 +312,11 @@
                   <p class="text-xs text-red-600 mt-1">
                     驳回人：{selectedRecord.reviewer?.display_name || selectedRecord.reviewed_by || '-'}
                   </p>
+                  {#if selectedRecord.rejection_reason}
+                    <p class="text-xs text-red-600 mt-2">
+                      驳回原因：{selectedRecord.rejection_reason}
+                    </p>
+                  {/if}
                 </div>
               {/if}
             </div>
@@ -256,8 +327,94 @@
   </DualPanel>
 </div>
 
+{#if showCreateModal}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showCreateModal = false; resetCreateForm(); }}>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h3 class="text-lg font-semibold text-gray-800">新增考勤记录</h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">选择营员 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newCamperId}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">请选择营员</option>
+            {#each campers as camper}
+              <option value={camper.id}>{camper.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">日期 <span class="text-red-500">*</span></label>
+          <input
+            type="date"
+            bind:value={newDate}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">时段 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newSession}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {#each sessionOptions as session}
+              <option value={session}>{session}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">状态 <span class="text-red-500">*</span></label>
+          <select
+            bind:value={newStatus}
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {#each statusOptions as opt}
+              <option value={opt.value}>{opt.label}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">备注</label>
+          <textarea
+            bind:value={newRemark}
+            rows="3"
+            placeholder="请输入备注（可选）"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            on:click={() => { showCreateModal = false; resetCreateForm(); }}
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            on:click={handleCreate}
+            disabled={!newCamperId || !newDate || !newSession || !newStatus || submitting}
+            class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {#if submitting}
+              <span class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+            {/if}
+            {submitting ? '提交中...' : '提交'}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if showRejectModal && selectedRecord}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" on:click|self={() => { showRejectModal = false; rejectReason = ''; }}>
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
       <div class="px-6 py-4 border-b border-gray-100">
         <h3 class="text-lg font-semibold text-gray-800">驳回考勤记录</h3>

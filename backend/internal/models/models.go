@@ -65,20 +65,21 @@ func (c *Camper) BeforeCreate(tx *gorm.DB) error {
 }
 
 type Attendance struct {
-	ID             string    `json:"id" gorm:"type:text;primaryKey"`
-	CamperID       string    `json:"camper_id" gorm:"column:camper_id;type:text;index;not null"`
-	Date           string    `json:"date" gorm:"type:text;index"`
-	Session        string    `json:"session" gorm:"type:text"`
-	Status         string    `json:"status" gorm:"type:text"`
-	Remark         string    `json:"remark" gorm:"type:text"`
-	ApprovalStatus string    `json:"approval_status" gorm:"column:approval_status;type:text;index"`
-	SubmittedBy    string    `json:"submitted_by" gorm:"column:submitted_by;type:text;not null"`
-	ReviewedBy     *string   `json:"reviewed_by" gorm:"column:reviewed_by;type:text"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	Camper         Camper    `json:"camper,omitempty" gorm:"foreignKey:CamperID"`
-	Submitter      User      `json:"submitter,omitempty" gorm:"foreignKey:SubmittedBy"`
-	Reviewer       *User     `json:"reviewer,omitempty" gorm:"foreignKey:ReviewedBy"`
+	ID              string    `json:"id" gorm:"type:text;primaryKey"`
+	CamperID        string    `json:"camper_id" gorm:"column:camper_id;type:text;index;not null"`
+	Date            string    `json:"date" gorm:"type:text;index"`
+	Session         string    `json:"session" gorm:"type:text"`
+	Status          string    `json:"status" gorm:"type:text"`
+	Remark          string    `json:"remark" gorm:"type:text"`
+	ApprovalStatus  string    `json:"approval_status" gorm:"column:approval_status;type:text;index"`
+	RejectionReason string    `json:"rejection_reason" gorm:"column:rejection_reason;type:text"`
+	SubmittedBy     string    `json:"submitted_by" gorm:"column:submitted_by;type:text;not null"`
+	ReviewedBy      *string   `json:"reviewed_by" gorm:"column:reviewed_by;type:text"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Camper          Camper    `json:"camper,omitempty" gorm:"foreignKey:CamperID"`
+	Submitter       User      `json:"submitter,omitempty" gorm:"foreignKey:SubmittedBy"`
+	Reviewer        *User     `json:"reviewer,omitempty" gorm:"foreignKey:ReviewedBy"`
 }
 
 func (a *Attendance) BeforeCreate(tx *gorm.DB) error {

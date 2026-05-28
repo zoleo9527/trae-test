@@ -130,5 +130,7 @@ func (h *FeedbackHandler) Complete(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "反馈已处理完成"})
+	h.db.Preload("Camper").Preload("Assignee").First(&feedback, "id = ?", id)
+
+	return c.JSON(fiber.Map{"data": feedback})
 }

@@ -130,7 +130,13 @@ func (h *AttendanceHandler) Approve(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "考勤已通过"})
+	h.db.Preload("Camper").Preload("Submitter").Preload("Reviewer").First(&record, "id = ?", id)
+
+	return c.JSON(fiber.Map{"data": record})
+}
+
+type RejectRequest struct {
+	Reason string `json:"reason"`
 }
 
 func (h *AttendanceHandler) Reject(c *fiber.Ctx) error {
@@ -141,9 +147,15 @@ func (h *AttendanceHandler) Reject(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "考勤记录未找到"})
 	}
 
+	var req RejectRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的请求"})
+	}
+
 	userID := c.Locals("user_id").(string)
 	record.ApprovalStatus = "rejected"
 	record.ReviewedBy = &userID
+	record.RejectionReason = req.Reason
 
 	if err := h.db.Save(&record).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "驳回考勤失败"})
@@ -157,5 +169,7 @@ func (h *AttendanceHandler) Reject(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "考勤已驳回"})
+	h.db.Preload("Camper").Preload("Submitter").Preload("Reviewer").First(&record, "id = ?", id)
+
+	return c.JSON(fiber.Map{"data": record})
 }

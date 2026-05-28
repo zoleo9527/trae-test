@@ -76,6 +76,22 @@ func (h *RoomHandler) Update(c *fiber.Ctx) error {
 type AssignRequest struct {
 	CamperID string `json:"camper_id"`
 	RoomID   string `json:"room_id"`
+	CamperId string `json:"camperId"`
+	RoomId   string `json:"roomId"`
+}
+
+func (r *AssignRequest) GetCamperID() string {
+	if r.CamperID != "" {
+		return r.CamperID
+	}
+	return r.CamperId
+}
+
+func (r *AssignRequest) GetRoomID() string {
+	if r.RoomID != "" {
+		return r.RoomID
+	}
+	return r.RoomId
 }
 
 func (h *RoomHandler) AssignCamper(c *fiber.Ctx) error {
@@ -84,23 +100,26 @@ func (h *RoomHandler) AssignCamper(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的请求"})
 	}
 
+	camperID := req.GetCamperID()
+	roomID := req.GetRoomID()
+
 	var camper models.Camper
-	if err := h.db.First(&camper, "id = ?", req.CamperID).Error; err != nil {
+	if err := h.db.First(&camper, "id = ?", camperID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "营员未找到"})
 	}
 
 	var room models.Room
-	if err := h.db.First(&room, "id = ?", req.RoomID).Error; err != nil {
+	if err := h.db.First(&room, "id = ?", roomID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "房间未找到"})
 	}
 
 	var count int64
-	h.db.Model(&models.Camper{}).Where("room_id = ?", req.RoomID).Count(&count)
+	h.db.Model(&models.Camper{}).Where("room_id = ?", roomID).Count(&count)
 	if int(count) >= room.Capacity {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "房间已满"})
 	}
 
-	camper.RoomID = &req.RoomID
+	camper.RoomID = &roomID
 	if err := h.db.Save(&camper).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "分配房间失败"})
 	}
@@ -114,11 +133,21 @@ func (h *RoomHandler) AssignCamper(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "房间分配成功"})
+	h.db.Preload("Campers").First(&room, "id = ?", roomID)
+
+	return c.JSON(fiber.Map{"data": room})
 }
 
 type UnassignRequest struct {
 	CamperID string `json:"camper_id"`
+	CamperId string `json:"camperId"`
+}
+
+func (r *UnassignRequest) GetCamperID() string {
+	if r.CamperID != "" {
+		return r.CamperID
+	}
+	return r.CamperId
 }
 
 func (h *RoomHandler) UnassignCamper(c *fiber.Ctx) error {
@@ -127,13 +156,17 @@ func (h *RoomHandler) UnassignCamper(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的请求"})
 	}
 
+	camperID := req.GetCamperID()
+
 	var camper models.Camper
-	if err := h.db.Preload("Room").First(&camper, "id = ?", req.CamperID).Error; err != nil {
+	if err := h.db.Preload("Room").First(&camper, "id = ?", camperID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "营员未找到"})
 	}
 
+	roomID := ""
 	roomName := ""
 	if camper.Room != nil {
+		roomID = camper.Room.ID
 		roomName = camper.Room.Name
 	}
 
@@ -151,5 +184,10 @@ func (h *RoomHandler) UnassignCamper(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "房间分配已取消"})
+	var room models.Room
+	if roomID != "" {
+		h.db.Preload("Campers").First(&room, "id = ?", roomID)
+	}
+
+	return c.JSON(fiber.Map{"data": room})
 }

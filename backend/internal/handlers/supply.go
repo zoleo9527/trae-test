@@ -128,5 +128,7 @@ func (h *SupplyHandler) Fulfill(c *fiber.Ctx) error {
 		OperatorID:       userID,
 	})
 
-	return c.JSON(fiber.Map{"message": "物资申请已完成"})
+	h.db.Preload("Camper").Preload("Requester").Preload("Fulfiller").First(&supply, "id = ?", id)
+
+	return c.JSON(fiber.Map{"data": supply})
 }

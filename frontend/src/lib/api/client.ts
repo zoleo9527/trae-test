@@ -67,6 +67,7 @@ export interface Attendance {
   approval_status: 'pending' | 'approved' | 'rejected';
   submitted_by: string;
   reviewed_by: string | null;
+  rejection_reason?: string;
   camper?: Camper;
   submitter?: User;
   reviewer?: User;
@@ -77,6 +78,7 @@ export interface MedicalFollowUp {
   medical_id: string;
   content: string;
   author_id: string;
+  created_at: string;
   author?: User;
 }
 

@@ -90,6 +90,15 @@ function createAuthStore() {
       return currentState.user.role === role;
     },
 
+    get isLoggedIn(): boolean {
+      let currentState: AuthState | undefined;
+      const unsubscribe = subscribe((state) => {
+        currentState = state;
+      });
+      unsubscribe();
+      return currentState?.isAuthenticated || false;
+    },
+
     clearError() {
       update((state) => ({ ...state, error: null }));
     },
