@@ -179,7 +179,9 @@
 	}
 
 	function canViewReview() {
-		return product && product.status === 'reviewing' && currentUser;
+		return product && 
+			(product.status === 'reviewing' || product.status === 'reviewed') && 
+			currentUser;
 	}
 
 	function hasReview() {

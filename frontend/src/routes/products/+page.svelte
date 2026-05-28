@@ -98,6 +98,7 @@
 			<option value="off_shelf">已下架</option>
 			<option value="rejected">已驳回</option>
 			<option value="reviewing">复盘中</option>
+			<option value="reviewed">已复盘</option>
 		</select>
 		<select bind:value={filterCategory}>
 			<option value="">全部分类</option>

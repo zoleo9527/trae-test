@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { reviewApi } from '$lib/api';
+	import { reviewApi, productApi } from '$lib/api';
 	import { user } from '$lib/stores/user';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -17,6 +17,10 @@
 	let review = null;
 	let logs = [];
 	let activeTab = 'detail';
+
+	let completing = false;
+	let completeNote = '';
+	let showCompleteModal = false;
 
 	let exceptionDrawerOpen = false;
 	let selectedExceptionId = null;
@@ -57,6 +61,25 @@
 		};
 		return labels[type] || type;
 	}
+
+	function canCompleteReview() {
+		return currentUser && (currentUser.role === 'planner' || currentUser.role === 'manager');
+	}
+
+	async function handleCompleteReview() {
+		if (!review) return;
+		completing = true;
+		try {
+			await productApi.completeReview(review.productId, completeNote || '复盘完成');
+			await loadData();
+			showCompleteModal = false;
+			completeNote = '';
+		} catch (e) {
+			alert('完成复盘失败: ' + getErrorMessage(e));
+		} finally {
+			completing = false;
+		}
+	}
 </script>
 
 <AppLayout bind:exceptionDrawerOpen bind:selectedExceptionId>
@@ -77,6 +100,11 @@
 				</span>
 			</div>
 			<div class="page-actions">
+				{#if canCompleteReview() && review && review.productStatus !== 'reviewed'}
+					<button class="btn btn-primary" on:click={() => (showCompleteModal = true)} disabled={completing}>
+						✅ 完成复盘
+					</button>
+				{/if}
 				<button class="btn btn-secondary" on:click={loadData}>🔄 刷新</button>
 			</div>
 		</div>
@@ -227,5 +255,23 @@
 				{/if}
 			</div>
 		{/if}
+	{/if}
+
+	{#if showCompleteModal}
+		<div class="modal-overlay" on:click={() => (showCompleteModal = false)}>
+			<div class="modal" on:click|stopPropagation>
+				<h3>完成复盘</h3>
+				<div class="form-group">
+					<label class="form-label">复盘备注</label>
+					<textarea class="form-textarea" bind:value={completeNote} rows={3} placeholder="请输入复盘完成备注（可选）"></textarea>
+				</div>
+				<div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+					<button class="btn btn-secondary" on:click={() => (showCompleteModal = false)}>取消</button>
+					<button class="btn btn-primary" on:click={handleCompleteReview} disabled={completing}>
+						{#if completing}处理中...{:else}确认完成{/if}
+					</button>
+				</div>
+			</div>
+		</div>
 	{/if}
 </AppLayout>

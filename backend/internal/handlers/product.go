@@ -434,6 +434,12 @@ func CompleteReview(c *fiber.Ctx) error {
 		})
 	}
 
+	if product.Status != models.ProductStatusReviewing {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "只有复盘中的商品才能完成复盘",
+		})
+	}
+
 	oldStatus := product.Status
 	product.Status = models.ProductStatusReviewed
 	product.ReviewNote = req.ReviewNote

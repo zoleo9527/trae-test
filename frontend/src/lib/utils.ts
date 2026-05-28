@@ -35,7 +35,8 @@ export function getProductStatusLabel(status: string): string {
 		on_shelf: '已上架',
 		off_shelf: '已下架',
 		rejected: '已驳回',
-		reviewing: '复盘中'
+		reviewing: '复盘中',
+		reviewed: '已复盘'
 	};
 	return map[status] || status;
 }
@@ -48,7 +49,8 @@ export function getProductStatusClass(status: string): string {
 		on_shelf: 'status-on-shelf',
 		off_shelf: 'status-off-shelf',
 		rejected: 'status-rejected',
-		reviewing: 'status-reviewing'
+		reviewing: 'status-reviewing',
+		reviewed: 'status-reviewed'
 	};
 	return map[status] || '';
 }
