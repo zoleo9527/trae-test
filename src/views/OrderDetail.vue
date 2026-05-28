@@ -46,7 +46,7 @@ const shipmentActualQty = ref(0)
 
 const refundAmount = ref(0)
 const refundParty = ref('factory')
-const refundRemark = ref('')
+const refundApplyReason = ref('')
 
 const sampleSteps = [
   { key: 'quoting', label: '创建报价', icon: Package },
@@ -171,13 +171,13 @@ const submitShipment = () => {
 
 const openRefundModal = () => {
   refundAmount.value = Math.floor((order.value?.totalAmount || 0) * 0.05)
-  refundRemark.value = ''
+  refundApplyReason.value = ''
   showRefundModal.value = true
 }
 
 const submitRefund = () => {
-  if (refundAmount.value > 0) {
-    orderStore.initiateRefund(orderId.value, refundAmount.value, refundParty.value, refundRemark.value)
+  if (refundAmount.value > 0 && refundApplyReason.value.trim()) {
+    orderStore.initiateRefund(orderId.value, refundAmount.value, refundParty.value, refundApplyReason.value)
     showRefundModal.value = false
   }
 }
@@ -656,11 +656,11 @@ const pendingExceptions = computed(() => {
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">退款原因</label>
+              <label class="block text-sm font-medium text-gray-700 mb-2">退款原因 *</label>
               <textarea 
-                v-model="refundRemark"
+                v-model="refundApplyReason"
                 class="input-field h-24 resize-none"
-                placeholder="请详细说明退款原因..."
+                placeholder="请详细说明退款原因，这将作为申请记录留存..."
               ></textarea>
             </div>
           </div>
@@ -674,7 +674,7 @@ const pendingExceptions = computed(() => {
             <button 
               @click="submitRefund"
               class="flex-1 btn-primary"
-              :disabled="refundAmount <= 0"
+              :disabled="refundAmount <= 0 || !refundApplyReason.trim()"
             >
               提交申请
             </button>

@@ -285,8 +285,11 @@ const responsiblePartyOptions = [
                     ¥{{ exception.refundChain.amount.toLocaleString() }}
                   </span>
                 </div>
-                <div v-if="exception.refundChain.remark" class="text-sm text-gray-600">
-                  <span class="font-medium">退款原因:</span> {{ exception.refundChain.remark }}
+                <div class="text-sm text-gray-600 mb-2">
+                  <span class="font-medium">申请原因:</span> {{ exception.refundChain.applyReason }}
+                </div>
+                <div v-if="exception.refundChain.approvalRemark" class="text-sm text-gray-600">
+                  <span class="font-medium">审批备注:</span> {{ exception.refundChain.approvalRemark }}
                 </div>
               </div>
 
@@ -301,11 +304,37 @@ const responsiblePartyOptions = [
                     :class="responsibleParty === opt.value 
                       ? 'border-primary bg-primary/5' 
                       : 'border-gray-200 hover:border-gray-300'"
-                    :disabled="exception.status === 'resolved'"
+                    :disabled="exception.status === 'resolved' || !orderStore.canEditResponsibleParty(exception.id)"
                   >
                     <p class="font-medium text-sm text-gray-800">{{ opt.label }}</p>
                     <p class="text-xs text-gray-500">{{ opt.desc }}</p>
                   </button>
+                </div>
+                <p v-if="!orderStore.canEditResponsibleParty(exception.id) && exception.status !== 'resolved'" 
+                   class="text-xs text-gray-500 mt-1">
+                  仅项目商务或当前负责人可修改责任方
+                </p>
+              </div>
+
+              <div v-if="exception.refundChain.responsiblePartyHistory && exception.refundChain.responsiblePartyHistory.length > 0" class="space-y-3">
+                <p class="text-sm font-medium text-gray-700">责任方变更记录</p>
+                <div class="space-y-2">
+                  <div 
+                    v-for="(record, idx) in exception.refundChain.responsiblePartyHistory" 
+                    :key="idx"
+                    class="p-3 bg-gray-50 rounded-lg text-sm"
+                  >
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-red-500">{{ record.from }}</span>
+                      <ChevronRight class="w-3 h-3 text-gray-400" />
+                      <span class="text-green-600 font-medium">{{ record.to }}</span>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                      {{ record.operator }} ({{ record.operatorRole === 'business' ? '项目商务' : record.operatorRole === 'sampling' ? '打样跟单' : '仓配协调' }}) 
+                      · {{ new Date(record.timestamp).toLocaleString('zh-CN') }}
+                    </p>
+                    <p v-if="record.remark" class="text-xs text-gray-600 mt-1">备注: {{ record.remark }}</p>
+                  </div>
                 </div>
               </div>
 
@@ -363,6 +392,10 @@ const responsiblePartyOptions = [
                     通过
                   </button>
                 </div>
+              </div>
+
+              <div v-if="exception.refundChain.approvalStatus === 'pending' && userStore.currentUser.role !== 'business'" class="p-4 bg-gray-50 rounded-lg text-center">
+                <p class="text-sm text-gray-500">仅项目商务可进行审批操作</p>
               </div>
             </div>
           </div>

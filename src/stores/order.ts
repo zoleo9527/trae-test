@@ -149,6 +149,17 @@ export const useOrderStore = defineStore('order', () => {
         }
         order.sampleVersions.push(newVersion)
         updateOrderStatus(orderId, 'sampling')
+
+        const samplingUser = mockUsers.find(u => u.role === 'sampling')
+        if (samplingUser) {
+          const oldAssignee = order.assignee
+          const oldRole = order.assigneeRole
+          order.assignee = samplingUser.name
+          order.assigneeRole = 'sampling'
+          addOperationLog(orderId, '转单交接', `版本改版，订单从${oldAssignee}（${oldRole === 'warehouse' ? '仓配协调' : oldRole}）转回${samplingUser.name}（打样跟单）`)
+        }
+
+        order.productionSchedules = []
         
         const exception: Exception = {
           id: `ex_${Date.now()}`,
@@ -184,7 +195,11 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  const initiateRefund = (orderId: string, amount: number, responsibleParty: string, remark: string) => {
+  const initiateRefund = (orderId: string, amount: number, responsibleParty: string, applyReason: string) => {
+    const userStore = useUserStore()
+    if (userStore.currentUser.role !== 'business') {
+      return
+    }
     const order = orders.value.find(o => o.id === orderId)
     if (order) {
       const exception: Exception = {
@@ -200,48 +215,96 @@ export const useOrderStore = defineStore('order', () => {
           exceptionId: '',
           responsibleParty: responsibleParty as any,
           amount,
+          applyReason,
           approvalStatus: 'pending',
-          remark
+          responsiblePartyHistory: []
         }
       }
       exception.refundChain!.exceptionId = exception.id
       order.exceptions.push(exception)
-      addOperationLog(orderId, '发起退款', `申请退款¥${amount.toLocaleString()}，责任方：${responsibleParty}`)
+      addOperationLog(orderId, '发起退款', `申请退款¥${amount.toLocaleString()}，责任方：${responsibleParty}，原因：${applyReason}`)
       saveOrders(orders.value)
     }
   }
 
-  const updateRefundResponsibleParty = (exceptionId: string, responsibleParty: ResponsibleParty) => {
+  const canEditResponsibleParty = (exceptionId: string): boolean => {
+    const userStore = useUserStore()
+    if (userStore.currentUser.role === 'business') {
+      return true
+    }
+    for (const order of orders.value) {
+      const exception = order.exceptions.find(e => e.id === exceptionId)
+      if (exception && exception.refundChain) {
+        if (exception.refundChain.approvalStatus === 'pending' && 
+            userStore.currentUser.role === order.assigneeRole) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  const canViewRefundException = (order: Order): boolean => {
+    const userStore = useUserStore()
+    if (userStore.currentUser.role === 'business') {
+      return true
+    }
+    return order.assigneeRole === userStore.currentUser.role || 
+           userStore.currentUser.role === order.assigneeRole
+  }
+
+  const updateRefundResponsibleParty = (exceptionId: string, responsibleParty: ResponsibleParty, remark?: string) => {
+    const userStore = useUserStore()
+    if (!canEditResponsibleParty(exceptionId)) {
+      return
+    }
     for (const order of orders.value) {
       const exception = order.exceptions.find(e => e.id === exceptionId)
       if (exception && exception.refundChain) {
         const oldParty = exception.refundChain.responsibleParty
+        if (oldParty === responsibleParty) return
+
+        if (!exception.refundChain.responsiblePartyHistory) {
+          exception.refundChain.responsiblePartyHistory = []
+        }
+        exception.refundChain.responsiblePartyHistory.push({
+          from: oldParty,
+          to: responsibleParty,
+          operator: userStore.currentUser.name,
+          operatorRole: userStore.currentUser.role,
+          timestamp: new Date().toISOString(),
+          remark
+        })
+
         exception.refundChain.responsibleParty = responsibleParty
         exception.description = `退款申请：金额¥${exception.refundChain.amount.toLocaleString()}，责任方：${responsibleParty}`
         addOperationLog(order.id, '变更责任方', 
-          `退款责任方从"${oldParty}"变更为"${responsibleParty}"`)
+          `退款责任方从"${oldParty}"变更为"${responsibleParty}"${remark ? `，备注：${remark}` : ''}`)
         saveOrders(orders.value)
         return
       }
     }
   }
 
-  const approveRefund = (exceptionId: string, approved: boolean, remark?: string) => {
+  const approveRefund = (exceptionId: string, approved: boolean, approvalRemark?: string) => {
     const userStore = useUserStore()
+    if (userStore.currentUser.role !== 'business') {
+      return
+    }
     for (const order of orders.value) {
       const exception = order.exceptions.find(e => e.id === exceptionId)
       if (exception && exception.refundChain) {
         exception.refundChain.approvalStatus = approved ? 'approved' : 'rejected'
         exception.refundChain.approver = userStore.currentUser.name
         exception.refundChain.approvedAt = new Date().toISOString()
-        if (remark) {
-          exception.refundChain.remark = remark
+        if (approvalRemark) {
+          exception.refundChain.approvalRemark = approvalRemark
         }
         exception.status = approved ? 'resolved' : 'pending'
         if (approved) {
           exception.resolvedAt = new Date().toISOString()
         }
-        const logDetail = `退款${approved ? '通过' : '拒绝'}，金额¥${exception.refundChain.amount.toLocaleString()}，责任方：${exception.refundChain.responsibleParty}${remark ? `，备注：${remark}` : ''}`
+        const logDetail = `退款${approved ? '通过' : '拒绝'}，金额¥${exception.refundChain.amount.toLocaleString()}，责任方：${exception.refundChain.responsibleParty}${approvalRemark ? `，审批备注：${approvalRemark}` : ''}`
         addOperationLog(order.id, approved ? '审批通过' : '审批拒绝', logDetail)
         saveOrders(orders.value)
         return
@@ -312,6 +375,8 @@ export const useOrderStore = defineStore('order', () => {
     createNewSampleVersion,
     resolveException,
     initiateRefund,
+    canEditResponsibleParty,
+    canViewRefundException,
     updateRefundResponsibleParty,
     approveRefund,
     recordShipment,

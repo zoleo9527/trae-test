@@ -310,9 +310,18 @@ export const mockOrders: Order[] = [
           exceptionId: 'ex3',
           responsibleParty: 'factory',
           amount: 4250,
-          approver: '张经理',
+          applyReason: '客户反馈100本笔记本印刷瑕疵，文字模糊不清，影响使用',
           approvalStatus: 'pending',
-          remark: '印刷质量问题，工厂承担责任'
+          responsiblePartyHistory: [
+            {
+              from: 'internal',
+              to: 'factory',
+              operator: '张经理',
+              operatorRole: 'business',
+              timestamp: '2024-05-20T11:00:00Z',
+              remark: '经核实，确认为印刷厂套色偏移导致'
+            }
+          ]
         }
       }
     ],

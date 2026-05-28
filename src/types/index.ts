@@ -80,10 +80,19 @@ export interface RefundChain {
   exceptionId: string
   responsibleParty: ResponsibleParty
   amount: number
+  applyReason: string
   approver?: string
   approvalStatus: ApprovalStatus
   approvedAt?: string
-  remark?: string
+  approvalRemark?: string
+  responsiblePartyHistory?: Array<{
+    from: ResponsibleParty
+    to: ResponsibleParty
+    operator: string
+    operatorRole: UserRole
+    timestamp: string
+    remark?: string
+  }>
 }
 
 export interface Exception {
