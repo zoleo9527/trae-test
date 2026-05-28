@@ -22,14 +22,15 @@ class TransferService:
     STATUS_TRANSITIONS = {
         TransferStatus.DRAFT: [TransferStatus.SUBMITTED, TransferStatus.CANCELLED],
         TransferStatus.SUBMITTED: [
-            TransferStatus.OUT_REVIEW, TransferStatus.CANCELLED
+            TransferStatus.OUT_REVIEW, TransferStatus.OUT_CONFIRMED,
+            TransferStatus.OUT_REJECTED, TransferStatus.CANCELLED
         ],
         TransferStatus.OUT_REVIEW: [
             TransferStatus.OUT_CONFIRMED, TransferStatus.OUT_REJECTED,
             TransferStatus.CANCELLED
         ],
         TransferStatus.OUT_REJECTED: [],
-        TransferStatus.OUT_CONFIRMED: [TransferStatus.IN_REVIEW],
+        TransferStatus.OUT_CONFIRMED: [TransferStatus.IN_REVIEW, TransferStatus.CANCELLED],
         TransferStatus.IN_REVIEW: [
             TransferStatus.COMPLETED, TransferStatus.IN_REJECTED
         ],
@@ -97,12 +98,23 @@ class TransferService:
 
         AuditService.log_status_change(user, order, old_status, order.status, request)
         logger.info(f'Transfer order {order.code} submitted by {user.username}')
+
+        order.status = TransferStatus.OUT_REVIEW
+        order.save()
+        AuditService.log_status_change(user, order, TransferStatus.SUBMITTED, order.status, request)
+        logger.info(f'Transfer order {order.code} moved to out_review automatically')
+
         return order
 
     @classmethod
     @transaction.atomic
     def out_confirm(cls, order, user, out_items=None, request=None):
         """转出确认"""
+        if order.status == TransferStatus.SUBMITTED:
+            cls._validate_status_transition(order, TransferStatus.OUT_REVIEW)
+            order.status = TransferStatus.OUT_REVIEW
+            order.save()
+
         cls._validate_status_transition(order, TransferStatus.OUT_CONFIRMED)
 
         role = getattr(user.profile, 'role', None)
@@ -154,8 +166,10 @@ class TransferService:
         AuditService.log_status_change(user, order, old_status, order.status, request)
         logger.info(f'Transfer order {order.code} out confirmed by {user.username}')
 
+        cls._validate_status_transition(order, TransferStatus.IN_REVIEW)
         order.status = TransferStatus.IN_REVIEW
         order.save()
+        AuditService.log_status_change(user, order, TransferStatus.OUT_CONFIRMED, order.status, request)
 
         return order
 
@@ -163,6 +177,11 @@ class TransferService:
     @transaction.atomic
     def out_reject(cls, order, user, reason, request=None):
         """转出拒绝"""
+        if order.status == TransferStatus.SUBMITTED:
+            cls._validate_status_transition(order, TransferStatus.OUT_REVIEW)
+            order.status = TransferStatus.OUT_REVIEW
+            order.save()
+
         cls._validate_status_transition(order, TransferStatus.OUT_REJECTED)
 
         role = getattr(user.profile, 'role', None)

@@ -1,5 +1,5 @@
 import django_filters
-from django.db.models import Q, Count, Sum
+from django.db.models import Q, Count, Sum, F
 from .models import (
     Store, StoreGroup, Product, Inventory,
     ReplenishmentPlan, ReplenishmentOrder, ReplenishmentItem,
@@ -41,7 +41,7 @@ class ProductFilter(django_filters.FilterSet):
     def filter_low_stock(self, queryset, name, value):
         if value:
             return queryset.filter(
-                inventories__quantity__lte=models.F('safe_stock')
+                inventories__quantity__lte=F('safe_stock')
             ).distinct()
         return queryset
 
@@ -67,7 +67,7 @@ class InventoryFilter(django_filters.FilterSet):
 
     def filter_low_stock(self, queryset, name, value):
         if value:
-            return queryset.filter(quantity__lte=models.F('product__safe_stock'))
+            return queryset.filter(quantity__lte=F('product__safe_stock'))
         return queryset
 
     def filter_shortage(self, queryset, name, value):
@@ -107,7 +107,7 @@ class ReplenishmentOrderFilter(django_filters.FilterSet):
             ).annotate(
                 deviation_count=Count(
                     'items',
-                    filter=~Q(items__shipped_quantity=models.F('items__received_quantity'))
+                    filter=~Q(items__shipped_quantity=F('items__received_quantity'))
                 )
             ).filter(deviation_count__gt=0)
         return queryset
@@ -151,6 +151,7 @@ class DisplayRecordFilter(django_filters.FilterSet):
     check_date_from = django_filters.DateFilter(field_name='check_date', lookup_expr='gte')
     check_date_to = django_filters.DateFilter(field_name='check_date', lookup_expr='lte')
     overdue = django_filters.BooleanFilter(method='filter_overdue')
+    has_overdue = django_filters.BooleanFilter(method='filter_overdue')
     keyword = django_filters.CharFilter(method='filter_keyword')
 
     class Meta:
@@ -165,6 +166,7 @@ class DisplayRecordFilter(django_filters.FilterSet):
 
     def filter_overdue(self, queryset, name, value):
         from django.utils import timezone
+        from .models import DisplayRecordStatus
         if value:
             seven_days_ago = timezone.localdate() - timezone.timedelta(days=7)
             return queryset.filter(
@@ -211,6 +213,3 @@ class AuditLogFilter(django_filters.FilterSet):
             Q(object_repr__icontains=value) | Q(change_message__icontains=value) |
             Q(field_name__icontains=value) | Q(user__username__icontains=value)
         )
-
-
-from django.db import models

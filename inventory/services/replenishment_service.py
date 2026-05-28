@@ -90,7 +90,7 @@ class ReplenishmentService:
     @classmethod
     @transaction.atomic
     def review(cls, order, user, request=None, approved_items=None):
-        cls._validate_status_transition(order, ReplenishmentStatus.PROCESSING)
+        cls._validate_status_transition(order, ReplenishmentStatus.REVIEWING)
 
         role = getattr(user.profile, 'role', None)
         if role != Role.WAREHOUSE:
@@ -112,7 +112,7 @@ class ReplenishmentService:
             item.save()
 
         old_status = order.status
-        order.status = ReplenishmentStatus.PROCESSING
+        order.status = ReplenishmentStatus.REVIEWING
         order.reviewed_by = user
         order.reviewed_at = timezone.now()
         order.save()
@@ -147,11 +147,20 @@ class ReplenishmentService:
     @classmethod
     @transaction.atomic
     def ship(cls, order, user, shipped_items=None, tracking_no=None, request=None):
-        cls._validate_status_transition(order, ReplenishmentStatus.SHIPPED)
+        if order.status == ReplenishmentStatus.REVIEWING:
+            cls._validate_status_transition(order, ReplenishmentStatus.PROCESSING)
+            order.status = ReplenishmentStatus.PROCESSING
+            order.save()
+            cls._validate_status_transition(order, ReplenishmentStatus.SHIPPED)
+        else:
+            cls._validate_status_transition(order, ReplenishmentStatus.SHIPPED)
 
         role = getattr(user.profile, 'role', None)
         if role != Role.WAREHOUSE:
             raise PermissionDeniedException(detail='只有仓管可以发货')
+
+        if order.store is None:
+            raise ValidationFailedException(detail='补货单缺少门店信息，无法进行库存预留')
 
         for item in order.items.all():
             if shipped_items and str(item.id) in shipped_items:
@@ -170,7 +179,7 @@ class ReplenishmentService:
                 item.shipped_quantity = item.approved_quantity or item.requested_quantity
 
             InventoryService.reserve_stock(
-                store=None,
+                store=order.store,
                 product=item.product,
                 quantity=item.shipped_quantity,
                 reason=f'补货单{order.code}发货预留'
@@ -297,8 +306,11 @@ class ReplenishmentService:
         if order.status in [ReplenishmentStatus.PROCESSING, ReplenishmentStatus.SHIPPED]:
             for item in order.items.all():
                 if item.shipped_quantity and item.shipped_quantity > 0:
+                    if order.store is None:
+                        logger.warning(f'补货单{order.code}缺少门店信息，跳过库存释放')
+                        continue
                     InventoryService.cancel_reservation(
-                        store=None,
+                        store=order.store,
                         product=item.product,
                         quantity=item.shipped_quantity,
                         reason=f'补货单{order.code}取消，释放预留'

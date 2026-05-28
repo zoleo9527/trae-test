@@ -16,7 +16,7 @@ class DisplayService:
 
     STATUS_TRANSITIONS = {
         DisplayRecordStatus.PENDING: [DisplayRecordStatus.FIXED, DisplayRecordStatus.VERIFIED],
-        DisplayRecordStatus.FIXED: [DisplayRecordStatus.VERIFIED],
+        DisplayRecordStatus.FIXED: [DisplayRecordStatus.VERIFIED, DisplayRecordStatus.PENDING],
         DisplayRecordStatus.VERIFIED: [],
     }
 
@@ -60,6 +60,10 @@ class DisplayService:
     @transaction.atomic
     def verify(cls, record, user, passed=True, remark='', request=None):
         """企划专员或仓管复核整改结果"""
+        role = getattr(user.profile, 'role', None)
+        if role not in [Role.PLANNER, Role.WAREHOUSE]:
+            raise PermissionDeniedException(detail='只有企划专员或仓管可以复核')
+
         if not passed and record.status == DisplayRecordStatus.FIXED:
             cls._validate_status_transition(record, DisplayRecordStatus.PENDING)
             old_status = record.status
@@ -75,10 +79,6 @@ class DisplayService:
             return record
 
         cls._validate_status_transition(record, DisplayRecordStatus.VERIFIED)
-
-        role = getattr(user.profile, 'role', None)
-        if role not in [Role.PLANNER, Role.WAREHOUSE]:
-            raise PermissionDeniedException(detail='只有企划专员或仓管可以复核')
 
         old_status = record.status
         record.status = DisplayRecordStatus.VERIFIED
