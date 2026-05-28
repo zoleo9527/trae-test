@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 interface Review { id: number; reviewer: string; verdict: string; feedback: string; version_at_review: number; created_at: string }
@@ -111,18 +111,31 @@ interface Continuous { order: { id: number; order_no: string; customer_name: str
 
 const route = useRoute()
 const api = useWsApi()
+const orderId = computed(() => route.params.id as string)
+
+const { data: continuousData, refresh: refreshContinuous } = await useFetch<Continuous>(
+  () => `/api/orders/${orderId.value}/continuous-review`,
+  {
+    $fetch: api.nativeFetch(),
+    lazy: false,
+    default: () => ({ order: null, batches: [] })
+  }
+)
+
+const continuous = computed(() => ({
+  order: continuousData.value?.order || null,
+  batches: continuousData.value?.batches || []
+}))
 
 const loading = ref(false)
 const submitting = ref(false)
 const activeTab = ref('')
 
-const continuous = reactive<Continuous>({ order: null, batches: [] })
-
 const photoDialog = reactive<{ visible: boolean; photo: Photo | null; batch: BatchGroup | null }>({ visible: false, photo: null, batch: null })
 const reviewForm = reactive({ verdict: '通过', feedback: '', reviewer: '客户' })
 
 const fmt = (d: any) => { if (!d) return '-'; const s = typeof d === 'string' ? d : new Date(d).toISOString(); return s.slice(0, 16).replace('T', ' ') }
-const goDetail = () => continuous.order && navigateTo(`/orders/${continuous.order.id}`)
+const goDetail = () => continuous.value.order && navigateTo(`/orders/${continuous.value.order.id}`)
 const goBack = () => navigateTo('/orders')
 const batchTabLabel = (b: BatchGroup) => `第 ${b.batch_no} 次 · ${b.status}`
 const photoDialogTitle = computed(() => photoDialog.photo ? photoDialog.photo.photo_name : '')
@@ -131,28 +144,68 @@ const verdictTagType = (v: string) => v === '通过' ? 'success' : (v === '驳�
 const load = async () => {
   loading.value = true
   try {
-    const id = route.params.id as string
-    const data = await api.get<Continuous>(`/orders/${id}/continuous-review`)
-    continuous.order = data.order
-    continuous.batches = data.batches || []
-    if (continuous.batches.length) {
-      activeTab.value = String(continuous.batches[continuous.batches.length - 1].batch_id)
+    await refreshContinuous()
+    if (continuous.value.batches.length) {
+      activeTab.value = String(continuous.value.batches[continuous.value.batches.length - 1].batch_id)
     }
-  } catch (e) { /* ignore */ }
-  finally { loading.value = false }
+  } finally { loading.value = false }
+}
+
+if (continuous.value.batches.length) {
+  activeTab.value = String(continuous.value.batches[continuous.value.batches.length - 1].batch_id)
 }
 
 const comparisonRows = computed(() => {
-  const map: Record<string, { key: string; latestStatus: string; photos: Photo[] }> = {}
-  for (const b of continuous.batches) {
+  const allPhotos: Photo[] = []
+  for (const b of continuous.value.batches) {
     for (const p of b.photos) {
-      const key = p.photo_name
-      if (!map[key]) map[key] = { key, latestStatus: p.review_status, photos: [] }
-      map[key].photos.push(p)
-      map[key].latestStatus = p.review_status
+      allPhotos.push(p)
     }
   }
-  return Object.values(map)
+  const photoById: Record<number, Photo> = {}
+  for (const p of allPhotos) {
+    photoById[p.id] = p
+  }
+
+  const chainByRootId: Record<number, { key: string; latestStatus: string; photos: Photo[] }> = {}
+
+  const buildChain = (p: Photo): Photo[] => {
+    const chain: Photo[] = [p]
+    let current: Photo | undefined = p
+    while (current && current.source_photo_id !== null && current.source_photo_id !== undefined) {
+      const prev = photoById[current.source_photo_id]
+      if (prev && !chain.some(c => c.id === prev.id)) {
+        chain.unshift(prev)
+        current = prev
+      } else {
+        break
+      }
+    }
+    return chain
+  }
+
+  for (const p of allPhotos) {
+    const chain = buildChain(p)
+    const rootId = chain[0].id
+    if (!chainByRootId[rootId]) {
+      chainByRootId[rootId] = {
+        key: chain[0].photo_name,
+        latestStatus: p.review_status,
+        photos: []
+      }
+    }
+    const entry = chainByRootId[rootId]
+    for (const cp of chain) {
+      if (!entry.photos.some(ep => ep.id === cp.id)) {
+        entry.photos.push(cp)
+      }
+    }
+    if (p.version > (entry.photos[entry.photos.length - 1]?.version || 0)) {
+      entry.latestStatus = p.review_status
+    }
+  }
+
+  return Object.values(chainByRootId)
     .filter(row => row.photos.length > 1)
     .map(row => ({
       ...row,
@@ -161,7 +214,7 @@ const comparisonRows = computed(() => {
 })
 
 const batchTimeOf = (p: Photo) => {
-  for (const b of continuous.batches) {
+  for (const b of continuous.value.batches) {
     if (b.photos.some(x => x.id === p.id)) return b.delivered_at
   }
   return p.created_at
@@ -211,8 +264,6 @@ const resubmit = async () => {
   } catch (e) { /* api shows error */ }
   finally { submitting.value = false }
 }
-
-onMounted(load)
 </script>
 
 <style scoped>

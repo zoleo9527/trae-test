@@ -10,13 +10,13 @@
     "postinstall": "nuxt prepare"
   },
   "devDependencies": {
-    "nuxt": "^3.15.0",
-    "vue": "^3.5.0",
-    "vue-router": "^4.4.3"
+    "nuxt": "3.21.6",
+    "vue": "3.5.35",
+    "vue-router": "4.4.3"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.1",
-    "@element-plus/nuxt": "^1.0.10",
-    "element-plus": "^2.8.3"
+    "@element-plus/icons-vue": "2.3.1",
+    "@element-plus/nuxt": "1.0.10",
+    "element-plus": "2.8.3"
   }
 }

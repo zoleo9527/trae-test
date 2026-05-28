@@ -294,12 +294,10 @@ declare global {
   const ElIconWindPower: typeof import('../../node_modules/@element-plus/icons-vue/dist/index').WindPower
   const ElIconZoomIn: typeof import('../../node_modules/@element-plus/icons-vue/dist/index').ZoomIn
   const ElIconZoomOut: typeof import('../../node_modules/@element-plus/icons-vue/dist/index').ZoomOut
-  const ElLoading: typeof import('../../node_modules/element-plus/es/components/loading/index').ElLoading
-  const ElMessage: typeof import('../../node_modules/element-plus/es/components/message/index').ElMessage
-  const ElMessageBox: typeof import('../../node_modules/element-plus/es/components/message-box/index').ElMessageBox
-  const ElNotification: typeof import('../../node_modules/element-plus/es/components/notification/index').ElNotification
-  const ID_INJECTION_KEY: typeof import('../../node_modules/element-plus/es/hooks/use-id/index').ID_INJECTION_KEY
-  const ZINDEX_INJECTION_KEY: typeof import('../../node_modules/element-plus/es/hooks/use-z-index/index').ZINDEX_INJECTION_KEY
+  const ElLoading: typeof import('../../node_modules/element-plus/es/index').ElLoading
+  const ElMessage: typeof import('../../node_modules/element-plus/es/index').ElMessage
+  const ElMessageBox: typeof import('../../node_modules/element-plus/es/index').ElMessageBox
+  const ElNotification: typeof import('../../node_modules/element-plus/es/index').ElNotification
   const abortNavigation: typeof import('../../node_modules/nuxt/dist/app/composables/router').abortNavigation
   const addRouteMiddleware: typeof import('../../node_modules/nuxt/dist/app/composables/router').addRouteMiddleware
   const callOnce: typeof import('../../node_modules/nuxt/dist/app/composables/once').callOnce
@@ -369,7 +367,6 @@ declare global {
   const preloadRouteComponents: typeof import('../../node_modules/nuxt/dist/app/composables/preload').preloadRouteComponents
   const prerenderRoutes: typeof import('../../node_modules/nuxt/dist/app/composables/ssr').prerenderRoutes
   const provide: typeof import('vue').provide
-  const provideGlobalConfig: typeof import('../../node_modules/element-plus/es/components/config-provider/src/hooks/use-global-config').provideGlobalConfig
   const proxyRefs: typeof import('vue').proxyRefs
   const reactive: typeof import('vue').reactive
   const readonly: typeof import('vue').readonly
@@ -791,12 +788,10 @@ declare module 'vue' {
     readonly ElIconWindPower: UnwrapRef<typeof import('../../node_modules/@element-plus/icons-vue/dist/index')['WindPower']>
     readonly ElIconZoomIn: UnwrapRef<typeof import('../../node_modules/@element-plus/icons-vue/dist/index')['ZoomIn']>
     readonly ElIconZoomOut: UnwrapRef<typeof import('../../node_modules/@element-plus/icons-vue/dist/index')['ZoomOut']>
-    readonly ElLoading: UnwrapRef<typeof import('../../node_modules/element-plus/es/components/loading/index')['ElLoading']>
-    readonly ElMessage: UnwrapRef<typeof import('../../node_modules/element-plus/es/components/message/index')['ElMessage']>
-    readonly ElMessageBox: UnwrapRef<typeof import('../../node_modules/element-plus/es/components/message-box/index')['ElMessageBox']>
-    readonly ElNotification: UnwrapRef<typeof import('../../node_modules/element-plus/es/components/notification/index')['ElNotification']>
-    readonly ID_INJECTION_KEY: UnwrapRef<typeof import('../../node_modules/element-plus/es/hooks/use-id/index')['ID_INJECTION_KEY']>
-    readonly ZINDEX_INJECTION_KEY: UnwrapRef<typeof import('../../node_modules/element-plus/es/hooks/use-z-index/index')['ZINDEX_INJECTION_KEY']>
+    readonly ElLoading: UnwrapRef<typeof import('../../node_modules/element-plus/es/index')['ElLoading']>
+    readonly ElMessage: UnwrapRef<typeof import('../../node_modules/element-plus/es/index')['ElMessage']>
+    readonly ElMessageBox: UnwrapRef<typeof import('../../node_modules/element-plus/es/index')['ElMessageBox']>
+    readonly ElNotification: UnwrapRef<typeof import('../../node_modules/element-plus/es/index')['ElNotification']>
     readonly abortNavigation: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/router')['abortNavigation']>
     readonly addRouteMiddleware: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/router')['addRouteMiddleware']>
     readonly callOnce: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/once')['callOnce']>
@@ -866,7 +861,6 @@ declare module 'vue' {
     readonly preloadRouteComponents: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/preload')['preloadRouteComponents']>
     readonly prerenderRoutes: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/ssr')['prerenderRoutes']>
     readonly provide: UnwrapRef<typeof import('vue')['provide']>
-    readonly provideGlobalConfig: UnwrapRef<typeof import('../../node_modules/element-plus/es/components/config-provider/src/hooks/use-global-config')['provideGlobalConfig']>
     readonly proxyRefs: UnwrapRef<typeof import('vue')['proxyRefs']>
     readonly reactive: UnwrapRef<typeof import('vue')['reactive']>
     readonly readonly: UnwrapRef<typeof import('vue')['readonly']>

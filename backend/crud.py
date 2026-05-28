@@ -366,8 +366,6 @@ def resubmit_photo(db: Session, photo_id: int, payload: schemas.ResubmitPhoto):
     )
     db.add(new_photo)
 
-    photo.review_status = "已通过"
-
     batch.status = "复核中"
     order = db.query(models.Order).filter(models.Order.id == batch.order_id).first()
     if order:

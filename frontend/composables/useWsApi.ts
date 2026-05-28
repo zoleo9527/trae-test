@@ -20,9 +20,28 @@ export const useWsApi = () => {
     }
   }
 
+  const nativeFetch = () => {
+    return async (url: string, opts: any = {}) => {
+      try {
+        return await $fetch(`${base}${url}`, {
+          ...opts,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(opts.headers || {})
+          }
+        })
+      } catch (e: any) {
+        const msg = e?.data?.detail || e?.message || '请求失败'
+        ElMessage.error(msg)
+        throw e
+      }
+    }
+  }
+
   return {
     base,
     get: <T>(path: string) => request<T>(path),
-    post: <T>(path: string, body: any) => request<T>(path, { method: 'POST', body })
+    post: <T>(path: string, body: any) => request<T>(path, { method: 'POST', body }),
+    nativeFetch
   }
 }

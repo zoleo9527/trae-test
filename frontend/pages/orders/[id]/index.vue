@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 interface Review { id: number; reviewer: string; verdict: string; feedback: string; version_at_review: number; created_at: string }
@@ -119,9 +119,26 @@ interface Order { id: number; order_no: string; customer_name: string; partner_n
 
 const route = useRoute()
 const api = useWsApi()
+const orderId = computed(() => route.params.id as string)
 
-const order = ref<Order | null>(null)
-const timeline = ref<TimelineEvent[]>([])
+const { data: order, refresh: refreshOrder } = await useFetch<Order>(
+  () => `/api/orders/${orderId.value}`,
+  {
+    $fetch: api.nativeFetch(),
+    lazy: false,
+    default: () => null
+  }
+)
+
+const { data: timeline, refresh: refreshTimeline } = await useFetch<TimelineEvent[]>(
+  () => `/api/orders/${orderId.value}/timeline`,
+  {
+    $fetch: api.nativeFetch(),
+    lazy: false,
+    default: () => []
+  }
+)
+
 const activeTab = ref('')
 const submitting = ref(false)
 
@@ -137,15 +154,16 @@ const batchLabel = (b: Batch) => `第 ${b.batch_no} 次 · ${b.status}`
 const photoDialogTitle = computed(() => photoDialog.photo ? photoDialog.photo.photo_name : '')
 const verdictTagType = (v: string) => v === '通过' ? 'success' : (v === '驳回' ? 'danger' : 'warning')
 
+if (order.value && order.value.batches && order.value.batches.length) {
+  activeTab.value = String(order.value.batches[order.value.batches.length - 1].id)
+}
+
 const load = async () => {
-  try {
-    const id = route.params.id as string
-    order.value = await api.get<Order>(`/orders/${id}`)
-    timeline.value = await api.get<TimelineEvent[]>(`/orders/${id}/timeline`)
-    if (order.value.batches && order.value.batches.length) {
-      activeTab.value = String(order.value.batches[order.value.batches.length - 1].id)
-    }
-  } catch (e) { /* ignore */ }
+  await refreshOrder()
+  await refreshTimeline()
+  if (order.value && order.value.batches && order.value.batches.length) {
+    activeTab.value = String(order.value.batches[order.value.batches.length - 1].id)
+  }
 }
 
 const openPhoto = (p: Photo, b: Batch) => {
@@ -207,8 +225,6 @@ const submitAddBatch = async () => {
   } catch (e) { /* api layer shows error */ }
   finally { submitting.value = false }
 }
-
-onMounted(load)
 </script>
 
 <style scoped>
