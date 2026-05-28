@@ -1,0 +1,316 @@
+// 乐器租赁-押金结算与损坏申诉系统
+// 核心设计原则：状态可追溯、操作留痕、权限边界清晰、异常有证据
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 基础数据 ====================
+
+enum Role {
+  STORE_OWNER    // 门店老板：审批、结算、查看全局
+  RENTAL_ADVISOR // 租赁顾问：租出、归还、发起申诉
+  MAINTENANCE_TECH // 维修师傅：维修记录、损坏鉴定
+}
+
+enum InstrumentStatus {
+  AVAILABLE    // 可租
+  RENTED       // 已租出
+  IN_MAINTENANCE // 维修中
+  DAMAGED      // 损坏待处理
+  RETIRED      // 已报废
+}
+
+enum RentalStatus {
+  ACTIVE       // 租赁中
+  RETURNED     // 已归还（待结算）
+  SETTLED      // 已结算完成
+  OVERDUE      // 逾期未还
+}
+
+enum DepositStatus {
+  HELD         // 押金保管中
+  REFUNDING    // 退款中
+  REFUNDED     // 已全额退还
+  PARTIAL_REFUNDED // 部分退还（扣除赔偿）
+  DEDUCTED     // 全额扣除（抵赔偿）
+  DISPUTED     // 有争议
+}
+
+enum DamageClaimStatus {
+  PENDING      // 待处理
+  CONFIRMED    // 已确认（用户无异议）
+  DISPUTED     // 客户申诉
+  REJECTED     // 申诉驳回
+  RESOLVED     // 申诉通过（重新判责）
+  CLOSED       // 已结案
+}
+
+enum DamageSeverity {
+  MINOR        // 轻微
+  MODERATE     // 中度
+  MAJOR        // 严重
+  TOTAL        // 报废级
+}
+
+enum AuditAction {
+  // 租赁相关
+  RENTAL_CREATE
+  RENTAL_RETURN
+  RENTAL_EXTEND
+  RENTAL_CANCEL
+  // 押金相关
+  DEPOSIT_REFUND
+  DEPOSIT_DEDUCT
+  DEPOSIT_DISPUTE
+  // 损坏申诉相关
+  DAMAGE_REPORT
+  DAMAGE_CONFIRM
+  DAMAGE_DISPUTE
+  DAMAGE_REJECT
+  DAMAGE_RESOLVE
+  // 维修相关
+  MAINTENANCE_CREATE
+  MAINTENANCE_COMPLETE
+  MAINTENANCE_UPDATE
+  // 通用
+  NOTE_ADD
+  STATUS_CHANGE
+  DATA_EDIT
+  DATA_DELETE
+}
+
+// ==================== 核心模型 ====================
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String
+  role      Role
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdRentals     Rental[]           @relation("createdBy")
+  handledRentals     Rental[]           @relation("handledBy")
+  createdDeposits    Deposit[]          @relation("depositCreatedBy")
+  handledDeposits    Deposit[]          @relation("depositHandledBy")
+  createdDamageClaims DamageClaim[]     @relation("damageCreatedBy")
+  handledDamageClaims DamageClaim[]     @relation("damageHandledBy")
+  createdMaintenances Maintenance[]     @relation("maintCreatedBy")
+  handledMaintenances Maintenance[]     @relation("maintHandledBy")
+  auditLogs          AuditLog[]
+  notes              Note[]
+  idempotencyKeys    IdempotencyKey[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  idCard    String?  @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rentals  Rental[]
+  deposits Deposit[]
+}
+
+model Instrument {
+  id            String   @id @default(uuid())
+  name          String   // 乐器名称：如"雅马哈C40古典吉他"
+  category      String   // 分类：吉他、钢琴、小提琴等
+  brand         String
+  model         String
+  serialNumber  String   @unique
+  purchasePrice Decimal  @db.Decimal(10, 2) // 购置价
+  rentalPrice   Decimal  @db.Decimal(10, 2) // 日租金
+  depositAmount Decimal  @db.Decimal(10, 2) // 标准押金
+  status        InstrumentStatus @default(AVAILABLE)
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rentals       Rental[]
+  maintenances  Maintenance[]
+  damageClaims  DamageClaim[]
+}
+
+// ==================== 租赁流程 ====================
+
+model Rental {
+  id             String   @id @default(uuid())
+  rentalNo       String   @unique // 租赁单号：RL20240501001
+  instrumentId   String
+  customerId     String
+  startDate      DateTime
+  expectedEndDate DateTime
+  actualEndDate  DateTime?
+  dailyRate      Decimal  @db.Decimal(10, 2)
+  depositAmount  Decimal  @db.Decimal(10, 2) // 实际收取押金
+  status         RentalStatus @default(ACTIVE)
+  checkoutNotes  String?  // 租出时检查备注
+  checkinNotes   String?  // 归还时检查备注
+  createdBy      String
+  handledBy      String?  // 归还处理人
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  instrument     Instrument @relation(fields: [instrumentId], references: [id])
+  customer       Customer   @relation(fields: [customerId], references: [id])
+  creator        User       @relation("createdBy", fields: [createdBy], references: [id])
+  handler        User?      @relation("handledBy", fields: [handledBy], references: [id])
+  deposit        Deposit?
+  damageClaims   DamageClaim[]
+  notes          Note[]
+  auditLogs      AuditLog[]
+}
+
+// ==================== 押金结算 ====================
+
+model Deposit {
+  id             String   @id @default(uuid())
+  depositNo      String   @unique // 押金单号：DP20240501001
+  rentalId       String   @unique
+  amount         Decimal  @db.Decimal(10, 2)
+  status         DepositStatus @default(HELD)
+  refundAmount   Decimal  @db.Decimal(10, 2) @default(0) // 实际退还金额
+  deductAmount   Decimal  @db.Decimal(10, 2) @default(0) // 扣除金额（赔偿）
+  deductReason   String?  // 扣款原因
+  settledAt      DateTime?
+  createdBy      String
+  handledBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rental         Rental     @relation(fields: [rentalId], references: [id])
+  creator        User       @relation("depositCreatedBy", fields: [createdBy], references: [id])
+  handler        User?      @relation("depositHandledBy", fields: [handledBy], references: [id])
+  notes          Note[]
+  auditLogs      AuditLog[]
+}
+
+// ==================== 损坏申诉 ====================
+
+model DamageClaim {
+  id               String   @id @default(uuid())
+  claimNo          String   @unique // 申诉单号：DM20240501001
+  rentalId         String
+  instrumentId     String
+  severity         DamageSeverity
+  description      String   // 损坏描述
+  estimatedCost    Decimal  @db.Decimal(10, 2) // 预估维修/赔偿费用
+  status           DamageClaimStatus @default(PENDING)
+  reportedAt       DateTime
+  // 客户申诉相关
+  customerDispute  Boolean  @default(false)
+  disputeReason    String?  // 客户申诉理由
+  disputedAt       DateTime?
+  // 处理结果
+  rejectReason     String?  // 驳回原因
+  resolvedReason   String?  // 申诉通过原因
+  finalCost        Decimal? @db.Decimal(10, 2) // 最终赔偿金额
+  closedAt         DateTime?
+  // 责任判定
+  liabilityParty   String?  // 责任方：CUSTOMER/STORE/UNDETERMINED
+  liabilityReason  String?  // 判定理由
+  // 证据链
+  evidenceUrls     String[] // 损坏照片等证据
+  createdBy        String
+  handledBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  rental           Rental     @relation(fields: [rentalId], references: [id])
+  instrument       Instrument @relation(fields: [instrumentId], references: [id])
+  creator          User       @relation("damageCreatedBy", fields: [createdBy], references: [id])
+  handler          User?      @relation("damageHandledBy", fields: [handledBy], references: [id])
+  maintenance      Maintenance?
+  notes            Note[]
+  auditLogs        AuditLog[]
+}
+
+// ==================== 维修管理 ====================
+
+model Maintenance {
+  id               String   @id @default(uuid())
+  maintenanceNo    String   @unique // 维修单号：MT20240501001
+  instrumentId     String
+  damageClaimId    String?  // 关联的损坏申诉
+  type             String   // 维修类型：常规保养、损坏维修、大修
+  description      String   // 维修内容描述
+  partsCost        Decimal  @db.Decimal(10, 2) @default(0) // 配件费
+  laborCost        Decimal  @db.Decimal(10, 2) @default(0) // 人工费
+  totalCost        Decimal  @db.Decimal(10, 2) @default(0) // 总费用
+  startedAt        DateTime?
+  completedAt      DateTime?
+  isCompleted      Boolean  @default(false)
+  technicianNotes  String?  // 维修师傅备注
+  createdBy        String
+  handledBy        String?  // 处理的维修师傅
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  instrument       Instrument @relation(fields: [instrumentId], references: [id])
+  damageClaim      DamageClaim? @relation(fields: [damageClaimId], references: [id])
+  creator          User       @relation("maintCreatedBy", fields: [createdBy], references: [id])
+  handler          User?      @relation("maintHandledBy", fields: [handledBy], references: [id])
+  notes            Note[]
+  auditLogs        AuditLog[]
+}
+
+// ==================== 审计与追溯 ====================
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  action         AuditAction
+  entityType     String   // RENTAL/DEPOSIT/DAMAGE_CLAIM/MAINTENANCE
+  entityId       String
+  oldValue       Json?    // 变更前值
+  newValue       Json?    // 变更后值
+  changes        Json?    // 具体变更字段
+  remark         String?  // 操作说明
+  operatorId     String
+  operatorName   String
+  operatorRole   Role
+  idempotencyKey String?
+  createdAt      DateTime @default(now())
+
+  operator       User     @relation(fields: [operatorId], references: [id])
+}
+
+model Note {
+  id             String   @id @default(uuid())
+  entityType     String   // RENTAL/DEPOSIT/DAMAGE_CLAIM/MAINTENANCE
+  entityId       String
+  content        String
+  isSupplement   Boolean  @default(false) // 是否补录
+  supplementReason String? // 补录原因
+  createdBy      String
+  createdAt      DateTime @default(now())
+
+  creator        User     @relation(fields: [createdBy], references: [id])
+}
+
+// ==================== 幂等性 ====================
+
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  userId         String
+  requestHash    String
+  responseBody   Json?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([key, userId])
+}
