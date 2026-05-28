@@ -5,7 +5,7 @@ from sqlalchemy import func, and_, or_
 
 from app.database import get_db
 from app import models, schemas
-from app.auth import get_current_active_user
+from app.auth import get_current_active_user, requires_roles
 
 router = APIRouter(prefix="/dashboard", tags=["首页数据"])
 
@@ -13,7 +13,13 @@ router = APIRouter(prefix="/dashboard", tags=["首页数据"])
 @router.get("/", response_model=schemas.DashboardResponse)
 def get_dashboard(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.SITE_COORDINATOR,
+        models.UserRole.DOCUMENT_SPECIALIST,
+        models.UserRole.FINANCE
+    ))
 ):
     now = datetime.now()
 

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas, crud
-from app.auth import get_current_active_user
+from app.auth import get_current_active_user, requires_roles
 from app.audit import AuditLogger, VersionConflictError
 
 router = APIRouter(prefix="/payments", tags=["垫付款项"])
@@ -18,7 +18,11 @@ def read_payments(
     reimbursement_status: Optional[models.PaymentStatus] = None,
     vendor_name: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.FINANCE
+    ))
 ):
     payments = crud.get_payments(
         db, skip=skip, limit=limit,
@@ -33,7 +37,11 @@ def read_payments(
 def read_payment(
     payment_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.FINANCE
+    ))
 ):
     db_payment = crud.get_payment(db, payment_id=payment_id)
     if db_payment is None:
@@ -46,7 +54,11 @@ def create_payment(
     payment: schemas.AdvancePaymentCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.FINANCE
+    ))
 ):
     db_payment = crud.create_payment(db, payment=payment, user_id=current_user.id)
     AuditLogger.log_create(db, current_user, "payment", db_payment, request)
@@ -60,14 +72,19 @@ def update_payment(
     payment: schemas.AdvancePaymentUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.FINANCE
+    ))
 ):
     db_payment_old = crud.get_payment(db, payment_id=payment_id)
     if db_payment_old is None:
         raise HTTPException(status_code=404, detail="Payment not found")
+    old_snapshot = AuditLogger.snapshot(db_payment_old)
     try:
         db_payment = crud.update_payment(db, payment_id=payment_id, payment=payment)
-        AuditLogger.log_update(db, current_user, "payment", db_payment_old, db_payment, request)
+        AuditLogger.log_update(db, current_user, "payment", old_snapshot, db_payment, request)
         db.commit()
         return db_payment
     except VersionConflictError as e:

@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app import models, schemas
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

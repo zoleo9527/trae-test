@@ -1,8 +1,17 @@
 from typing import Any, Dict, Optional
+from datetime import datetime
 from sqlalchemy.orm import Session
 from fastapi import Request
 
 from app import models
+
+
+def serialize_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if hasattr(value, 'value'):
+        return value.value
+    return value
 
 
 class AuditLogger:
@@ -10,10 +19,14 @@ class AuditLogger:
     def _get_model_fields(model) -> Dict[str, Any]:
         exclude_fields = {'created_at', 'updated_at', 'version'}
         return {
-            c.name: getattr(model, c.name)
+            c.name: serialize_value(getattr(model, c.name))
             for c in model.__table__.columns
             if c.name not in exclude_fields
         }
+
+    @staticmethod
+    def snapshot(model) -> Dict[str, Any]:
+        return AuditLogger._get_model_fields(model)
 
     @staticmethod
     def log_create(
@@ -41,11 +54,10 @@ class AuditLogger:
         db: Session,
         user: models.User,
         resource_type: str,
-        old_resource: Any,
+        old_values: Dict[str, Any],
         new_resource: Any,
         request: Optional[Request] = None
     ):
-        old_values = AuditLogger._get_model_fields(old_resource)
         new_values = AuditLogger._get_model_fields(new_resource)
         log = models.AuditLog(
             user_id=user.id,

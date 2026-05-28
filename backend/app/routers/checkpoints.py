@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models, schemas, crud
-from app.auth import get_current_active_user
+from app.auth import get_current_active_user, requires_roles
 from app.audit import AuditLogger, VersionConflictError
 
 router = APIRouter(prefix="/checkpoints", tags=["截点提醒"])
@@ -18,7 +18,13 @@ def read_checkpoints(
     assigned_to: Optional[int] = None,
     overdue_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.SITE_COORDINATOR,
+        models.UserRole.DOCUMENT_SPECIALIST,
+        models.UserRole.FINANCE
+    ))
 ):
     checkpoints = crud.get_checkpoints(
         db, skip=skip, limit=limit, status=status,
@@ -31,7 +37,13 @@ def read_checkpoints(
 def read_checkpoint(
     checkpoint_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.SITE_COORDINATOR,
+        models.UserRole.DOCUMENT_SPECIALIST,
+        models.UserRole.FINANCE
+    ))
 ):
     db_checkpoint = crud.get_checkpoint(db, checkpoint_id=checkpoint_id)
     if db_checkpoint is None:
@@ -44,7 +56,13 @@ def create_checkpoint(
     checkpoint: schemas.CheckpointReminderCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.SITE_COORDINATOR,
+        models.UserRole.DOCUMENT_SPECIALIST,
+        models.UserRole.FINANCE
+    ))
 ):
     db_checkpoint = crud.create_checkpoint(db, checkpoint=checkpoint)
     AuditLogger.log_create(db, current_user, "checkpoint", db_checkpoint, request)
@@ -58,14 +76,21 @@ def update_checkpoint(
     checkpoint: schemas.CheckpointReminderUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(requires_roles(
+        models.UserRole.ADMIN,
+        models.UserRole.AGENT_MANAGER,
+        models.UserRole.SITE_COORDINATOR,
+        models.UserRole.DOCUMENT_SPECIALIST,
+        models.UserRole.FINANCE
+    ))
 ):
     db_checkpoint_old = crud.get_checkpoint(db, checkpoint_id=checkpoint_id)
     if db_checkpoint_old is None:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
+    old_snapshot = AuditLogger.snapshot(db_checkpoint_old)
     try:
         db_checkpoint = crud.update_checkpoint(db, checkpoint_id=checkpoint_id, checkpoint=checkpoint)
-        AuditLogger.log_update(db, current_user, "checkpoint", db_checkpoint_old, db_checkpoint, request)
+        AuditLogger.log_update(db, current_user, "checkpoint", old_snapshot, db_checkpoint, request)
         db.commit()
         return db_checkpoint
     except VersionConflictError as e:
