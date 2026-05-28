@@ -114,8 +114,10 @@ function returnRepair() {
   showReturnRepairDialog.value = false
 }
 
+const isSettlementCompleted = computed(() => order.value?.depositSettlement?.status === 'completed')
+
 function openSettleDialog() {
-  if (!order.value) return
+  if (!order.value || isSettlementCompleted.value) return
   customDeductions.value = order.value.depositSettlement?.deductions.map(d => ({
     type: d.type,
     amount: d.amount,
@@ -466,7 +468,7 @@ const sortedLogs = computed(() => {
                 </div>
               </div>
             </div>
-            <div v-if="order.depositSettlement.approvedBy" class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+            <div v-if="order.depositSettlement.status === 'completed'" class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
               <div class="flex items-center gap-2">
                 <BadgeCheck :size="16" class="text-emerald-400" />
                 <span class="text-sm text-emerald-400">
@@ -547,13 +549,20 @@ const sortedLogs = computed(() => {
         </button>
 
         <button
-          v-if="authStore.isBoss && order.status === 'settling'"
+          v-if="authStore.isBoss && order.status === 'settling' && !isSettlementCompleted"
           @click="openSettleDialog"
           class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors"
         >
           <Wallet :size="16" />
           <span class="text-sm font-medium">押金结算</span>
         </button>
+        <div
+          v-if="isSettlementCompleted"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 text-emerald-400"
+        >
+          <CheckCircle2 :size="16" />
+          <span class="text-sm font-medium">已完成结算</span>
+        </div>
 
         <button
           v-if="(authStore.isConsultant || authStore.isBoss) && order.status === 'checked_out'"

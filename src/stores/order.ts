@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Order, OrderStatus, OrderLog, ReturnInspection, RepairTask, DepositSettlement, DeductionItem, Instrument, Customer } from '@/types'
+import type { Order, OrderStatus, OrderLog, ReturnInspection, RepairTask, RepairLog, DepositSettlement, DeductionItem, Instrument, Customer } from '@/types'
 import { orders as mockOrders, instruments as mockInstruments, customers as mockCustomers } from '@/data/mock'
 
 export const useOrderStore = defineStore('order', () => {
@@ -172,6 +172,20 @@ export const useOrderStore = defineStore('order', () => {
     addOrderLog(orderId, '创建维修任务', data.assignedTo, 'repair', data.damageCause)
   }
 
+  function addRepairLog(orderId: string, action: string, operator: string, note?: string) {
+    const order = getOrderById(orderId)
+    if (!order || !order.repairTask) return
+    const log: RepairLog = {
+      id: `RL-${Date.now()}`,
+      repairTaskId: order.repairTask.id,
+      action,
+      operator,
+      operatedAt: new Date().toISOString(),
+      note,
+    }
+    order.repairTask.logs.push(log)
+  }
+
   function updateRepairTask(orderId: string, data: {
     status: RepairTask['status']
     actualCost?: number
@@ -187,22 +201,27 @@ export const useOrderStore = defineStore('order', () => {
         task.startedAt = new Date().toISOString()
       }
       order.status = 'repairing'
-      addOrderLog(orderId, task.returnedForRework ? '重新开始维修' : '维修开始', operator, 'repair', task.returnedForRework ? '退回后重新维修' : '开始维修')
+      const action = task.returnedForRework ? '重新接回维修' : '接单开始维修'
+      addOrderLog(orderId, action, operator, 'repair', task.returnedForRework ? '退回后重新维修' : '开始维修')
+      addRepairLog(orderId, action, operator, task.returnedForRework ? '退回后重新维修' : '开始维修')
     }
     if (data.status === 'review') {
       task.completedAt = new Date().toISOString()
       order.status = 'repair_reviewing'
       addOrderLog(orderId, '维修完成待复检', operator, 'repair', '维修完成，提交复检')
+      addRepairLog(orderId, '提交复检', operator, `实际费用：${data.actualCost || task.estimatedCost}元`)
     }
     if (data.status === 'returned') {
       task.returnedForRework = true
       task.returnReason = data.returnReason
       order.status = 'repairing'
       addOrderLog(orderId, '维修退回', operator, 'consultant', data.returnReason || '复检不合格，退回重修')
+      addRepairLog(orderId, '退回重修', operator, data.returnReason || '复检不合格')
     }
     if (data.status === 'completed') {
       order.status = 'settling'
       addOrderLog(orderId, '维修完成', operator, 'boss', '维修最终通过')
+      addRepairLog(orderId, '复检通过', operator, '维修完成，进入结算流程')
       if (!order.depositSettlement) {
         const totalDeduction = (task.actualCost || 0) + order.rentalFee
         order.depositSettlement = {
@@ -227,21 +246,27 @@ export const useOrderStore = defineStore('order', () => {
     const order = getOrderById(orderId)
     if (!order) return
     const totalDeduction = deductions.reduce((sum, d) => sum + d.amount, 0)
-    order.depositSettlement = {
-      id: `DS-${Date.now()}`,
-      orderId,
-      originalAmount: order.depositAmount,
-      totalDeduction,
-      refundAmount: order.depositAmount - totalDeduction,
-      status: 'approved',
-      approvedBy,
-      settledAt: new Date().toISOString(),
-      deductions: deductions.map((d, i) => ({
-        ...d,
-        id: `DI-${Date.now() + i}`,
-        settlementId: `DS-${Date.now()}`,
-      })),
+    if (!order.depositSettlement) {
+      order.depositSettlement = {
+        id: `DS-${Date.now()}`,
+        orderId,
+        originalAmount: order.depositAmount,
+        totalDeduction: 0,
+        refundAmount: order.depositAmount,
+        status: 'pending',
+        deductions: [],
+      }
     }
+    order.depositSettlement.totalDeduction = totalDeduction
+    order.depositSettlement.refundAmount = order.depositAmount - totalDeduction
+    order.depositSettlement.status = 'completed'
+    order.depositSettlement.approvedBy = approvedBy
+    order.depositSettlement.settledAt = new Date().toISOString()
+    order.depositSettlement.deductions = deductions.map((d, i) => ({
+      ...d,
+      id: `DI-${Date.now() + i}`,
+      settlementId: order.depositSettlement!.id,
+    }))
     order.status = 'completed'
     addOrderLog(orderId, '押金结算完成', approvedBy, 'boss', `扣款${totalDeduction}元，退还${order.depositAmount - totalDeduction}元`)
     const inst = getInstrumentById(order.instrumentId)
@@ -279,7 +304,7 @@ export const useOrderStore = defineStore('order', () => {
     orders, instruments, customers,
     activeOrders, overdueOrders, disputedOrders, repairingOrders, settlingOrders,
     getOrderById, getOrderByNo, getInstrumentById, getCustomerById, getAvailableInstruments,
-    addOrderLog, updateOrderStatus, createOrder, processReturn,
+    addOrderLog, addRepairLog, updateOrderStatus, createOrder, processReturn,
     createRepairTask, updateRepairTask, settleDeposit, resolveDispute,
     searchOrders, filterOrdersByStatus,
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, Wallet, CheckCircle2, AlertTriangle, Plus, XCircle
@@ -24,6 +24,8 @@ const customer = computed(() => order.value ? orderStore.getCustomerById(order.v
 const showConfirmDialog = ref(false)
 const customDeductions = ref<Array<Omit<DeductionItem, 'id' | 'settlementId'>>>([])
 
+const isSettled = computed(() => order.value?.depositSettlement?.status === 'completed')
+
 function initDeductions() {
   if (!order.value?.depositSettlement) return
   customDeductions.value = order.value.depositSettlement.deductions.map(d => ({
@@ -34,7 +36,9 @@ function initDeductions() {
   }))
 }
 
-initDeductions()
+watch(order, () => {
+  initDeductions()
+}, { immediate: true, deep: true })
 
 const totalDeduction = computed(() => customDeductions.value.reduce((sum, d) => sum + d.amount, 0))
 const refundAmount = computed(() => (order.value?.depositAmount || 0) - totalDeduction.value)
@@ -87,14 +91,14 @@ function confirmSettlement() {
           <div
             :class="cn(
               'px-3 py-1 rounded-full text-xs font-medium',
-              order.depositSettlement?.status === 'completed'
+              isSettled
                 ? 'bg-emerald-500/15 text-emerald-400'
                 : order.status === 'disputed'
                   ? 'bg-amber-500/15 text-amber-400'
                   : 'bg-cyan-500/15 text-cyan-400'
             )"
           >
-            {{ order.depositSettlement?.status === 'completed' ? '已结算' : order.status === 'disputed' ? '争议待裁' : '待结算' }}
+            {{ isSettled ? '已结算' : order.status === 'disputed' ? '争议待裁' : '待结算' }}
           </div>
         </div>
 
@@ -136,7 +140,7 @@ function confirmSettlement() {
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-medium text-txt-secondary">扣款明细</h3>
           <button
-            v-if="order.depositSettlement?.status !== 'completed'"
+            v-if="!isSettled"
             @click="addDeduction"
             class="flex items-center gap-1 text-xs text-accent hover:text-accent-hover"
           >
@@ -153,7 +157,7 @@ function confirmSettlement() {
           >
             <select
               v-model="d.type"
-              :disabled="order.depositSettlement?.status === 'completed'"
+              :disabled="isSettled"
               class="w-24 px-2 py-1.5 bg-bg-secondary border border-border rounded-lg text-sm text-txt-primary focus:outline-none focus:border-accent/50 disabled:opacity-50"
             >
               <option value="rental">租金</option>
@@ -166,7 +170,7 @@ function confirmSettlement() {
               v-model="d.description"
               type="text"
               placeholder="说明"
-              :disabled="order.depositSettlement?.status === 'completed'"
+              :disabled="isSettled"
               class="flex-1 px-2 py-1.5 bg-bg-secondary border border-border rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-accent/50 disabled:opacity-50"
             />
             <div class="relative w-24">
@@ -175,12 +179,12 @@ function confirmSettlement() {
                 v-model.number="d.amount"
                 type="number"
                 placeholder="0"
-                :disabled="order.depositSettlement?.status === 'completed'"
+                :disabled="isSettled"
                 class="w-full pl-6 pr-2 py-1.5 bg-bg-secondary border border-border rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-accent/50 disabled:opacity-50"
               />
             </div>
             <button
-              v-if="order.depositSettlement?.status !== 'completed'"
+              v-if="!isSettled"
               @click="removeDeduction(idx)"
               class="p-1.5 text-txt-muted hover:text-red-400 transition-colors"
             >
@@ -201,11 +205,11 @@ function confirmSettlement() {
         </div>
       </div>
 
-      <div v-if="order.depositSettlement?.status === 'completed'" class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+      <div v-if="isSettled" class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
         <div class="flex items-center gap-2">
           <CheckCircle2 :size="16" class="text-emerald-400" />
           <span class="text-sm text-emerald-400">
-            已由 {{ order.depositSettlement.approvedBy }} 于 {{ new Date(order.depositSettlement.settledAt!).toLocaleDateString() }} 审批完成
+            已由 {{ order.depositSettlement?.approvedBy }} 于 {{ new Date(order.depositSettlement?.settledAt!).toLocaleDateString() }} 审批完成
           </span>
         </div>
       </div>
