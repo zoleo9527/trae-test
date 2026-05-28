@@ -141,8 +141,13 @@ const filteredAfterSales = computed(() => {
     )
   } else if (quickFilter.value === 'pending') {
     list = list.filter(item => {
-      if (currentRole.value === 'sample' && item.status === 'pending') return true
-      if (currentRole.value === 'warehouse' && item.type === 'reorder' && item.status === 'approved') return true
+      if (currentRole.value === 'sample') {
+        if (item.status === 'pending') return true
+        if (item.type === 'refund' && (item.status === 'approved' || item.status === 'processing')) return true
+      }
+      if (currentRole.value === 'warehouse') {
+        if (item.type === 'reorder' && (item.status === 'approved' || item.status === 'processing')) return true
+      }
       return false
     })
   }

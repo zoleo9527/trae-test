@@ -102,9 +102,20 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function updateShipment(orderId, shipmentData) {
+  function updateShipment(orderId, shipmentData, forceUpdate = false) {
     const order = orders.value.find(o => o.id === orderId)
     if (order) {
+      const allTrackingNos = orders.value.flatMap(o =>
+        o.shipments?.map(s => s.trackingNo.toLowerCase()) || []
+      )
+      if (allTrackingNos.includes(shipmentData.trackingNo.toLowerCase())) {
+        throw new Error('该运单号已存在，无法重复使用')
+      }
+
+      if (!forceUpdate && order.status === 'after_sale') {
+        throw new Error('订单处于售后中，如需发货请先处理售后或在补单流程中操作')
+      }
+
       order.shipments.push({
         id: Date.now(),
         ...shipmentData,
@@ -113,10 +124,12 @@ export const useAppStore = defineStore('app', () => {
       })
 
       const totalShipped = order.shipments.reduce((sum, s) => sum + s.quantity, 0)
-      if (totalShipped >= order.quantity) {
-        order.status = 'shipped'
-      } else {
-        order.status = 'partial_shipped'
+      if (!forceUpdate && order.status !== 'after_sale') {
+        if (totalShipped >= order.quantity) {
+          order.status = 'shipped'
+        } else {
+          order.status = 'partial_shipped'
+        }
       }
 
       addOrderHistory(orderId, '发货登记', `发货 ${shipmentData.quantity} 件，快递：${shipmentData.courier} ${shipmentData.trackingNo}`)

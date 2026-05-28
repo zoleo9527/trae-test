@@ -383,12 +383,16 @@ function submitAfterSale() {
 
 function submitShipment() {
   if (shipmentForm.value.trackingNo && shipmentForm.value.quantity > 0) {
-    appStore.updateShipment(order.value.id, shipmentForm.value)
-    showShipmentModal.value = false
-    shipmentForm.value = {
-      courier: '顺丰',
-      trackingNo: '',
-      quantity: 0
+    try {
+      appStore.updateShipment(order.value.id, shipmentForm.value)
+      showShipmentModal.value = false
+      shipmentForm.value = {
+        courier: '顺丰',
+        trackingNo: '',
+        quantity: 0
+      }
+    } catch (err) {
+      alert(err.message)
     }
   }
 }

@@ -44,20 +44,33 @@
               </div>
               <div v-if="result.matchedOrder" class="result-matched">
                 <div class="matched-order">
-                  <span class="order-badge">匹配订单</span>
+                  <span class="order-badge" :class="result.matchType">
+                    {{ result.matchType === 'order' ? '订单号匹配' : '运单号匹配' }}
+                  </span>
                   <span class="order-no text-link" @click="goToOrder(result.matchedOrder.id)">
                     {{ result.matchedOrder.orderNo }}
                   </span>
+                </div>
+                <div v-if="result.shipmentInfo" class="shipment-info">
+                  <span class="tag tag-default">已发货</span>
+                  <span>{{ result.shipmentInfo.courier }} {{ result.shipmentInfo.trackingNo }}</span>
+                  <span>{{ result.shipmentInfo.quantity }} 件</span>
                 </div>
                 <div class="order-info">
                   <span>{{ result.matchedOrder.customer }}</span>
                   <span>{{ result.matchedOrder.productName }}</span>
                 </div>
                 <div class="result-actions">
-                  <button v-if="currentRole === 'warehouse'"
+                  <button v-if="canQuickShip(result)"
                           class="btn btn-primary btn-sm"
                           @click="quickShip(result.matchedOrder, result.code)">
                     快速发货
+                  </button>
+                  <button v-if="result.isDuplicate" class="btn btn-warning btn-sm" disabled>
+                    重复单号
+                  </button>
+                  <button v-if="result.isAfterSale" class="btn btn-warning btn-sm" disabled>
+                    售后中
                   </button>
                   <button class="btn btn-default btn-sm" @click="goToOrder(result.matchedOrder.id)">
                     查看详情
@@ -141,12 +154,16 @@ function handleScanResult(code) {
   const existing = scanResults.value.find(r => r.code === code)
   if (existing) return
 
-  const matchedOrder = matchOrder(code)
+  const matchResult = matchOrder(code)
 
   scanResults.value.unshift({
     code,
     time: dayjs().format('HH:mm:ss'),
-    matchedOrder
+    matchedOrder: matchResult.order,
+    matchType: matchResult.type,
+    shipmentInfo: matchResult.shipment,
+    isDuplicate: matchResult.isDuplicate,
+    isAfterSale: matchResult.isAfterSale
   })
 
   if (scanResults.value.length > 20) {
@@ -155,11 +172,71 @@ function handleScanResult(code) {
 }
 
 function matchOrder(code) {
-  return orders.value.find(order => {
-    if (order.orderNo.toLowerCase() === code.toLowerCase()) return true
-    if (order.shipments && order.shipments.some(s => s.trackingNo === code)) return true
-    return false
-  })
+  const result = {
+    order: null,
+    type: null,
+    shipment: null,
+    isDuplicate: false,
+    isAfterSale: false
+  }
+
+  for (const order of orders.value) {
+    if (order.orderNo.toLowerCase() === code.toLowerCase()) {
+      result.order = order
+      result.type = 'order'
+      result.isAfterSale = order.status === 'after_sale'
+
+      const isDuplicate = order.shipments && order.shipments.some(
+        s => s.trackingNo.toLowerCase() === code.toLowerCase()
+      )
+      result.isDuplicate = isDuplicate
+      return result
+    }
+  }
+
+  for (const order of orders.value) {
+    if (order.shipments) {
+      const shipment = order.shipments.find(
+        s => s.trackingNo.toLowerCase() === code.toLowerCase()
+      )
+      if (shipment) {
+        result.order = order
+        result.type = 'shipment'
+        result.shipment = shipment
+        result.isDuplicate = true
+        result.isAfterSale = order.status === 'after_sale'
+        return result
+      }
+    }
+  }
+
+  for (const order of orders.value) {
+    if (order.shipments) {
+      const allTrackingNos = order.shipments.map(s => s.trackingNo.toLowerCase())
+      const isDuplicate = allTrackingNos.includes(code.toLowerCase())
+      if (isDuplicate) {
+        result.order = order
+        result.type = 'duplicate'
+        result.isDuplicate = true
+        result.isAfterSale = order.status === 'after_sale'
+        return result
+      }
+    }
+  }
+
+  return result
+}
+
+function canQuickShip(result) {
+  if (currentRole.value !== 'warehouse') return false
+  if (!result.matchedOrder) return false
+  if (result.isDuplicate) return false
+  if (result.matchType === 'shipment') return false
+  if (result.isAfterSale) return false
+
+  const remaining = result.matchedOrder.quantity -
+    (result.matchedOrder.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
+  return remaining > 0
 }
 
 function handleManualInput() {
@@ -173,23 +250,36 @@ function goToOrder(orderId) {
 }
 
 function quickShip(order, trackingNo) {
+  const matchResult = matchOrder(trackingNo)
+  if (matchResult.isDuplicate) {
+    alert('该运单号已存在，无法重复发货')
+    return
+  }
+  if (order.status === 'after_sale') {
+    alert('该订单处于售后中，如需发货请先处理售后或在补单流程中操作')
+    return
+  }
+
   const remaining = order.quantity - (order.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
   if (remaining <= 0) {
     alert('该订单已全部发货完成')
     return
   }
-  
+
   appStore.updateShipment(order.id, {
     courier: '扫码识别',
     trackingNo: trackingNo,
     quantity: remaining
-  })
-  
+  }, true)
+
   alert(`快速发货成功！\n订单: ${order.orderNo}\n单号: ${trackingNo}\n数量: ${remaining} 件`)
-  
+
   const result = scanResults.value.find(r => r.code === trackingNo)
   if (result) {
-    result.matchedOrder = orders.value.find(o => o.id === order.id)
+    const updated = matchOrder(trackingNo)
+    result.matchedOrder = updated.order
+    result.shipmentInfo = updated.shipment
+    result.isDuplicate = true
   }
 }
 
@@ -387,6 +477,34 @@ onUnmounted(() => {
   background: #f6ffed;
   padding: 2px 6px;
   border-radius: 3px;
+  font-weight: 500;
+}
+
+.order-badge.shipment {
+  color: #1890ff;
+  background: #e6f7ff;
+}
+
+.order-badge.duplicate {
+  color: #faad14;
+  background: #fffbe6;
+}
+
+.shipment-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #595959;
+}
+
+.shipment-info .tag {
+  background: #e6f7ff;
+  color: #1890ff;
 }
 
 .order-no {

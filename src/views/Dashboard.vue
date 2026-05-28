@@ -105,29 +105,69 @@ const pendingTasks = computed(() => {
   orders.value.forEach(order => {
     if (order.afterSales && order.afterSales.length > 0) {
       order.afterSales.forEach(as => {
-        if (currentRole.value === 'sample' && as.status === 'pending') {
-          tasks.push({
-            id: `${order.id}-${as.id}`,
-            type: as.type,
-            icon: as.type === 'refund' ? '💰' : '📦',
-            title: `${as.type === 'refund' ? '退款' : '补单'}待审核：${as.reason}`,
-            orderNo: order.orderNo,
-            customer: order.customer,
-            orderId: order.id,
-            time: dayjs(as.createdAt).fromNow()
-          })
+        if (currentRole.value === 'sample') {
+          if (as.status === 'pending') {
+            tasks.push({
+              id: `${order.id}-${as.id}`,
+              type: as.type,
+              icon: as.type === 'refund' ? '💰' : '📦',
+              title: `${as.type === 'refund' ? '退款' : '补单'}待审核：${as.reason}`,
+              orderNo: order.orderNo,
+              customer: order.customer,
+              orderId: order.id,
+              time: dayjs(as.createdAt).fromNow()
+            })
+          }
+          if (as.type === 'refund' && as.status === 'approved') {
+            tasks.push({
+              id: `${order.id}-${as.id}`,
+              type: as.type,
+              icon: '💰',
+              title: `退款待处理：${order.productName}`,
+              orderNo: order.orderNo,
+              customer: order.customer,
+              orderId: order.id,
+              time: dayjs(as.logs[as.logs.length - 1]?.time).fromNow()
+            })
+          }
+          if (as.type === 'refund' && as.status === 'processing') {
+            tasks.push({
+              id: `${order.id}-${as.id}`,
+              type: as.type,
+              icon: '💰',
+              title: `退款处理中，待完成：${order.productName}`,
+              orderNo: order.orderNo,
+              customer: order.customer,
+              orderId: order.id,
+              time: dayjs(as.logs[as.logs.length - 1]?.time).fromNow()
+            })
+          }
         }
-        if (currentRole.value === 'warehouse' && as.type === 'reorder' && as.status === 'approved') {
-          tasks.push({
-            id: `${order.id}-${as.id}`,
-            type: 'reorder',
-            icon: '📦',
-            title: `补单待发货：${order.productName}`,
-            orderNo: order.orderNo,
-            customer: order.customer,
-            orderId: order.id,
-            time: dayjs(as.createdAt).fromNow()
-          })
+        if (currentRole.value === 'warehouse' && as.type === 'reorder') {
+          if (as.status === 'approved') {
+            tasks.push({
+              id: `${order.id}-${as.id}`,
+              type: 'reorder',
+              icon: '📦',
+              title: `补单待发货：${order.productName}`,
+              orderNo: order.orderNo,
+              customer: order.customer,
+              orderId: order.id,
+              time: dayjs(as.logs[as.logs.length - 1]?.time).fromNow()
+            })
+          }
+          if (as.status === 'processing') {
+            tasks.push({
+              id: `${order.id}-${as.id}`,
+              type: 'reorder',
+              icon: '📦',
+              title: `补单处理中，待完成：${order.productName}`,
+              orderNo: order.orderNo,
+              customer: order.customer,
+              orderId: order.id,
+              time: dayjs(as.logs[as.logs.length - 1]?.time).fromNow()
+            })
+          }
         }
         if (currentRole.value === 'business' && as.status === 'completed') {
           tasks.push({
