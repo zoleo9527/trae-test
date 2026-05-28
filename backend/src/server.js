@@ -35,6 +35,7 @@ app.get('/api/stats', async (req, res) => {
         (SELECT COUNT(*) FROM quotes WHERE status = 'pending_approval') as pending_approval_count,
         (SELECT COUNT(*) FROM quotes WHERE status = 'proofing') as proofing_count,
         (SELECT COUNT(*) FROM quotes WHERE status = 'production') as production_count,
+        (SELECT COUNT(*) FROM quotes WHERE status = 'partial_shipped') as partial_shipped_count,
         (SELECT COUNT(*) FROM quotes WHERE status = 'shipped') as shipped_count,
         (SELECT COUNT(*) FROM quotes WHERE status = 'completed') as completed_count
     `);

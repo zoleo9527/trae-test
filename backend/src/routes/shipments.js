@@ -11,7 +11,9 @@ router.post('/quote/:quoteId', async (req, res) => {
     const date = new Date();
     const countResult = await get('SELECT COUNT(*) as cnt FROM shipments');
     const count = countResult.cnt + 1;
-    const suffix = parent_shipment_id ? String.fromCharCode(64 + count) : '';
+    
+    const allShipmentsForQuote = await all('SELECT * FROM shipments WHERE quote_id = ?', [quoteId]);
+    const suffix = allShipmentsForQuote.length > 0 ? String.fromCharCode(65 + allShipmentsForQuote.length) : '';
     const shipmentNo = `S${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(count).padStart(3, '0')}${suffix}`;
     
     const result = await run(`
@@ -56,14 +58,22 @@ router.put('/:id/check', async (req, res) => {
       WHERE id = ?
     `, [logistics_company, tracking_no, checked_by, id]);
     
-    const allShipments = await get('SELECT SUM(shipped_quantity) as shipped, SUM(total_quantity) as total FROM shipments WHERE quote_id = ?', [shipment.quote_id]);
+    const quote = await get('SELECT quantity as total_order_qty FROM quotes WHERE id = ?', [shipment.quote_id]);
+    const shippedQtyResult = await get('SELECT COALESCE(SUM(shipped_quantity), 0) as shipped FROM shipments WHERE quote_id = ? AND status = ?', 
+      [shipment.quote_id, 'shipped']);
     
-    if (allShipments.shipped >= allShipments.total) {
-      await run("UPDATE quotes SET status = 'shipped', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [shipment.quote_id]);
+    const totalShipped = shippedQtyResult.shipped;
+    const totalOrder = quote.total_order_qty;
+    
+    if (totalShipped >= totalOrder) {
+      await run("UPDATE quotes SET status = 'shipped', current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [checked_by, shipment.quote_id]);
+    } else if (totalShipped > 0) {
+      await run("UPDATE quotes SET status = 'partial_shipped', current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [checked_by, shipment.quote_id]);
     } else {
-      await run("UPDATE quotes SET status = 'partial_shipped', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [shipment.quote_id]);
+      await run("UPDATE quotes SET current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [checked_by, shipment.quote_id]);
     }
     
     const user = await get('SELECT name FROM users WHERE id = ?', [checked_by]);

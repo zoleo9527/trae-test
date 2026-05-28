@@ -259,9 +259,11 @@ router.post('/:id/approve', async (req, res) => {
       `, [status, comments, approval.id]);
     }
     
+    const quote = await get('SELECT created_by FROM quotes WHERE id = ?', [id]);
     const quoteStatus = status === 'approved' ? 'approved' : 'rejected';
-    await run("UPDATE quotes SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [quoteStatus, id]);
+    const handler = status === 'approved' ? quote.created_by : quote.created_by;
+    await run("UPDATE quotes SET status = ?, current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [quoteStatus, handler, id]);
     
     const user = await get('SELECT name FROM users WHERE id = ?', [approver_id]);
     await logActivity(id, status === 'approved' ? 'approve' : 'reject', 

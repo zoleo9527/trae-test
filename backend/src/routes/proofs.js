@@ -39,11 +39,18 @@ router.put('/:id/upload', async (req, res) => {
       return res.status(404).json({ success: false, message: '打样记录不存在' });
     }
     
+    if (proof.status !== 'pending' && proof.status !== 'reproofing') {
+      return res.status(400).json({ success: false, message: '当前状态不允许上传样照' });
+    }
+    
     await run(`
       UPDATE proofs 
-      SET proof_images = ?, status = 'customer_review', updated_at = CURRENT_TIMESTAMP
+      SET proof_images = ?, status = 'uploaded', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [JSON.stringify(images), id]);
+    
+    await run("UPDATE quotes SET current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [operator_id, proof.quote_id]);
     
     const user = await get('SELECT name FROM users WHERE id = ?', [operator_id]);
     await logActivity(proof.quote_id, 'upload_proof', `上传打样照片: ${images.length}张`, operator_id, user?.name);
@@ -54,14 +61,45 @@ router.put('/:id/upload', async (req, res) => {
   }
 });
 
-router.put('/:id/feedback', async (req, res) => {
+router.put('/:id/submit-review', async (req, res) => {
   try {
     const { id } = req.params;
-    const { feedback, confirmed, operator_id } = req.body;
+    const { operator_id } = req.body;
     
     const proof = await get('SELECT * FROM proofs WHERE id = ?', [id]);
     if (!proof) {
       return res.status(404).json({ success: false, message: '打样记录不存在' });
+    }
+    
+    if (proof.status !== 'uploaded') {
+      return res.status(400).json({ success: false, message: '请先上传样照再提交客户确认' });
+    }
+    
+    await run(`
+      UPDATE proofs SET status = 'customer_review', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `, [id]);
+    
+    const user = await get('SELECT name FROM users WHERE id = ?', [operator_id]);
+    await logActivity(proof.quote_id, 'submit_review', '提交客户确认', operator_id, user?.name);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.put('/:id/feedback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback, confirmed, operator_id, proof_user_id } = req.body;
+    
+    const proof = await get('SELECT * FROM proofs WHERE id = ?', [id]);
+    if (!proof) {
+      return res.status(404).json({ success: false, message: '打样记录不存在' });
+    }
+    
+    if (proof.status !== 'customer_review' && proof.status !== 'reproofing') {
+      return res.status(400).json({ success: false, message: '请先上传样照并提交客户确认' });
     }
     
     if (confirmed) {
@@ -71,14 +109,17 @@ router.put('/:id/feedback', async (req, res) => {
         WHERE id = ?
       `, [feedback, operator_id, id]);
       
-      await run("UPDATE quotes SET status = 'production', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        [proof.quote_id]);
+      await run("UPDATE quotes SET status = 'production', current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [operator_id, proof.quote_id]);
     } else {
       await run(`
         UPDATE proofs 
         SET customer_feedback = ?, status = 'reproofing', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [feedback, id]);
+      
+      await run("UPDATE quotes SET current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [proof_user_id || proof.assigned_to, proof.quote_id]);
     }
     
     const user = await get('SELECT name FROM users WHERE id = ?', [operator_id]);

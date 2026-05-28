@@ -42,6 +42,7 @@ export default function QuoteDetail() {
   const [approvalForm, setApprovalForm] = useState({ comments: '', status: 'approved' });
 
   const [proofModal, setProofModal] = useState(false);
+  const [proofModalType, setProofModalType] = useState('upload');
   const [proofForm, setProofForm] = useState({ images: '/images/proof_new.jpg', feedback: '', confirmed: false });
 
   const [shipmentModal, setShipmentModal] = useState(false);
@@ -140,13 +141,45 @@ export default function QuoteDetail() {
     setLoading(false);
   };
 
+  const handleUploadProof = async (proofId) => {
+    setLoading(true);
+    try {
+      await axios.put(`/api/proofs/${proofId}/upload`, {
+        images: [proofForm.images],
+        operator_id: proofUserId
+      });
+      setProofModal(false);
+      fetchData();
+      alert('打样照片上传成功！');
+    } catch (err) {
+      alert('操作失败：' + err.response?.data?.message);
+    }
+    setLoading(false);
+  };
+
+  const handleSubmitReview = async (proofId) => {
+    setLoading(true);
+    try {
+      await axios.put(`/api/proofs/${proofId}/submit-review`, {
+        operator_id: currentUser.id
+      });
+      setProofModal(false);
+      fetchData();
+      alert('已提交客户确认！');
+    } catch (err) {
+      alert('操作失败：' + err.response?.data?.message);
+    }
+    setLoading(false);
+  };
+
   const handleProofFeedback = async (proofId) => {
     setLoading(true);
     try {
       await axios.put(`/api/proofs/${proofId}/feedback`, {
         feedback: proofForm.feedback,
         confirmed: proofForm.confirmed,
-        operator_id: currentUser.id
+        operator_id: currentUser.id,
+        proof_user_id: proofUserId
       });
       setProofModal(false);
       setProofForm({ images: '/images/proof_new.jpg', feedback: '', confirmed: false });
@@ -317,12 +350,34 @@ export default function QuoteDetail() {
                 🎨 创建打样任务
               </button>
             )}
-            {pendingProof && pendingProof.status !== 'confirmed' && (
+            {pendingProof && pendingProof.status === 'pending' && (
               <button className="btn btn-warning" onClick={() => {
-                setProofForm({ images: '/images/proof_new.jpg', feedback: pendingProof.customer_feedback || '', confirmed: false });
+                setProofModalType('upload');
                 setProofModal(true);
               }}>
-                💬 {pendingProof.status === 'customer_review' ? '确认打样' : '处理打样反馈'}
+                📷 上传打样照片
+              </button>
+            )}
+            {pendingProof && pendingProof.status === 'reproofing' && (
+              <button className="btn btn-warning" onClick={() => {
+                setProofModalType('upload');
+                setProofModal(true);
+              }}>
+                📷 重新打样上传
+              </button>
+            )}
+            {pendingProof && pendingProof.status === 'uploaded' && (
+              <button className="btn btn-warning" onClick={() => handleSubmitReview(pendingProof.id)}>
+                📤 提交客户确认
+              </button>
+            )}
+            {pendingProof && pendingProof.status === 'customer_review' && (
+              <button className="btn btn-warning" onClick={() => {
+                setProofModalType('feedback');
+                setProofForm({ images: '', feedback: pendingProof.customer_feedback || '', confirmed: false });
+                setProofModal(true);
+              }}>
+                💬 客户确认打样
               </button>
             )}
             {canCreateShipment && (
@@ -620,26 +675,52 @@ export default function QuoteDetail() {
         </div>
       </Modal>
 
-      <Modal title="打样反馈确认" visible={proofModal} onClose={() => setProofModal(false)}
-        onOk={() => handleProofFeedback(pendingProof?.id)} okText={loading ? '提交中...' : '确认反馈'} width={480}>
-        <div className="form-item">
-          <label>打样预览</label>
-          <div style={{ width: 200, height: 200, background: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8c8c' }}>
-            📷 打样图片预览
-          </div>
-        </div>
-        <div className="form-item">
-          <label>客户反馈</label>
-          <textarea rows={3} value={proofForm.feedback} placeholder="请填写客户反馈意见"
-            onChange={e => setProofForm(f => ({ ...f, feedback: e.target.value }))} />
-        </div>
-        <div className="form-item">
-          <label>确认结果</label>
-          <select value={proofForm.confirmed} onChange={e => setProofForm(f => ({ ...f, confirmed: e.target.value === 'true' }))}>
-            <option value="false">确认不合格，重新打样</option>
-            <option value="true">确认合格，可以量产</option>
-          </select>
-        </div>
+      <Modal 
+        title={proofModalType === 'upload' ? '上传打样照片' : '打样反馈确认'} 
+        visible={proofModal} onClose={() => setProofModal(false)}
+        onOk={() => {
+          if (proofModalType === 'upload') {
+            handleUploadProof(pendingProof?.id);
+          } else {
+            handleProofFeedback(pendingProof?.id);
+          }
+        }} 
+        okText={loading ? '提交中...' : (proofModalType === 'upload' ? '上传' : '确认反馈')} 
+        width={480}>
+        {proofModalType === 'upload' ? (
+          <>
+            <div className="form-item">
+              <label>打样照片（演示：点击上传</label>
+              <div style={{ width: 200, height: 200, background: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8c8c', border: '2px dashed #d9d9d9', cursor: 'pointer' }} onClick={() => alert('演示模式：模拟上传成功')}>
+                📷 点击上传打样照片
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+              * 上传后将自动进入客户确认环节
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="form-item">
+              <label>打样预览</label>
+              <div style={{ width: 200, height: 200, background: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8c8c8c' }}>
+                📷 打样图片预览
+              </div>
+            </div>
+            <div className="form-item">
+              <label>客户反馈</label>
+              <textarea rows={3} value={proofForm.feedback} placeholder="请填写客户反馈意见"
+                onChange={e => setProofForm(f => ({ ...f, feedback: e.target.value }))} />
+            </div>
+            <div className="form-item">
+              <label>确认结果</label>
+              <select value={proofForm.confirmed} onChange={e => setProofForm(f => ({ ...f, confirmed: e.target.value === 'true' }))}>
+                <option value="false">确认不合格，重新打样</option>
+                <option value="true">确认合格，可以量产</option>
+              </select>
+            </div>
+          </>
+        )}
       </Modal>
 
       <Modal title={pendingShipment ? '仓配复核发货' : '创建发货单'} visible={shipmentModal} onClose={() => setShipmentModal(false)}
