@@ -183,7 +183,8 @@ const submitRefund = () => {
 }
 
 const pendingExceptions = computed(() => {
-  return order.value?.exceptions.filter(e => e.status !== 'resolved') || []
+  if (!order.value) return []
+  return orderStore.visibleExceptionsForOrder(order.value)
 })
 </script>
 

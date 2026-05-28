@@ -9,14 +9,33 @@ export const useOrderStore = defineStore('order', () => {
   const selectedException = ref<Exception | null>(null)
 
   const pendingExceptions = computed(() => {
-    return orders.value.flatMap(o => 
-      o.exceptions.filter(e => e.status === 'pending' || e.status === 'processing')
-    )
+    const userStore = useUserStore()
+    const role = userStore.currentUser.role
+    return orders.value.flatMap(o => {
+      if (role !== 'business' && o.assigneeRole !== role) {
+        return []
+      }
+      return o.exceptions.filter(e => {
+        if (e.status !== 'pending' && e.status !== 'processing') return false
+        if (e.type === 'refund_required' && role !== 'business') return false
+        return true
+      })
+    })
   })
 
   const criticalExceptions = computed(() => {
     return pendingExceptions.value.filter(e => e.severity === 'critical')
   })
+
+  const visibleExceptionsForOrder = (order: Order): Exception[] => {
+    const userStore = useUserStore()
+    const role = userStore.currentUser.role
+    return order.exceptions.filter(e => {
+      if (e.status !== 'pending' && e.status !== 'processing') return false
+      if (e.type === 'refund_required' && role !== 'business') return false
+      return true
+    })
+  }
 
   const ordersForCurrentUser = computed(() => {
     const userStore = useUserStore()
@@ -365,6 +384,7 @@ export const useOrderStore = defineStore('order', () => {
     ordersForCurrentUser,
     pendingExceptions,
     criticalExceptions,
+    visibleExceptionsForOrder,
     selectedException,
     getOrderById,
     updateOrderStatus,

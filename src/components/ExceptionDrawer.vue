@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useOrderStore } from '@/stores/order'
 import { useUserStore } from '@/stores/user'
 import type { Exception, SampleVersion, ShipmentItem, ResponsibleParty } from '@/types'
-import { X, AlertTriangle, Package, DollarSign, Check, XCircle, RefreshCw, Send } from 'lucide-vue-next'
+import { X, AlertTriangle, Package, DollarSign, Check, XCircle, RefreshCw, Send, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps<{
   visible: boolean
@@ -275,7 +275,7 @@ const responsiblePartyOptions = [
               </div>
             </div>
 
-            <div v-if="exception.type === 'refund_required' && exception.refundChain" class="space-y-6">
+            <div v-if="exception.type === 'refund_required' && exception.refundChain && userStore.currentUser.role === 'business'" class="space-y-6">
               <h3 class="font-medium text-gray-800">退款审批流程</h3>
               
               <div class="p-4 bg-gray-50 rounded-xl">

@@ -1,4 +1,4 @@
-import type { Order, User } from '@/types'
+import type { Order, User, RefundChain } from '@/types'
 
 export const mockUsers: User[] = [
   {
@@ -562,11 +562,42 @@ export const mockOrders: Order[] = [
   }
 ]
 
+const migrateRefundChain = (chain: any): RefundChain => {
+  if (!chain) return chain
+
+  const migrated: any = { ...chain }
+
+  if ('remark' in migrated && !('applyReason' in migrated)) {
+    migrated.applyReason = migrated.remark || ''
+    delete migrated.remark
+  }
+  if (!('applyReason' in migrated)) {
+    migrated.applyReason = ''
+  }
+  if (!('approvalRemark' in migrated)) {
+    migrated.approvalRemark = undefined
+  }
+  if (!('responsiblePartyHistory' in migrated) || !Array.isArray(migrated.responsiblePartyHistory)) {
+    migrated.responsiblePartyHistory = []
+  }
+
+  return migrated as RefundChain
+}
+
 export const getInitialData = (): Order[] => {
   const stored = localStorage.getItem('gift_orders')
   if (stored) {
     try {
-      return JSON.parse(stored)
+      const orders: Order[] = JSON.parse(stored)
+      for (const order of orders) {
+        for (const exception of order.exceptions) {
+          if (exception.type === 'refund_required' && exception.refundChain) {
+            exception.refundChain = migrateRefundChain(exception.refundChain)
+          }
+        }
+      }
+      saveOrders(orders)
+      return orders
     } catch {
       return mockOrders
     }
