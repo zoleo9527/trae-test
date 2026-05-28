@@ -63,7 +63,7 @@ python manage.py runserver 0.0.0.0:8000
 ### 登录获取Token:
 
 ```bash
-POST /api/token/
+POST /api/auth/login/
 
 Content-Type: application/json
 

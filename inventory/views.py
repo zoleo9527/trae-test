@@ -95,24 +95,51 @@ class ProductViewSet(BaseViewSet):
             return [IsPlanner()]
         return super().get_permissions()
 
+    def update(self, request, *args, **kwargs):
+        if 'status' in request.data:
+            raise ValidationFailedException(
+                detail='请使用 /api/products/{id}/sync-status/ 接口修改商品状态'
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if 'status' in request.data:
+            raise ValidationFailedException(
+                detail='请使用 /api/products/{id}/sync-status/ 接口修改商品状态'
+            )
+        return super().partial_update(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'], url_path='sync-status')
     def sync_status(self, request, pk=None):
         product = self.get_object()
         target_status = request.data.get('status')
         if target_status not in [ProductStatus.LISTED, ProductStatus.DELISTED]:
             raise ValidationFailedException(detail='无效的状态值')
-        result = InventoryService.sync_collaboration_product(
-            product, target_status, request.user
-        )
-        return Response({
-            'message': '联名商品状态已同步',
-            'data': {
-                'old_status': result['old_status'],
-                'new_status': result['new_status'],
-                'affected_stores': result['affected_stores'],
-                'inventory_records': result['inventory_records'],
-            }
-        }, status=status.HTTP_200_OK)
+
+        if product.is_collaboration:
+            result = InventoryService.sync_collaboration_product(
+                product, target_status, request.user
+            )
+            return Response({
+                'message': '联名商品状态已同步',
+                'data': {
+                    'old_status': result['old_status'],
+                    'new_status': result['new_status'],
+                    'affected_stores': result['affected_stores'],
+                    'inventory_records': result['inventory_records'],
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            result = InventoryService.update_product_status(
+                product, target_status, request.user
+            )
+            return Response({
+                'message': '商品状态已更新',
+                'data': {
+                    'old_status': result['old_status'],
+                    'new_status': result['new_status'],
+                }
+            }, status=status.HTTP_200_OK)
 
 
 class InventoryViewSet(BaseViewSet):

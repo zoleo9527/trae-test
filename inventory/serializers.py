@@ -97,6 +97,21 @@ class ProductSerializer(serializers.ModelSerializer):
                   'cost_price', 'retail_price', 'points_required', 'safe_stock',
                   'inventory_count', 'total_stock', 'deviations',
                   'created_at', 'updated_at', '_links']
+        read_only_fields = ['status', 'sku']
+
+    def validate(self, attrs):
+        if 'status' in attrs:
+            raise serializers.ValidationError({
+                'status': '请使用 /api/products/{id}/sync-status/ 接口修改商品状态'
+            })
+        return attrs
+
+    def update(self, instance, validated_data):
+        if 'status' in validated_data:
+            raise serializers.ValidationError({
+                'status': '请使用 /api/products/{id}/sync-status/ 接口修改商品状态'
+            })
+        return super().update(instance, validated_data)
 
     def get_deviations(self, obj):
         if obj.is_collaboration:

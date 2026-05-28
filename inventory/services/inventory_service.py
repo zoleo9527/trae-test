@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
-from ..models import Inventory, Product, Store
+from ..models import Inventory, Product, Store, ProductStatus
 from ..exceptions import (
     InventoryShortageException, ValidationFailedException,
     CollaborationSyncException
@@ -234,14 +234,7 @@ class InventoryService:
         if not product.is_collaboration:
             raise CollaborationSyncException(detail='只有联名商品需要同步')
 
-        old_status = product.status
-        product.status = target_status
-        product.save()
-
-        store_count = Store.objects.filter(is_active=True).count()
-        inv_count = Inventory.objects.filter(product=product).count()
-
-        if target_status == 'delisted':
+        if target_status == ProductStatus.DELISTED:
             pending_orders = product.replenishmentitem_set.filter(
                 order__status__in=['draft', 'submitted', 'reviewing']
             ).count()
@@ -249,6 +242,13 @@ class InventoryService:
                 raise CollaborationSyncException(
                     detail=f'该联名商品存在{pending_orders}条待处理补货单，无法下架'
                 )
+
+        old_status = product.status
+        product.status = target_status
+        product.save()
+
+        store_count = Store.objects.filter(is_active=True).count()
+        inv_count = Inventory.objects.filter(product=product).count()
 
         logger.info(
             f'Collaboration product {product.sku} synced: {old_status} -> {target_status}, '
@@ -261,6 +261,33 @@ class InventoryService:
             'new_status': target_status,
             'affected_stores': store_count,
             'inventory_records': inv_count,
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def update_product_status(product, target_status, user):
+        """统一的商品状态更新入口，带待处理补货单校验"""
+        if target_status == ProductStatus.DELISTED:
+            pending_orders = product.replenishmentitem_set.filter(
+                order__status__in=['draft', 'submitted', 'reviewing']
+            ).count()
+            if pending_orders > 0:
+                raise ValidationFailedException(
+                    detail=f'该商品存在{pending_orders}条待处理补货单，无法下架'
+                )
+
+        old_status = product.status
+        product.status = target_status
+        product.save()
+
+        logger.info(
+            f'Product {product.sku} status updated: {old_status} -> {target_status}, by {user.username}'
+        )
+
+        return {
+            'product': product,
+            'old_status': old_status,
+            'new_status': target_status,
         }
 
     @staticmethod
