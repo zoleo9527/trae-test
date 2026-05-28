@@ -89,25 +89,49 @@ func (r *CamperRepository) BatchCreate(campers []model.Camper) error {
 	return r.db.Create(&campers).Error
 }
 
-func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UUID) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		for i, camperID := range camperIDs {
+func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UUID) (int, error) {
+	var assignedCount int
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var room model.Room
+		if err := tx.First(&room, "id = ?", roomID).Error; err != nil {
+			return err
+		}
+
+		availableBeds := room.BedCount - room.OccupiedBeds
+		if len(camperIDs) > availableBeds {
+			camperIDs = camperIDs[:availableBeds]
+		}
+
+		currentBed := room.OccupiedBeds
+		assignedCount = 0
+
+		for _, camperID := range camperIDs {
 			result := tx.Model(&model.Camper{}).
 				Where("id = ? AND room_id IS NULL", camperID).
 				Updates(map[string]interface{}{
 					"room_id":    roomID,
-					"bed_number": i + 1,
+					"bed_number": currentBed + assignedCount + 1,
 				})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 {
+				assignedCount++
+			}
+		}
+
+		if assignedCount > 0 {
+			result := tx.Model(&model.Room{}).
+				Where("id = ?", roomID).
+				UpdateColumn("occupied_beds", gorm.Expr("occupied_beds + ?", assignedCount))
 			if result.Error != nil {
 				return result.Error
 			}
 		}
 
-		result := tx.Model(&model.Room{}).
-			Where("id = ?", roomID).
-			UpdateColumn("occupied_beds", gorm.Expr("occupied_beds + ?", len(camperIDs)))
-		return result.Error
+		return nil
 	})
+	return assignedCount, err
 }
 
 func (r *CamperRepository) Search(campID uuid.UUID, keyword string, status *model.CamperStatus, offset, limit int) ([]model.Camper, int64, error) {
