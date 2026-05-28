@@ -3,8 +3,9 @@ import { AlertTriangle } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
 const props = withDefaults(defineProps<{
+  show: boolean
   title: string
-  message: string
+  message?: string
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'danger' | 'default'
@@ -22,7 +23,7 @@ const emit = defineEmits<{
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-[90] flex items-center justify-center">
+    <div v-if="show" class="fixed inset-0 z-[90] flex items-center justify-center">
       <div
         class="absolute inset-0 bg-black/60"
         @click="emit('cancel')"
@@ -38,9 +39,12 @@ const emit = defineEmits<{
             </div>
             <div class="min-w-0 flex-1">
               <h3 class="text-base font-semibold text-txt-primary">{{ title }}</h3>
-              <p class="mt-2 text-sm text-txt-secondary leading-relaxed">{{ message }}</p>
+              <p v-if="message" class="mt-2 text-sm text-txt-secondary leading-relaxed">{{ message }}</p>
             </div>
           </div>
+        </div>
+        <div class="px-6 pb-2">
+          <slot />
         </div>
         <div class="flex items-center justify-end gap-3 px-6 py-4">
           <button

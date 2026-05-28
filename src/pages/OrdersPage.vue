@@ -61,7 +61,7 @@ function getCustomerName(order: Order): string {
   return orderStore.getCustomerById(order.customerId)?.name || '未知'
 }
 
-function getOrderTimeline(order: Order): Array<{ status: string; label: string; active: boolean; current: boolean }> {
+function getOrderTimeline(order: Order): Array<{ status: string; label: string; active: boolean; current: boolean; special?: string }> {
   const fullTimeline = [
     { status: 'checkout_pending', label: '待租出' },
     { status: 'checked_out', label: '已租出' },
@@ -72,20 +72,40 @@ function getOrderTimeline(order: Order): Array<{ status: string; label: string; 
     { status: 'completed', label: '已完成' },
   ]
 
-  const statusOrder = [
-    'checkout_pending', 'checked_out', 'overdue', 'return_pending',
-    'inspecting', 'damage_assessing', 'repairing', 'repair_reviewing',
-    'settling', 'disputed', 'completed'
-  ]
-  const currentIndex = statusOrder.indexOf(order.status)
+  const statusToTimelineStage: Record<string, number> = {
+    'checkout_pending': 0,
+    'checked_out': 1,
+    'overdue': 1,
+    'return_pending': 1,
+    'inspecting': 2,
+    'damage_assessing': 3,
+    'repairing': 4,
+    'repair_reviewing': 4,
+    'disputed': 3,
+    'settling': 5,
+    'completed': 6,
+  }
+
+  const currentStage = statusToTimelineStage[order.status] ?? 6
 
   return fullTimeline.map((t, idx) => {
-    const timelineOrder = ['checkout_pending', 'checked_out', 'inspecting', 'damage_assessing', 'repairing', 'settling', 'completed']
-    const timelineIdx = timelineOrder.indexOf(order.status)
+    let special: string | undefined
+    if (t.status === 'checked_out' && order.status === 'overdue') {
+      special = 'overdue'
+    } else if (t.status === 'damage_assessing' && order.status === 'disputed') {
+      special = 'disputed'
+    } else if (t.status === 'repairing' && order.status === 'repair_reviewing') {
+      special = 'reviewing'
+    }
+
     return {
       ...t,
-      active: idx <= (timelineIdx >= 0 ? timelineIdx : 6),
-      current: t.status === order.status || (t.status === 'repairing' && ['repairing', 'repair_reviewing'].includes(order.status)),
+      active: idx <= currentStage,
+      current: t.status === order.status ||
+        (t.status === 'checked_out' && ['overdue', 'return_pending'].includes(order.status)) ||
+        (t.status === 'repairing' && ['repairing', 'repair_reviewing'].includes(order.status)) ||
+        (t.status === 'damage_assessing' && order.status === 'disputed'),
+      special,
     }
   })
 }
@@ -271,16 +291,22 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
           <div
             v-for="(step, idx) in getOrderTimeline(order)"
             :key="step.status"
-            class="flex items-center"
+            class="flex items-center relative"
           >
             <div
               :class="cn(
                 'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all',
-                step.current
-                  ? 'bg-accent ring-4 ring-accent/20'
-                  : step.active
-                    ? 'bg-emerald-500'
-                    : 'bg-bg-tertiary'
+                step.special === 'overdue'
+                  ? 'bg-red-500 ring-4 ring-red-500/20'
+                  : step.special === 'disputed'
+                    ? 'bg-amber-500 ring-4 ring-amber-500/20'
+                    : step.special === 'reviewing'
+                      ? 'bg-violet-500 ring-4 ring-violet-500/20'
+                      : step.current
+                        ? 'bg-accent ring-4 ring-accent/20'
+                        : step.active
+                          ? 'bg-emerald-500'
+                          : 'bg-bg-tertiary'
               )"
             >
               <component
@@ -289,14 +315,29 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 :class="step.active ? 'text-white' : 'text-txt-muted'"
               />
             </div>
-            <span
-              :class="cn(
-                'ml-1.5 text-xs whitespace-nowrap',
-                step.current ? 'text-accent font-medium' : step.active ? 'text-txt-secondary' : 'text-txt-muted'
-              )"
-            >
-              {{ step.label }}
-            </span>
+            <div class="flex flex-col items-start ml-1.5">
+              <span
+                :class="cn(
+                  'text-xs whitespace-nowrap',
+                  step.special === 'overdue'
+                    ? 'text-red-400 font-medium'
+                    : step.special === 'disputed'
+                      ? 'text-amber-400 font-medium'
+                      : step.special === 'reviewing'
+                        ? 'text-violet-400 font-medium'
+                        : step.current
+                          ? 'text-accent font-medium'
+                          : step.active
+                            ? 'text-txt-secondary'
+                            : 'text-txt-muted'
+                )"
+              >
+                {{ step.special === 'overdue' ? '超时' : step.special === 'disputed' ? '争议中' : step.special === 'reviewing' ? '复检中' : step.label }}
+              </span>
+              <span v-if="step.special" class="text-[10px] text-txt-muted">
+                {{ step.label }}
+              </span>
+            </div>
             <div
               v-if="idx < getOrderTimeline(order).length - 1"
               :class="cn(

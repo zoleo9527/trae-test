@@ -52,6 +52,10 @@ function takeTask(orderId: string) {
   orderStore.updateRepairTask(orderId, { status: 'in_progress' }, authStore.userName)
 }
 
+function retakeTask(orderId: string) {
+  orderStore.updateRepairTask(orderId, { status: 'in_progress' }, authStore.userName)
+}
+
 function submitReview(orderId: string) {
   const order = orderStore.getOrderById(orderId)
   if (!order?.repairTask) return
@@ -259,6 +263,14 @@ function goBack() {
               class="px-4 py-2 rounded-lg bg-blue-500/15 text-blue-400 text-sm font-medium hover:bg-blue-500/25 transition-colors"
             >
               提交复检
+            </button>
+
+            <button
+              v-if="authStore.isRepair && order.repairTask?.status === 'returned'"
+              @click="retakeTask(order.id)"
+              class="px-4 py-2 rounded-lg bg-orange-500/15 text-orange-400 text-sm font-medium hover:bg-orange-500/25 transition-colors"
+            >
+              重新接回
             </button>
 
             <button

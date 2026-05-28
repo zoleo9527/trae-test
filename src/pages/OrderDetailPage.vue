@@ -43,6 +43,9 @@ const repairLiability = ref<LiabilityParty>('customer')
 const showSettleDialog = ref(false)
 const customDeductions = ref<Array<Omit<DeductionItem, 'id' | 'settlementId'>>>([])
 
+const showReturnRepairDialog = ref(false)
+const returnRepairReason = ref('')
+
 function goBack() {
   router.push('/orders')
 }
@@ -100,9 +103,15 @@ function approveRepair() {
   orderStore.updateRepairTask(orderId.value, { status: 'completed' }, authStore.userName)
 }
 
-function returnRepair(reason: string) {
-  if (!order.value?.repairTask) return
-  orderStore.updateRepairTask(orderId.value, { status: 'returned', returnReason: reason }, authStore.userName)
+function openReturnRepairDialog() {
+  returnRepairReason.value = ''
+  showReturnRepairDialog.value = true
+}
+
+function returnRepair() {
+  if (!order.value?.repairTask || !returnRepairReason.value) return
+  orderStore.updateRepairTask(orderId.value, { status: 'returned', returnReason: returnRepairReason.value }, authStore.userName)
+  showReturnRepairDialog.value = false
 }
 
 function openSettleDialog() {
@@ -502,12 +511,30 @@ const sortedLogs = computed(() => {
         </button>
 
         <button
+          v-if="authStore.isRepair && order.repairTask?.status === 'returned'"
+          @click="takeRepairTask"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors"
+        >
+          <RefreshCw :size="16" />
+          <span class="text-sm font-medium">重新接回维修</span>
+        </button>
+
+        <button
           v-if="authStore.isConsultant && order.repairTask?.status === 'review'"
           @click="approveRepair"
-          class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-5000/20 transition-colors"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
         >
           <CheckCircle2 :size="16" />
           <span class="text-sm font-medium">复检通过</span>
+        </button>
+
+        <button
+          v-if="authStore.isConsultant && order.repairTask?.status === 'review'"
+          @click="openReturnRepairDialog"
+          class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+        >
+          <XCircle :size="16" />
+          <span class="text-sm font-medium">退回重修</span>
         </button>
 
         <button
@@ -705,6 +732,28 @@ const sortedLogs = computed(() => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </ConfirmDialog>
+
+    <ConfirmDialog
+      :show="showReturnRepairDialog"
+      title="退回重修"
+      message="退回后维修师傅需重新处理并再次提交复检。"
+      variant="danger"
+      confirmLabel="确认退回"
+      @confirm="returnRepair"
+      @cancel="showReturnRepairDialog = false"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-txt-secondary mb-2">退回原因</label>
+          <textarea
+            v-model="returnRepairReason"
+            placeholder="请描述复检不合格的原因..."
+            rows="3"
+            class="w-full px-4 py-2.5 bg-bg-tertiary border border-border rounded-xl text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-accent/50 resize-none"
+          />
         </div>
       </div>
     </ConfirmDialog>

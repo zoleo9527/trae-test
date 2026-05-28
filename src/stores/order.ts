@@ -182,9 +182,12 @@ export const useOrderStore = defineStore('order', () => {
     const task = order.repairTask
     task.status = data.status
     if (data.actualCost !== undefined) task.actualCost = data.actualCost
-    if (data.status === 'in_progress' && !task.startedAt) {
-      task.startedAt = new Date().toISOString()
-      addOrderLog(orderId, '维修开始', operator, 'repair', '开始维修')
+    if (data.status === 'in_progress') {
+      if (!task.startedAt || task.returnedForRework) {
+        task.startedAt = new Date().toISOString()
+      }
+      order.status = 'repairing'
+      addOrderLog(orderId, task.returnedForRework ? '重新开始维修' : '维修开始', operator, 'repair', task.returnedForRework ? '退回后重新维修' : '开始维修')
     }
     if (data.status === 'review') {
       task.completedAt = new Date().toISOString()
@@ -194,7 +197,8 @@ export const useOrderStore = defineStore('order', () => {
     if (data.status === 'returned') {
       task.returnedForRework = true
       task.returnReason = data.returnReason
-      addOrderLog(orderId, '维修退回', operator, 'consultant', data.returnReason || '复检不合格')
+      order.status = 'repairing'
+      addOrderLog(orderId, '维修退回', operator, 'consultant', data.returnReason || '复检不合格，退回重修')
     }
     if (data.status === 'completed') {
       order.status = 'settling'
