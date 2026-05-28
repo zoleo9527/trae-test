@@ -140,7 +140,7 @@ router.post('/:id/collections', requireRole(ROLES.AGENT_MANAGER, ROLES.DOCUMENT_
   );
 });
 
-router.post('/:id/communications', (req, res) => {
+router.post('/:id/communications', requireRole(ROLES.AGENT_MANAGER, ROLES.DOCUMENT_SPECIALIST), (req, res) => {
   const { subject, content, direction } = req.body;
   
   db.run(

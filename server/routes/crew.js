@@ -57,10 +57,31 @@ router.post('/', requireRole(ROLES.FIELD_COORDINATOR), (req, res) => {
 
 router.put('/:id', requireRole(ROLES.FIELD_COORDINATOR, ROLES.DOCUMENT_SPECIALIST), (req, res) => {
   const { status, documents_status, notes } = req.body;
+  const updates = [];
+  const params = [];
+
+  if (status !== undefined) {
+    updates.push('status = ?');
+    params.push(status);
+  }
+  if (documents_status !== undefined) {
+    updates.push('documents_status = ?');
+    params.push(documents_status);
+  }
+  if (notes !== undefined) {
+    updates.push('notes = ?');
+    params.push(notes);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  params.push(req.params.id);
 
   db.run(
-    'UPDATE crew_changes SET status = ?, documents_status = ?, notes = ? WHERE id = ?',
-    [status, documents_status, notes, req.params.id],
+    `UPDATE crew_changes SET ${updates.join(', ')} WHERE id = ?`,
+    params,
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
 
@@ -72,6 +93,22 @@ router.put('/:id', requireRole(ROLES.FIELD_COORDINATOR, ROLES.DOCUMENT_SPECIALIS
             if (alertErr) console.error('Alert update failed:', alertErr);
           }
         );
+      } else if (documents_status === 'rejected') {
+        db.get('SELECT crew_name, rank FROM crew_changes WHERE id = ?', [req.params.id], (selectErr, crew) => {
+          if (selectErr) {
+            console.error('Failed to get crew info:', selectErr);
+            return;
+          }
+          if (crew) {
+            const description = notes 
+              ? `${crew.rank || '船员'} 的证件审核未通过：${notes}，请重新处理` 
+              : `${crew.rank || '船员'} 的证件审核未通过，请重新处理`;
+            db.run(
+              'INSERT INTO alerts (type, title, description, related_type, related_id, priority, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              ['document', `证件审核被拒: ${crew.crew_name}`, description, 'crew', req.params.id, 'high', 'pending']
+            );
+          }
+        });
       }
 
       res.json({ updated: this.changes });
