@@ -33,13 +33,6 @@ func (s *AuthService) Login(req *dto.LoginRequest) (*dto.LoginResponse, error) {
 		return nil, errors.New("failed to generate token")
 	}
 
-	var stationName *string
-	if user.StationID != nil {
-		var station models.WaterStation
-		database.DB.Select("name").Where("id = ?", *user.StationID).First(&station)
-		stationName = &station.Name
-	}
-
 	return &dto.LoginResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",

@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"gorm.io/gorm"
 	"water-delivery-service/internal/config"
 	"water-delivery-service/internal/database"
 	"water-delivery-service/internal/models"
@@ -56,19 +57,32 @@ func (wp *WorkerPool) taskDispatcher(ctx context.Context) {
 }
 
 func (wp *WorkerPool) fetchPendingTasks() {
-	var tasks []models.AsyncTask
-	err := database.DB.Where("status = ? AND retry_count < max_retries", types.TaskStatusPending).
-		Order("created_at ASC").
-		Limit(10).
-		Find(&tasks).Error
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var tasks []models.AsyncTask
+		if err := tx.Where("status = ? AND retry_count < max_retries", types.TaskStatusPending).
+			Order("created_at ASC").
+			Limit(10).
+			Find(&tasks).Error; err != nil {
+			return err
+		}
+
+		now := time.Now()
+		for i := range tasks {
+			if err := tx.Model(&tasks[i]).Updates(map[string]interface{}{
+				"status":     types.TaskStatusRunning,
+				"started_at": &now,
+			}).Error; err != nil {
+				log.Printf("Error marking task %s as running: %v", tasks[i].ID, err)
+				continue
+			}
+			wp.taskChan <- &tasks[i]
+		}
+		return nil
+	})
 
 	if err != nil {
 		log.Printf("Error fetching pending tasks: %v", err)
 		return
-	}
-
-	for i := range tasks {
-		wp.taskChan <- &tasks[i]
 	}
 }
 
@@ -86,13 +100,11 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 }
 
 func (wp *WorkerPool) processTask(task *models.AsyncTask, workerID int) {
-	log.Printf("Worker %d processing task %s (type: %s)", workerID, task.ID, task.Type)
+	log.Printf("Worker %d processing task %s (type: %s, retry: %d)", workerID, task.ID, task.Type, task.RetryCount)
 
 	now := time.Now()
 	database.DB.Model(task).Updates(map[string]interface{}{
-		"status":      types.TaskStatusRunning,
 		"executed_at": &now,
-		"retry_count": task.RetryCount + 1,
 	})
 
 	var err error
@@ -116,9 +128,16 @@ func (wp *WorkerPool) processTask(task *models.AsyncTask, workerID int) {
 
 	if err != nil {
 		errStr := err.Error()
-		updates["status"] = types.TaskStatusFailed
 		updates["error"] = &errStr
-		log.Printf("Task %s failed: %v (retry: %d/%d)", task.ID, err, task.RetryCount, task.MaxRetries)
+		
+		if task.RetryCount+1 < task.MaxRetries {
+			updates["status"] = types.TaskStatusPending
+			updates["retry_count"] = task.RetryCount + 1
+			log.Printf("Task %s failed, will retry: %v (retry: %d/%d)", task.ID, err, task.RetryCount+1, task.MaxRetries)
+		} else {
+			updates["status"] = types.TaskStatusFailed
+			log.Printf("Task %s failed, max retries reached: %v (retry: %d/%d)", task.ID, err, task.RetryCount+1, task.MaxRetries)
+		}
 	} else {
 		updates["status"] = types.TaskStatusCompleted
 		updates["result"] = &result

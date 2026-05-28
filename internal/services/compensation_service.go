@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,10 +24,14 @@ func NewCompensationService() *CompensationService {
 	}
 }
 
-func (s *CompensationService) Create(req *dto.CreateCompensationRequest, userID uuid.UUID, userRole types.Role) (*models.Compensation, error) {
+func (s *CompensationService) Create(req *dto.CreateCompensationRequest, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID) (*models.Compensation, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", req.ComplaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
 	}
 
 	if complaint.Status == types.ComplaintStatusClosed || complaint.Status == types.ComplaintStatusRejected {
@@ -90,6 +93,31 @@ func (s *CompensationService) Create(req *dto.CreateCompensationRequest, userID 
 					return err
 				}
 			}
+
+			var pendingRedeliveryCount int64
+			tx.Model(&models.Redelivery{}).
+				Where("complaint_id = ? AND status NOT IN ?", complaint.ID, []types.RedeliveryStatus{types.RedeliveryStatusDelivered, types.RedeliveryStatusCancelled}).
+				Count(&pendingRedeliveryCount)
+
+			var pendingCompCount int64
+			tx.Model(&models.Compensation{}).
+				Where("complaint_id = ? AND status = ? AND id != ?", complaint.ID, types.CompensationStatusPending, compensation.ID).
+				Count(&pendingCompCount)
+
+			if pendingRedeliveryCount == 0 && pendingCompCount == 0 {
+				if complaint.Status == types.ComplaintStatusProcessing {
+					now := time.Now()
+					if err := tx.Model(&complaint).Updates(map[string]interface{}{
+						"status":      types.ComplaintStatusResolved,
+						"resolved_at": &now,
+					}).Error; err != nil {
+						return err
+					}
+					if err := audit.LogStatusChangeWithTx(tx, "complaint", complaint.ID, userID, string(types.ComplaintStatusProcessing), string(types.ComplaintStatusResolved), "All redeliveries and compensations completed"); err != nil {
+						return err
+					}
+				}
+			}
 		}
 
 		return nil
@@ -109,10 +137,14 @@ func (s *CompensationService) Create(req *dto.CreateCompensationRequest, userID 
 	return compensation, nil
 }
 
-func (s *CompensationService) Approve(compensationID uuid.UUID, userID uuid.UUID, req *dto.ApproveCompensationRequest) (*models.Compensation, error) {
+func (s *CompensationService) Approve(compensationID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, req *dto.ApproveCompensationRequest) (*models.Compensation, error) {
 	var compensation models.Compensation
 	if err := database.DB.Where("id = ?", compensationID).First(&compensation).Error; err != nil {
 		return nil, errors.New("compensation not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != compensation.StationID {
+		return nil, errors.New("access denied: compensation belongs to another station")
 	}
 
 	if compensation.Status != types.CompensationStatusPending {

@@ -119,7 +119,7 @@ func (h *ComplaintHandler) UpdateStatus(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	complaint, err := h.complaintService.UpdateStatus(id, user.UserID, &req)
+	complaint, err := h.complaintService.UpdateStatus(id, user.UserID, user.Role, user.StationID, &req)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -139,7 +139,7 @@ func (h *ComplaintHandler) Assign(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	complaint, err := h.complaintService.Assign(id, user.UserID, &req)
+	complaint, err := h.complaintService.Assign(id, user.UserID, user.Role, user.StationID, &req)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -159,7 +159,7 @@ func (h *ComplaintHandler) AddNote(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	note, err := h.complaintService.AddNote(id, user.UserID, &req)
+	note, err := h.complaintService.AddNote(id, user.UserID, user.Role, user.StationID, &req)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -218,7 +218,7 @@ func (h *ComplaintHandler) UploadPhoto(c *fiber.Ctx) error {
 
 	fileURL := "/uploads/" + filename
 
-	photo, err := h.complaintService.UploadPhoto(id, user.UserID, fileURL, fileHash, file.Size, description)
+	photo, err := h.complaintService.UploadPhoto(id, user.UserID, user.Role, user.StationID, fileURL, fileHash, file.Size, description)
 	if err != nil {
 		os.Remove(filePath)
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -264,7 +264,7 @@ func (h *ComplaintHandler) UpdateRedeliveryStatus(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	redelivery, err := h.redeliveryService.UpdateStatus(redeliveryID, user.UserID, &req)
+	redelivery, err := h.redeliveryService.UpdateStatus(redeliveryID, user.UserID, user.Role, user.StationID, &req)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -285,7 +285,7 @@ func (h *ComplaintHandler) CreateCompensation(c *fiber.Ctx) error {
 	}
 	req.ComplaintID = complaintID
 
-	compensation, err := h.compensationService.Create(&req, user.UserID, user.Role)
+	compensation, err := h.compensationService.Create(&req, user.UserID, user.Role, user.StationID)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -305,7 +305,7 @@ func (h *ComplaintHandler) ApproveCompensation(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	compensation, err := h.compensationService.Approve(compensationID, user.UserID, &req)
+	compensation, err := h.compensationService.Approve(compensationID, user.UserID, user.Role, user.StationID, &req)
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

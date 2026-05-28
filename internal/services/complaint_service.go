@@ -81,10 +81,26 @@ func (s *ComplaintService) Create(req *dto.CreateComplaintRequest, userID uuid.U
 	return complaint, nil
 }
 
-func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID, req *dto.UpdateComplaintStatusRequest) (*models.Complaint, error) {
+func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, req *dto.UpdateComplaintStatusRequest) (*models.Complaint, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", complaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
+	}
+
+	if userRole == types.RoleDriver {
+		var hasAccess bool
+		database.DB.Raw(`
+			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
+				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
+			) THEN 1 ELSE 0 END
+		`, userID, userID).Scan(&hasAccess)
+		if !hasAccess {
+			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
+		}
 	}
 
 	oldStatus := complaint.Status
@@ -154,15 +170,23 @@ func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID,
 	return &complaint, nil
 }
 
-func (s *ComplaintService) Assign(complaintID uuid.UUID, userID uuid.UUID, req *dto.AssignComplaintRequest) (*models.Complaint, error) {
+func (s *ComplaintService) Assign(complaintID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, req *dto.AssignComplaintRequest) (*models.Complaint, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", complaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
 	}
 
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
+	}
+
 	var assignee models.User
 	if err := database.DB.Where("id = ? AND is_active = true", req.AssignedTo).First(&assignee).Error; err != nil {
 		return nil, errors.New("assignee not found")
+	}
+
+	if userRole != types.RoleAdmin && assignee.StationID != nil && *assignee.StationID != complaint.StationID {
+		return nil, errors.New("assignee belongs to another station")
 	}
 
 	oldAssignee := complaint.AssignedTo
@@ -286,6 +310,18 @@ func (s *ComplaintService) GetDetail(complaintID uuid.UUID, user *utils.JWTClaim
 		return nil, errors.New("access denied")
 	}
 
+	if user.Role == types.RoleDriver {
+		var hasAccess bool
+		database.DB.Raw(`
+			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
+				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
+			) THEN 1 ELSE 0 END
+		`, user.UserID, user.UserID).Scan(&hasAccess)
+		if !hasAccess {
+			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
+		}
+	}
+
 	var result dto.ComplaintDetailResponse
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -364,10 +400,26 @@ func (s *ComplaintService) GetDetail(complaintID uuid.UUID, user *utils.JWTClaim
 	return &result, nil
 }
 
-func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, req *dto.AddNoteRequest) (*models.ComplaintNote, error) {
+func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, req *dto.AddNoteRequest) (*models.ComplaintNote, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", complaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
+	}
+
+	if userRole == types.RoleDriver {
+		var hasAccess bool
+		database.DB.Raw(`
+			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
+				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
+			) THEN 1 ELSE 0 END
+		`, userID, userID).Scan(&hasAccess)
+		if !hasAccess {
+			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
+		}
 	}
 
 	note := &models.ComplaintNote{
@@ -397,10 +449,26 @@ func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, req 
 	return note, nil
 }
 
-func (s *ComplaintService) UploadPhoto(complaintID uuid.UUID, userID uuid.UUID, fileURL string, fileHash string, fileSize int64, description string) (*models.ComplaintPhoto, error) {
+func (s *ComplaintService) UploadPhoto(complaintID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, fileURL string, fileHash string, fileSize int64, description string) (*models.ComplaintPhoto, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", complaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
+	}
+
+	if userRole == types.RoleDriver {
+		var hasAccess bool
+		database.DB.Raw(`
+			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
+				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
+			) THEN 1 ELSE 0 END
+		`, userID, userID).Scan(&hasAccess)
+		if !hasAccess {
+			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
+		}
 	}
 
 	photo := &models.ComplaintPhoto{

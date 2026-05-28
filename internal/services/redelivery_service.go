@@ -86,10 +86,18 @@ func (s *RedeliveryService) Create(req *dto.CreateRedeliveryRequest, userID uuid
 	return redelivery, nil
 }
 
-func (s *RedeliveryService) UpdateStatus(redeliveryID uuid.UUID, userID uuid.UUID, req *dto.UpdateRedeliveryStatusRequest) (*models.Redelivery, error) {
+func (s *RedeliveryService) UpdateStatus(redeliveryID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID, req *dto.UpdateRedeliveryStatusRequest) (*models.Redelivery, error) {
 	var redelivery models.Redelivery
 	if err := database.DB.Where("id = ?", redeliveryID).First(&redelivery).Error; err != nil {
 		return nil, errors.New("redelivery not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != redelivery.StationID {
+		return nil, errors.New("access denied: redelivery belongs to another station")
+	}
+
+	if userRole == types.RoleDriver && (redelivery.DriverID == nil || *redelivery.DriverID != userID) {
+		return nil, errors.New("access denied: not assigned to this redelivery")
 	}
 
 	oldStatus := redelivery.Status
