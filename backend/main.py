@@ -12,6 +12,7 @@ import hashlib
 from events import (
     event_register, event_status_update, event_exception_report,
     event_exception_resolve, event_rework, event_add_note,
+    event_step_advance,
 )
 
 SECRET_KEY = "your-secret-key-change-in-production"
@@ -255,12 +256,19 @@ async def update_status(roll_id: str, update: StatusUpdate, current_user: User =
     data = load_data()
     for roll in data["film_rolls"]:
         if roll["id"] == roll_id:
+            from_status = roll["status"]
             roll["status"] = update.status
             roll["current_step"] = update.current_step
             now = datetime.now().isoformat()
-            roll["history"].append(event_status_update(now, update.operator, update.status))
+            roll["history"].append(event_step_advance(
+                now, update.operator, from_status, update.status,
+                update.current_step,
+                film_type=roll.get("film_type", ""),
+                dev_type=roll.get("development_type", ""),
+                resolution=roll.get("scan_resolution", ""),
+            ))
             if update.status == "completed":
-                roll["actual_delivery"] = datetime.now().isoformat()
+                roll["actual_delivery"] = now
             save_data(data)
             return roll
     raise HTTPException(status_code=404, detail="Film roll not found")

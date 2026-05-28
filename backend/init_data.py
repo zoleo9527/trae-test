@@ -7,6 +7,7 @@ from events import (
     event_register, event_start_develop, event_start_scan,
     event_quality_check, event_complete, event_exception_report,
     event_exception_resolve, event_rework, event_add_note,
+    event_step_advance,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -299,7 +300,11 @@ def generate_demo_data():
         history.append(event_register(ts(registered_at), "客服小王", reg_num))
 
         if roll["current_step"] >= 1:
-            history.append(event_start_develop(ts(registered_at, hours=6), "冲印师李四", roll["film_type"], roll["development_type"]))
+            history.append(event_step_advance(
+                ts(registered_at, hours=6), "冲印师李四",
+                "registered", "developing", 1,
+                film_type=roll["film_type"], dev_type=roll["development_type"],
+            ))
 
         for j, exc in enumerate(roll["exceptions"]):
             exc_report_time = ts(registered_at, days=exc["report_day"])
@@ -325,13 +330,23 @@ def generate_demo_data():
             exceptions_records.append(exc_record)
 
         if roll["current_step"] >= 2:
-            history.append(event_start_scan(ts(registered_at, days=1, hours=2), "冲印师李四", roll["scan_resolution"]))
+            history.append(event_step_advance(
+                ts(registered_at, days=1, hours=2), "冲印师李四",
+                "developing", "scanning", 2,
+                resolution=roll["scan_resolution"],
+            ))
 
         if roll["current_step"] >= 3:
-            history.append(event_quality_check(ts(registered_at, days=2), "冲印师李四"))
+            history.append(event_step_advance(
+                ts(registered_at, days=2), "冲印师李四",
+                "scanning", "quality_check", 3,
+            ))
 
         if roll["current_step"] >= 4:
-            history.append(event_complete(ts(registered_at, days=2, hours=8), "冲印师李四"))
+            history.append(event_step_advance(
+                ts(registered_at, days=2, hours=8), "冲印师李四",
+                "quality_check", "completed", 4,
+            ))
 
         if "rework" in roll:
             rw = roll["rework"]

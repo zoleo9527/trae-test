@@ -27,6 +27,32 @@ def event_status_update(timestamp: str, operator: str, to_status: str, from_stat
     return make_event(timestamp, "状态更新", operator, desc, **extra)
 
 
+_STEP_EVENT_MAP = {
+    0: ("登记", "已登记，等待进入冲洗流程"),
+    1: ("开始冲洗", "胶卷进入冲洗流程"),
+    2: ("开始扫描", "胶卷进入扫描流程"),
+    3: ("质量检查", "进入质量检查环节"),
+    4: ("完成", "冲扫完成，通知客户取片"),
+}
+
+
+def event_step_advance(timestamp: str, operator: str, from_status: str, to_status: str, current_step: int, film_type: str = "", dev_type: str = "", resolution: str = "") -> dict:
+    entry = _STEP_EVENT_MAP.get(current_step)
+    if entry:
+        action, base_desc = entry
+    else:
+        action, base_desc = "状态更新", f"状态更新为：{_status_label(to_status)}"
+
+    description = base_desc
+    if current_step == 1 and film_type and dev_type:
+        description = f"胶卷进入冲洗流程，{film_type} - {dev_type}"
+    elif current_step == 2 and resolution:
+        description = f"开始扫描，分辨率：{resolution}"
+
+    extra = {"from_status": from_status, "to_status": to_status}
+    return make_event(timestamp, action, operator, description, **extra)
+
+
 def event_start_develop(timestamp: str, operator: str, film_type: str, dev_type: str) -> dict:
     return make_event(timestamp, "开始冲洗", operator, f"胶卷进入冲洗流程，{film_type} - {dev_type}")
 

@@ -27,7 +27,7 @@
   },
   "film_rolls": [
     {
-      "id": "7bda6fb3-51bb-4c63-93a1-4816b7d9797d",
+      "id": "a0f7f5fb-bc75-4d92-8a66-9524da374601",
       "registration_number": "F001000",
       "customer_name": "陈晓明",
       "customer_phone": "13800138001",
@@ -40,61 +40,69 @@
       "special_instructions": "请保留片边",
       "status": "completed",
       "priority": "normal",
-      "registered_at": "2026-05-23T21:38:09.051928",
+      "registered_at": "2026-05-23T21:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 4,
-      "estimated_delivery": "2026-05-26T21:38:09.051928",
-      "actual_delivery": "2026-05-26T05:38:09.051928",
+      "estimated_delivery": "2026-05-26T21:47:42.197954",
+      "actual_delivery": "2026-05-26T05:47:42.197954",
       "amount": 85.0,
       "paid": true,
       "notes": [
         {
-          "id": "e205c720-e612-4c5a-b666-d1a45f7eb0b7",
+          "id": "9a7e9ec0-86d5-4d54-8fd0-809826ca2cd4",
           "content": "客户取片时对颜色很满意",
           "author": "客服小王",
-          "timestamp": "2026-05-26T07:14:09.051928",
+          "timestamp": "2026-05-26T07:23:42.197954",
           "type": "customer"
         }
       ],
       "history": [
         {
-          "timestamp": "2026-05-23T21:38:09.051928",
+          "timestamp": "2026-05-23T21:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001000"
         },
         {
-          "timestamp": "2026-05-24T03:38:09.051928",
+          "timestamp": "2026-05-24T03:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-24T23:38:09.051928",
+          "timestamp": "2026-05-24T23:47:42.197954",
           "action": "开始扫描",
           "operator": "冲印师李四",
-          "description": "开始扫描，分辨率：4K"
+          "description": "开始扫描，分辨率：4K",
+          "from_status": "developing",
+          "to_status": "scanning"
         },
         {
-          "timestamp": "2026-05-25T21:38:09.051928",
+          "timestamp": "2026-05-25T21:47:42.197954",
           "action": "质量检查",
           "operator": "冲印师李四",
-          "description": "进入质量检查环节"
+          "description": "进入质量检查环节",
+          "from_status": "scanning",
+          "to_status": "quality_check"
         },
         {
-          "timestamp": "2026-05-26T05:38:09.051928",
+          "timestamp": "2026-05-26T05:47:42.197954",
           "action": "完成",
           "operator": "冲印师李四",
-          "description": "冲扫完成，通知客户取片"
+          "description": "冲扫完成，通知客户取片",
+          "from_status": "quality_check",
+          "to_status": "completed"
         },
         {
-          "timestamp": "2026-05-26T07:14:09.051928",
+          "timestamp": "2026-05-26T07:23:42.197954",
           "action": "添加客户沟通",
           "operator": "客服小王",
           "description": "客户取片时对颜色很满意"
         },
         {
-          "timestamp": "2026-05-26T09:38:09.051928",
+          "timestamp": "2026-05-26T09:47:42.197954",
           "action": "客户取片",
           "operator": "客服小王",
           "description": "客户现场确认取片，对扫描效果满意"
@@ -105,7 +113,7 @@
       "tags": []
     },
     {
-      "id": "dfa5afbd-7160-4f87-9806-c08476fdbd2d",
+      "id": "98207de8-187e-44ee-9de5-ece303af5a5a",
       "registration_number": "F001001",
       "customer_name": "林雅琪",
       "customer_phone": "13900139002",
@@ -118,38 +126,44 @@
       "special_instructions": "迫冲一档，颗粒稍粗没关系",
       "status": "quality_check",
       "priority": "urgent",
-      "registered_at": "2026-05-26T20:38:09.051928",
+      "registered_at": "2026-05-26T20:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 3,
-      "estimated_delivery": "2026-05-29T20:38:09.051928",
+      "estimated_delivery": "2026-05-29T20:47:42.197954",
       "actual_delivery": null,
       "amount": 128.0,
       "paid": true,
       "notes": [],
       "history": [
         {
-          "timestamp": "2026-05-26T20:38:09.051928",
+          "timestamp": "2026-05-26T20:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001001"
         },
         {
-          "timestamp": "2026-05-27T02:38:09.051928",
+          "timestamp": "2026-05-27T02:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，120黑白 - D-76 1:1"
+          "description": "胶卷进入冲洗流程，120黑白 - D-76 1:1",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-27T22:38:09.051928",
+          "timestamp": "2026-05-27T22:47:42.197954",
           "action": "开始扫描",
           "operator": "冲印师李四",
-          "description": "开始扫描，分辨率：8K"
+          "description": "开始扫描，分辨率：8K",
+          "from_status": "developing",
+          "to_status": "scanning"
         },
         {
-          "timestamp": "2026-05-28T20:38:09.051928",
+          "timestamp": "2026-05-28T20:47:42.197954",
           "action": "质量检查",
           "operator": "冲印师李四",
-          "description": "进入质量检查环节"
+          "description": "进入质量检查环节",
+          "from_status": "scanning",
+          "to_status": "quality_check"
         }
       ],
       "exceptions": [],
@@ -159,7 +173,7 @@
       ]
     },
     {
-      "id": "fa9f6257-1d6e-448a-abb9-1cdd57070d0f",
+      "id": "225ac18c-cd00-4b5e-9524-26722e5d0e69",
       "registration_number": "F001002",
       "customer_name": "王建国",
       "customer_phone": "13700137003",
@@ -172,55 +186,59 @@
       "special_instructions": "",
       "status": "scanning",
       "priority": "normal",
-      "registered_at": "2026-05-25T19:38:09.051928",
+      "registered_at": "2026-05-25T19:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 2,
-      "estimated_delivery": "2026-05-28T19:38:09.051928",
+      "estimated_delivery": "2026-05-28T19:47:42.197954",
       "actual_delivery": null,
       "amount": 75.0,
       "paid": false,
       "notes": [
         {
-          "id": "be0eea7f-a226-4b3c-847f-e607902b657b",
+          "id": "5d347bdc-78a8-4af4-a29c-8feef97ce764",
           "content": "客户记错胶卷型号，实际是柯达",
           "author": "冲印师李四",
-          "timestamp": "2026-05-27T02:50:09.051928",
+          "timestamp": "2026-05-27T02:59:42.197954",
           "type": "internal"
         }
       ],
       "history": [
         {
-          "timestamp": "2026-05-25T19:38:09.051928",
+          "timestamp": "2026-05-25T19:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001002"
         },
         {
-          "timestamp": "2026-05-26T01:38:09.051928",
+          "timestamp": "2026-05-26T01:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-26T21:38:09.051928",
+          "timestamp": "2026-05-26T21:47:42.197954",
           "action": "开始扫描",
           "operator": "冲印师李四",
-          "description": "开始扫描，分辨率：4K"
+          "description": "开始扫描，分辨率：4K",
+          "from_status": "developing",
+          "to_status": "scanning"
         },
         {
-          "timestamp": "2026-05-27T00:26:09.051928",
+          "timestamp": "2026-05-27T00:35:42.197954",
           "action": "异常登记",
           "operator": "冲印师李四",
           "description": "[medium] 胶卷混号: 冲洗时发现胶卷暗盒编号与登记不符，疑似客户错装。实际是柯达 ColorPlus 200"
         },
         {
-          "timestamp": "2026-05-27T02:50:09.051928",
+          "timestamp": "2026-05-27T02:59:42.197954",
           "action": "添加内部沟通",
           "operator": "冲印师李四",
           "description": "客户记错胶卷型号，实际是柯达"
         },
         {
-          "timestamp": "2026-05-27T10:02:09.051928",
+          "timestamp": "2026-05-27T10:11:42.197954",
           "action": "异常处理",
           "operator": "客服小王",
           "description": "异常已处理：已电话联系客户确认，按实际胶卷冲洗，已告知差异"
@@ -228,15 +246,15 @@
       ],
       "exceptions": [
         {
-          "id": "0a197dac-eedf-4df1-a4a8-8ec50d73e97d",
+          "id": "e75d849a-2e91-450a-87df-52b449ba1962",
           "type": "胶卷混号",
           "description": "冲洗时发现胶卷暗盒编号与登记不符，疑似客户错装。实际是柯达 ColorPlus 200",
           "severity": "medium",
           "reported_by": "冲印师李四",
-          "timestamp": "2026-05-27T00:26:09.051928",
+          "timestamp": "2026-05-27T00:35:42.197954",
           "resolved": true,
           "resolution": "已电话联系客户确认，按实际胶卷冲洗，已告知差异",
-          "resolved_at": "2026-05-27T10:02:09.051928",
+          "resolved_at": "2026-05-27T10:11:42.197954",
           "resolved_by": "客服小王"
         }
       ],
@@ -244,7 +262,7 @@
       "tags": []
     },
     {
-      "id": "5f16b6cb-c71d-48bf-a2df-8f4803751854",
+      "id": "6278d25f-cf5b-4102-b26d-1f197c378708",
       "registration_number": "F001003",
       "customer_name": "张雨涵",
       "customer_phone": "13600136004",
@@ -257,26 +275,28 @@
       "special_instructions": "请严格按标准时间，不要调整反差",
       "status": "developing",
       "priority": "high",
-      "registered_at": "2026-05-27T21:38:09.051928",
+      "registered_at": "2026-05-27T21:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 1,
-      "estimated_delivery": "2026-05-30T21:38:09.051928",
+      "estimated_delivery": "2026-05-30T21:47:42.197954",
       "actual_delivery": null,
       "amount": 168.0,
       "paid": true,
       "notes": [],
       "history": [
         {
-          "timestamp": "2026-05-27T21:38:09.051928",
+          "timestamp": "2026-05-27T21:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001003"
         },
         {
-          "timestamp": "2026-05-28T03:38:09.051928",
+          "timestamp": "2026-05-28T03:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，135反转片 - E-6"
+          "description": "胶卷进入冲洗流程，135反转片 - E-6",
+          "from_status": "registered",
+          "to_status": "developing"
         }
       ],
       "exceptions": [],
@@ -286,7 +306,7 @@
       ]
     },
     {
-      "id": "d9e21eed-89ff-4dbd-9020-7706b6bfe60e",
+      "id": "16dd9a30-6b21-4713-8c1c-14dbf26ca51e",
       "registration_number": "F001004",
       "customer_name": "刘志远",
       "customer_phone": "13500135005",
@@ -299,62 +319,64 @@
       "special_instructions": "肤色尽量自然",
       "status": "rework",
       "priority": "normal",
-      "registered_at": "2026-05-24T20:38:09.051928",
+      "registered_at": "2026-05-24T20:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 1,
-      "estimated_delivery": "2026-05-27T20:38:09.051928",
+      "estimated_delivery": "2026-05-27T20:47:42.197954",
       "actual_delivery": null,
       "amount": 98.0,
       "paid": true,
       "notes": [
         {
-          "id": "c898dc47-e9eb-4217-9b9f-fa1709be7563",
+          "id": "414d8501-fae3-4702-9f61-0aad691b6622",
           "content": "客户强烈不满，要求尽快重新交付",
           "author": "客服小王",
-          "timestamp": "2026-05-27T06:14:09.051928",
+          "timestamp": "2026-05-27T06:23:42.197954",
           "type": "urgent"
         },
         {
-          "id": "3c5ee2d9-6831-4cea-9b0b-c6806a894998",
+          "id": "2d38600c-937f-462a-a01d-bf51cf39b51b",
           "content": "正在重新扫描中，优先处理",
           "author": "冲印师李四",
-          "timestamp": "2026-05-27T15:50:09.051928",
+          "timestamp": "2026-05-27T15:59:42.197954",
           "type": "internal"
         }
       ],
       "history": [
         {
-          "timestamp": "2026-05-24T20:38:09.051928",
+          "timestamp": "2026-05-24T20:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001004"
         },
         {
-          "timestamp": "2026-05-25T02:38:09.051928",
+          "timestamp": "2026-05-25T02:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-27T03:50:09.051928",
+          "timestamp": "2026-05-27T03:59:42.197954",
           "action": "异常登记",
           "operator": "客服小王",
           "description": "[high] 交付版本错发: 第一次交付的是低清压缩版，客户要求原始4K文件。客户是专业摄影师需要修图"
         },
         {
-          "timestamp": "2026-05-27T06:14:09.051928",
+          "timestamp": "2026-05-27T06:23:42.197954",
           "action": "添加紧急事项",
           "operator": "客服小王",
           "description": "客户强烈不满，要求尽快重新交付"
         },
         {
-          "timestamp": "2026-05-27T11:02:09.051928",
+          "timestamp": "2026-05-27T11:11:42.197954",
           "action": "返工确认",
           "operator": "店主张三",
           "description": "返工原因：交付版本错误，返工范围：重新扫描"
         },
         {
-          "timestamp": "2026-05-27T15:50:09.051928",
+          "timestamp": "2026-05-27T15:59:42.197954",
           "action": "添加内部沟通",
           "operator": "冲印师李四",
           "description": "正在重新扫描中，优先处理"
@@ -362,12 +384,12 @@
       ],
       "exceptions": [
         {
-          "id": "d46adfb6-2736-4c0f-ad20-5c92f4061929",
+          "id": "2e25251e-97ad-49c6-a44d-8920e4cae14b",
           "type": "交付版本错发",
           "description": "第一次交付的是低清压缩版，客户要求原始4K文件。客户是专业摄影师需要修图",
           "severity": "high",
           "reported_by": "客服小王",
-          "timestamp": "2026-05-27T03:50:09.051928",
+          "timestamp": "2026-05-27T03:59:42.197954",
           "resolved": false,
           "resolution": null,
           "resolved_at": null,
@@ -381,7 +403,7 @@
       ]
     },
     {
-      "id": "8ad653bc-c35d-4a30-ac9f-4fe904ebb88b",
+      "id": "e0fa8f75-a767-4f9b-a8bc-db761021664d",
       "registration_number": "F001005",
       "customer_name": "周婷婷",
       "customer_phone": "13400134006",
@@ -394,17 +416,17 @@
       "special_instructions": "",
       "status": "registered",
       "priority": "normal",
-      "registered_at": "2026-05-28T19:38:09.051928",
+      "registered_at": "2026-05-28T19:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 0,
-      "estimated_delivery": "2026-05-31T19:38:09.051928",
+      "estimated_delivery": "2026-05-31T19:47:42.197954",
       "actual_delivery": null,
       "amount": 88.0,
       "paid": true,
       "notes": [],
       "history": [
         {
-          "timestamp": "2026-05-28T19:38:09.051928",
+          "timestamp": "2026-05-28T19:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001005"
@@ -415,7 +437,7 @@
       "tags": []
     },
     {
-      "id": "623b01c5-135a-4a2b-9bad-6830ccbb346a",
+      "id": "217d6c59-9a3a-4eb5-acd5-7037adae2dd5",
       "registration_number": "F001006",
       "customer_name": "吴志强",
       "customer_phone": "13300133007",
@@ -428,41 +450,45 @@
       "special_instructions": "婚礼照片，请格外小心",
       "status": "scanning",
       "priority": "urgent",
-      "registered_at": "2026-05-26T21:38:09.051928",
+      "registered_at": "2026-05-26T21:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 2,
-      "estimated_delivery": "2026-05-29T21:38:09.051928",
+      "estimated_delivery": "2026-05-29T21:47:42.197954",
       "actual_delivery": null,
       "amount": 198.0,
       "paid": true,
       "notes": [],
       "history": [
         {
-          "timestamp": "2026-05-26T21:38:09.051928",
+          "timestamp": "2026-05-26T21:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001006"
         },
         {
-          "timestamp": "2026-05-27T03:38:09.051928",
+          "timestamp": "2026-05-27T03:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，120彩色负片 - 标准C-41"
+          "description": "胶卷进入冲洗流程，120彩色负片 - 标准C-41",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-27T23:38:09.051928",
+          "timestamp": "2026-05-27T23:47:42.197954",
           "action": "开始扫描",
           "operator": "冲印师李四",
-          "description": "开始扫描，分辨率：8K"
+          "description": "开始扫描，分辨率：8K",
+          "from_status": "developing",
+          "to_status": "scanning"
         },
         {
-          "timestamp": "2026-05-28T00:02:09.051928",
+          "timestamp": "2026-05-28T00:11:42.197954",
           "action": "异常登记",
           "operator": "冲印师李四",
           "description": "[low] 片基划伤: 第8-10帧发现轻微划伤，可能是相机内部造成的"
         },
         {
-          "timestamp": "2026-05-28T09:38:09.051928",
+          "timestamp": "2026-05-28T09:47:42.197954",
           "action": "异常处理",
           "operator": "客服小王",
           "description": "异常已处理：已尝试修复，效果尚可。已向客户说明情况，客户表示理解"
@@ -470,15 +496,15 @@
       ],
       "exceptions": [
         {
-          "id": "f5bed15d-458a-4f86-8f3d-6ac7f0211c4a",
+          "id": "aaba0322-69da-4fae-9837-646973d100c2",
           "type": "片基划伤",
           "description": "第8-10帧发现轻微划伤，可能是相机内部造成的",
           "severity": "low",
           "reported_by": "冲印师李四",
-          "timestamp": "2026-05-28T00:02:09.051928",
+          "timestamp": "2026-05-28T00:11:42.197954",
           "resolved": true,
           "resolution": "已尝试修复，效果尚可。已向客户说明情况，客户表示理解",
-          "resolved_at": "2026-05-28T09:38:09.051928",
+          "resolved_at": "2026-05-28T09:47:42.197954",
           "resolved_by": "客服小王"
         }
       ],
@@ -489,7 +515,7 @@
       ]
     },
     {
-      "id": "1a4ba463-a0e5-4f6a-b4b4-1a40e20faf59",
+      "id": "cb10882f-2342-4d12-b32d-471a5f1f1222",
       "registration_number": "F001007",
       "customer_name": "郑美玲",
       "customer_phone": "13200132008",
@@ -502,55 +528,63 @@
       "special_instructions": "第一次拍胶片，谢谢！",
       "status": "completed",
       "priority": "normal",
-      "registered_at": "2026-05-22T20:38:09.051928",
+      "registered_at": "2026-05-22T20:47:42.197954",
       "registered_by": "客服小王",
       "current_step": 4,
-      "estimated_delivery": "2026-05-25T20:38:09.051928",
-      "actual_delivery": "2026-05-25T04:38:09.051928",
+      "estimated_delivery": "2026-05-25T20:47:42.197954",
+      "actual_delivery": "2026-05-25T04:47:42.197954",
       "amount": 58.0,
       "paid": true,
       "notes": [
         {
-          "id": "713f8084-c673-4adb-abe2-ba10cf1d32b6",
+          "id": "5af1a376-28cc-4847-a802-9852cb206974",
           "content": "新客户，后续可以发优惠活动信息",
           "author": "客服小王",
-          "timestamp": "2026-05-25T08:38:09.051928",
+          "timestamp": "2026-05-25T08:47:42.197954",
           "type": "marketing"
         }
       ],
       "history": [
         {
-          "timestamp": "2026-05-22T20:38:09.051928",
+          "timestamp": "2026-05-22T20:47:42.197954",
           "action": "登记",
           "operator": "客服小王",
           "description": "胶卷登记完成，单号：F001007"
         },
         {
-          "timestamp": "2026-05-23T02:38:09.051928",
+          "timestamp": "2026-05-23T02:47:42.197954",
           "action": "开始冲洗",
           "operator": "冲印师李四",
-          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41",
+          "from_status": "registered",
+          "to_status": "developing"
         },
         {
-          "timestamp": "2026-05-23T22:38:09.051928",
+          "timestamp": "2026-05-23T22:47:42.197954",
           "action": "开始扫描",
           "operator": "冲印师李四",
-          "description": "开始扫描，分辨率：2K"
+          "description": "开始扫描，分辨率：2K",
+          "from_status": "developing",
+          "to_status": "scanning"
         },
         {
-          "timestamp": "2026-05-24T20:38:09.051928",
+          "timestamp": "2026-05-24T20:47:42.197954",
           "action": "质量检查",
           "operator": "冲印师李四",
-          "description": "进入质量检查环节"
+          "description": "进入质量检查环节",
+          "from_status": "scanning",
+          "to_status": "quality_check"
         },
         {
-          "timestamp": "2026-05-25T04:38:09.051928",
+          "timestamp": "2026-05-25T04:47:42.197954",
           "action": "完成",
           "operator": "冲印师李四",
-          "description": "冲扫完成，通知客户取片"
+          "description": "冲扫完成，通知客户取片",
+          "from_status": "quality_check",
+          "to_status": "completed"
         },
         {
-          "timestamp": "2026-05-25T08:38:09.051928",
+          "timestamp": "2026-05-25T08:47:42.197954",
           "action": "添加营销备注",
           "operator": "客服小王",
           "description": "新客户，后续可以发优惠活动信息"
