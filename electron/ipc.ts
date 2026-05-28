@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, BrowserWindow } from 'electron'
 import { getDb, getDbPath, setDb } from './database'
 import dayjs from 'dayjs'
 import fs from 'fs'
@@ -540,14 +540,15 @@ export const setupIpcHandlers = () => {
     const filename = `backup_${dayjs().format('YYYYMMDD_HHmmss')}.db`
     const backupPath = path.join(backupDir, filename)
 
-    db.backup(backupPath)
-      .then(() => {
-        const currentDb = getDb()
-        currentDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
-          .run('backup', 'database', 'current_user', `备份数据库到: ${backupPath}`, now)
-      })
-
-    return backupPath
+    try {
+      await db.backup(backupPath)
+      const currentDb = getDb()
+      currentDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
+        .run('backup', 'database', 'current_user', `备份数据库到: ${backupPath}`, now)
+      return backupPath
+    } catch (e: any) {
+      throw new Error(`备份失败: ${e.message}`)
+    }
   })
 
   ipcMain.handle('db:restore-database', async (_, filePath: string) => {
@@ -556,8 +557,8 @@ export const setupIpcHandlers = () => {
     }
 
     const dbPath = getDbPath()
-    const db = getDb()
-    db.close()
+    const oldDb = getDb()
+    oldDb.close()
 
     fs.copyFileSync(filePath, dbPath)
 
@@ -568,6 +569,11 @@ export const setupIpcHandlers = () => {
 
     newDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
       .run('restore', 'database', 'current_user', `从备份恢复: ${filePath}`, getNow())
+
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('database-restored')
+    }
 
     return true
   })

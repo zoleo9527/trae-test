@@ -11,6 +11,7 @@ import { memberApi, filmApi } from '@/services/api'
 import { 
   MEMBER_LEVEL_OPTIONS, getMemberLevelLabel, getMemberLevelColor 
 } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { Member } from '@/types'
 
 const { Title } = Typography
@@ -24,10 +25,11 @@ export default function Members() {
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [form] = Form.useForm()
   const { message, modal } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
   useEffect(() => {
     loadMembers()
-  }, [pagination.current, pagination.pageSize, searchText])
+  }, [pagination.current, pagination.pageSize, searchText, refreshVersion])
 
   const loadMembers = async () => {
     setLoading(true)

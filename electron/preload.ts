@@ -41,5 +41,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showOpenDialog: (options: any) => ipcRenderer.invoke('show-open-dialog', options),
     showSaveDialog: (options: any) => ipcRenderer.invoke('show-save-dialog', options),
     showMessageBox: (options: any) => ipcRenderer.invoke('show-message-box', options)
+  },
+
+  onDatabaseRestored: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('database-restored', handler)
+    return () => { ipcRenderer.removeListener('database-restored', handler) }
   }
 })

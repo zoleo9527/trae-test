@@ -7,6 +7,7 @@ import { SearchOutlined, ReloadOutlined, DownloadOutlined, ArrowRightOutlined } 
 import dayjs from 'dayjs'
 import { processApi, importExportApi } from '@/services/api'
 import { getStatusLabel, getStatusColor } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { ProcessRecord } from '@/types'
 
 const { Title } = Typography
@@ -20,10 +21,11 @@ export default function ProcessRecords() {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [actionFilter, setActionFilter] = useState<string>('')
   const { message } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
   useEffect(() => {
     loadRecords()
-  }, [pagination.current, pagination.pageSize, searchText, dateRange, actionFilter])
+  }, [pagination.current, pagination.pageSize, searchText, dateRange, actionFilter, refreshVersion])
 
   const loadRecords = async () => {
     setLoading(true)

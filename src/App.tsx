@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { Layout, Menu, Badge, theme } from 'antd'
 import type { MenuProps } from 'antd'
@@ -20,34 +20,36 @@ import Reminders from './pages/Reminders'
 import Settings from './pages/Settings'
 import AuditLogs from './pages/AuditLogs'
 import { reminderApi } from './services/api'
+import { DataProvider, useDataRefresh } from './contexts/DataContext'
 import type { Reminder } from './types'
 
 const { Header, Sider, Content } = Layout
 
 type MenuItem = Required<MenuProps>['items'][number]
 
-function App() {
+function AppContent() {
   const [collapsed, setCollapsed] = useState(false)
   const [reminderCount, setReminderCount] = useState(0)
   const location = useLocation()
+  const { refreshVersion } = useDataRefresh()
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken()
 
-  useEffect(() => {
-    loadReminderCount()
-    const interval = setInterval(loadReminderCount, 60000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadReminderCount = async () => {
+  const loadReminderCount = useCallback(async () => {
     try {
       const result = await reminderApi.getList()
       setReminderCount(result.total)
     } catch (e) {
       console.error('加载提醒数量失败', e)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadReminderCount()
+    const interval = setInterval(loadReminderCount, 60000)
+    return () => clearInterval(interval)
+  }, [loadReminderCount, refreshVersion])
 
   const menuItems: MenuItem[] = [
     {
@@ -153,6 +155,14 @@ function App() {
         </Content>
       </Layout>
     </Layout>
+  )
+}
+
+function App() {
+  return (
+    <DataProvider>
+      <AppContent />
+    </DataProvider>
   )
 }
 

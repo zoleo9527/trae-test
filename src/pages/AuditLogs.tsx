@@ -6,6 +6,7 @@ import {
 import { SearchOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { auditApi } from '@/services/api'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { AuditLog } from '@/types'
 
 const { Title } = Typography
@@ -20,10 +21,11 @@ export default function AuditLogs() {
   const [actionFilter, setActionFilter] = useState<string>('')
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const { message } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
   useEffect(() => {
     loadLogs()
-  }, [pagination.current, pagination.pageSize])
+  }, [pagination.current, pagination.pageSize, refreshVersion])
 
   const loadLogs = async () => {
     setLoading(true)

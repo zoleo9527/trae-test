@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   Table, Button, Space, Input, Form, Modal, Select, Tag, 
@@ -20,6 +20,7 @@ import {
   DELIVERY_VERSION_OPTIONS, HANDLER_OPTIONS, MEMBER_LEVEL_OPTIONS,
   getStatusLabel, getStatusColor, getMemberLevelLabel
 } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { Film, Member } from '@/types'
 
 const { Title, Text } = Typography
@@ -39,6 +40,7 @@ export default function Films() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { modal } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
   useEffect(() => {
     const statusFromUrl = searchParams.get('status')
@@ -53,7 +55,7 @@ export default function Films() {
 
   useEffect(() => {
     loadFilms()
-  }, [pagination.current, pagination.pageSize, searchText, statusFilter, dateRange])
+  }, [pagination.current, pagination.pageSize, searchText, statusFilter, dateRange, refreshVersion])
 
   const loadMembers = async () => {
     try {

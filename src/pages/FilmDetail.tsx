@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { 
   Descriptions, Card, Button, Space, Tag, Timeline, Form, 
@@ -16,6 +16,7 @@ import {
   FILM_STATUS_OPTIONS, PROCESS_ACTION_OPTIONS, HANDLER_OPTIONS,
   getStatusLabel, getStatusColor
 } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { Film, ProcessRecord, ProcessAction, FilmStatus } from '@/types'
 
 const { Title, Text } = Typography
@@ -48,14 +49,9 @@ export default function FilmDetail() {
   const [selectedAction, setSelectedAction] = useState<ProcessAction | null>(null)
   const [form] = Form.useForm()
   const { message } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
-  useEffect(() => {
-    if (id) {
-      loadFilmDetail(parseInt(id))
-    }
-  }, [id])
-
-  const loadFilmDetail = async (filmId: number) => {
+  const loadFilmDetail = useCallback(async (filmId: number) => {
     setLoading(true)
     try {
       const data = await filmApi.getOne(filmId)
@@ -65,7 +61,13 @@ export default function FilmDetail() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [message])
+
+  useEffect(() => {
+    if (id) {
+      loadFilmDetail(parseInt(id))
+    }
+  }, [id, loadFilmDetail, refreshVersion])
 
   const getAvailableActions = (): ProcessAction[] => {
     if (!film) return []

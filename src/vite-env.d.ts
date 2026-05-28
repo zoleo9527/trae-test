@@ -41,6 +41,8 @@ interface ElectronAPI {
     showSaveDialog: (options: any) => Promise<any>
     showMessageBox: (options: any) => Promise<any>
   }
+
+  onDatabaseRestored: (callback: () => void) => () => void
 }
 
 interface Window {

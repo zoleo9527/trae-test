@@ -11,11 +11,13 @@ import {
 } from '@ant-design/icons'
 import Papa from 'papaparse'
 import { importExportApi } from '@/services/api'
+import { useDataRefresh } from '@/contexts/DataContext'
 
 const { Title, Text } = Typography
 
 export default function Settings() {
   const { message: msg, modal } = AntApp.useApp()
+  const { triggerRefresh } = useDataRefresh()
   const [loading, setLoading] = useState({
     backup: false,
     restore: false,
@@ -53,7 +55,8 @@ export default function Settings() {
         setLoading(l => ({ ...l, restore: true }))
         try {
           await importExportApi.restoreDatabase(filePath)
-          msg.success('数据恢复成功，请重启应用')
+          triggerRefresh()
+          msg.success('数据恢复成功，所有页面数据已自动刷新')
         } catch (e: any) {
           msg.error('恢复失败: ' + e.message)
         } finally {

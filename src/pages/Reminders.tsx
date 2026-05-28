@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Table, Button, Space, Input, Card, Tag, App as AntApp, 
   Typography, Tabs, Empty, Badge, Popconfirm, Row, Col, Statistic
@@ -9,6 +9,7 @@ import { reminderApi } from '@/services/api'
 import { 
   getReminderTypeLabel, getReminderTypeColor, getPriorityLabel, getPriorityColor 
 } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { Reminder, ReminderType } from '@/types'
 
 const { Title, Text } = Typography
@@ -19,12 +20,9 @@ export default function Reminders() {
   const [searchText, setSearchText] = useState('')
   const [activeTab, setActiveTab] = useState<string>('all')
   const { message } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
-  useEffect(() => {
-    loadReminders()
-  }, [])
-
-  const loadReminders = async () => {
+  const loadReminders = useCallback(async () => {
     setLoading(true)
     try {
       const result = await reminderApi.getList({
@@ -36,7 +34,11 @@ export default function Reminders() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchText, message])
+
+  useEffect(() => {
+    loadReminders()
+  }, [loadReminders, refreshVersion])
 
   const handleDismiss = async (id: number) => {
     try {

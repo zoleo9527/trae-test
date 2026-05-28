@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Row, Col, Card, Statistic, Table, Tag, Space, Button, 
   Typography, Empty, Badge, App as AntApp 
@@ -19,6 +19,7 @@ import {
   getStatusLabel, getStatusColor, getReminderTypeLabel, 
   getReminderTypeColor, getPriorityColor 
 } from '@/constants'
+import { useDataRefresh } from '@/contexts/DataContext'
 import type { DashboardStats, Film, Reminder, ProcessRecord } from '@/types'
 
 const { Title, Text } = Typography
@@ -30,12 +31,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { message } = AntApp.useApp()
+  const { refreshVersion } = useDataRefresh()
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       const [statsData, remindersData, processData] = await Promise.all([
@@ -51,7 +49,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [message])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData, refreshVersion])
 
   const filmColumns = [
     {
