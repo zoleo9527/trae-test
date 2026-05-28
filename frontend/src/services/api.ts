@@ -1,12 +1,12 @@
 import axios from 'axios'
 import type {
-  Customer,
-  Order,
-  Payment,
-  PaymentReminder,
-  OrderException,
-  OperationLog,
-  DashboardStats
+    Customer,
+    DashboardStats,
+    OperationLog,
+    Order,
+    OrderException,
+    Payment,
+    PaymentReminder
 } from '../types'
 
 const api = axios.create({
@@ -33,7 +33,14 @@ export const orderApi = {
   getById: (id: number) => api.get<Order>(`/orders/${id}`).then(res => res.data),
   create: (data: Partial<Order>) => api.post<Order>('/orders', data).then(res => res.data),
   update: (id: number, data: Partial<Order>) =>
-    api.put<Order>(`/orders/${id}`, data).then(res => res.data)
+    api.put<Order>(`/orders/${id}`, data).then(res => res.data),
+  uploadPhoto: (id: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/orders/${id}/upload-photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(res => res.data)
+  }
 }
 
 export const paymentApi = {
@@ -48,7 +55,9 @@ export const reminderApi = {
   create: (data: Partial<PaymentReminder>) =>
     api.post<PaymentReminder>('/payment-reminders', data).then(res => res.data),
   update: (id: number, data: Partial<PaymentReminder>) =>
-    api.put<PaymentReminder>(`/payment-reminders/${id}`, data).then(res => res.data)
+    api.put<PaymentReminder>(`/payment-reminders/${id}`, data).then(res => res.data),
+  markPaid: (id: number) =>
+    api.post(`/payment-reminders/${id}/mark-paid`).then(res => res.data)
 }
 
 export const exceptionApi = {

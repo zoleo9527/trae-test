@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Plus, Search, Filter, Camera, Clock, CheckCircle, AlertTriangle, Eye } from 'lucide-react'
-import { orderApi, customerApi, logApi, exceptionApi } from '../services/api'
-import type { Order, Customer, OperationLog, OrderException } from '../types'
+import { AlertTriangle, Camera, CheckCircle, Clock, Eye, Filter, Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { customerApi, exceptionApi, logApi, orderApi } from '../services/api'
+import type { Customer, OperationLog, Order, OrderException } from '../types'
 
 const statusMap: Record<string, { label: string; className: string }> = {
   pending: { label: '待处理', className: 'status-pending' },
@@ -20,6 +20,9 @@ export default function Orders() {
   const [orderLogs, setOrderLogs] = useState<OperationLog[]>([])
   const [orderExceptions, setOrderExceptions] = useState<OrderException[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [showPhotoPreview, setShowPhotoPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     customer_id: 0,
     buckets_delivered: 0,
@@ -80,6 +83,25 @@ export default function Orders() {
       }
     } catch (error) {
       console.error('更新状态失败:', error)
+    }
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !selectedOrder) return
+
+    setUploadingPhoto(true)
+    try {
+      const result = await orderApi.uploadPhoto(selectedOrder.id, file)
+      setSelectedOrder(result.order)
+      loadData()
+    } catch (error) {
+      console.error('上传照片失败:', error)
+    } finally {
+      setUploadingPhoto(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
@@ -318,16 +340,51 @@ export default function Orders() {
                 </div>
               </div>
 
-              {selectedOrder.sign_photo_url && (
-                <div className="mt-6">
+              <div className="mt-6">
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Camera className="w-5 h-5" /> 签收照片
                   </h3>
-                  <div className="w-48 h-36 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Camera className="w-12 h-12 text-gray-400" />
-                  </div>
+                  {selectedOrder.sign_photo_url ? (
+                    <div className="relative inline-block">
+                      <img
+                        src={selectedOrder.sign_photo_url}
+                        alt="签收照片"
+                        className="w-48 h-36 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
+                      />
+                      <button
+                        onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
+                        className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-48 h-36 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPhoto}
+                        className="flex flex-col items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
+                      >
+                        {uploadingPhoto ? (
+                          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm">点击上传照片</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
 
               {orderExceptions.length > 0 && (
                 <div className="mt-6">
@@ -377,6 +434,23 @@ export default function Orders() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {showPhotoPreview && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setShowPhotoPreview(null)}>
+          <button
+            onClick={() => setShowPhotoPreview(null)}
+            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img
+            src={showPhotoPreview}
+            alt="签收照片预览"
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

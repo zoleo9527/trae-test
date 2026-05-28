@@ -55,20 +55,8 @@ export default function Reminders() {
 
   const handleMarkCompleted = async (id: number) => {
     try {
-      const reminder = reminders.find(r => r.id === id)
-      if (reminder) {
-        await Promise.all([
-          reminderApi.update(id, { status: 'completed' }),
-          paymentApi.create({
-            customer_id: reminder.customer_id,
-            amount: reminder.amount_due,
-            payment_method: '银行转账',
-            payment_date: new Date().toISOString(),
-            operator: '管理员',
-          }),
-        ])
-        loadData()
-      }
+      await reminderApi.markPaid(id)
+      loadData()
     } catch (error) {
       console.error('标记完成失败:', error)
     }
