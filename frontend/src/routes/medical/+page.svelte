@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import { api, type MedicalRecord, type MedicalFollowUp, type Camper } from '../../lib/api/client';
   import { auth } from '../../lib/stores/auth';
   import DualPanel from '../../lib/components/DualPanel.svelte';
@@ -164,9 +165,25 @@
     newTreatment = '';
   }
 
-  onMount(() => {
-    loadRecords();
+  const statusToFilterMap: Record<string, string> = {
+    pending: 'unresolved',
+    in_progress: 'unresolved',
+    resolved: 'resolved',
+  };
+
+  onMount(async () => {
+    await loadRecords();
     loadCampers();
+    const params = $page.url.searchParams;
+    const status = params.get('status');
+    const id = params.get('id');
+    if (status && statusToFilterMap[status]) {
+      filter = statusToFilterMap[status];
+    }
+    if (id && records.length > 0) {
+      const target = records.find(r => r.id === id);
+      if (target) selectedRecord = target;
+    }
   });
 </script>
 

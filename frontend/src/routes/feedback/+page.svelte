@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import { api, type Feedback, type Camper } from '../../lib/api/client';
   import { auth } from '../../lib/stores/auth';
   import DualPanel from '../../lib/components/DualPanel.svelte';
@@ -126,9 +127,24 @@
     newParentResponse = '';
   }
 
-  onMount(() => {
-    loadRecords();
+  const statusToFilterMap: Record<string, string> = {
+    pending: 'pending',
+    completed: 'completed',
+  };
+
+  onMount(async () => {
+    await loadRecords();
     loadCampers();
+    const params = $page.url.searchParams;
+    const status = params.get('status');
+    const id = params.get('id');
+    if (status && statusToFilterMap[status]) {
+      filter = statusToFilterMap[status];
+    }
+    if (id && records.length > 0) {
+      const target = records.find(r => r.id === id);
+      if (target) selectedRecord = target;
+    }
   });
 </script>
 

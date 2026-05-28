@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api, type DashboardStats, type TodoItem } from '../../lib/api/client';
   import StatusBadge from '../../lib/components/StatusBadge.svelte';
 
@@ -64,6 +65,25 @@
       camper: '👤',
     };
     return icons[type] || '📌';
+  }
+
+  function getTodoRoute(type: string, status: string, id: string): string {
+    const typeRouteMap: Record<string, string> = {
+      attendance: '/attendance',
+      medical: '/medical',
+      supply: '/supplies',
+      feedback: '/feedback',
+    };
+    const route = typeRouteMap[type] || '/';
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (id) params.set('id', id);
+    const qs = params.toString();
+    return qs ? `${route}?${qs}` : route;
+  }
+
+  function handleTodoClick(todo: TodoItem) {
+    goto(getTodoRoute(todo.type, todo.status, todo.id));
   }
 
   onMount(async () => {
@@ -141,7 +161,10 @@
           </div>
         {:else}
           {#each todos as todo}
-            <div class="px-6 py-4 hover:bg-gray-50 transition-colors">
+            <button
+              on:click={() => handleTodoClick(todo)}
+              class="w-full px-6 py-4 hover:bg-blue-50 transition-colors text-left cursor-pointer"
+            >
               <div class="flex items-start gap-4">
                 <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-lg flex-shrink-0">
                   {getTypeIcon(todo.type)}
@@ -154,10 +177,13 @@
                     </span>
                   </div>
                   <p class="mt-1 text-sm text-gray-500 line-clamp-2">{todo.description}</p>
-                  <p class="mt-2 text-xs text-gray-400">{formatDate(todo.created_at)}</p>
+                  <div class="mt-2 flex items-center justify-between">
+                    <p class="text-xs text-gray-400">{formatDate(todo.created_at)}</p>
+                    <span class="text-xs text-blue-500 font-medium">前往处理 →</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            </button>
           {/each}
         {/if}
       </div>
