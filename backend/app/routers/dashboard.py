@@ -7,6 +7,8 @@ from app.database import get_db
 from app import models, schemas
 from app.auth import get_current_active_user, requires_roles
 
+PAYMENT_ROLES = {models.UserRole.ADMIN, models.UserRole.AGENT_MANAGER, models.UserRole.FINANCE}
+
 router = APIRouter(prefix="/dashboard", tags=["首页数据"])
 
 
@@ -22,6 +24,7 @@ def get_dashboard(
     ))
 ):
     now = datetime.now()
+    can_see_payments = current_user.role in PAYMENT_ROLES
 
     pending_checkpoints = db.query(models.CheckpointReminder).filter(
         models.CheckpointReminder.status == models.TaskStatus.PENDING
@@ -72,13 +75,15 @@ def get_dashboard(
         )
     ).count()
 
-    pending_payments = db.query(models.AdvancePayment).filter(
-        models.AdvancePayment.payment_status == models.PaymentStatus.UNPAID
-    ).count()
-
-    overdue_payments = db.query(models.AdvancePayment).filter(
-        models.AdvancePayment.reimbursement_status == models.PaymentStatus.OVERDUE
-    ).count()
+    pending_payments = None
+    overdue_payments = None
+    if can_see_payments:
+        pending_payments = db.query(models.AdvancePayment).filter(
+            models.AdvancePayment.payment_status == models.PaymentStatus.UNPAID
+        ).count()
+        overdue_payments = db.query(models.AdvancePayment).filter(
+            models.AdvancePayment.reimbursement_status == models.PaymentStatus.OVERDUE
+        ).count()
 
     total_crew_changes = db.query(models.CrewChange).count()
 

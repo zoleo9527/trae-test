@@ -34,7 +34,7 @@ def create_user(db: Session, user: schemas.UserCreate):
         hashed_password=hashed_password
     )
     db.add(db_user)
-    db.commit()
+    db.flush()
     db.refresh(db_user)
     return db_user
 
@@ -64,7 +64,7 @@ def create_berth_plan(db: Session, berth: schemas.BerthPlanCreate, user_id: int)
         created_by=user_id
     )
     db.add(db_berth)
-    db.commit()
+    db.flush()
     db.refresh(db_berth)
     return db_berth
 
@@ -78,7 +78,7 @@ def update_berth_plan(db: Session, berth_id: int, berth: schemas.BerthPlanUpdate
     for field, value in update_data.items():
         setattr(db_berth, field, value)
     db_berth.version += 1
-    db.commit()
+    db.flush()
     db.refresh(db_berth)
     return db_berth
 
@@ -108,7 +108,7 @@ def create_crew_change(db: Session, crew: schemas.CrewChangeCreate, user_id: int
         created_by=user_id
     )
     db.add(db_crew)
-    db.commit()
+    db.flush()
     db.refresh(db_crew)
     return db_crew
 
@@ -122,7 +122,7 @@ def update_crew_change(db: Session, crew_id: int, crew: schemas.CrewChangeUpdate
     for field, value in update_data.items():
         setattr(db_crew, field, value)
     db_crew.version += 1
-    db.commit()
+    db.flush()
     db.refresh(db_crew)
     return db_crew
 
@@ -157,7 +157,7 @@ def get_checkpoint(db: Session, checkpoint_id: int):
 def create_checkpoint(db: Session, checkpoint: schemas.CheckpointReminderCreate):
     db_checkpoint = models.CheckpointReminder(**checkpoint.model_dump(exclude_unset=True))
     db.add(db_checkpoint)
-    db.commit()
+    db.flush()
     db.refresh(db_checkpoint)
     return db_checkpoint
 
@@ -173,7 +173,7 @@ def update_checkpoint(db: Session, checkpoint_id: int, checkpoint: schemas.Check
     if checkpoint.status == models.TaskStatus.COMPLETED and not db_checkpoint.completed_at:
         db_checkpoint.completed_at = datetime.now()
     db_checkpoint.version += 1
-    db.commit()
+    db.flush()
     db.refresh(db_checkpoint)
     return db_checkpoint
 
@@ -206,7 +206,7 @@ def create_payment(db: Session, payment: schemas.AdvancePaymentCreate, user_id: 
         created_by=user_id
     )
     db.add(db_payment)
-    db.commit()
+    db.flush()
     db.refresh(db_payment)
     return db_payment
 
@@ -220,7 +220,7 @@ def update_payment(db: Session, payment_id: int, payment: schemas.AdvancePayment
     for field, value in update_data.items():
         setattr(db_payment, field, value)
     db_payment.version += 1
-    db.commit()
+    db.flush()
     db.refresh(db_payment)
     return db_payment
 
@@ -246,7 +246,7 @@ def get_communications(
 def create_communication(db: Session, comm: schemas.CommunicationCreate):
     db_comm = models.Communication(**comm.model_dump(exclude_unset=True))
     db.add(db_comm)
-    db.commit()
+    db.flush()
     db.refresh(db_comm)
     return db_comm
 
