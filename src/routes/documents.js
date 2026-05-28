@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import documentService from '../services/documentService.js';
 import { authMiddleware, requireAnyRole } from '../middleware/auth.js';
+import { idempotencyMiddleware } from '../middleware/idempotency.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -94,7 +95,7 @@ router.get('/chain/:chainId', async (req, res, next) => {
   }
 });
 
-router.post('/', requireAnyRole(['DOCUMENT_SPECIALIST', 'AGENT_MANAGER']), async (req, res, next) => {
+router.post('/', idempotencyMiddleware, requireAnyRole(['DOCUMENT_SPECIALIST', 'AGENT_MANAGER']), async (req, res, next) => {
   try {
     const data = createDocumentSchema.parse(req.body);
     const ipAddress = req.ip;

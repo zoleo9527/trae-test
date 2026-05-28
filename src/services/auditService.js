@@ -8,6 +8,7 @@ const auditService = {
           action,
           entityType,
           entityId,
+          chainId: data.chainId,
           userId,
           oldValues: data.oldValues,
           newValues: data.newValues,
@@ -20,6 +21,46 @@ const auditService = {
     } catch (error) {
       console.error('Audit log error:', error);
     }
+  },
+
+  async getChainAuditTrail(chainId, options = {}) {
+    const { page = 1, pageSize = 50 } = options;
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: {
+          OR: [
+            { chainId },
+            { entityType: 'BerthingPlan', entityId: chainId },
+          ],
+        },
+        include: {
+          user: { select: { name: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.auditLog.count({
+        where: {
+          OR: [
+            { chainId },
+            { entityType: 'BerthingPlan', entityId: chainId },
+          ],
+        },
+      }),
+    ]);
+
+    return {
+      chainId,
+      data: logs,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   },
 
   async getEntityHistory(entityType, entityId, options = {}) {

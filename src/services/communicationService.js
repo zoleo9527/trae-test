@@ -1,14 +1,24 @@
 import prisma from '../config/prisma.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 import auditService from './auditService.js';
 
 const communicationService = {
   async createCommunication(data, userId, ipAddress) {
     const { berthingPlanId, type, direction, subject, content, senderName, senderContact, recipientName, recipientContact, supplierId, isInternal } = data;
 
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('关联的靠泊计划不存在');
+    }
+
     const communication = await prisma.communication.create({
       data: {
         berthingPlanId,
+        chainId: berthingPlan.chainId,
         type,
         direction,
         subject,
@@ -27,6 +37,7 @@ const communicationService = {
     });
 
     await auditService.log('CREATE', 'Communication', communication.id, userId, {
+      chainId: communication.chainId,
       newValues: communication,
       ipAddress,
       remarks: `创建沟通记录: ${subject}`,
@@ -116,6 +127,7 @@ const communicationService = {
     });
 
     await auditService.log('DELETE', 'Communication', id, userId, {
+      chainId: communication.chainId,
       oldValues: communication,
       ipAddress,
       remarks: '删除沟通记录',

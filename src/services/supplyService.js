@@ -10,9 +10,19 @@ const supplyService = {
       throw new ValidationError('数量必须大于0');
     }
 
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('关联的靠泊计划不存在');
+    }
+
     const supplyRequest = await prisma.supplyRequest.create({
       data: {
         berthingPlanId,
+        chainId: berthingPlan.chainId,
         category,
         description,
         quantity,
@@ -30,6 +40,7 @@ const supplyService = {
     });
 
     await auditService.log('CREATE', 'SupplyRequest', supplyRequest.id, userId, {
+      chainId: supplyRequest.chainId,
       newValues: supplyRequest,
       ipAddress,
       remarks: `创建补给申请: ${category}`,
@@ -122,6 +133,7 @@ const supplyService = {
     const changes = Object.keys(data).filter(key => oldRequest[key] !== data[key]);
     if (changes.length > 0) {
       await auditService.log('UPDATE', 'SupplyRequest', id, userId, {
+        chainId: oldRequest.chainId,
         oldValues: oldRequest,
         newValues: updatedRequest,
         changes,
@@ -168,6 +180,7 @@ const supplyService = {
     });
 
     await auditService.log('STATUS_CHANGE', 'SupplyRequest', id, userId, {
+      chainId: supplyRequest.chainId,
       oldValues: { status: supplyRequest.status },
       newValues: { status },
       ipAddress,
@@ -195,6 +208,7 @@ const supplyService = {
     });
 
     await auditService.log('DELETE', 'SupplyRequest', id, userId, {
+      chainId: supplyRequest.chainId,
       oldValues: supplyRequest,
       ipAddress,
       remarks: '删除补给申请',

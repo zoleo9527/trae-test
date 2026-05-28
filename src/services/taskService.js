@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import prisma from '../config/prisma.js';
 import { NotFoundError, ConflictError, ValidationError } from '../utils/errors.js';
 import auditService from './auditService.js';
@@ -7,7 +6,20 @@ const taskService = {
   async createTask(data, userId, ipAddress) {
     const { type, title, description, berthingPlanId, documentId, priority, deadline, assignedToId } = data;
 
-    const chainId = uuidv4();
+    if (!berthingPlanId) {
+      throw new ValidationError('任务必须关联靠泊计划');
+    }
+
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('关联的靠泊计划不存在');
+    }
+
+    const chainId = berthingPlan.chainId;
     const chainSequence = 1;
 
     const task = await prisma.task.create({
@@ -33,6 +45,7 @@ const taskService = {
     });
 
     await auditService.log('CREATE', 'Task', task.id, userId, {
+      chainId: task.chainId,
       newValues: task,
       ipAddress,
       remarks: `创建任务: ${title}`,
@@ -42,6 +55,17 @@ const taskService = {
   },
 
   async createTaskChain(berthingPlanId, userId) {
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('靠泊计划不存在');
+    }
+
+    const chainId = berthingPlan.chainId;
+
     const tasks = [
       {
         type: 'BERTHING_PLAN',
@@ -94,7 +118,6 @@ const taskService = {
       },
     ];
 
-    const chainId = uuidv4();
     const createdTasks = [];
 
     for (let i = 0; i < tasks.length; i++) {
@@ -111,6 +134,7 @@ const taskService = {
     }
 
     await auditService.log('CREATE', 'TaskChain', chainId, userId, {
+      chainId,
       newValues: { taskCount: tasks.length },
       remarks: `为靠泊计划创建任务链`,
     });
@@ -216,6 +240,7 @@ const taskService = {
     const changes = Object.keys(data).filter(key => oldTask[key] !== data[key]);
     if (changes.length > 0) {
       await auditService.log('UPDATE', 'Task', id, userId, {
+        chainId: oldTask.chainId,
         oldValues: oldTask,
         newValues: updatedTask,
         changes,
@@ -275,6 +300,7 @@ const taskService = {
     });
 
     await auditService.log('STATUS_CHANGE', 'Task', id, userId, {
+      chainId: task.chainId,
       oldValues: { status: task.status },
       newValues: { status },
       ipAddress,

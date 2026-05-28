@@ -236,6 +236,7 @@ model Fee {
   id              String   @id @default(cuid())
   berthingPlanId  String
   berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  chainId         String
   category        String
   description     String?
   amount          Decimal  @db.Decimal(12, 2)
@@ -253,6 +254,7 @@ model Fee {
   createdBy       User     @relation(fields: [createdById], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  @@index([chainId])
 }
 
 model Supplier {
@@ -276,6 +278,7 @@ model SupplyRequest {
   id              String   @id @default(cuid())
   berthingPlanId  String
   berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  chainId         String
   category        String
   description     String
   quantity        Float
@@ -290,12 +293,14 @@ model SupplyRequest {
   createdBy       User     @relation(fields: [createdById], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  @@index([chainId])
 }
 
 model CrewChange {
   id              String   @id @default(cuid())
   berthingPlanId  String
   berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  chainId         String
   type            String
   crewName        String
   position        String
@@ -309,12 +314,14 @@ model CrewChange {
   createdBy       User     @relation(fields: [createdById], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  @@index([chainId])
 }
 
 model Communication {
   id              String   @id @default(cuid())
   berthingPlanId  String
   berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  chainId         String
   type            String
   direction       String
   subject         String
@@ -327,6 +334,7 @@ model Communication {
   supplier        Supplier? @relation(fields: [supplierId], references: [id])
   isInternal      Boolean  @default(false)
   createdAt       DateTime @default(now())
+  @@index([chainId])
 }
 
 model AuditLog {
@@ -334,6 +342,7 @@ model AuditLog {
   action     AuditAction
   entityType String
   entityId   String
+  chainId    String?
   oldValues  Json?
   newValues  Json?
   changes    Json?
@@ -343,6 +352,7 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime     @default(now())
+  @@index([chainId])
   @@index([entityType, entityId])
   @@index([userId])
   @@index([createdAt])

@@ -10,9 +10,19 @@ const feeService = {
       throw new ValidationError('金额必须大于0');
     }
 
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('关联的靠泊计划不存在');
+    }
+
     const fee = await prisma.fee.create({
       data: {
         berthingPlanId,
+        chainId: berthingPlan.chainId,
         category,
         description,
         amount,
@@ -31,6 +41,7 @@ const feeService = {
     });
 
     await auditService.log('CREATE', 'Fee', fee.id, userId, {
+      chainId: fee.chainId,
       newValues: fee,
       ipAddress,
       remarks: `创建费用: ${category}`,
@@ -81,7 +92,7 @@ const feeService = {
       prisma.fee.findMany({
         where,
         include: {
-          berthingPlan: { select: { planNumber: true, vessel: { select: { name: true } } },
+          berthingPlan: { select: { planNumber: true, vessel: { select: { name: true } } } },
           supplier: true,
           createdBy: { select: { name: true } },
         },
@@ -131,6 +142,7 @@ const feeService = {
     const changes = Object.keys(data).filter(key => oldFee[key] !== data[key]);
     if (changes.length > 0) {
       await auditService.log('UPDATE', 'Fee', id, userId, {
+        chainId: oldFee.chainId,
         oldValues: oldFee,
         newValues: updatedFee,
         changes,
@@ -168,6 +180,7 @@ const feeService = {
     });
 
     await auditService.log('STATUS_CHANGE', 'Fee', id, userId, {
+      chainId: fee.chainId,
       oldValues: { isPaid: false },
       newValues: { isPaid: true, paymentRef },
       ipAddress,
@@ -191,6 +204,7 @@ const feeService = {
       include: {
         berthingPlan: {
           select: { planNumber: true, vessel: { select: { name: true } } },
+        },
         supplier: true,
       },
       orderBy: { dueDate: 'asc' },
@@ -240,6 +254,7 @@ const feeService = {
     });
 
     await auditService.log('DELETE', 'Fee', id, userId, {
+      chainId: fee.chainId,
       oldValues: fee,
       ipAddress,
       remarks: '删除费用记录',

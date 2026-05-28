@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import prisma from '../config/prisma.js';
 import { NotFoundError, ConflictError, ValidationError } from '../utils/errors.js';
 import auditService from './auditService.js';
@@ -9,13 +8,14 @@ const documentService = {
 
     const berthingPlan = await prisma.berthingPlan.findUnique({
       where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
     });
 
     if (!berthingPlan) {
       throw new ValidationError('关联的靠泊计划不存在');
     }
 
-    const chainId = uuidv4();
+    const chainId = berthingPlan.chainId;
 
     const document = await prisma.document.create({
       data: {
@@ -37,6 +37,7 @@ const documentService = {
     });
 
     await auditService.log('CREATE', 'Document', document.id, userId, {
+      chainId: document.chainId,
       newValues: document,
       ipAddress,
       remarks: `创建证件: ${title}`,
@@ -164,6 +165,7 @@ const documentService = {
 
     const changes = Object.keys(data).filter(key => oldDoc[key] !== data[key]);
     await auditService.log('UPDATE', 'Document', newDoc.id, userId, {
+      chainId: oldDoc.chainId,
       oldValues: oldDoc,
       newValues: newDoc,
       changes,
@@ -220,6 +222,7 @@ const documentService = {
     };
 
     await auditService.log(actionMap[status] || 'STATUS_CHANGE', 'Document', id, userId, {
+      chainId: document.chainId,
       oldValues: { status: document.status },
       newValues: { status },
       ipAddress,

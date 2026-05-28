@@ -19,12 +19,12 @@ const chainService = {
 
     const [documents, tasks, fees, supplyRequests, crewChanges, communications, auditLogs] = await Promise.all([
       prisma.document.findMany({
-        where: { berthingPlanId: berthingPlan.id, isLatestVersion: true },
+        where: { chainId, isLatestVersion: true },
         orderBy: { createdAt: 'desc' },
         include: { createdBy: { select: { name: true } } },
       }),
       prisma.task.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         orderBy: { chainSequence: 'asc' },
         include: {
           assignedTo: { select: { name: true, role: true } },
@@ -32,7 +32,7 @@ const chainService = {
         },
       }),
       prisma.fee.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         orderBy: { createdAt: 'desc' },
         include: {
           supplier: true,
@@ -40,7 +40,7 @@ const chainService = {
         },
       }),
       prisma.supplyRequest.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         orderBy: { createdAt: 'desc' },
         include: {
           supplier: true,
@@ -48,12 +48,12 @@ const chainService = {
         },
       }),
       prisma.crewChange.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         orderBy: { createdAt: 'desc' },
         include: { createdBy: { select: { name: true } } },
       }),
       prisma.communication.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         orderBy: { createdAt: 'desc' },
         include: { supplier: true },
       }),
@@ -61,9 +61,7 @@ const chainService = {
         where: {
           OR: [
             { entityType: 'BerthingPlan', entityId: berthingPlan.id },
-            { entityType: 'Task', entityId: { in: tasks.map(t => t.id) } },
-            { entityType: 'Document', entityId: { in: documents.map(d => d.id) } },
-            { entityType: 'Fee', entityId: { in: fees.map(f => f.id) } },
+            { chainId },
           ],
         },
         include: { user: { select: { name: true, role: true } } },
@@ -118,19 +116,19 @@ const chainService = {
 
     const [documents, tasks, fees, communications] = await Promise.all([
       prisma.document.findMany({
-        where: { berthingPlanId: berthingPlan.id, isLatestVersion: true },
+        where: { chainId, isLatestVersion: true },
         select: { id: true, title: true, status: true, createdAt: true, deadline: true },
       }),
       prisma.task.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         select: { id: true, title: true, status: true, createdAt: true, deadline: true, completedDate: true },
       }),
       prisma.fee.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         select: { id: true, category: true, isPaid: true, createdAt: true, dueDate: true },
       }),
       prisma.communication.findMany({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         select: { id: true, subject: true, direction: true, createdAt: true },
       }),
     ]);
@@ -253,16 +251,16 @@ const chainService = {
     const [taskStats, docStats, feeStats] = await Promise.all([
       prisma.task.groupBy({
         by: ['status'],
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         _count: true,
       }),
       prisma.document.groupBy({
         by: ['status'],
-        where: { berthingPlanId: berthingPlan.id, isLatestVersion: true },
+        where: { chainId, isLatestVersion: true },
         _count: true,
       }),
       prisma.fee.aggregate({
-        where: { berthingPlanId: berthingPlan.id },
+        where: { chainId },
         _sum: { amount: true },
         _count: true,
       }),
@@ -275,7 +273,7 @@ const chainService = {
     docStats.forEach(s => { docMap[s.status] = s._count; });
 
     const unpaidFees = await prisma.fee.aggregate({
-      where: { berthingPlanId: berthingPlan.id, isPaid: false },
+      where: { chainId, isPaid: false },
       _sum: { amount: true },
     });
 

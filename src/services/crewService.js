@@ -1,14 +1,24 @@
 import prisma from '../config/prisma.js';
-import { NotFoundError, ConflictError } from '../utils/errors.js';
+import { NotFoundError, ConflictError, ValidationError } from '../utils/errors.js';
 import auditService from './auditService.js';
 
 const crewService = {
   async createCrewChange(data, userId, ipAddress) {
     const { berthingPlanId, type, crewName, position, nationality, passportNo, visaNo, remarks } = data;
 
+    const berthingPlan = await prisma.berthingPlan.findUnique({
+      where: { id: berthingPlanId },
+      select: { id: true, chainId: true },
+    });
+
+    if (!berthingPlan) {
+      throw new ValidationError('关联的靠泊计划不存在');
+    }
+
     const crewChange = await prisma.crewChange.create({
       data: {
         berthingPlanId,
+        chainId: berthingPlan.chainId,
         type,
         crewName,
         position,
@@ -25,6 +35,7 @@ const crewService = {
     });
 
     await auditService.log('CREATE', 'CrewChange', crewChange.id, userId, {
+      chainId: crewChange.chainId,
       newValues: crewChange,
       ipAddress,
       remarks: `创建船员换班: ${crewName}`,
@@ -114,6 +125,7 @@ const crewService = {
     const changes = Object.keys(data).filter(key => oldCrew[key] !== data[key]);
     if (changes.length > 0) {
       await auditService.log('UPDATE', 'CrewChange', id, userId, {
+        chainId: oldCrew.chainId,
         oldValues: oldCrew,
         newValues: updatedCrew,
         changes,
@@ -157,6 +169,7 @@ const crewService = {
     });
 
     await auditService.log('STATUS_CHANGE', 'CrewChange', id, userId, {
+      chainId: crewChange.chainId,
       oldValues: { status: crewChange.status },
       newValues: { status },
       ipAddress,
@@ -184,6 +197,7 @@ const crewService = {
     });
 
     await auditService.log('DELETE', 'CrewChange', id, userId, {
+      chainId: crewChange.chainId,
       oldValues: crewChange,
       ipAddress,
       remarks: '删除船员换班记录',

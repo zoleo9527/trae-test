@@ -52,6 +52,7 @@ const berthingService = {
     });
 
     await auditService.log('CREATE', 'BerthingPlan', plan.id, userId, {
+      chainId: plan.chainId,
       newValues: plan,
       ipAddress,
       remarks: '创建靠泊计划',
@@ -199,6 +200,7 @@ const berthingService = {
 
     const changes = Object.keys(data).filter(key => oldPlan[key] !== data[key]);
     await auditService.log('UPDATE', 'BerthingPlan', newPlan.id, userId, {
+      chainId: oldPlan.chainId,
       oldValues: oldPlan,
       newValues: newPlan,
       changes,
@@ -250,6 +252,7 @@ const berthingService = {
     };
 
     await auditService.log(actionMap[status] || 'STATUS_CHANGE', 'BerthingPlan', id, userId, {
+      chainId: plan.chainId,
       oldValues: { status: plan.status },
       newValues: { status },
       ipAddress,

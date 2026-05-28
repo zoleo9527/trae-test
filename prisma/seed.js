@@ -435,7 +435,7 @@ async function main() {
       issuedBy: '船舶管理公司',
       issuedDate: lastWeek,
       deadline: tomorrow,
-      chainId: uuidv4(),
+      chainId: plan2.chainId,
       chainVersion: 1,
       isLatestVersion: true,
       createdById: specialist.id,
@@ -454,7 +454,7 @@ async function main() {
       expiryDate: dayAfterTomorrow,
       deadline: tomorrow,
       remarks: '即将过期！需要紧急更新',
-      chainId: uuidv4(),
+      chainId: plan3.chainId,
       chainVersion: 1,
       isLatestVersion: true,
       createdById: specialist.id,
@@ -473,7 +473,7 @@ async function main() {
       expiryDate: expiredDate,
       submittedDate: threeDaysAgo,
       approvedDate: threeDaysAgo,
-      chainId: uuidv4(),
+      chainId: plan4.chainId,
       chainVersion: 1,
       isLatestVersion: true,
       createdById: specialist.id,
@@ -493,7 +493,7 @@ async function main() {
       rejectedReason: '货物描述不完整，缺少HS编码',
       deadline: fiveDaysLater,
       remarks: '被海关退回，需要重新提交',
-      chainId: uuidv4(),
+      chainId: plan3.chainId,
       chainVersion: 1,
       isLatestVersion: true,
       createdById: specialist.id,
@@ -511,7 +511,7 @@ async function main() {
       issuedDate: lastWeek,
       submittedDate: yesterday,
       approvedDate: yesterday,
-      chainId: uuidv4(),
+      chainId: plan5v2.chainId,
       chainVersion: 1,
       isLatestVersion: true,
       createdById: specialist.id,
@@ -521,7 +521,7 @@ async function main() {
   console.log(`   ✅ 创建了 ${documents.length} 个证件（含过期、被拒等异常）`);
 
   console.log('📋 创建任务链...');
-  const taskChain1Id = uuidv4();
+  const taskChain1Id = plan3.chainId;
   await Promise.all([
     prisma.task.create({
       data: {
@@ -615,6 +615,7 @@ async function main() {
   fees.push(await prisma.fee.create({
     data: {
       berthingPlanId: plan4.id,
+      chainId: plan4.chainId,
       category: '港口使费',
       description: '上海港洋山港靠泊费',
       amount: 85000,
@@ -631,6 +632,7 @@ async function main() {
   fees.push(await prisma.fee.create({
     data: {
       berthingPlanId: plan4.id,
+      chainId: plan4.chainId,
       category: '拖轮费',
       description: '进港拖轮服务（2艘）',
       amount: 18000,
@@ -647,6 +649,7 @@ async function main() {
   fees.push(await prisma.fee.create({
     data: {
       berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
       category: '物资供应',
       description: '船舶淡水和食品补给',
       amount: 25000,
@@ -662,6 +665,7 @@ async function main() {
   fees.push(await prisma.fee.create({
     data: {
       berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
       category: '代理费',
       description: '船舶代理服务费',
       amount: 12000,
@@ -680,6 +684,7 @@ async function main() {
   communications.push(await prisma.communication.create({
     data: {
       berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
       type: 'EMAIL',
       direction: 'INBOUND',
       subject: '关于安全证书过期事宜',
@@ -695,6 +700,7 @@ async function main() {
   communications.push(await prisma.communication.create({
     data: {
       berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
       type: 'PHONE',
       direction: 'OUTBOUND',
       subject: '电话确认补给时间',
@@ -711,6 +717,7 @@ async function main() {
   communications.push(await prisma.communication.create({
     data: {
       berthingPlanId: plan4.id,
+      chainId: plan4.chainId,
       type: 'EMAIL',
       direction: 'OUTBOUND',
       subject: '催缴港口使费',
@@ -724,6 +731,113 @@ async function main() {
   }));
 
   console.log(`   ✅ 创建了 ${communications.length} 条沟通记录`);
+
+  console.log('👥 创建船员更换记录...');
+  const crewChanges = [];
+
+  crewChanges.push(await prisma.crewChange.create({
+    data: {
+      berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
+      type: 'SIGN_OFF',
+      crewName: '张明',
+      position: '大副',
+      nationality: '中国',
+      passportNo: 'E12345678',
+      visaNo: 'SH2024001',
+      status: 'APPROVED',
+      approvedDate: yesterday,
+      remarks: '合同期满，安排下船',
+      createdById: coordinator.id,
+    },
+  }));
+
+  crewChanges.push(await prisma.crewChange.create({
+    data: {
+      berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
+      type: 'SIGN_ON',
+      crewName: '李伟',
+      position: '大副',
+      nationality: '中国',
+      passportNo: 'E87654321',
+      visaNo: 'SH2024002',
+      status: 'PENDING',
+      remarks: '等待上船安排',
+      createdById: coordinator.id,
+    },
+  }));
+
+  crewChanges.push(await prisma.crewChange.create({
+    data: {
+      berthingPlanId: plan4.id,
+      chainId: plan4.chainId,
+      type: 'SIGN_OFF',
+      crewName: '王强',
+      position: '轮机长',
+      nationality: '中国',
+      passportNo: 'E23456789',
+      status: 'COMPLETED',
+      approvedDate: lastWeek,
+      remarks: '健康原因，提前下船',
+      createdById: coordinator.id,
+    },
+  }));
+
+  console.log(`   ✅ 创建了 ${crewChanges.length} 条船员更换记录`);
+
+  console.log('📦 创建物资供应申请...');
+  const supplyRequests = [];
+
+  supplyRequests.push(await prisma.supplyRequest.create({
+    data: {
+      berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
+      category: '食品',
+      description: '新鲜蔬菜、水果、肉类补给',
+      quantity: 500,
+      unit: 'kg',
+      estimatedCost: 15000,
+      supplierId: suppliers[1].id,
+      status: 'DELIVERED',
+      deliveredDate: yesterday,
+      remarks: '已按时送达',
+      createdById: coordinator.id,
+    },
+  }));
+
+  supplyRequests.push(await prisma.supplyRequest.create({
+    data: {
+      berthingPlanId: plan3.id,
+      chainId: plan3.chainId,
+      category: '淡水',
+      description: '船舶淡水补给',
+      quantity: 200,
+      unit: 'ton',
+      estimatedCost: 8000,
+      supplierId: suppliers[0].id,
+      status: 'IN_PROGRESS',
+      remarks: '正在安排中',
+      createdById: coordinator.id,
+    },
+  }));
+
+  supplyRequests.push(await prisma.supplyRequest.create({
+    data: {
+      berthingPlanId: plan4.id,
+      chainId: plan4.chainId,
+      category: '燃油',
+      description: '柴油补给',
+      quantity: 500,
+      unit: 'ton',
+      estimatedCost: 350000,
+      status: 'REQUESTED',
+      remarks: '等待报价确认',
+      createdById: coordinator.id,
+    },
+  }));
+
+  console.log(`   ✅ 创建了 ${supplyRequests.length} 条物资供应申请`);
 
   console.log('');
   console.log('✅ 演示数据生成完成！');
@@ -754,6 +868,8 @@ async function main() {
   console.log('     - 费用逾期未付（已产生滞纳金）');
   console.log('     - 计划版本变更（靠泊计划v2）');
   console.log('     - 审批被拒（危险品资质问题）');
+  console.log('     - 船员更换（含下船、上船审批）');
+  console.log('     - 物资供应（食品、淡水、燃油补给）');
   console.log('═══════════════════════════════════════════════════════════');
 }
 
