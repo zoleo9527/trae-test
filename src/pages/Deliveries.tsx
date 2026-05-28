@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { Search, Play, MapPin, CheckCircle } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Search, Play, MapPin, CheckCircle, Upload, Image } from 'lucide-react'
 import Modal from '../components/Modal'
 import { useApp } from '../store/AppContext'
-import { Delivery } from '../types'
+import { Delivery, PhotoInfo } from '../types'
 import { formatDate, getStatusColor, getDeliveryStatusName, generateReturnNo } from '../utils'
 
 export default function Deliveries() {
@@ -11,6 +11,7 @@ export default function Deliveries() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null)
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [completeData, setCompleteData] = useState({
     actualWaterDelivered: 0,
     actualBucketsCollected: 0,
@@ -18,6 +19,10 @@ export default function Deliveries() {
     hasDispute: false,
     disputeNote: '',
   })
+  const [signPhotos, setSignPhotos] = useState<PhotoInfo[]>([])
+  const [disputePhotos, setDisputePhotos] = useState<PhotoInfo[]>([])
+  const signFileRef = useRef<HTMLInputElement>(null)
+  const disputeFileRef = useRef<HTMLInputElement>(null)
 
   const myDeliveries = currentUser.role === 'driver'
     ? deliveries.filter(d => d.driverId === currentUser.id)
@@ -29,6 +34,26 @@ export default function Deliveries() {
     const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  const handlePhotoUpload = (
+    files: FileList | null,
+    label: string,
+    setter: React.Dispatch<React.SetStateAction<PhotoInfo[]>>
+  ) => {
+    if (!files) return
+    const newPhotos: PhotoInfo[] = Array.from(files).map((file, i) => ({
+      id: `ph_${Date.now()}_${i}`,
+      url: URL.createObjectURL(file),
+      label,
+      uploadedBy: currentUser.id,
+      uploadedAt: new Date().toISOString(),
+    }))
+    setter(prev => [...prev, ...newPhotos])
+  }
+
+  const handleRemovePhoto = (photoId: string, setter: React.Dispatch<React.SetStateAction<PhotoInfo[]>>) => {
+    setter(prev => prev.filter(p => p.id !== photoId))
+  }
 
   const handleStartDelivery = (delivery: Delivery) => {
     const now = new Date().toISOString()
@@ -80,6 +105,8 @@ export default function Deliveries() {
       hasDispute: false,
       disputeNote: '',
     })
+    setSignPhotos([])
+    setDisputePhotos([])
     setIsCompleteModalOpen(true)
   }
 
@@ -92,6 +119,8 @@ export default function Deliveries() {
       status: 'completed' as const,
       completedAt: now,
       signTime: now,
+      signPhotos,
+      disputePhotos: completeData.hasDispute ? disputePhotos : [],
       ...completeData,
     }
     updateDelivery(updatedDelivery)
@@ -103,6 +132,7 @@ export default function Deliveries() {
 
     const existingReturn = bucketReturns.find(br => br.deliveryId === selectedDelivery.id)
     if (!existingReturn) {
+      const returnPhotos = completeData.hasDispute ? disputePhotos : signPhotos
       const newReturn = {
         id: `br${Date.now()}`,
         returnNo: generateReturnNo(),
@@ -116,7 +146,7 @@ export default function Deliveries() {
         actualQuantity: completeData.actualBucketsCollected,
         status: completeData.hasDispute ? 'disputed' as const : 'collected' as const,
         collectedAt: now,
-        photos: ['photo.jpg'],
+        photos: returnPhotos,
         bucketLossCount: completeData.hasDispute
           ? selectedDelivery.bucketQuantity - completeData.actualBucketsCollected
           : 0,
@@ -266,7 +296,15 @@ export default function Deliveries() {
                 <span className="text-gray-500">水: {delivery.waterQuantity}桶</span>
                 <span className="text-gray-500">桶: {delivery.bucketQuantity}个</span>
               </div>
-              <p className="text-xs text-gray-400">配送员: {delivery.driverName}</p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-400">配送员: {delivery.driverName}</p>
+                {(delivery.signPhotos.length > 0 || delivery.disputePhotos.length > 0) && (
+                  <div className="flex items-center gap-1 text-xs text-blue-500">
+                    <Image className="w-3 h-3" />
+                    <span>{delivery.signPhotos.length + delivery.disputePhotos.length}张照片</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100">
               {delivery.status === 'pending' && (
@@ -297,9 +335,12 @@ export default function Deliveries() {
                 </button>
               )}
               {delivery.status === 'completed' && (
-                <div className="text-center text-sm text-gray-500">
-                  {delivery.signName} 签收于 {formatDate(delivery.signTime || '', 'MM-dd HH:mm')}
-                </div>
+                <button
+                  onClick={() => { setSelectedDelivery(delivery); setIsDetailModalOpen(true) }}
+                  className="w-full text-sm text-blue-600 hover:text-blue-700"
+                >
+                  {delivery.signName} 签收于 {formatDate(delivery.signTime || '', 'MM-dd HH:mm')} · 查看详情
+                </button>
               )}
             </div>
           </div>
@@ -310,6 +351,7 @@ export default function Deliveries() {
         isOpen={isCompleteModalOpen}
         onClose={() => setIsCompleteModalOpen(false)}
         title="完成配送"
+        size="lg"
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -318,7 +360,7 @@ export default function Deliveries() {
               <input
                 type="number"
                 value={completeData.actualWaterDelivered}
-                onChange={(e) => setCompleteData({ ...completeData, actualWaterDelivered: parseInt(e.target.value) })}
+                onChange={(e) => setCompleteData({ ...completeData, actualWaterDelivered: parseInt(e.target.value) || 0 })}
                 className="input"
               />
             </div>
@@ -327,7 +369,7 @@ export default function Deliveries() {
               <input
                 type="number"
                 value={completeData.actualBucketsCollected}
-                onChange={(e) => setCompleteData({ ...completeData, actualBucketsCollected: parseInt(e.target.value) })}
+                onChange={(e) => setCompleteData({ ...completeData, actualBucketsCollected: parseInt(e.target.value) || 0 })}
                 className="input"
               />
             </div>
@@ -342,6 +384,39 @@ export default function Deliveries() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">签收照片</label>
+            <div className="flex items-start gap-3">
+              <div className="flex flex-wrap gap-2">
+                {signPhotos.map(photo => (
+                  <div key={photo.id} className="relative group">
+                    <img src={photo.url} alt={photo.label} className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
+                    <button
+                      onClick={() => handleRemovePhoto(photo.id, setSignPhotos)}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => signFileRef.current?.click()}
+                  className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-400 transition-colors"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span className="text-xs mt-1">上传</span>
+                </button>
+              </div>
+              <input
+                ref={signFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handlePhotoUpload(e.target.files, '签收照片', setSignPhotos)}
+              />
+            </div>
+          </div>
+          <div>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -353,22 +428,119 @@ export default function Deliveries() {
             </label>
           </div>
           {completeData.hasDispute && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">争议说明</label>
-              <textarea
-                value={completeData.disputeNote}
-                onChange={(e) => setCompleteData({ ...completeData, disputeNote: e.target.value })}
-                className="input"
-                rows={3}
-                placeholder="请说明争议原因..."
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">争议说明</label>
+                <textarea
+                  value={completeData.disputeNote}
+                  onChange={(e) => setCompleteData({ ...completeData, disputeNote: e.target.value })}
+                  className="input"
+                  rows={3}
+                  placeholder="请说明争议原因..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">争议现场照片</label>
+                <div className="flex items-start gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {disputePhotos.map(photo => (
+                      <div key={photo.id} className="relative group">
+                        <img src={photo.url} alt={photo.label} className="w-20 h-20 object-cover rounded-lg border border-red-200" />
+                        <button
+                          onClick={() => handleRemovePhoto(photo.id, setDisputePhotos)}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => disputeFileRef.current?.click()}
+                      className="w-20 h-20 border-2 border-dashed border-red-300 rounded-lg flex flex-col items-center justify-center text-red-400 hover:text-red-500 hover:border-red-400 transition-colors"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="text-xs mt-1">上传</span>
+                    </button>
+                  </div>
+                  <input
+                    ref={disputeFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handlePhotoUpload(e.target.files, '争议现场照片', setDisputePhotos)}
+                  />
+                </div>
+              </div>
+            </>
           )}
           <div className="flex justify-end gap-3 pt-4">
             <button onClick={() => setIsCompleteModalOpen(false)} className="btn-secondary">取消</button>
             <button onClick={handleCompleteDelivery} className="btn-primary">确认完成</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => { setIsDetailModalOpen(false); setSelectedDelivery(null) }}
+        title="配送详情"
+        size="lg"
+      >
+        {selectedDelivery && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">配送单号</p>
+                <p className="font-medium">{selectedDelivery.deliveryNo}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">状态</p>
+                <span className={`badge ${getStatusColor(selectedDelivery.status)}`}>
+                  {getDeliveryStatusName(selectedDelivery.status)}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">客户</p>
+                <p className="font-medium">{selectedDelivery.customerName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">配送员</p>
+                <p className="font-medium">{selectedDelivery.driverName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">签收人</p>
+                <p className="font-medium">{selectedDelivery.signName || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">签收时间</p>
+                <p className="font-medium">{selectedDelivery.signTime ? formatDate(selectedDelivery.signTime) : '-'}</p>
+              </div>
+            </div>
+
+            {selectedDelivery.signPhotos.length > 0 && (
+              <div>
+                <p className="text-sm text-gray-500 mb-2">签收照片</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDelivery.signPhotos.map(photo => (
+                    <img key={photo.id} src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-gray-200" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedDelivery.disputePhotos.length > 0 && (
+              <div>
+                <p className="text-sm text-gray-500 mb-2">争议现场照片</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDelivery.disputePhotos.map(photo => (
+                    <img key={photo.id} src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-red-200" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )

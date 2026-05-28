@@ -6,7 +6,7 @@ import { formatDate, generateComplaintNo, generateOrderNo, generateDeliveryNo, g
 import type { Complaint } from '@/types'
 
 export default function Complaints() {
-  const { complaints, orders, users, currentUser, addComplaint, updateComplaint, addOrder, addDelivery, addTimelineEntry, addReDelivery } = useApp()
+  const { complaints, orders, users, currentUser, addComplaint, updateComplaint, addOrder, addDelivery, addTimelineEntry, addReDelivery, bucketReturns, deliveries } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -51,6 +51,7 @@ export default function Complaints() {
       reportedBy: currentUser.name,
       reportedAt: new Date().toISOString(),
       hasReDelivery: false,
+      photos: [],
     }
     addComplaint(complaint)
     addTimelineEntry({
@@ -141,6 +142,8 @@ export default function Complaints() {
       bucketQuantity: newOrder.bucketQuantity,
       status: 'pending' as const,
       hasDispute: false,
+      signPhotos: [] as import('@/types').PhotoInfo[],
+      disputePhotos: [] as import('@/types').PhotoInfo[],
     }
     addDelivery(newDelivery)
 
@@ -447,6 +450,44 @@ export default function Complaints() {
                 <p className="text-sm text-gray-500 mb-1">问题描述</p>
                 <p className="text-gray-800">{selectedComplaint.description}</p>
               </div>
+
+              {selectedComplaint.photos.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm text-gray-500 mb-2">投诉照片</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedComplaint.photos.map(photo => (
+                      <div key={photo.id} className="text-center">
+                        <img src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-orange-200" />
+                        <p className="text-xs text-gray-400 mt-1">{photo.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const relatedReturn = bucketReturns.find(br => br.orderId === selectedComplaint.orderId)
+                if (!relatedReturn) return null
+                const allPhotos = [...relatedReturn.photos]
+                const relatedDelivery = deliveries.find(d => d.id === relatedReturn.deliveryId)
+                if (relatedDelivery) {
+                  allPhotos.push(...relatedDelivery.signPhotos, ...relatedDelivery.disputePhotos)
+                }
+                if (allPhotos.length === 0) return null
+                return (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-500 mb-2">关联争议单照片</p>
+                    <div className="flex flex-wrap gap-2">
+                      {allPhotos.map(photo => (
+                        <div key={photo.id} className="text-center">
+                          <img src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-red-200" />
+                          <p className="text-xs text-gray-400 mt-1">{photo.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             <div>

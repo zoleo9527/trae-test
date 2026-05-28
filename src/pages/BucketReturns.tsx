@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Search, Camera, AlertCircle } from 'lucide-react'
+import { Search, Camera, AlertCircle, Eye, Shield, ShieldCheck } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import Modal from '@/components/Modal'
 import { formatDate, getStatusColor, getBucketReturnStatusName } from '@/utils'
-import type { BucketReturn } from '@/types'
+import type { BucketReturn, PhotoInfo } from '@/types'
 
 export default function BucketReturns() {
-  const { bucketReturns, currentUser, updateBucketReturn, addTimelineEntry, addInventoryRecord, inventory } = useApp()
+  const { bucketReturns, deliveries, complaints, currentUser, updateBucketReturn, addTimelineEntry, addInventoryRecord, inventory } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedReturn, setSelectedReturn] = useState<BucketReturn | null>(null)
@@ -15,7 +15,16 @@ export default function BucketReturns() {
     bucketLossCount: 0,
   })
 
-  const filteredReturns = bucketReturns.filter(br => {
+  const isStationMaster = currentUser.role === 'station_master'
+  const isDriver = currentUser.role === 'driver'
+  const isCustomerService = currentUser.role === 'customer_service'
+
+  const visibleReturns = bucketReturns.filter(br => {
+    if (isDriver) return br.driverId === currentUser.id
+    return true
+  })
+
+  const filteredReturns = visibleReturns.filter(br => {
     const matchesSearch = br.customerName.includes(searchTerm) ||
       br.returnNo.includes(searchTerm) ||
       br.orderNo.includes(searchTerm)
@@ -25,6 +34,7 @@ export default function BucketReturns() {
 
   const handleResolve = () => {
     if (!selectedReturn) return
+    if (!isStationMaster) return
 
     const now = new Date().toISOString()
     const bucketInventory = inventory.find(i => i.itemType === 'bucket')
@@ -136,18 +146,30 @@ export default function BucketReturns() {
     setSelectedReturn(null)
   }
 
+  const getRelatedDeliveryPhotos = (br: BucketReturn): PhotoInfo[] => {
+    const delivery = deliveries.find(d => d.id === br.deliveryId)
+    if (!delivery) return []
+    return [...delivery.signPhotos, ...delivery.disputePhotos]
+  }
+
+  const getRelatedComplaintPhotos = (br: BucketReturn): PhotoInfo[] => {
+    const complaint = complaints.find(c => c.orderId === br.orderId)
+    if (!complaint) return []
+    return complaint.photos
+  }
+
   const stats = {
-    total: bucketReturns.length,
-    collected: bucketReturns.filter(br => br.status === 'collected').length,
-    disputed: bucketReturns.filter(br => br.status === 'disputed').length,
-    resolved: bucketReturns.filter(br => br.status === 'resolved').length,
+    total: visibleReturns.length,
+    collected: visibleReturns.filter(br => br.status === 'collected').length,
+    disputed: visibleReturns.filter(br => br.status === 'disputed').length,
+    resolved: visibleReturns.filter(br => br.status === 'resolved').length,
   }
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">总回收</p>
+          <p className="text-sm text-gray-500">{isDriver ? '我的回收' : '总回收'}</p>
           <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -163,6 +185,19 @@ export default function BucketReturns() {
           <p className="text-2xl font-bold text-blue-600">{stats.resolved}</p>
         </div>
       </div>
+
+      {isDriver && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-blue-600" />
+          <span className="text-sm text-blue-700">当前以司机角色查看，仅展示您本人负责的回收记录</span>
+        </div>
+      )}
+      {isCustomerService && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-green-600" />
+          <span className="text-sm text-green-700">当前以客服角色查看，可复核所有记录但不可处理争议</span>
+        </div>
+      )}
 
       <div className="flex items-center gap-4">
         <div className="relative">
@@ -197,83 +232,113 @@ export default function BucketReturns() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">客户</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">配送员</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">数量对比</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">照片</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">状态</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">回收时间</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredReturns.map(br => (
-              <tr key={br.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">
-                  <span className="font-medium text-gray-800">{br.returnNo}</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-600">{br.orderNo}</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-800">{br.customerName}</span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-600">{br.driverName}</span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <span className={br.expectedQuantity === br.actualQuantity ? 'text-green-600' : 'text-red-600'}>
-                      {br.actualQuantity}
-                    </span>
-                    <span className="text-gray-400">/</span>
-                    <span className="text-gray-600">{br.expectedQuantity}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`badge ${getStatusColor(br.status)}`}>
-                    {getBucketReturnStatusName(br.status)}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-500">
-                    {br.collectedAt ? formatDate(br.collectedAt) : '-'}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedReturn(br)}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                    >
-                      查看
-                    </button>
-                    {br.status === 'disputed' && (
-                      <button
-                        onClick={() => {
-                          setSelectedReturn(br)
-                          setResolveData({
-                            resolution: '',
-                            bucketLossCount: br.expectedQuantity - br.actualQuantity,
-                          })
-                        }}
-                        className="text-green-600 hover:text-green-700 text-sm font-medium"
-                      >
-                        处理
-                      </button>
+            {filteredReturns.map(br => {
+              const deliveryPhotos = getRelatedDeliveryPhotos(br)
+              const complaintPhotos = getRelatedComplaintPhotos(br)
+              const totalPhotos = br.photos.length + deliveryPhotos.length + complaintPhotos.length
+
+              return (
+                <tr key={br.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <span className="font-medium text-gray-800">{br.returnNo}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">{br.orderNo}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-800">{br.customerName}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600">{br.driverName}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className={br.expectedQuantity === br.actualQuantity ? 'text-green-600' : 'text-red-600'}>
+                        {br.actualQuantity}
+                      </span>
+                      <span className="text-gray-400">/</span>
+                      <span className="text-gray-600">{br.expectedQuantity}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {totalPhotos > 0 ? (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <Camera className="w-4 h-4" />
+                        <span className="text-sm">{totalPhotos}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">无</span>
                     )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`badge ${getStatusColor(br.status)}`}>
+                      {getBucketReturnStatusName(br.status)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-500">
+                      {br.collectedAt ? formatDate(br.collectedAt) : '-'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedReturn(br)}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                      >
+                        <Eye className="w-3 h-3" />
+                        查看
+                      </button>
+                      {br.status === 'disputed' && isStationMaster && (
+                        <button
+                          onClick={() => {
+                            setSelectedReturn(br)
+                            setResolveData({
+                              resolution: '',
+                              bucketLossCount: br.expectedQuantity - br.actualQuantity,
+                            })
+                          }}
+                          className="text-green-600 hover:text-green-700 text-sm font-medium"
+                        >
+                          处理
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
       <Modal
-        isOpen={!!selectedReturn && selectedReturn.status !== 'disputed'}
+        isOpen={!!selectedReturn}
         onClose={() => setSelectedReturn(null)}
-        title="回收记录详情"
+        title={selectedReturn?.status === 'disputed' && isStationMaster ? '处理空桶争议' : '回收记录详情'}
         size="lg"
       >
-        {selectedReturn && selectedReturn.status !== 'disputed' && (
+        {selectedReturn && (
           <div className="space-y-6">
+            {selectedReturn.status === 'disputed' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-yellow-800">争议详情</p>
+                    <p className="text-sm text-yellow-700">{selectedReturn.disputeReason}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">回收单号</p>
@@ -301,114 +366,124 @@ export default function BucketReturns() {
                 <p className="text-sm text-gray-500">实际回收</p>
                 <p className="font-medium">{selectedReturn.actualQuantity} 个</p>
               </div>
+              {selectedReturn.bucketLossCount > 0 && (
+                <div>
+                  <p className="text-sm text-gray-500">遗失数量</p>
+                  <p className="font-medium text-red-600">{selectedReturn.bucketLossCount} 个</p>
+                </div>
+              )}
             </div>
 
             {selectedReturn.photos.length > 0 && (
               <div>
-                <p className="text-sm text-gray-500 mb-2">现场照片</p>
-                <div className="flex gap-2">
-                  {selectedReturn.photos.map((_, index) => (
-                    <div key={index} className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Camera className="w-8 h-8 text-gray-400" />
+                <p className="text-sm text-gray-500 mb-2">回收现场照片</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedReturn.photos.map(photo => (
+                    <div key={photo.id} className="text-center">
+                      <img src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-gray-200" />
+                      <p className="text-xs text-gray-400 mt-1">{photo.label}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
+            {(() => {
+              const deliveryPhotos = getRelatedDeliveryPhotos(selectedReturn)
+              if (deliveryPhotos.length === 0) return null
+              return (
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">关联配送照片（签收/争议现场）</p>
+                  <div className="flex flex-wrap gap-2">
+                    {deliveryPhotos.map(photo => (
+                      <div key={photo.id} className="text-center">
+                        <img src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-blue-200" />
+                        <p className="text-xs text-gray-400 mt-1">{photo.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {(() => {
+              const complaintPhotos = getRelatedComplaintPhotos(selectedReturn)
+              if (complaintPhotos.length === 0) return null
+              return (
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">关联投诉照片</p>
+                  <div className="flex flex-wrap gap-2">
+                    {complaintPhotos.map(photo => (
+                      <div key={photo.id} className="text-center">
+                        <img src={photo.url} alt={photo.label} className="w-24 h-24 object-cover rounded-lg border border-orange-200" />
+                        <p className="text-xs text-gray-400 mt-1">{photo.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {selectedReturn.resolution && (
               <div>
                 <p className="text-sm text-gray-500 mb-2">解决方案</p>
-                <p className="text-gray-800">{selectedReturn.resolution}</p>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={!!selectedReturn && selectedReturn.status === 'disputed'}
-        onClose={() => setSelectedReturn(null)}
-        title="处理空桶争议"
-        size="lg"
-      >
-        {selectedReturn && selectedReturn.status === 'disputed' && (
-          <div className="space-y-6">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-yellow-800">争议详情</p>
-                  <p className="text-sm text-yellow-700">{selectedReturn.disputeReason}</p>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-gray-800">{selectedReturn.resolution}</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    处理人: {selectedReturn.resolvedBy} | 时间: {selectedReturn.resolvedAt ? formatDate(selectedReturn.resolvedAt) : '-'}
+                  </p>
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">客户</p>
-                <p className="font-medium">{selectedReturn.customerName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">配送员</p>
-                <p className="font-medium">{selectedReturn.driverName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">客户声称数量</p>
-                <p className="font-medium text-gray-800">{selectedReturn.expectedQuantity} 个</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">实际回收数量</p>
-                <p className="font-medium text-gray-800">{selectedReturn.actualQuantity} 个</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm text-gray-500 mb-2">现场照片</p>
-              <div className="flex gap-2">
-                {selectedReturn.photos.map((_, index) => (
-                  <div key={index} className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-                    <Camera className="w-8 h-8 text-gray-400" />
+            {selectedReturn.status === 'disputed' && isStationMaster && (
+              <>
+                <div className="border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">站长处理</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">解决方案</label>
+                      <textarea
+                        value={resolveData.resolution}
+                        onChange={(e) => setResolveData({ ...resolveData, resolution: e.target.value })}
+                        className="input"
+                        rows={3}
+                        placeholder="请描述解决方案..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        空桶遗失数量（将从库存中扣除）
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={resolveData.bucketLossCount}
+                        onChange={(e) => setResolveData({ ...resolveData, bucketLossCount: parseInt(e.target.value) || 0 })}
+                        className="input"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        当前差异: {selectedReturn.expectedQuantity - selectedReturn.actualQuantity} 个
+                      </p>
+                    </div>
                   </div>
-                ))}
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setSelectedReturn(null)} className="btn-secondary">
+                    取消
+                  </button>
+                  <button onClick={handleResolve} className="btn-primary">
+                    确认解决
+                  </button>
+                </div>
+              </>
+            )}
+
+            {selectedReturn.status === 'disputed' && !isStationMaster && (
+              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-500">
+                {isCustomerService ? '客服仅可复核，争议处理需由站长操作' : '争议处理需由站长操作'}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">解决方案</label>
-              <textarea
-                value={resolveData.resolution}
-                onChange={(e) => setResolveData({ ...resolveData, resolution: e.target.value })}
-                className="input"
-                rows={3}
-                placeholder="请描述解决方案..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                空桶遗失数量（将从库存中扣除）
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={resolveData.bucketLossCount}
-                onChange={(e) => setResolveData({ ...resolveData, bucketLossCount: parseInt(e.target.value) })}
-                className="input"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                当前差异: {selectedReturn.expectedQuantity - selectedReturn.actualQuantity} 个
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4">
-              <button onClick={() => setSelectedReturn(null)} className="btn-secondary">
-                取消
-              </button>
-              <button onClick={handleResolve} className="btn-primary">
-                确认解决
-              </button>
-            </div>
+            )}
           </div>
         )}
       </Modal>

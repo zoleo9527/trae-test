@@ -91,6 +91,8 @@ export default function Orders() {
       bucketQuantity: order.bucketQuantity,
       status: 'pending' as const,
       hasDispute: false,
+      signPhotos: [] as import('../types').PhotoInfo[],
+      disputePhotos: [] as import('../types').PhotoInfo[],
     }
     addDelivery(newDelivery)
     

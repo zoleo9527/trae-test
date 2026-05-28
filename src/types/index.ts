@@ -1,5 +1,13 @@
 export type UserRole = 'station_master' | 'driver' | 'customer_service'
 
+export interface PhotoInfo {
+  id: string
+  url: string
+  label: string
+  uploadedBy: string
+  uploadedAt: string
+}
+
 export interface User {
   id: string
   name: string
@@ -46,7 +54,8 @@ export interface Delivery {
   startedAt?: string
   arrivedAt?: string
   completedAt?: string
-  signPhoto?: string
+  signPhotos: PhotoInfo[]
+  disputePhotos: PhotoInfo[]
   signName?: string
   signTime?: string
   actualWaterDelivered?: number
@@ -70,7 +79,7 @@ export interface BucketReturn {
   actualQuantity: number
   status: BucketReturnStatus
   collectedAt?: string
-  photos: string[]
+  photos: PhotoInfo[]
   disputeReason?: string
   resolvedAt?: string
   resolvedBy?: string
@@ -125,6 +134,7 @@ export interface Complaint {
   priority: 'low' | 'medium' | 'high'
   hasReDelivery: boolean
   reDeliveryOrderId?: string
+  photos: PhotoInfo[]
   resolution?: string
   resolvedAt?: string
   resolvedBy?: string
