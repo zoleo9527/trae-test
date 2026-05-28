@@ -86,12 +86,13 @@ type RoomChangeLog struct {
 
 type RoomAssignment struct {
 	BaseModel
-	CamperID string    `gorm:"index;not null;unique" json:"camper_id"`
-	RoomID   string    `gorm:"index;not null" json:"room_id"`
-	BedNumber int      `json:"bed_number"`
-	AssignedBy string   `gorm:"type:uuid;not null" json:"assigned_by"`
-	AssignedAt time.Time `json:"assigned_at"`
-	Remark   string    `gorm:"type:text" json:"remark"`
+	CamperID   string     `gorm:"index;not null" json:"camper_id"`
+	RoomID     string     `gorm:"index;not null" json:"room_id"`
+	BedNumber  int        `json:"bed_number"`
+	AssignedBy string     `gorm:"type:uuid;not null" json:"assigned_by"`
+	AssignedAt time.Time  `json:"assigned_at"`
+	EndedAt    *time.Time `json:"ended_at,omitempty"`
+	Remark     string     `gorm:"type:text" json:"remark"`
 
 	Camper   *Camper `gorm:"foreignKey:CamperID" json:"camper,omitempty"`
 	Room     *Room   `gorm:"foreignKey:RoomID" json:"room,omitempty"`

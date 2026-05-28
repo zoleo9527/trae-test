@@ -41,6 +41,11 @@ func (h *MaterialHandler) RequestMaterial(c *gin.Context) {
 		return
 	}
 
+	if err := h.materialService.ValidateCamperAccess(req.CamperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	issue, err := h.materialService.RequestMaterial(service.RequestMaterialRequest{
 		CamperID:        req.CamperID,
 		ItemID:          req.ItemID,
@@ -85,6 +90,11 @@ func (h *MaterialHandler) ApproveMaterial(c *gin.Context) {
 		return
 	}
 
+	if err := h.materialService.ValidateIssueAccess(issueID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	issue, err := h.materialService.ApproveMaterial(service.ApproveMaterialRequest{
 		IssueID:        issueID,
 		ApproverID:     userCtx.UserID,
@@ -123,6 +133,11 @@ func (h *MaterialHandler) IssueMaterial(c *gin.Context) {
 	var req IssueMaterialRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	if err := h.materialService.ValidateIssueAccess(issueID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 

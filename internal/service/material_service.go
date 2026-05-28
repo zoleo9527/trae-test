@@ -3,6 +3,7 @@ package service
 import (
 	"camp-system/internal/database"
 	"camp-system/internal/model"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -205,6 +206,47 @@ func (s *MaterialService) GetCampMaterialIssues(campID string, status model.Mate
 		Find(&issues).Error
 
 	return issues, total, err
+}
+
+func (s *MaterialService) ValidateCamperAccess(camperID string, userID string, userRole model.Role) error {
+	var camper model.Camper
+	if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+		return errors.New("营员不存在: " + camperID)
+	}
+
+	var user model.User
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return errors.New("用户不存在")
+	}
+
+	hasCampAccess := false
+	if user.Role == model.RoleAdmin || user.Role == model.RoleDirector {
+		hasCampAccess = true
+	} else {
+		for _, cid := range user.CampIDs {
+			if cid == camper.CampID {
+				hasCampAccess = true
+				break
+			}
+		}
+	}
+	if !hasCampAccess {
+		return errors.New("无权限访问该营地数据")
+	}
+
+	if userRole == model.RoleTeacher && camper.TeacherID != userID {
+		return errors.New("无权限处理非本班营员: " + camper.Name)
+	}
+	return nil
+}
+
+func (s *MaterialService) ValidateIssueAccess(issueID string, userID string, userRole model.Role) error {
+	var issue model.MaterialIssue
+	if err := database.DB.Where("id = ?", issueID).First(&issue).Error; err != nil {
+		return errors.New("物资申领单不存在: " + issueID)
+	}
+
+	return s.ValidateCamperAccess(issue.CamperID, userID, userRole)
 }
 
 func (s *MaterialService) GetLowStockItems() ([]model.MaterialItem, error) {

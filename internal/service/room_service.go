@@ -39,12 +39,12 @@ func (s *RoomService) AssignRoom(req AssignRoomRequest) error {
 			return err
 		}
 
-		var room model.Room
-		if err := tx.Where("id = ?", req.RoomID).First(&room).Error; err != nil {
+		var newRoom model.Room
+		if err := tx.Where("id = ?", req.RoomID).First(&newRoom).Error; err != nil {
 			return err
 		}
 
-		if req.BedNumber < 1 || req.BedNumber > room.BedCount {
+		if req.BedNumber < 1 || req.BedNumber > newRoom.BedCount {
 			return errors.New("床位号超出范围")
 		}
 
@@ -52,53 +52,78 @@ func (s *RoomService) AssignRoom(req AssignRoomRequest) error {
 			return errors.New("营员已在该房间该床位，无需重复分配")
 		}
 
-		if room.Beds != nil {
-			for _, bed := range room.Beds {
+		if newRoom.Beds != nil {
+			for _, bed := range newRoom.Beds {
 				if bed.Number == req.BedNumber && bed.Occupied && bed.CamperID != req.CamperID {
 					return errors.New("该床位已被占用")
 				}
 			}
 		}
 
-		if room.GetAvailableBeds() <= 0 && camper.RoomID != req.RoomID {
+		oldRoomID := camper.RoomID
+		oldBedNumber := camper.BedNumber
+		isSameRoom := oldRoomID == req.RoomID
+
+		if newRoom.GetAvailableBeds() <= 0 && !isSameRoom {
 			return errors.New("房间没有可用床位")
 		}
 
-		oldRoomID := camper.RoomID
-		oldBedNumber := camper.BedNumber
+		if newRoom.Beds == nil {
+			newRoom.Beds = make([]model.Bed, newRoom.BedCount)
+			for i := 0; i < newRoom.BedCount; i++ {
+				newRoom.Beds[i] = model.Bed{Number: i + 1, Occupied: false}
+			}
+		}
 
 		if oldRoomID != "" {
-			var oldRoom model.Room
-			if err := tx.Where("id = ?", oldRoomID).First(&oldRoom).Error; err == nil {
-				oldRoom.UsedBeds--
-				for i, bed := range oldRoom.Beds {
+			if isSameRoom {
+				for i, bed := range newRoom.Beds {
 					if bed.Number == oldBedNumber {
-						oldRoom.Beds[i].Occupied = false
-						oldRoom.Beds[i].CamperID = ""
+						newRoom.Beds[i].Occupied = false
+						newRoom.Beds[i].CamperID = ""
 					}
 				}
-				oldRoom.UpdateStatus()
-				if err := tx.Save(&oldRoom).Error; err != nil {
-					return err
+			} else {
+				var oldRoom model.Room
+				if err := tx.Where("id = ?", oldRoomID).First(&oldRoom).Error; err == nil {
+					oldRoom.UsedBeds--
+					if oldRoom.Beds == nil {
+						oldRoom.Beds = make([]model.Bed, oldRoom.BedCount)
+						for i := 0; i < oldRoom.BedCount; i++ {
+							oldRoom.Beds[i] = model.Bed{Number: i + 1, Occupied: false}
+						}
+					}
+					for i, bed := range oldRoom.Beds {
+						if bed.Number == oldBedNumber {
+							oldRoom.Beds[i].Occupied = false
+							oldRoom.Beds[i].CamperID = ""
+						}
+					}
+					oldRoom.UpdateStatus()
+					if err := tx.Save(&oldRoom).Error; err != nil {
+						return err
+					}
 				}
 			}
 
-			changeLog := &model.RoomChangeLog{
-				CamperID:     req.CamperID,
-				OldRoomID:    oldRoomID,
-				NewRoomID:    req.RoomID,
-				OldBedNumber: oldBedNumber,
-				NewBedNumber: req.BedNumber,
-				ChangedBy:    req.AssignedBy,
-				ChangeTime:   time.Now(),
-				Reason:       req.Reason,
-				Remark:       req.Remark,
+			tx.Model(&model.RoomAssignment{}).
+				Where("camper_id = ? AND room_id = ? AND bed_number = ? AND ended_at IS NULL", req.CamperID, oldRoomID, oldBedNumber).
+				Update("ended_at", time.Now())
+		}
+
+		for i, bed := range newRoom.Beds {
+			if bed.Number == req.BedNumber {
+				newRoom.Beds[i].Occupied = true
+				newRoom.Beds[i].CamperID = req.CamperID
 			}
-			changeLog.CreatedBy = req.AssignedBy
-			changeLog.UpdatedBy = req.AssignedBy
-			if err := tx.Create(changeLog).Error; err != nil {
-				return err
-			}
+		}
+
+		if !isSameRoom {
+			newRoom.UsedBeds++
+		}
+		newRoom.UpdateStatus()
+		if err := tx.Save(&newRoom).Error; err != nil {
+			return err
 		}
 
 		camper.RoomID = req.RoomID
@@ -108,21 +133,20 @@ func (s *RoomService) AssignRoom(req AssignRoomRequest) error {
 			return err
 		}
 
-		room.UsedBeds++
-		if room.Beds == nil {
-			room.Beds = make([]model.Bed, room.BedCount)
-			for i := 0; i < room.BedCount; i++ {
-				room.Beds[i] = model.Bed{Number: i + 1, Occupied: false}
-			}
+		changeLog := &model.RoomChangeLog{
+			CamperID:     req.CamperID,
+			OldRoomID:    oldRoomID,
+			NewRoomID:    req.RoomID,
+			OldBedNumber: oldBedNumber,
+			NewBedNumber: req.BedNumber,
+			ChangedBy:    req.AssignedBy,
+			ChangeTime:   time.Now(),
+			Reason:       req.Reason,
+			Remark:       req.Remark,
 		}
-		for i, bed := range room.Beds {
-			if bed.Number == req.BedNumber {
-				room.Beds[i].Occupied = true
-				room.Beds[i].CamperID = req.CamperID
-			}
-		}
-		room.UpdateStatus()
-		if err := tx.Save(&room).Error; err != nil {
+		changeLog.CreatedBy = req.AssignedBy
+		changeLog.UpdatedBy = req.AssignedBy
+		if err := tx.Create(changeLog).Error; err != nil {
 			return err
 		}
 
@@ -140,9 +164,16 @@ func (s *RoomService) AssignRoom(req AssignRoomRequest) error {
 			return err
 		}
 
+		action := "room_move"
+		if isSameRoom {
+			action = "room_bed_change"
+		} else if oldRoomID == "" {
+			action = "room_assign"
+		}
+
 		s.logService.LogOperation(
 			req.AssignedBy, req.AssignedByName, req.AssignedByRole,
-			"room_assign", "camper", req.CamperID,
+			action, "camper", req.CamperID,
 			map[string]interface{}{"room_id": oldRoomID, "bed_number": oldBedNumber},
 			map[string]interface{}{"room_id": req.RoomID, "bed_number": req.BedNumber},
 			req.IP, req.UserAgent,

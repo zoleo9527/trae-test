@@ -3,6 +3,7 @@ package service
 import (
 	"camp-system/internal/database"
 	"camp-system/internal/model"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -212,7 +213,52 @@ func (s *FollowUpService) GetOverdueFollowUps(campID string) ([]model.FollowUp, 
 	return followUps, err
 }
 
-func (s *FollowUpService) GetCamperFollowUps(camperID string) ([]model.FollowUp, error) {
+func (s *FollowUpService) ValidateCamperAccess(camperID string, userID string, userRole model.Role) error {
+	var camper model.Camper
+	if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+		return errors.New("营员不存在: " + camperID)
+	}
+
+	var user model.User
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return errors.New("用户不存在")
+	}
+
+	hasCampAccess := false
+	if user.Role == model.RoleAdmin || user.Role == model.RoleDirector {
+		hasCampAccess = true
+	} else {
+		for _, cid := range user.CampIDs {
+			if cid == camper.CampID {
+				hasCampAccess = true
+				break
+			}
+		}
+	}
+	if !hasCampAccess {
+		return errors.New("无权限访问该营地数据")
+	}
+
+	if userRole == model.RoleTeacher && camper.TeacherID != userID {
+		return errors.New("无权限处理非本班营员: " + camper.Name)
+	}
+	return nil
+}
+
+func (s *FollowUpService) ValidateFollowUpAccess(followUpID string, userID string, userRole model.Role) error {
+	var followUp model.FollowUp
+	if err := database.DB.Where("id = ?", followUpID).First(&followUp).Error; err != nil {
+		return errors.New("随访任务不存在: " + followUpID)
+	}
+
+	return s.ValidateCamperAccess(followUp.CamperID, userID, userRole)
+}
+
+func (s *FollowUpService) GetCamperFollowUps(camperID string, userID string, userRole model.Role) ([]model.FollowUp, error) {
+	if err := s.ValidateCamperAccess(camperID, userID, userRole); err != nil {
+		return nil, err
+	}
+
 	var followUps []model.FollowUp
 	err := database.DB.Where("camper_id = ?", camperID).
 		Preload("AssignedStaff").

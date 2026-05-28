@@ -48,6 +48,11 @@ func (h *FollowUpHandler) CreateFollowUp(c *gin.Context) {
 		return
 	}
 
+	if err := h.followUpService.ValidateCamperAccess(req.CamperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	var scheduledTime, dueTime *time.Time
 	if !req.ScheduledTime.IsZero() {
 		scheduledTime = &req.ScheduledTime
@@ -105,6 +110,11 @@ func (h *FollowUpHandler) UpdateFollowUpStatus(c *gin.Context) {
 	var req UpdateFollowUpStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	if err := h.followUpService.ValidateFollowUpAccess(followUpID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -204,9 +214,15 @@ func (h *FollowUpHandler) GetOverdueFollowUps(c *gin.Context) {
 }
 
 func (h *FollowUpHandler) GetCamperFollowUps(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	camperID := c.Param("camper_id")
 
-	followUps, err := h.followUpService.GetCamperFollowUps(camperID)
+	followUps, err := h.followUpService.GetCamperFollowUps(camperID, userCtx.UserID, userCtx.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

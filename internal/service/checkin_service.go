@@ -144,6 +144,31 @@ func (s *CheckInService) createAutoMedicalAlert(tx *gorm.DB, checkIn *model.Chec
 }
 
 func (s *CheckInService) GetActivityCheckIns(activityID string, userID string, userRole model.Role) ([]model.CheckIn, error) {
+	var activity model.Activity
+	if err := database.DB.Where("id = ?", activityID).First(&activity).Error; err != nil {
+		return nil, errors.New("活动不存在")
+	}
+
+	var user model.User
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, errors.New("用户不存在")
+	}
+
+	hasCampAccess := false
+	if user.Role == model.RoleAdmin || user.Role == model.RoleDirector {
+		hasCampAccess = true
+	} else {
+		for _, cid := range user.CampIDs {
+			if cid == activity.CampID {
+				hasCampAccess = true
+				break
+			}
+		}
+	}
+	if !hasCampAccess {
+		return nil, errors.New("无权限访问该营地数据")
+	}
+
 	var checkIns []model.CheckIn
 	query := database.DB.Where("activity_id = ?", activityID).
 		Joins("JOIN campers ON campers.id = check_ins.camper_id")
@@ -178,20 +203,64 @@ func (s *CheckInService) GetCamperCheckIns(camperID string, page, pageSize int) 
 	return checkIns, total, err
 }
 
-func (s *CheckInService) GetCheckInStatistics(activityID string) (map[string]interface{}, error) {
+func (s *CheckInService) GetCheckInStatistics(activityID string, userID string, userRole model.Role) (map[string]interface{}, error) {
+	var activity model.Activity
+	if err := database.DB.Where("id = ?", activityID).First(&activity).Error; err != nil {
+		return nil, errors.New("活动不存在")
+	}
+
+	var user model.User
+	if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, errors.New("用户不存在")
+	}
+
+	hasCampAccess := false
+	if user.Role == model.RoleAdmin || user.Role == model.RoleDirector {
+		hasCampAccess = true
+	} else {
+		for _, cid := range user.CampIDs {
+			if cid == activity.CampID {
+				hasCampAccess = true
+				break
+			}
+		}
+	}
+	if !hasCampAccess {
+		return nil, errors.New("无权限访问该营地数据")
+	}
+
+	query := database.DB.Model(&model.CheckIn{}).
+		Where("activity_id = ?", activityID).
+		Joins("JOIN campers ON campers.id = check_ins.camper_id")
+
+	if userRole == model.RoleTeacher {
+		query = query.Where("campers.teacher_id = ?", userID)
+	}
+
 	var total int64
 	var present, absent, late, excused, pending int64
 
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ?", activityID).Count(&total)
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ? AND status = ?", activityID, model.CheckInStatusPresent).Count(&present)
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ? AND status = ?", activityID, model.CheckInStatusAbsent).Count(&absent)
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ? AND status = ?", activityID, model.CheckInStatusLate).Count(&late)
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ? AND status = ?", activityID, model.CheckInStatusExcused).Count(&excused)
-	database.DB.Model(&model.CheckIn{}).Where("activity_id = ? AND status = ?", activityID, model.CheckInStatusPending).Count(&pending)
+	tempQuery := *query
+	tempQuery.Count(&total)
+
+	tempQuery = *query
+	tempQuery.Where("status = ?", model.CheckInStatusPresent).Count(&present)
+
+	tempQuery = *query
+	tempQuery.Where("status = ?", model.CheckInStatusAbsent).Count(&absent)
+
+	tempQuery = *query
+	tempQuery.Where("status = ?", model.CheckInStatusLate).Count(&late)
+
+	tempQuery = *query
+	tempQuery.Where("status = ?", model.CheckInStatusExcused).Count(&excused)
+
+	tempQuery = *query
+	tempQuery.Where("status = ?", model.CheckInStatusPending).Count(&pending)
 
 	var abnormalCount int64
-	database.DB.Model(&model.CheckIn{}).
-		Where("activity_id = ? AND (has_symptoms = ? OR temperature >= ?)", activityID, true, 37.5).
+	tempQuery = *query
+	tempQuery.Where("(has_symptoms = ? OR temperature >= ?)", true, 37.5).
 		Count(&abnormalCount)
 
 	return map[string]interface{}{

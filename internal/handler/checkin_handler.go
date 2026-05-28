@@ -115,7 +115,7 @@ func (h *CheckInHandler) GetCheckInStatistics(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.checkInService.GetCheckInStatistics(activityID)
+	stats, err := h.checkInService.GetCheckInStatistics(activityID, userCtx.UserID, userCtx.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
