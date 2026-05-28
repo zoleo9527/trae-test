@@ -87,4 +87,5 @@ const (
 	AuditActionApprove      AuditAction = "approve"
 	AuditActionReject       AuditAction = "reject"
 	AuditActionAssign       AuditAction = "assign"
+	AuditActionCreateNote   AuditAction = "create_note"
 )

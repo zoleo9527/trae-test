@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,10 +26,14 @@ func NewRedeliveryService() *RedeliveryService {
 	}
 }
 
-func (s *RedeliveryService) Create(req *dto.CreateRedeliveryRequest, userID uuid.UUID) (*models.Redelivery, error) {
+func (s *RedeliveryService) Create(req *dto.CreateRedeliveryRequest, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID) (*models.Redelivery, error) {
 	var complaint models.Complaint
 	if err := database.DB.Where("id = ?", req.ComplaintID).First(&complaint).Error; err != nil {
 		return nil, errors.New("complaint not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != complaint.StationID {
+		return nil, errors.New("access denied: complaint belongs to another station")
 	}
 
 	if complaint.Status == types.ComplaintStatusClosed || complaint.Status == types.ComplaintStatusRejected {
@@ -76,12 +81,14 @@ func (s *RedeliveryService) Create(req *dto.CreateRedeliveryRequest, userID uuid
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "redelivery",
 		"entity_id":   redelivery.ID.String(),
 		"old_status":  "",
 		"new_status":  string(types.RedeliveryStatusScheduled),
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for redelivery %s: %v", redelivery.ID, err)
+	}
 
 	return redelivery, nil
 }
@@ -189,12 +196,14 @@ func (s *RedeliveryService) UpdateStatus(redeliveryID uuid.UUID, userID uuid.UUI
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "redelivery",
 		"entity_id":   redeliveryID.String(),
 		"old_status":  oldStatus,
 		"new_status":  req.Status,
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for redelivery %s: %v", redeliveryID, err)
+	}
 
 	redelivery.Status = req.Status
 	return &redelivery, nil

@@ -115,9 +115,13 @@ func GetAuditLogs(entityType string, entityID uuid.UUID) ([]models.AuditLog, err
 
 func GetComplaintAuditLogsWithTx(tx *gorm.DB, complaintID uuid.UUID) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
-	err := tx.Where("entity_type IN ? AND (entity_id = ? OR entity_id IN (SELECT id FROM redeliveries WHERE complaint_id = ?) OR entity_id IN (SELECT id FROM compensations WHERE complaint_id = ?))",
-		[]string{"complaint", "redelivery", "compensation"},
-		complaintID, complaintID, complaintID).
+	err := tx.Where(
+		"(entity_type = ? AND entity_id = ?) OR "+
+			"entity_id IN (SELECT id FROM redeliveries WHERE complaint_id = ?) OR "+
+			"entity_id IN (SELECT id FROM compensations WHERE complaint_id = ?) OR "+
+			"entity_id IN (SELECT id FROM complaint_photos WHERE complaint_id = ?)",
+		"complaint", complaintID, complaintID, complaintID, complaintID,
+	).
 		Order("created_at DESC").
 		Find(&logs).Error
 	return logs, err

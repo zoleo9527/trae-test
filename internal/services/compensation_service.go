@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -127,12 +128,14 @@ func (s *CompensationService) Create(req *dto.CreateCompensationRequest, userID 
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "compensation",
 		"entity_id":   compensation.ID.String(),
 		"old_status":  "",
 		"new_status":  string(status),
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for compensation %s: %v", compensation.ID, err)
+	}
 
 	return compensation, nil
 }
@@ -213,21 +216,27 @@ func (s *CompensationService) Approve(compensationID uuid.UUID, userID uuid.UUID
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "compensation",
 		"entity_id":   compensationID.String(),
 		"old_status":  oldStatus,
 		"new_status":  newStatus,
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for compensation %s: %v", compensationID, err)
+	}
 
 	compensation.Status = newStatus
 	return &compensation, nil
 }
 
-func (s *CompensationService) MarkPaid(compensationID uuid.UUID, userID uuid.UUID) (*models.Compensation, error) {
+func (s *CompensationService) MarkPaid(compensationID uuid.UUID, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID) (*models.Compensation, error) {
 	var compensation models.Compensation
 	if err := database.DB.Where("id = ?", compensationID).First(&compensation).Error; err != nil {
 		return nil, errors.New("compensation not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != compensation.StationID {
+		return nil, errors.New("access denied: compensation belongs to another station")
 	}
 
 	if compensation.Status != types.CompensationStatusApproved {

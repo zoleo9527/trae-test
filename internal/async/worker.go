@@ -69,8 +69,8 @@ func (wp *WorkerPool) fetchPendingTasks() {
 		now := time.Now()
 		for i := range tasks {
 			if err := tx.Model(&tasks[i]).Updates(map[string]interface{}{
-				"status":     types.TaskStatusRunning,
-				"started_at": &now,
+				"status":      types.TaskStatusRunning,
+				"executed_at": &now,
 			}).Error; err != nil {
 				log.Printf("Error marking task %s as running: %v", tasks[i].ID, err)
 				continue
@@ -102,11 +102,6 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 func (wp *WorkerPool) processTask(task *models.AsyncTask, workerID int) {
 	log.Printf("Worker %d processing task %s (type: %s, retry: %d)", workerID, task.ID, task.Type, task.RetryCount)
 
-	now := time.Now()
-	database.DB.Model(task).Updates(map[string]interface{}{
-		"executed_at": &now,
-	})
-
 	var err error
 	var result string
 
@@ -121,7 +116,7 @@ func (wp *WorkerPool) processTask(task *models.AsyncTask, workerID int) {
 		err = fmt.Errorf("unknown task type: %s", task.Type)
 	}
 
-	now = time.Now()
+	now := time.Now()
 	updates := map[string]interface{}{
 		"completed_at": &now,
 	}
@@ -236,6 +231,7 @@ func SubmitTask(taskType types.TaskType, payload interface{}) (*models.AsyncTask
 
 	err := database.DB.Create(task).Error
 	if err != nil {
+		log.Printf("Failed to submit task (type: %s): %v", taskType, err)
 		return nil, err
 	}
 

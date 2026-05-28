@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"time"
@@ -28,10 +29,14 @@ func NewComplaintService() *ComplaintService {
 	}
 }
 
-func (s *ComplaintService) Create(req *dto.CreateComplaintRequest, userID uuid.UUID) (*models.Complaint, error) {
+func (s *ComplaintService) Create(req *dto.CreateComplaintRequest, userID uuid.UUID, userRole types.Role, userStationID *uuid.UUID) (*models.Complaint, error) {
 	var customer models.Customer
 	if err := database.DB.Where("id = ?", req.CustomerID).First(&customer).Error; err != nil {
 		return nil, errors.New("customer not found")
+	}
+
+	if userRole != types.RoleAdmin && userStationID != nil && *userStationID != customer.StationID {
+		return nil, errors.New("access denied: customer belongs to another station")
 	}
 
 	if req.Priority < 1 || req.Priority > 5 {
@@ -71,12 +76,14 @@ func (s *ComplaintService) Create(req *dto.CreateComplaintRequest, userID uuid.U
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "complaint",
 		"entity_id":   complaint.ID.String(),
 		"old_status":  "",
 		"new_status":  string(types.ComplaintStatusPending),
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for complaint %s: %v", complaint.ID, err)
+	}
 
 	return complaint, nil
 }
@@ -96,8 +103,9 @@ func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID,
 		database.DB.Raw(`
 			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
 				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
-			) THEN 1 ELSE 0 END
-		`, userID, userID).Scan(&hasAccess)
+			) THEN true ELSE false END
+			FROM complaints c WHERE c.id = ?
+		`, userID, userID, complaintID).Scan(&hasAccess)
 		if !hasAccess {
 			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
 		}
@@ -159,12 +167,14 @@ func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID,
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypeStatusNotify, map[string]interface{}{
 		"entity_type": "complaint",
 		"entity_id":   complaintID.String(),
 		"old_status":  oldStatus,
 		"new_status":  req.Status,
-	})
+	}); err != nil {
+		log.Printf("Failed to submit notification task for complaint %s: %v", complaintID, err)
+	}
 
 	complaint.Status = req.Status
 	return &complaint, nil
@@ -315,8 +325,9 @@ func (s *ComplaintService) GetDetail(complaintID uuid.UUID, user *utils.JWTClaim
 		database.DB.Raw(`
 			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
 				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
-			) THEN 1 ELSE 0 END
-		`, user.UserID, user.UserID).Scan(&hasAccess)
+			) THEN true ELSE false END
+			FROM complaints c WHERE c.id = ?
+		`, user.UserID, user.UserID, complaintID).Scan(&hasAccess)
 		if !hasAccess {
 			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
 		}
@@ -415,8 +426,9 @@ func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, user
 		database.DB.Raw(`
 			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
 				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
-			) THEN 1 ELSE 0 END
-		`, userID, userID).Scan(&hasAccess)
+			) THEN true ELSE false END
+			FROM complaints c WHERE c.id = ?
+		`, userID, userID, complaintID).Scan(&hasAccess)
 		if !hasAccess {
 			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
 		}
@@ -433,9 +445,10 @@ func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, user
 		if err := tx.Create(note).Error; err != nil {
 			return err
 		}
-		if err := audit.LogCreateWithTx(tx, "complaint_note", note.ID, userID, map[string]interface{}{
-			"complaint_id": complaintID,
-			"is_internal":  req.IsInternal,
+		if err := audit.LogCreateWithTx(tx, "complaint", complaintID, userID, map[string]interface{}{
+			"action":      "create_note",
+			"note_id":     note.ID.String(),
+			"is_internal": req.IsInternal,
 		}); err != nil {
 			return err
 		}
@@ -464,8 +477,9 @@ func (s *ComplaintService) UploadPhoto(complaintID uuid.UUID, userID uuid.UUID, 
 		database.DB.Raw(`
 			SELECT CASE WHEN c.assigned_to = ? OR EXISTS (
 				SELECT 1 FROM redeliveries r WHERE r.complaint_id = c.id AND r.driver_id = ?
-			) THEN 1 ELSE 0 END
-		`, userID, userID).Scan(&hasAccess)
+			) THEN true ELSE false END
+			FROM complaints c WHERE c.id = ?
+		`, userID, userID, complaintID).Scan(&hasAccess)
 		if !hasAccess {
 			return nil, errors.New("access denied: not assigned to this complaint or its redeliveries")
 		}
@@ -495,9 +509,11 @@ func (s *ComplaintService) UploadPhoto(complaintID uuid.UUID, userID uuid.UUID, 
 		return nil, err
 	}
 
-	async.SubmitTask(types.TaskTypePhotoVerification, map[string]interface{}{
+	if _, err := async.SubmitTask(types.TaskTypePhotoVerification, map[string]interface{}{
 		"photo_id": photo.ID.String(),
-	})
+	}); err != nil {
+		log.Printf("Failed to submit photo verification task for photo %s: %v", photo.ID, err)
+	}
 
 	return photo, nil
 }
