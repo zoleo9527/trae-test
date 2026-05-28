@@ -94,17 +94,17 @@ go run ./cmd/api
 
 ## 角色切换说明
 
-演示环境预置了7个账号，密码都是 `{角色}123`：
+演示环境预置了7个账号，密码统一为 `123456`：
 
 | 角色 | 用户名 | 密码 | 说明 |
 |------|--------|------|------|
-| 管理员 | `admin` | `admin123` | 全站所有权限 |
-| 站长(朝阳) | `master_chaoyang` | `master123` | 朝阳路水站，可审批赔付 |
-| 站长(海淀) | `master_haidian` | `master123` | 海淀水站 |
-| 司机 | `driver_wang` | `driver123` | 王司机，看自己的补送任务 |
-| 司机2 | `driver_liu` | `driver123` | 刘司机 |
-| 客服 | `cs_chen` | `cs123` | 陈客服，创建客诉/赔付 |
-| 客服2 | `cs_zhao` | `cs123` | 赵客服 |
+| 管理员 | `admin` | `123456` | 全站所有权限 |
+| 站长(朝阳) | `station_master_1` | `123456` | 朝阳路水站，可审批赔付 |
+| 站长(海淀) | `station_master_2` | `123456` | 海淀水站 |
+| 司机1 | `driver_1` | `123456` | 王师傅，看自己的补送任务 |
+| 司机2 | `driver_2` | `123456` | 刘师傅 |
+| 客服1 | `cs_1` | `123456` | 陈客服，创建客诉/赔付 |
+| 客服2 | `cs_2` | `123456` | 赵客服 |
 
 **切换角色方法**：调用不同账号的登录接口，拿到 token 后在请求头带上 `Authorization: Bearer {token}`
 
@@ -119,7 +119,7 @@ Content-Type: application/json
 
 {
   "username": "admin",
-  "password": "admin123"
+  "password": "123456"
 }
 
 # 获取当前用户信息
@@ -255,7 +255,7 @@ Authorization: Bearer {token}
 # customer_service 创建的赔付需要站长审批
 
 # 审批赔付 (admin, station_master)
-PUT /api/v1/compensations/{compensation_id}/approve
+PUT /api/v1/complaints/compensations/{compensation_id}/approve
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -265,7 +265,7 @@ Authorization: Bearer {token}
 }
 
 # 标记赔付已支付 (admin, station_master)
-PUT /api/v1/compensations/{id}/paid
+PUT /api/v1/complaints/compensations/{id}/paid
 Authorization: Bearer {token}
 
 # 查看待审批赔付 (admin, station_master)
@@ -340,12 +340,14 @@ rejected (已驳回)
 每条审计日志包含：
 - `entity_type`: 实体类型 (complaint/redelivery/compensation)
 - `entity_id`: 实体ID
-- `action`: 操作类型 (create/update/status_change/upload/approve/reject/assign)
+- `action`: 操作类型 (create/update/status_change/upload/approve/reject/assign/**create_note**)
 - `user_id`: 操作人
 - `field_name`: 变更字段名
 - `old_value`: 变更前值
 - `new_value`: 变更后值
-- `metadata`: 附加信息（JSON格式）
+- `metadata`: 附加信息（JSON格式，create_note 时包含 `note_id`、`is_internal`）
+- `note_id`: **新增备注时返回** - 对应的备注ID
+- `is_internal`: **新增备注时返回** - 是否为内部备注
 - `created_at`: 操作时间
 
 ## 异步任务
@@ -430,7 +432,7 @@ rejected (已驳回)
 # 登录拿token
 TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | jq -r .access_token)
+  -d '{"username":"admin","password":"123456"}' | jq -r .access_token)
 
 # 查询客诉列表
 curl -H "Authorization: Bearer $TOKEN" \
@@ -443,7 +445,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 # 切换客服角色
 CS_TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"cs_chen","password":"cs123"}' | jq -r .access_token)
+  -d '{"username":"cs_1","password":"123456"}' | jq -r .access_token)
 
 # 客服查看客诉（看不到内部备注）
 curl -H "Authorization: Bearer $CS_TOKEN" \

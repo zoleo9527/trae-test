@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -445,11 +446,7 @@ func (s *ComplaintService) AddNote(complaintID uuid.UUID, userID uuid.UUID, user
 		if err := tx.Create(note).Error; err != nil {
 			return err
 		}
-		if err := audit.LogCreateWithTx(tx, "complaint", complaintID, userID, map[string]interface{}{
-			"action":      "create_note",
-			"note_id":     note.ID.String(),
-			"is_internal": req.IsInternal,
-		}); err != nil {
+		if err := audit.LogCreateNoteWithTx(tx, complaintID, note.ID, userID, req.IsInternal); err != nil {
 			return err
 		}
 		return nil
@@ -588,7 +585,7 @@ func (s *ComplaintService) toNoteResponse(n *models.ComplaintNote) dto.NoteRespo
 }
 
 func (s *ComplaintService) toAuditLogResponse(a *models.AuditLog) dto.AuditLogResponse {
-	return dto.AuditLogResponse{
+	resp := dto.AuditLogResponse{
 		ID:         a.ID,
 		EntityType: a.EntityType,
 		EntityID:   a.EntityID,
@@ -598,6 +595,23 @@ func (s *ComplaintService) toAuditLogResponse(a *models.AuditLog) dto.AuditLogRe
 		FieldName:  a.FieldName,
 		OldValue:   a.OldValue,
 		NewValue:   a.NewValue,
+		Metadata:   a.Metadata,
 		CreatedAt:  a.CreatedAt,
 	}
+
+	if a.Metadata != nil && *a.Metadata != "" {
+		var meta map[string]interface{}
+		if err := json.Unmarshal([]byte(*a.Metadata), &meta); err == nil {
+			if noteIDStr, ok := meta["note_id"].(string); ok {
+				if noteID, err := uuid.Parse(noteIDStr); err == nil {
+					resp.NoteID = &noteID
+				}
+			}
+			if isInternal, ok := meta["is_internal"].(bool); ok {
+				resp.IsInternal = &isInternal
+			}
+		}
+	}
+
+	return resp
 }

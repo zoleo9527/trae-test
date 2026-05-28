@@ -207,6 +207,9 @@ type AuditLogResponse struct {
 	FieldName  *string           `json:"field_name,omitempty"`
 	OldValue   *string           `json:"old_value,omitempty"`
 	NewValue   *string           `json:"new_value,omitempty"`
+	Metadata   *string           `json:"metadata,omitempty"`
+	NoteID     *uuid.UUID        `json:"note_id,omitempty"`
+	IsInternal *bool             `json:"is_internal,omitempty"`
 	CreatedAt  time.Time         `json:"created_at"`
 }
 

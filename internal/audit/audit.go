@@ -221,3 +221,21 @@ func LogUploadWithTx(tx *gorm.DB, entityType string, entityID uuid.UUID, userID 
 	}
 	return tx.Create(log).Error
 }
+
+func LogCreateNoteWithTx(tx *gorm.DB, complaintID uuid.UUID, noteID uuid.UUID, userID uuid.UUID, isInternal bool) error {
+	metadata := map[string]interface{}{
+		"note_id":     noteID.String(),
+		"is_internal": isInternal,
+	}
+	metadataStr := utils.ToJSON(metadata)
+	now := time.Now()
+	log := &models.AuditLog{
+		BaseModel:  models.BaseModel{CreatedAt: now, UpdatedAt: now},
+		EntityType: "complaint",
+		EntityID:   complaintID,
+		Action:     types.AuditActionCreateNote,
+		UserID:     userID,
+		Metadata:   &metadataStr,
+	}
+	return tx.Create(log).Error
+}
