@@ -5,7 +5,20 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+type CamperAssignment struct {
+	CamperID  uuid.UUID
+	BedNumber int
+}
+
+type BatchAssignResult struct {
+	RoomNumber  string
+	OldOccupied int
+	NewOccupied int
+	Assignments []CamperAssignment
+}
 
 type CamperRepository struct {
 	baseRepository
@@ -44,8 +57,20 @@ func (r *CamperRepository) Update(camper *model.Camper) error {
 	return r.db.Save(camper).Error
 }
 
-func (r *CamperRepository) AssignRoom(camperID uuid.UUID, roomID uuid.UUID, bedNumber int) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *CamperRepository) AssignRoom(camperID uuid.UUID, roomID uuid.UUID) (int, error) {
+	var bedNumber int
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var room model.Room
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&room, "id = ?", roomID).Error; err != nil {
+			return err
+		}
+
+		if room.OccupiedBeds >= room.BedCount {
+			return ErrCapacityFull
+		}
+
+		bedNumber = room.OccupiedBeds + 1
+
 		result := tx.Model(&model.Camper{}).
 			Where("id = ? AND room_id IS NULL", camperID).
 			Updates(map[string]interface{}{
@@ -64,6 +89,7 @@ func (r *CamperRepository) AssignRoom(camperID uuid.UUID, roomID uuid.UUID, bedN
 			UpdateColumn("occupied_beds", gorm.Expr("occupied_beds + 1"))
 		return result.Error
 	})
+	return bedNumber, err
 }
 
 func (r *CamperRepository) UnassignRoom(camperID uuid.UUID, roomID uuid.UUID) error {
@@ -89,49 +115,61 @@ func (r *CamperRepository) BatchCreate(campers []model.Camper) error {
 	return r.db.Create(&campers).Error
 }
 
-func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UUID) (int, error) {
-	var assignedCount int
+func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UUID) (*BatchAssignResult, error) {
+	result := &BatchAssignResult{}
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var room model.Room
-		if err := tx.First(&room, "id = ?", roomID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&room, "id = ?", roomID).Error; err != nil {
 			return err
 		}
 
+		result.RoomNumber = room.RoomNumber
+		result.OldOccupied = room.OccupiedBeds
+
 		availableBeds := room.BedCount - room.OccupiedBeds
-		if len(camperIDs) > availableBeds {
-			camperIDs = camperIDs[:availableBeds]
+		if availableBeds <= 0 {
+			return nil
 		}
 
-		currentBed := room.OccupiedBeds
-		assignedCount = 0
+		toAssign := camperIDs
+		if len(toAssign) > availableBeds {
+			toAssign = toAssign[:availableBeds]
+		}
 
-		for _, camperID := range camperIDs {
-			result := tx.Model(&model.Camper{}).
+		nextBed := room.OccupiedBeds + 1
+		result.Assignments = make([]CamperAssignment, 0, len(toAssign))
+
+		for _, camperID := range toAssign {
+			updateResult := tx.Model(&model.Camper{}).
 				Where("id = ? AND room_id IS NULL", camperID).
 				Updates(map[string]interface{}{
 					"room_id":    roomID,
-					"bed_number": currentBed + assignedCount + 1,
+					"bed_number": nextBed,
 				})
-			if result.Error != nil {
-				return result.Error
+			if updateResult.Error != nil {
+				return updateResult.Error
 			}
-			if result.RowsAffected > 0 {
-				assignedCount++
+			if updateResult.RowsAffected > 0 {
+				result.Assignments = append(result.Assignments, CamperAssignment{
+					CamperID:  camperID,
+					BedNumber: nextBed,
+				})
+				nextBed++
 			}
 		}
 
-		if assignedCount > 0 {
-			result := tx.Model(&model.Room{}).
+		if len(result.Assignments) > 0 {
+			if err := tx.Model(&model.Room{}).
 				Where("id = ?", roomID).
-				UpdateColumn("occupied_beds", gorm.Expr("occupied_beds + ?", assignedCount))
-			if result.Error != nil {
-				return result.Error
+				UpdateColumn("occupied_beds", gorm.Expr("occupied_beds + ?", len(result.Assignments))).Error; err != nil {
+				return err
 			}
+			result.NewOccupied = result.OldOccupied + len(result.Assignments)
 		}
 
 		return nil
 	})
-	return assignedCount, err
+	return result, err
 }
 
 func (r *CamperRepository) Search(campID uuid.UUID, keyword string, status *model.CamperStatus, offset, limit int) ([]model.Camper, int64, error) {

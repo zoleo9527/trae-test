@@ -189,18 +189,21 @@ func (s *CamperService) AssignRoom(req AssignRoomRequest, userID uuid.UUID) erro
 		}
 	}
 
-	bedNumber := room.OccupiedBeds + 1
-	if err := s.repo.AssignRoom(req.CamperID, req.RoomID, bedNumber); err != nil {
+	bedNumber, err := s.repo.AssignRoom(req.CamperID, req.RoomID)
+	if err != nil {
 		if errors.Is(err, repository.ErrInvalidStatus) {
 			return NewServiceError("ALREADY_ASSIGNED", "营员已分配房间", ErrConflict)
+		}
+		if errors.Is(err, repository.ErrCapacityFull) {
+			return NewServiceError("ROOM_FULL", "房间已满", ErrCapacity)
 		}
 		return err
 	}
 
 	s.auditService.Log(userID, model.AuditActionAssign, "camper", &req.CamperID,
-		map[string]interface{}{"room_id": nil},
+		map[string]interface{}{"room_id": nil, "bed_number": 0},
 		map[string]interface{}{"room_id": req.RoomID, "bed_number": bedNumber},
-		map[string]interface{}{"room_id": req.RoomID.String()},
+		map[string]interface{}{"room_id": req.RoomID.String(), "bed_number": bedNumber},
 		"", "", "分配房间")
 
 	return nil
@@ -231,20 +234,8 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		return err
 	}
 
-	room, err := s.roomRepo.GetByID(req.RoomID)
-	if err != nil {
-		task.Result = "房间不存在"
-		return err
-	}
-
-	availableBeds := room.BedCount - room.OccupiedBeds
-	if availableBeds <= 0 {
-		task.Result = "房间已满，无法分配"
-		return nil
-	}
-
 	var validCamperIDs []uuid.UUID
-	var camperNames []string
+	camperNameMap := make(map[uuid.UUID]string)
 	for _, camperID := range req.CamperIDs {
 		camper, err := s.repo.GetByID(camperID)
 		if err != nil {
@@ -253,14 +244,8 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		if !camper.CanAssignRoom() || camper.RoomID != nil {
 			continue
 		}
-		if room.Gender != model.RoomGenderMixed {
-			if (camper.Gender == "男" && room.Gender != model.RoomGenderMale) ||
-				(camper.Gender == "女" && room.Gender != model.RoomGenderFemale) {
-				continue
-			}
-		}
 		validCamperIDs = append(validCamperIDs, camperID)
-		camperNames = append(camperNames, camper.Name)
+		camperNameMap[camperID] = camper.Name
 	}
 
 	if len(validCamperIDs) == 0 {
@@ -268,43 +253,48 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		return nil
 	}
 
-	if len(validCamperIDs) > availableBeds {
-		validCamperIDs = validCamperIDs[:availableBeds]
-		camperNames = camperNames[:availableBeds]
-	}
-
-	assignedCount, err := s.repo.BatchAssignRoom(validCamperIDs, req.RoomID)
+	assignResult, err := s.repo.BatchAssignRoom(validCamperIDs, req.RoomID)
 	if err != nil {
 		task.Result = fmt.Sprintf("分配失败: %v", err)
 		return err
 	}
 
-	if assignedCount > 0 {
-		s.auditService.Log(task.CreatedBy, model.AuditActionAssign, "room", &req.RoomID,
-			map[string]interface{}{"occupied_beds": room.OccupiedBeds},
-			map[string]interface{}{"occupied_beds": room.OccupiedBeds + assignedCount},
-			map[string]interface{}{
-				"camper_ids":   validCamperIDs[:assignedCount],
-				"camper_names": camperNames[:assignedCount],
-				"room_number":  room.RoomNumber,
-				"count":        assignedCount,
-			},
-			"", "", fmt.Sprintf("批量分配房间: %d名营员到房间%s", assignedCount, room.RoomNumber))
-
-		for i, camperID := range validCamperIDs[:assignedCount] {
-			s.auditService.Log(task.CreatedBy, model.AuditActionAssign, "camper", &camperID,
-				map[string]interface{}{"room_id": nil, "bed_number": 0},
-				map[string]interface{}{"room_id": req.RoomID, "bed_number": room.OccupiedBeds + i + 1},
-				map[string]interface{}{
-					"room_id":     req.RoomID.String(),
-					"room_number": room.RoomNumber,
-					"bed_number":  room.OccupiedBeds + i + 1,
-				},
-				"", "", fmt.Sprintf("分配房间: %s到%s", camperNames[i], room.RoomNumber))
-		}
+	if len(assignResult.Assignments) == 0 {
+		task.Result = "房间已满，无法分配"
+		return nil
 	}
 
-	task.Result = fmt.Sprintf("成功分配 %d 名营员到房间%s", assignedCount, room.RoomNumber)
+	assignedIDs := make([]uuid.UUID, 0, len(assignResult.Assignments))
+	assignedNames := make([]string, 0, len(assignResult.Assignments))
+	for _, a := range assignResult.Assignments {
+		assignedIDs = append(assignedIDs, a.CamperID)
+		assignedNames = append(assignedNames, camperNameMap[a.CamperID])
+	}
+
+	s.auditService.Log(task.CreatedBy, model.AuditActionAssign, "room", &req.RoomID,
+		map[string]interface{}{"occupied_beds": assignResult.OldOccupied},
+		map[string]interface{}{"occupied_beds": assignResult.NewOccupied},
+		map[string]interface{}{
+			"camper_ids":   assignedIDs,
+			"camper_names": assignedNames,
+			"room_number":  assignResult.RoomNumber,
+			"count":        len(assignResult.Assignments),
+		},
+		"", "", fmt.Sprintf("批量分配房间: %d名营员到房间%s", len(assignResult.Assignments), assignResult.RoomNumber))
+
+	for _, a := range assignResult.Assignments {
+		s.auditService.Log(task.CreatedBy, model.AuditActionAssign, "camper", &a.CamperID,
+			map[string]interface{}{"room_id": nil, "bed_number": 0},
+			map[string]interface{}{"room_id": req.RoomID, "bed_number": a.BedNumber},
+			map[string]interface{}{
+				"room_id":     req.RoomID.String(),
+				"room_number": assignResult.RoomNumber,
+				"bed_number":  a.BedNumber,
+			},
+			"", "", fmt.Sprintf("分配房间: %s到%s床%d", camperNameMap[a.CamperID], assignResult.RoomNumber, a.BedNumber))
+	}
+
+	task.Result = fmt.Sprintf("成功分配 %d 名营员到房间%s", len(assignResult.Assignments), assignResult.RoomNumber)
 	return nil
 }
 
