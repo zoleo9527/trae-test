@@ -107,8 +107,17 @@ func (h *FeedbackHandler) Update(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": feedback})
 }
 
+type CompleteFeedbackRequest struct {
+	ParentResponse string `json:"parent_response"`
+}
+
 func (h *FeedbackHandler) Complete(c *fiber.Ctx) error {
 	id := c.Params("id")
+
+	var req CompleteFeedbackRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的请求"})
+	}
 
 	var feedback models.Feedback
 	if err := h.db.First(&feedback, "id = ?", id).Error; err != nil {
@@ -117,6 +126,8 @@ func (h *FeedbackHandler) Complete(c *fiber.Ctx) error {
 
 	userID := c.Locals("user_id").(string)
 	feedback.Status = "completed"
+	feedback.ParentResponse = req.ParentResponse
+	feedback.AssigneeID = &userID
 
 	if err := h.db.Save(&feedback).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "完成反馈失败"})

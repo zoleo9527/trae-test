@@ -190,9 +190,9 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({
-        message: response.statusText,
+        error: response.statusText,
       }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
     }
 
     if (response.status === 204) {
