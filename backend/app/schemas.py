@@ -297,7 +297,7 @@ class DashboardStats(BaseModel):
     overdue_checkpoints: int
     pending_payments: Optional[int] = None
     overdue_payments: Optional[int] = None
-    total_crew_changes: int
+    total_crew_changes: Optional[int] = None
     active_berths: int
 
 

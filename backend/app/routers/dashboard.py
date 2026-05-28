@@ -8,6 +8,7 @@ from app import models, schemas
 from app.auth import get_current_active_user, requires_roles
 
 PAYMENT_ROLES = {models.UserRole.ADMIN, models.UserRole.AGENT_MANAGER, models.UserRole.FINANCE}
+CREW_ROLES = {models.UserRole.ADMIN, models.UserRole.AGENT_MANAGER, models.UserRole.SITE_COORDINATOR, models.UserRole.DOCUMENT_SPECIALIST}
 
 router = APIRouter(prefix="/dashboard", tags=["首页数据"])
 
@@ -25,6 +26,7 @@ def get_dashboard(
 ):
     now = datetime.now()
     can_see_payments = current_user.role in PAYMENT_ROLES
+    can_see_crew = current_user.role in CREW_ROLES
 
     pending_checkpoints = db.query(models.CheckpointReminder).filter(
         models.CheckpointReminder.status == models.TaskStatus.PENDING
@@ -34,11 +36,12 @@ def get_dashboard(
         models.BerthPlan.status == models.TaskStatus.PENDING
     ).count()
 
-    pending_crew = db.query(models.CrewChange).filter(
-        models.CrewChange.status == models.TaskStatus.PENDING
-    ).count()
-
-    pending_tasks = pending_checkpoints + pending_berths + pending_crew
+    pending_tasks = pending_checkpoints + pending_berths
+    if can_see_crew:
+        pending_crew = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.PENDING
+        ).count()
+        pending_tasks += pending_crew
 
     rejected_items = db.query(models.CheckpointReminder).filter(
         models.CheckpointReminder.status == models.TaskStatus.REJECTED
@@ -48,11 +51,12 @@ def get_dashboard(
         models.BerthPlan.status == models.TaskStatus.REJECTED
     ).count()
 
-    rejected_crew = db.query(models.CrewChange).filter(
-        models.CrewChange.status == models.TaskStatus.REJECTED
-    ).count()
-
-    rejected_total = rejected_items + rejected_berths + rejected_crew
+    rejected_total = rejected_items + rejected_berths
+    if can_see_crew:
+        rejected_crew = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.REJECTED
+        ).count()
+        rejected_total += rejected_crew
 
     need_review = db.query(models.CheckpointReminder).filter(
         models.CheckpointReminder.status == models.TaskStatus.NEEDS_REVIEW
@@ -62,11 +66,12 @@ def get_dashboard(
         models.BerthPlan.status == models.TaskStatus.NEEDS_REVIEW
     ).count()
 
-    need_review_crew = db.query(models.CrewChange).filter(
-        models.CrewChange.status == models.TaskStatus.NEEDS_REVIEW
-    ).count()
-
-    need_review_total = need_review + need_review_berths + need_review_crew
+    need_review_total = need_review + need_review_berths
+    if can_see_crew:
+        need_review_crew = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.NEEDS_REVIEW
+        ).count()
+        need_review_total += need_review_crew
 
     overdue_checkpoints = db.query(models.CheckpointReminder).filter(
         and_(
@@ -85,7 +90,9 @@ def get_dashboard(
             models.AdvancePayment.reimbursement_status == models.PaymentStatus.OVERDUE
         ).count()
 
-    total_crew_changes = db.query(models.CrewChange).count()
+    total_crew_changes = None
+    if can_see_crew:
+        total_crew_changes = db.query(models.CrewChange).count()
 
     active_berths = db.query(models.BerthPlan).filter(
         models.BerthPlan.status.in_([
@@ -128,19 +135,20 @@ def get_dashboard(
             created_at=b.created_at
         ))
 
-    crew_changes = db.query(models.CrewChange).filter(
-        models.CrewChange.status == models.TaskStatus.PENDING
-    ).order_by(models.CrewChange.created_at.desc()).limit(5).all()
+    if can_see_crew:
+        crew_changes = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.PENDING
+        ).order_by(models.CrewChange.created_at.desc()).limit(5).all()
 
-    for c in crew_changes:
-        pending_items.append(schemas.DashboardItem(
-            id=c.id,
-            type="crew",
-            title=f"{c.crew_name} - {c.change_type.value}",
-            status=c.status,
-            assigned_to=c.creator.full_name if c.creator else None,
-            created_at=c.created_at
-        ))
+        for c in crew_changes:
+            pending_items.append(schemas.DashboardItem(
+                id=c.id,
+                type="crew",
+                title=f"{c.crew_name} - {c.change_type.value}",
+                status=c.status,
+                assigned_to=c.creator.full_name if c.creator else None,
+                created_at=c.created_at
+            ))
 
     rejected_items_list = []
 
@@ -176,6 +184,21 @@ def get_dashboard(
             created_at=b.created_at
         ))
 
+    if can_see_crew:
+        rejected_crew_list = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.REJECTED
+        ).order_by(models.CrewChange.updated_at.desc()).limit(5).all()
+
+        for c in rejected_crew_list:
+            rejected_items_list.append(schemas.DashboardItem(
+                id=c.id,
+                type="crew",
+                title=f"{c.crew_name} - {c.change_type.value}",
+                status=c.status,
+                assigned_to=c.creator.full_name if c.creator else None,
+                created_at=c.created_at
+            ))
+
     need_review_list = []
 
     review_cp = db.query(models.CheckpointReminder).filter(
@@ -209,6 +232,21 @@ def get_dashboard(
             assigned_to=b.creator.full_name if b.creator else None,
             created_at=b.created_at
         ))
+
+    if can_see_crew:
+        review_crew_list = db.query(models.CrewChange).filter(
+            models.CrewChange.status == models.TaskStatus.NEEDS_REVIEW
+        ).order_by(models.CrewChange.updated_at.desc()).limit(5).all()
+
+        for c in review_crew_list:
+            need_review_list.append(schemas.DashboardItem(
+                id=c.id,
+                type="crew",
+                title=f"{c.crew_name} - {c.change_type.value}",
+                status=c.status,
+                assigned_to=c.creator.full_name if c.creator else None,
+                created_at=c.created_at
+            ))
 
     return schemas.DashboardResponse(
         stats=schemas.DashboardStats(
