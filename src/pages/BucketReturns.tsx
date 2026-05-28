@@ -27,6 +27,9 @@ export default function BucketReturns() {
     if (!selectedReturn) return
 
     const now = new Date().toISOString()
+    const bucketInventory = inventory.find(i => i.itemType === 'bucket')
+    const currentTotal = bucketInventory?.totalQuantity || 0
+
     const updated: BucketReturn = {
       ...selectedReturn,
       status: 'resolved',
@@ -37,25 +40,63 @@ export default function BucketReturns() {
     }
     updateBucketReturn(updated)
 
-    if (resolveData.bucketLossCount > 0) {
-      const bucketInventory = inventory.find(i => i.itemType === 'bucket')
+    let runningTotal = currentTotal
+
+    if (selectedReturn.actualQuantity > 0) {
       addInventoryRecord({
         id: `ir${Date.now()}`,
         recordNo: `INV${Date.now()}`,
-        type: 'adjust',
+        type: 'in',
         itemType: 'bucket',
-        quantity: -resolveData.bucketLossCount,
-        beforeQuantity: bucketInventory?.totalQuantity || 0,
-        afterQuantity: (bucketInventory?.totalQuantity || 0) - resolveData.bucketLossCount,
+        quantity: selectedReturn.actualQuantity,
+        beforeQuantity: runningTotal,
+        afterQuantity: runningTotal + selectedReturn.actualQuantity,
         relatedOrderId: selectedReturn.orderId,
         relatedDeliveryId: selectedReturn.deliveryId,
         operatorId: currentUser.id,
         operatorName: currentUser.name,
         operatedAt: now,
-        notes: `空桶遗失调整-${selectedReturn.customerName}订单`,
+        notes: `空桶回收入库（争议解决）-${selectedReturn.customerName}订单，实收${selectedReturn.actualQuantity}个`,
       })
+      runningTotal += selectedReturn.actualQuantity
+
       addTimelineEntry({
         id: `t${Date.now()}`,
+        actionType: 'buckets_collected',
+        relatedId: selectedReturn.id,
+        relatedType: 'bucket_return',
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        actorRole: currentUser.role,
+        timestamp: now,
+        description: `争议解决：补记空桶入库${selectedReturn.actualQuantity}个`,
+        details: { 
+          expectedQuantity: selectedReturn.expectedQuantity,
+          actualQuantity: selectedReturn.actualQuantity,
+          quantity: selectedReturn.actualQuantity,
+        },
+      })
+    }
+
+    if (resolveData.bucketLossCount > 0) {
+      addInventoryRecord({
+        id: `ir${Date.now() + 1}`,
+        recordNo: `INV${Date.now() + 1}`,
+        type: 'adjust',
+        itemType: 'bucket',
+        quantity: -resolveData.bucketLossCount,
+        beforeQuantity: runningTotal,
+        afterQuantity: runningTotal - resolveData.bucketLossCount,
+        relatedOrderId: selectedReturn.orderId,
+        relatedDeliveryId: selectedReturn.deliveryId,
+        operatorId: currentUser.id,
+        operatorName: currentUser.name,
+        operatedAt: now,
+        notes: `空桶遗失调整-${selectedReturn.customerName}订单，遗失${resolveData.bucketLossCount}个`,
+      })
+
+      addTimelineEntry({
+        id: `t${Date.now() + 1}`,
         actionType: 'inventory_adjusted',
         relatedId: selectedReturn.id,
         relatedType: 'bucket_return',
@@ -64,12 +105,18 @@ export default function BucketReturns() {
         actorRole: currentUser.role,
         timestamp: now,
         description: `库存调整：空桶遗失${resolveData.bucketLossCount}个`,
-        details: { itemType: 'bucket', quantity: -resolveData.bucketLossCount },
+        details: { 
+          itemType: 'bucket', 
+          quantity: -resolveData.bucketLossCount,
+          expectedQuantity: selectedReturn.expectedQuantity,
+          actualQuantity: selectedReturn.actualQuantity,
+          lossQuantity: resolveData.bucketLossCount,
+        },
       })
     }
 
     addTimelineEntry({
-      id: `t${Date.now()}`,
+      id: `t${Date.now() + 2}`,
       actionType: 'complaint_resolved',
       relatedId: selectedReturn.id,
       relatedType: 'bucket_return',
@@ -78,7 +125,12 @@ export default function BucketReturns() {
       actorRole: currentUser.role,
       timestamp: now,
       description: '争议已解决',
-      details: { resolution: resolveData.resolution },
+      details: { 
+        resolution: resolveData.resolution,
+        expectedQuantity: selectedReturn.expectedQuantity,
+        actualQuantity: selectedReturn.actualQuantity,
+        lossQuantity: resolveData.bucketLossCount,
+      },
     })
 
     setSelectedReturn(null)

@@ -175,8 +175,9 @@ export default function Deliveries() {
           timestamp: now,
           description: '空桶数量争议',
           details: {
-            expected: selectedDelivery.bucketQuantity,
-            actual: completeData.actualBucketsCollected,
+            expectedQuantity: selectedDelivery.bucketQuantity,
+            actualQuantity: completeData.actualBucketsCollected,
+            lossQuantity: selectedDelivery.bucketQuantity - completeData.actualBucketsCollected,
             reason: completeData.disputeNote,
           },
         })
@@ -191,7 +192,11 @@ export default function Deliveries() {
           actorRole: currentUser.role,
           timestamp: now,
           description: `回收空桶${completeData.actualBucketsCollected}个`,
-          details: { quantity: completeData.actualBucketsCollected },
+          details: { 
+            expectedQuantity: selectedDelivery.bucketQuantity,
+            actualQuantity: completeData.actualBucketsCollected,
+            quantity: completeData.actualBucketsCollected,
+          },
         })
       }
     }
