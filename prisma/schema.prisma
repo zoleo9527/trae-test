@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  AGENT_MANAGER
+  FIELD_COORDINATOR
+  DOCUMENT_SPECIALIST
+  FINANCE_OFFICER
+}
+
+enum BerthingStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum DocumentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum DocumentType {
+  CREW_MANIFEST
+  CARGO_MANIFEST
+  SHIP_REGISTRATION
+  SAFETY_CERTIFICATE
+  PORT_CLEARANCE
+  CUSTOMS_DECLARATION
+}
+
+enum TaskType {
+  BERTHING_PLAN
+  DOCUMENT_PREPARE
+  DOCUMENT_SUBMIT
+  CREW_CHANGE
+  SUPPLY_ARRANGE
+  FEE_SETTLE
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  APPROVE
+  REJECT
+  SUBMIT
+  EXPORT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  passwordHash  String
+  name          String
+  role          Role
+  email         String?
+  phone         String?
+  department    String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  audits        AuditLog[]
+  createdTasks  Task[]    @relation("TaskCreator")
+  assignedTasks Task[]    @relation("TaskAssignee")
+  comments      Comment[]
+}
+
+model Vessel {
+  id            String    @id @default(cuid())
+  name          String
+  imoNumber     String    @unique
+  flag          String
+  grossTonnage  Float?
+  length        Float?
+  owner         String?
+  operator      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  berthingPlans BerthingPlan[]
+}
+
+model Port {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  country     String
+  terminals   Terminal[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Terminal {
+  id          String   @id @default(cuid())
+  code        String
+  name        String
+  portId      String
+  port        Port     @relation(fields: [portId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([code, portId])
+}
+
+model BerthingPlan {
+  id                String           @id @default(cuid())
+  planNumber        String           @unique
+  vesselId          String
+  vessel            Vessel           @relation(fields: [vesselId], references: [id])
+  portId            String
+  port              Port             @relation(fields: [portId], references: [id])
+  terminalId        String?
+  terminal          Terminal?        @relation(fields: [terminalId], references: [id])
+  eta               DateTime
+  etd               DateTime?
+  actualArrival     DateTime?
+  actualDeparture   DateTime?
+  status            BerthingStatus   @default(DRAFT)
+  purpose           String?
+  cargoType         String?
+  cargoQuantity     Float?
+  crewCount         Int?
+  remarks           String?
+  priority          Int              @default(5)
+  chainId           String
+  chainVersion      Int              @default(1)
+  isLatestVersion   Boolean          @default(true)
+  parentId          String?
+  previousVersion   BerthingPlan?    @relation("PlanVersion", fields: [parentId], references: [id])
+  nextVersions      BerthingPlan[]   @relation("PlanVersion")
+  documents         Document[]
+  tasks             Task[]
+  fees              Fee[]
+  supplyRequests    SupplyRequest[]
+  crewChanges       CrewChange[]
+  communications    Communication[]
+  audits            AuditLog[]
+  comments          Comment[]
+  createdById       String
+  createdBy         User             @relation(fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  @@index([chainId, isLatestVersion])
+  @@index([status])
+  @@index([eta])
+}
+
+model Document {
+  id              String         @id @default(cuid())
+  berthingPlanId  String
+  berthingPlan    BerthingPlan   @relation(fields: [berthingPlanId], references: [id])
+  type            DocumentType
+  title           String
+  referenceNo     String?
+  status          DocumentStatus @default(NOT_STARTED)
+  issuedBy        String?
+  issuedDate      DateTime?
+  expiryDate      DateTime?
+  submittedDate   DateTime?
+  approvedDate    DateTime?
+  rejectedReason  String?
+  fileUrl         String?
+  remarks         String?
+  deadline        DateTime?
+  chainId         String
+  chainVersion    Int            @default(1)
+  isLatestVersion Boolean        @default(true)
+  parentId        String?
+  previousVersion Document?      @relation("DocVersion", fields: [parentId], references: [id])
+  nextVersions    Document[]     @relation("DocVersion")
+  tasks           Task[]
+  audits          AuditLog[]
+  comments        Comment[]
+  createdById     String
+  createdBy       User           @relation(fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  @@index([berthingPlanId])
+  @@index([status])
+  @@index([chainId, isLatestVersion])
+}
+
+model Task {
+  id              String        @id @default(cuid())
+  type            TaskType
+  title           String
+  description     String?
+  berthingPlanId  String?
+  berthingPlan    BerthingPlan? @relation(fields: [berthingPlanId], references: [id])
+  documentId      String?
+  document        Document?     @relation(fields: [documentId], references: [id])
+  status          TaskStatus    @default(PENDING)
+  priority        Int           @default(3)
+  deadline        DateTime?
+  completedDate   DateTime?
+  blockedReason   String?
+  chainId         String
+  chainSequence   Int
+  isBlocking      Boolean       @default(true)
+  createdById     String
+  createdBy       User          @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedToId    String?
+  assignedTo      User?         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  audits          AuditLog[]
+  comments        Comment[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  @@index([chainId, chainSequence])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+model Fee {
+  id              String   @id @default(cuid())
+  berthingPlanId  String
+  berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  category        String
+  description     String?
+  amount          Decimal  @db.Decimal(12, 2)
+  currency        String   @default("CNY")
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  invoiceNo       String?
+  isPaid          Boolean  @default(false)
+  paidDate        DateTime?
+  paymentRef      String?
+  dueDate         DateTime?
+  remarks         String?
+  audits          AuditLog[]
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  contact     String?
+  phone       String?
+  email       String?
+  address     String?
+  creditTerms Int?
+  isActive    Boolean  @default(true)
+  fees        Fee[]
+  supplyRequests SupplyRequest[]
+  communications Communication[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SupplyRequest {
+  id              String   @id @default(cuid())
+  berthingPlanId  String
+  berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  category        String
+  description     String
+  quantity        Float
+  unit            String
+  estimatedCost   Decimal? @db.Decimal(12, 2)
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  status          String   @default("REQUESTED")
+  deliveredDate   DateTime?
+  remarks         String?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CrewChange {
+  id              String   @id @default(cuid())
+  berthingPlanId  String
+  berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  type            String
+  crewName        String
+  position        String
+  nationality     String
+  passportNo      String
+  visaNo          String?
+  status          String   @default("PENDING")
+  approvedDate    DateTime?
+  remarks         String?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Communication {
+  id              String   @id @default(cuid())
+  berthingPlanId  String
+  berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  type            String
+  direction       String
+  subject         String
+  content         String   @db.Text
+  senderName      String
+  senderContact   String?
+  recipientName   String
+  recipientContact String?
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  isInternal      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model AuditLog {
+  id         String       @id @default(cuid())
+  action     AuditAction
+  entityType String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  changes    Json?
+  remarks    String?
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime     @default(now())
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  entityType String
+  entityId   String
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  @@index([entityType, entityId])
+}
