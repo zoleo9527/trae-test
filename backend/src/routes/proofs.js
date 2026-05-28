@@ -79,6 +79,10 @@ router.put('/:id/submit-review', async (req, res) => {
       UPDATE proofs SET status = 'customer_review', updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `, [id]);
     
+    const quote = await get('SELECT created_by FROM quotes WHERE id = ?', [proof.quote_id]);
+    await run("UPDATE quotes SET current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [quote.created_by, proof.quote_id]);
+    
     const user = await get('SELECT name FROM users WHERE id = ?', [operator_id]);
     await logActivity(proof.quote_id, 'submit_review', '提交客户确认', operator_id, user?.name);
     

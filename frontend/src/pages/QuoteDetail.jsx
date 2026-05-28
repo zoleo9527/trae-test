@@ -18,6 +18,7 @@ const statusMap = {
 
 const proofStatusMap = {
   'pending': '待打样',
+  'uploaded': '已上传样照',
   'customer_review': '客户确认中',
   'reproofing': '重新打样',
   'confirmed': '已确认'
@@ -46,10 +47,13 @@ export default function QuoteDetail() {
   const [proofForm, setProofForm] = useState({ images: '/images/proof_new.jpg', feedback: '', confirmed: false });
 
   const [shipmentModal, setShipmentModal] = useState(false);
+  const [shipmentModalType, setShipmentModalType] = useState('create');
+  const [currentPendingShipment, setCurrentPendingShipment] = useState(null);
   const [shipmentForm, setShipmentForm] = useState({ 
     total_quantity: '', warehouse: '深圳仓', logistics_company: '顺丰速运', tracking_no: '',
     product_name: '', batch_no: '', remarks: ''
   });
+  const [remainingQty, setRemainingQty] = useState(0);
 
   const [refundModal, setRefundModal] = useState(false);
   const [refundForm, setRefundForm] = useState({ amount: '', reason: '' });
@@ -196,6 +200,16 @@ export default function QuoteDetail() {
       alert('请填写完整信息');
       return;
     }
+    
+    const shippedQty = shipments.filter(s => s.status === 'shipped').reduce((sum, s) => sum + s.shipped_quantity, 0);
+    const pendingQty = shipments.filter(s => s.status === 'pending' && s.id !== currentPendingShipment?.id).reduce((sum, s) => sum + s.total_quantity, 0);
+    const remaining = quote.quantity - shippedQty - pendingQty;
+    
+    if (parseInt(shipmentForm.total_quantity) > remaining) {
+      alert(`发货数量不能超过剩余未发数量：${remaining} 件`);
+      return;
+    }
+    
     setLoading(true);
     try {
       await axios.post(`/api/shipments/quote/${id}`, {
@@ -207,9 +221,11 @@ export default function QuoteDetail() {
           batch_no: shipmentForm.batch_no,
           remarks: shipmentForm.remarks
         }],
+        parent_shipment_id: currentPendingShipment?.id || null,
         created_by: currentUser.id
       });
       setShipmentModal(false);
+      setCurrentPendingShipment(null);
       setShipmentForm({ total_quantity: '', warehouse: '深圳仓', logistics_company: '顺丰速运', tracking_no: '', product_name: '', batch_no: '', remarks: '' });
       fetchData();
       alert('发货单已创建！');
@@ -382,17 +398,41 @@ export default function QuoteDetail() {
             )}
             {canCreateShipment && (
               <button className="btn btn-default" onClick={() => {
+                const shippedQty = shipments.filter(s => s.status === 'shipped').reduce((sum, s) => sum + s.shipped_quantity, 0);
+                const pendingQty = shipments.filter(s => s.status === 'pending').reduce((sum, s) => sum + s.total_quantity, 0);
+                const remaining = quote.quantity - shippedQty - pendingQty;
+                const parentShipment = shipments.find(s => s.status === 'shipped') || shipments.find(s => s.status === 'pending');
+                
+                setRemainingQty(remaining);
+                setCurrentPendingShipment(parentShipment);
+                setShipmentModalType('create');
                 setShipmentForm({ 
-                  total_quantity: quote.quantity, warehouse: '深圳仓', logistics_company: '顺丰速运', 
-                  tracking_no: '', product_name: quote.product_type, batch_no: '', remarks: '' 
+                  total_quantity: remaining > 0 ? remaining : quote.quantity, 
+                  warehouse: '深圳仓', 
+                  logistics_company: '顺丰速运', 
+                  tracking_no: '', 
+                  product_name: quote.product_type, 
+                  batch_no: '', 
+                  remarks: shipments.length > 0 ? `拆单第${shipments.length + 1}批` : '' 
                 });
                 setShipmentModal(true);
               }}>
-                📦 创建发货单
+                📦 {shipments.length > 0 ? '创建下一批发货' : '创建发货单'}
               </button>
             )}
             {pendingShipment && (
-              <button className="btn btn-success" onClick={() => handleCheckShipment(pendingShipment.id)}>
+              <button className="btn btn-success" onClick={() => {
+                setCurrentPendingShipment(pendingShipment);
+                setShipmentModalType('check');
+                setShipmentForm({
+                  ...shipmentForm,
+                  total_quantity: pendingShipment.total_quantity,
+                  warehouse: pendingShipment.warehouse,
+                  logistics_company: '顺丰速运',
+                  tracking_no: ''
+                });
+                setShipmentModal(true);
+              }}>
                 ✅ 仓配复核发货
               </button>
             )}
@@ -514,7 +554,11 @@ export default function QuoteDetail() {
                 <div key={p.id} className="shipment-item">
                   <div className="shipment-header">
                     <span style={{ fontWeight: 600 }}>打样单号：{p.proof_no}</span>
-                    <span className={`status-badge status-${p.status === 'confirmed' ? 'completed' : p.status === 'reproofing' ? 'proofing' : 'pending_approval'}`}>
+                    <span className={`status-badge status-${
+                      p.status === 'confirmed' ? 'completed' : 
+                      p.status === 'uploaded' ? 'approved' :
+                      p.status === 'reproofing' ? 'proofing' : 'pending_approval'
+                    }`}>
                       {proofStatusMap[p.status] || p.status}
                     </span>
                   </div>
@@ -723,19 +767,43 @@ export default function QuoteDetail() {
         )}
       </Modal>
 
-      <Modal title={pendingShipment ? '仓配复核发货' : '创建发货单'} visible={shipmentModal} onClose={() => setShipmentModal(false)}
-        onOk={() => pendingShipment ? handleCheckShipment(pendingShipment.id) : handleCreateShipment()} 
-        okText={loading ? '处理中...' : (pendingShipment ? '确认发货' : '创建')} width={520}>
-        {!pendingShipment && (
+      <Modal 
+        title={shipmentModalType === 'check' ? '仓配复核发货' : (shipments.length > 0 ? '创建拆单发货' : '创建发货单')} 
+        visible={shipmentModal} onClose={() => {
+          setShipmentModal(false);
+          setCurrentPendingShipment(null);
+        }}
+        onOk={() => {
+          if (shipmentModalType === 'check') {
+            handleCheckShipment(currentPendingShipment?.id);
+          } else {
+            handleCreateShipment();
+          }
+        }} 
+        okText={loading ? '处理中...' : (shipmentModalType === 'check' ? '确认发货' : '创建')} 
+        width={520}>
+        {shipmentModalType === 'create' && (
           <>
             <div className="form-item">
-              <label>发货数量</label>
+              <label>发货数量 <span style={{ color: 'red' }}>*</span></label>
               <input type="number" value={shipmentForm.total_quantity}
-                onChange={e => setShipmentForm(f => ({ ...f, total_quantity: e.target.value }))} />
+                max={remainingQty}
+                onChange={e => {
+                  const val = parseInt(e.target.value) || 0;
+                  if (val > remainingQty) {
+                    alert(`不能超过剩余未发数量 ${remainingQty}`);
+                    return;
+                  }
+                  setShipmentForm(f => ({ ...f, total_quantity: e.target.value }));
+                }} />
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                剩余未发数量：<strong style={{ color: '#1890ff' }}>{remainingQty}</strong> 件
+                {currentPendingShipment && <span style={{ marginLeft: 12 }}>关联父单：{currentPendingShipment.shipment_no}</span>}
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="form-item">
-                <label>产品名称</label>
+                <label>产品名称 <span style={{ color: 'red' }}>*</span></label>
                 <input value={shipmentForm.product_name}
                   onChange={e => setShipmentForm(f => ({ ...f, product_name: e.target.value }))} />
               </div>
@@ -760,10 +828,22 @@ export default function QuoteDetail() {
             </div>
           </>
         )}
-        {(pendingShipment || !pendingShipment) && (
+        {shipmentModalType === 'check' && (
           <>
             <div className="form-item">
-              <label>物流公司</label>
+              <label>发货单号</label>
+              <div>{currentPendingShipment?.shipment_no}</div>
+            </div>
+            <div className="form-item">
+              <label>发货数量</label>
+              <div>{currentPendingShipment?.total_quantity} 件</div>
+            </div>
+            <div className="form-item">
+              <label>仓库</label>
+              <div>{currentPendingShipment?.warehouse}</div>
+            </div>
+            <div className="form-item">
+              <label>物流公司 <span style={{ color: 'red' }}>*</span></label>
               <select value={shipmentForm.logistics_company} onChange={e => setShipmentForm(f => ({ ...f, logistics_company: e.target.value }))}>
                 <option value="顺丰速运">顺丰速运</option>
                 <option value="中通快递">中通快递</option>
@@ -772,7 +852,7 @@ export default function QuoteDetail() {
               </select>
             </div>
             <div className="form-item">
-              <label>运单号</label>
+              <label>运单号 <span style={{ color: 'red' }}>*</span></label>
               <input value={shipmentForm.tracking_no} placeholder="SF1234567890"
                 onChange={e => setShipmentForm(f => ({ ...f, tracking_no: e.target.value }))} />
             </div>
