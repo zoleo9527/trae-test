@@ -9,6 +9,10 @@ from uuid import uuid4
 import json
 import os
 import hashlib
+from events import (
+    event_register, event_status_update, event_exception_report,
+    event_exception_resolve, event_rework, event_add_note,
+)
 
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
@@ -237,12 +241,7 @@ async def create_film_roll(roll_data: FilmRollCreate, current_user: User = Depen
         "current_step": 0,
         "estimated_delivery": estimated,
         "notes": [],
-        "history": [{
-            "timestamp": now,
-            "action": "登记",
-            "operator": current_user.full_name,
-            "description": f"胶卷登记完成，单号：{reg_num}"
-        }],
+        "history": [event_register(now, current_user.full_name, reg_num)],
         "exceptions": [],
         "rework_count": 0,
         "tags": []
@@ -258,14 +257,8 @@ async def update_status(roll_id: str, update: StatusUpdate, current_user: User =
         if roll["id"] == roll_id:
             roll["status"] = update.status
             roll["current_step"] = update.current_step
-            roll["history"].append({
-                "timestamp": datetime.now().isoformat(),
-                "action": "状态更新",
-                "operator": update.operator,
-                "description": update.note,
-                "from_status": roll.get("status"),
-                "to_status": update.status
-            })
+            now = datetime.now().isoformat()
+            roll["history"].append(event_status_update(now, update.operator, update.status))
             if update.status == "completed":
                 roll["actual_delivery"] = datetime.now().isoformat()
             save_data(data)
@@ -277,22 +270,18 @@ async def add_exception(roll_id: str, exception: ExceptionRecord, current_user: 
     data = load_data()
     for roll in data["film_rolls"]:
         if roll["id"] == roll_id:
+            now = datetime.now().isoformat()
             exception_record = {
                 "id": str(uuid4()),
                 **exception.dict(),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now,
                 "resolved": False,
                 "resolution": None,
                 "resolved_at": None,
                 "resolved_by": None
             }
             roll["exceptions"].append(exception_record)
-            roll["history"].append({
-                "timestamp": datetime.now().isoformat(),
-                "action": "异常登记",
-                "operator": exception.reported_by,
-                "description": f"[{exception.severity}] {exception.type}: {exception.description}"
-            })
+            roll["history"].append(event_exception_report(now, exception.reported_by, exception.type, exception.severity, exception.description))
             if "异常" not in roll["tags"]:
                 roll["tags"].append("异常")
             save_data(data)
@@ -308,14 +297,10 @@ async def resolve_exception(roll_id: str, exception_id: str, resolution: Dict[st
                 if exc["id"] == exception_id:
                     exc["resolved"] = True
                     exc["resolution"] = resolution["resolution"]
-                    exc["resolved_at"] = datetime.now().isoformat()
+                    now = datetime.now().isoformat()
+                    exc["resolved_at"] = now
                     exc["resolved_by"] = resolution["resolved_by"]
-                    roll["history"].append({
-                        "timestamp": datetime.now().isoformat(),
-                        "action": "异常处理",
-                        "operator": resolution["resolved_by"],
-                        "description": f"异常已处理：{resolution['resolution']}"
-                    })
+                    roll["history"].append(event_exception_resolve(now, resolution["resolved_by"], resolution["resolution"]))
                     save_data(data)
                     return roll
     raise HTTPException(status_code=404, detail="Not found")
@@ -328,12 +313,8 @@ async def request_rework(roll_id: str, rework: ReworkConfirm, current_user: User
             roll["rework_count"] += 1
             roll["status"] = "rework"
             roll["current_step"] = 1
-            roll["history"].append({
-                "timestamp": datetime.now().isoformat(),
-                "action": "返工确认",
-                "operator": rework.confirmed_by,
-                "description": f"返工原因：{rework.reason}，返工范围：{rework.rework_scope}"
-            })
+            now = datetime.now().isoformat()
+            roll["history"].append(event_rework(now, rework.confirmed_by, rework.reason, rework.rework_scope))
             if "返工" not in roll["tags"]:
                 roll["tags"].append("返工")
             save_data(data)
@@ -354,14 +335,7 @@ async def add_note(roll_id: str, note_data: Dict[str, str], current_user: User =
                 "type": note_data.get("type", "normal")
             }
             roll["notes"].append(note)
-            note_type = note_data.get("type", "normal")
-            type_label = {"normal": "普通备注", "internal": "内部沟通", "customer": "客户沟通", "urgent": "紧急事项"}.get(note_type, "备注")
-            roll["history"].append({
-                "timestamp": now,
-                "action": f"添加{type_label}",
-                "operator": note_data["author"],
-                "description": note_data["content"][:100]
-            })
+            roll["history"].append(event_add_note(now, note_data["author"], note_data["content"], note_data.get("type", "normal")))
             save_data(data)
             return roll
     raise HTTPException(status_code=404, detail="Film roll not found")

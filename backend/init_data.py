@@ -3,16 +3,27 @@ import os
 from datetime import datetime, timedelta
 from uuid import uuid4
 import hashlib
+from events import (
+    event_register, event_start_develop, event_start_scan,
+    event_quality_check, event_complete, event_exception_report,
+    event_exception_resolve, event_rework, event_add_note,
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
 
+
 def get_password_hash(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+
+def ts(base: datetime, days: float = 0, hours: float = 0) -> str:
+    return (base + timedelta(days=days, hours=hours)).isoformat()
+
+
 def generate_demo_data():
     now = datetime.now()
-    
+
     data = {
         "users": {
             "admin": {
@@ -43,7 +54,7 @@ def generate_demo_data():
         "film_rolls": [],
         "next_reg_num": 1015
     }
-    
+
     demo_rolls = [
         {
             "customer_name": "陈晓明",
@@ -64,10 +75,11 @@ def generate_demo_data():
             "tags": [],
             "exceptions": [],
             "notes": [
-                {"content": "客户取片时对颜色很满意", "author": "客服小王", "type": "customer"}
+                {"content": "客户取片时对颜色很满意", "author": "客服小王", "type": "customer", "note_day": 2.4}
             ],
-            "history_extra": [
-                {"action": "客户取片", "operator": "客服小王", "description": "客户现场确认取片，对扫描效果满意"}
+            "rework_count": 0,
+            "extra_events": [
+                {"action": "客户取片", "operator": "客服小王", "description": "客户现场确认取片，对扫描效果满意", "day": 2.5}
             ]
         },
         {
@@ -89,7 +101,8 @@ def generate_demo_data():
             "tags": ["加急"],
             "exceptions": [],
             "notes": [],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         },
         {
             "customer_name": "王建国",
@@ -114,16 +127,18 @@ def generate_demo_data():
                     "description": "冲洗时发现胶卷暗盒编号与登记不符，疑似客户错装。实际是柯达 ColorPlus 200",
                     "severity": "medium",
                     "reported_by": "冲印师李四",
+                    "report_day": 1.2,
                     "resolved": True,
                     "resolution": "已电话联系客户确认，按实际胶卷冲洗，已告知差异",
                     "resolved_by": "客服小王",
-                    "resolved_ago": 2
+                    "resolve_day": 1.6
                 }
             ],
             "notes": [
-                {"content": "客户记错胶卷型号，实际是柯达", "author": "冲印师李四", "type": "internal"}
+                {"content": "客户记错胶卷型号，实际是柯达", "author": "冲印师李四", "type": "internal", "note_day": 1.3}
             ],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         },
         {
             "customer_name": "张雨涵",
@@ -144,7 +159,8 @@ def generate_demo_data():
             "tags": ["高端客户"],
             "exceptions": [],
             "notes": [],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         },
         {
             "customer_name": "刘志远",
@@ -169,20 +185,25 @@ def generate_demo_data():
                     "description": "第一次交付的是低清压缩版，客户要求原始4K文件。客户是专业摄影师需要修图",
                     "severity": "high",
                     "reported_by": "客服小王",
+                    "report_day": 2.3,
                     "resolved": False,
                     "resolution": None,
                     "resolved_by": None,
-                    "resolved_ago": None
+                    "resolve_day": None
                 }
             ],
             "notes": [
-                {"content": "客户强烈不满，要求尽快重新交付", "author": "客服小王", "type": "urgent"},
-                {"content": "正在重新扫描中，优先处理", "author": "冲印师李四", "type": "internal"}
+                {"content": "客户强烈不满，要求尽快重新交付", "author": "客服小王", "type": "urgent", "note_day": 2.4},
+                {"content": "正在重新扫描中，优先处理", "author": "冲印师李四", "type": "internal", "note_day": 2.8}
             ],
-            "history_extra": [
-                {"action": "返工确认", "operator": "店主张三", "description": "返工原因：交付版本错误，返工范围：重新扫描并质检"}
-            ],
-            "rework_count": 1
+            "rework_count": 1,
+            "extra_events": [],
+            "rework": {
+                "reason": "交付版本错误",
+                "scope": "rescan",
+                "confirmed_by": "店主张三",
+                "rework_day": 2.6
+            }
         },
         {
             "customer_name": "周婷婷",
@@ -203,7 +224,8 @@ def generate_demo_data():
             "tags": [],
             "exceptions": [],
             "notes": [],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         },
         {
             "customer_name": "吴志强",
@@ -228,14 +250,16 @@ def generate_demo_data():
                     "description": "第8-10帧发现轻微划伤，可能是相机内部造成的",
                     "severity": "low",
                     "reported_by": "冲印师李四",
+                    "report_day": 1.1,
                     "resolved": True,
                     "resolution": "已尝试修复，效果尚可。已向客户说明情况，客户表示理解",
                     "resolved_by": "客服小王",
-                    "resolved_ago": 1
+                    "resolve_day": 1.5
                 }
             ],
             "notes": [],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         },
         {
             "customer_name": "郑美玲",
@@ -256,99 +280,88 @@ def generate_demo_data():
             "tags": ["新客户"],
             "exceptions": [],
             "notes": [
-                {"content": "新客户，后续可以发优惠活动信息", "author": "客服小王", "type": "marketing"}
+                {"content": "新客户，后续可以发优惠活动信息", "author": "客服小王", "type": "marketing", "note_day": 2.5}
             ],
-            "history_extra": []
+            "rework_count": 0,
+            "extra_events": []
         }
     ]
-    
+
     for i, roll in enumerate(demo_rolls):
         registered_at = now - timedelta(days=roll["days_ago"], hours=i % 3)
         estimated = registered_at + timedelta(days=3)
-        
+        reg_num = f"F{1000 + i:06d}"
+
         history = []
-        reg_time = registered_at.isoformat()
-        history.append({
-            "timestamp": reg_time,
-            "action": "登记",
-            "operator": "客服小王",
-            "description": f"胶卷登记完成，单号：F{1000 + i:06d}"
-        })
-        
+        exceptions_records = []
+        notes_records = []
+
+        history.append(event_register(ts(registered_at), "客服小王", reg_num))
+
         if roll["current_step"] >= 1:
-            dev_time = (registered_at + timedelta(hours=6)).isoformat()
-            history.append({
-                "timestamp": dev_time,
-                "action": "开始冲洗",
-                "operator": "冲印师李四",
-                "description": f"胶卷进入冲洗流程，{roll['film_type']} - {roll['development_type']}"
-            })
-        
-        if roll["current_step"] >= 2:
-            scan_time = (registered_at + timedelta(days=1, hours=2)).isoformat()
-            history.append({
-                "timestamp": scan_time,
-                "action": "开始扫描",
-                "operator": "冲印师李四",
-                "description": f"开始扫描，分辨率：{roll['scan_resolution']}"
-            })
-        
-        if roll["current_step"] >= 3:
-            qc_time = (registered_at + timedelta(days=2)).isoformat()
-            history.append({
-                "timestamp": qc_time,
-                "action": "质量检查",
-                "operator": "冲印师李四",
-                "description": "进入质量检查环节"
-            })
-        
-        if roll["current_step"] >= 4:
-            complete_time = (registered_at + timedelta(days=2, hours=8)).isoformat()
-            history.append({
-                "timestamp": complete_time,
-                "action": "完成",
-                "operator": "冲印师李四",
-                "description": "冲扫完成，通知客户取片"
-            })
-        
-        for extra in roll.get("history_extra", []):
-            history.append({
-                "timestamp": (registered_at + timedelta(days=2, hours=10)).isoformat(),
-                **extra
-            })
-        
-        exceptions = []
+            history.append(event_start_develop(ts(registered_at, hours=6), "冲印师李四", roll["film_type"], roll["development_type"]))
+
         for j, exc in enumerate(roll["exceptions"]):
-            exc_time = (registered_at + timedelta(days=1 + j)).isoformat()
+            exc_report_time = ts(registered_at, days=exc["report_day"])
             exc_record = {
                 "id": str(uuid4()),
                 "type": exc["type"],
                 "description": exc["description"],
                 "severity": exc["severity"],
                 "reported_by": exc["reported_by"],
-                "timestamp": exc_time,
+                "timestamp": exc_report_time,
                 "resolved": exc["resolved"],
                 "resolution": exc["resolution"],
                 "resolved_at": None,
-                "resolved_by": exc["resolved_by"]
+                "resolved_by": exc.get("resolved_by")
             }
-            if exc["resolved"] and exc.get("resolved_ago") is not None:
-                exc_record["resolved_at"] = (registered_at + timedelta(days=1 + j + exc["resolved_ago"])).isoformat()
-            exceptions.append(exc_record)
-        
-        notes = []
+            history.append(event_exception_report(exc_report_time, exc["reported_by"], exc["type"], exc["severity"], exc["description"]))
+
+            if exc["resolved"] and exc.get("resolve_day") is not None:
+                exc_resolve_time = ts(registered_at, days=exc["resolve_day"])
+                exc_record["resolved_at"] = exc_resolve_time
+                history.append(event_exception_resolve(exc_resolve_time, exc["resolved_by"], exc["resolution"]))
+
+            exceptions_records.append(exc_record)
+
+        if roll["current_step"] >= 2:
+            history.append(event_start_scan(ts(registered_at, days=1, hours=2), "冲印师李四", roll["scan_resolution"]))
+
+        if roll["current_step"] >= 3:
+            history.append(event_quality_check(ts(registered_at, days=2), "冲印师李四"))
+
+        if roll["current_step"] >= 4:
+            history.append(event_complete(ts(registered_at, days=2, hours=8), "冲印师李四"))
+
+        if "rework" in roll:
+            rw = roll["rework"]
+            rw_time = ts(registered_at, days=rw["rework_day"])
+            history.append(event_rework(rw_time, rw["confirmed_by"], rw["reason"], rw["scope"]))
+
         for note in roll["notes"]:
-            notes.append({
+            note_time = ts(registered_at, days=note["note_day"])
+            notes_records.append({
                 "id": str(uuid4()),
                 "content": note["content"],
                 "author": note["author"],
-                "timestamp": (registered_at + timedelta(days=2)).isoformat(),
+                "timestamp": note_time,
                 "type": note["type"]
             })
-        
+            history.append(event_add_note(note_time, note["author"], note["content"], note["type"]))
+
+        for extra in roll.get("extra_events", []):
+            history.append({
+                "timestamp": ts(registered_at, days=extra["day"]),
+                "action": extra["action"],
+                "operator": extra["operator"],
+                "description": extra["description"]
+            })
+
+        history.sort(key=lambda e: e["timestamp"])
+
         roll_data = {
             "id": str(uuid4()),
-            "registration_number": f"F{1000 + i:06d}",
+            "registration_number": reg_num,
             "customer_name": roll["customer_name"],
             "customer_phone": roll["customer_phone"],
             "film_type": roll["film_type"],
@@ -360,22 +373,23 @@ def generate_demo_data():
             "special_instructions": roll["special_instructions"],
             "status": roll["status"],
             "priority": roll["priority"],
-            "registered_at": reg_time,
+            "registered_at": ts(registered_at),
             "registered_by": "客服小王",
             "current_step": roll["current_step"],
             "estimated_delivery": estimated.isoformat(),
-            "actual_delivery": (registered_at + timedelta(days=2, hours=8)).isoformat() if roll["status"] == "completed" else None,
+            "actual_delivery": ts(registered_at, days=2, hours=8) if roll["status"] == "completed" else None,
             "amount": roll["amount"],
             "paid": roll["paid"],
-            "notes": notes,
+            "notes": notes_records,
             "history": history,
-            "exceptions": exceptions,
+            "exceptions": exceptions_records,
             "rework_count": roll.get("rework_count", 0),
             "tags": roll["tags"]
         }
         data["film_rolls"].append(roll_data)
-    
+
     return data
+
 
 if __name__ == "__main__":
     data = generate_demo_data()
