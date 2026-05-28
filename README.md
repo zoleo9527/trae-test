@@ -39,16 +39,14 @@
 ### 1. 启动后端服务
 
 ```bash
-cd backend
-
 # 安装依赖
-pip install -r requirements.txt
+pip3 install -r backend/requirements.txt
 
 # 生成演示数据（包含异常场景）
-python init_data.py
+python3 backend/init_data.py
 
 # 启动 FastAPI 服务
-python main.py
+python3 backend/main.py
 ```
 
 后端服务地址：http://localhost:8000
@@ -58,10 +56,8 @@ API 文档：http://localhost:8000/docs
 ### 2. 启动前端服务
 
 ```bash
-cd frontend
-
 # 安装依赖
-npm install
+cd frontend && npm install
 
 # 启动 Nuxt 3 开发服务
 npm run dev

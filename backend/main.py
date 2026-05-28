@@ -2,38 +2,38 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
 import json
 import os
+import hashlib
 
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "data.json")
+
 app = FastAPI(title="胶卷冲扫管理系统")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-import hashlib
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_password(plain_password, hashed_password):
     return hash_password(plain_password) == hashed_password
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-DATA_FILE = "backend/data.json"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class User(BaseModel):
     username: str
@@ -345,14 +345,23 @@ async def add_note(roll_id: str, note_data: Dict[str, str], current_user: User =
     data = load_data()
     for roll in data["film_rolls"]:
         if roll["id"] == roll_id:
+            now = datetime.now().isoformat()
             note = {
                 "id": str(uuid4()),
                 "content": note_data["content"],
                 "author": note_data["author"],
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now,
                 "type": note_data.get("type", "normal")
             }
             roll["notes"].append(note)
+            note_type = note_data.get("type", "normal")
+            type_label = {"normal": "普通备注", "internal": "内部沟通", "customer": "客户沟通", "urgent": "紧急事项"}.get(note_type, "备注")
+            roll["history"].append({
+                "timestamp": now,
+                "action": f"添加{type_label}",
+                "operator": note_data["author"],
+                "description": note_data["content"][:100]
+            })
             save_data(data)
             return roll
     raise HTTPException(status_code=404, detail="Film roll not found")

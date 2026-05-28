@@ -59,7 +59,11 @@
         v-else-if="currentView === 'list'"
         @select-roll="handleSelectRoll"
       />
-      <ContinuousReview v-else-if="currentView === 'review'" />
+      <ContinuousReview
+        v-else-if="currentView === 'review'"
+        :initial-roll-id="selectedRollId"
+        @roll-selected="selectedRollId = $event"
+      />
       <RegisterFilm v-else-if="currentView === 'register'" />
     </main>
   </div>
@@ -70,6 +74,7 @@ const { user, logout } = useAuth();
 
 const currentView = ref("dashboard");
 const stats = ref<any>(null);
+const selectedRollId = ref<string | null>(null);
 
 const menuItems = computed(() => [
   { name: "仪表总览", path: "dashboard", icon: "📊" },
@@ -94,6 +99,7 @@ const getRoleName = (role: string) => {
 };
 
 const handleSelectRoll = (roll: any) => {
+  selectedRollId.value = roll.id;
   currentView.value = "review";
 };
 </script>

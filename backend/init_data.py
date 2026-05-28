@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 import hashlib
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "data.json")
+
 def get_password_hash(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -376,7 +379,7 @@ def generate_demo_data():
 
 if __name__ == "__main__":
     data = generate_demo_data()
-    os.makedirs("backend", exist_ok=True)
-    with open("backend/data.json", "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print("演示数据已生成！")
+    print(f"演示数据已生成！文件路径: {DATA_FILE}")

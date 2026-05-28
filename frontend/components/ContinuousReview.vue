@@ -27,7 +27,7 @@
             <div
               v-for="roll in displayRolls"
               :key="roll.id"
-              @click="selectedRoll = roll"
+              @click="selectRoll(roll)"
               :class="[
                 'p-4 bg-white rounded-xl cursor-pointer transition-all border-2',
                 selectedRoll?.id === roll.id ? 'border-amber-500 shadow-md' : 'border-transparent hover:shadow-sm'
@@ -325,6 +325,14 @@
 </template>
 
 <script setup lang="ts">
+const props = defineProps<{
+  initialRollId?: string | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'roll-selected', id: string | null): void
+}>()
+
 const { token, user } = useAuth()
 const config = useRuntimeConfig()
 
@@ -557,7 +565,29 @@ const loadSelectedRoll = async () => {
   }
 }
 
-onMounted(() => {
-  loadRolls()
+const selectRoll = async (roll: any) => {
+  selectedRoll.value = roll
+  emit('roll-selected', roll.id)
+  await loadSelectedRoll()
+}
+
+const trySelectInitialRoll = () => {
+  if (props.initialRollId && rolls.value.length > 0) {
+    const roll = rolls.value.find(r => r.id === props.initialRollId)
+    if (roll) {
+      selectRoll(roll)
+    }
+  }
+}
+
+watch(() => props.initialRollId, (newId) => {
+  if (newId) {
+    trySelectInitialRoll()
+  }
+})
+
+onMounted(async () => {
+  await loadRolls()
+  trySelectInitialRoll()
 })
 </script>

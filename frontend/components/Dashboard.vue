@@ -61,7 +61,7 @@
                 <span class="text-sm text-gray-500">{{ item.count }} 卷</span>
               </div>
               <div class="w-full bg-gray-200 rounded-full h-2">
-                <div class="h-2 rounded-full transition-all" :class="item.color" :style="{ width: `${item.percent }%" }"></div>
+                <div class="h-2 rounded-full transition-all" :class="item.color" :style="{ width: `${item.percent}%` }"></div>
               </div>
             </div>
           </div>
