@@ -128,6 +128,17 @@
                 </div>
               </div>
             </div>
+            <div v-if="as.type === 'reorder' && as.shipments && as.shipments.length > 0" class="aftersale-shipments">
+              <div class="log-title">补单发货记录</div>
+              <div class="shipment-list-sm">
+                <div v-for="shipment in as.shipments" :key="shipment.id" class="shipment-item-sm">
+                  <span class="courier">{{ shipment.courier }}</span>
+                  <span class="tracking-no">{{ shipment.trackingNo }}</span>
+                  <span class="quantity">{{ shipment.quantity }} 件</span>
+                  <span class="time">{{ formatTime(shipment.createdAt) }}</span>
+                </div>
+              </div>
+            </div>
             <div v-if="canProcessAfterSale(as)" class="aftersale-actions">
               <button v-if="currentRole === 'sample' && as.status === 'pending'"
                       class="btn btn-success btn-sm"
@@ -145,7 +156,12 @@
                       @click="processAfterSale(as.id, 'processing', as.type === 'reorder' ? '开始处理补单' : '开始处理退款')">
                 开始处理
               </button>
-              <button v-if="((currentRole === 'warehouse' && as.type === 'reorder') || (currentRole === 'sample' && as.type === 'refund')) && as.status === 'processing'"
+              <button v-if="currentRole === 'warehouse' && as.type === 'reorder' && as.status === 'processing'"
+                      class="btn btn-primary btn-sm"
+                      @click="showReorderShipmentModal(as)">
+                登记发货
+              </button>
+              <button v-if="((currentRole === 'warehouse' && as.type === 'reorder') || (currentRole === 'sample' && as.type === 'refund')) && as.status === 'processing' && canCompleteAfterSale(as)"
                       class="btn btn-success btn-sm"
                       @click="processAfterSale(as.id, 'completed', '处理完成')">
                 完成
@@ -273,6 +289,48 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showReorderShipmentModal" class="modal-overlay" @click.self="showReorderShipmentModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>补单发货登记</h3>
+          <button class="close-btn" @click="showReorderShipmentModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="order-summary">
+            <p><strong>订单：</strong>{{ order?.orderNo }}</p>
+            <p><strong>客户：</strong>{{ order?.customer }}</p>
+            <p><strong>补单原因：</strong>{{ currentReorder?.reason }}</p>
+            <p><strong>补单数量：</strong>{{ reorderTotalQuantity }} 件</p>
+            <p><strong>已发货：</strong>{{ reorderShippedQuantity }} 件</p>
+            <p><strong>待发货：</strong>{{ reorderRemainingQuantity }} 件</p>
+          </div>
+          <div class="form-group">
+            <label>快递公司</label>
+            <select v-model="reorderShipmentForm.courier" class="select full-width">
+              <option value="顺丰">顺丰</option>
+              <option value="京东">京东</option>
+              <option value="圆通">圆通</option>
+              <option value="中通">中通</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>快递单号</label>
+            <input v-model="reorderShipmentForm.trackingNo" class="input full-width" placeholder="请输入快递单号" />
+          </div>
+          <div class="form-group">
+            <label>发货数量</label>
+            <input v-model.number="reorderShipmentForm.quantity" type="number" class="input full-width" :placeholder="`最多 ${reorderRemainingQuantity} 件`" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" @click="showReorderShipmentModal = false">取消</button>
+          <button class="btn btn-primary" @click="submitReorderShipment" :disabled="!reorderShipmentForm.trackingNo || reorderShipmentForm.quantity <= 0">
+            确认发货
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -293,7 +351,9 @@ const order = computed(() => orders.value.find(o => o.id === parseInt(route.para
 const showAfterSaleModal = ref(false)
 const showShipmentModal = ref(false)
 const showRemarkModal = ref(false)
+const showReorderShipmentModal = ref(false)
 const remarkContent = ref('')
+const currentReorder = ref(null)
 
 const afterSaleForm = ref({
   type: 'reorder',
@@ -306,6 +366,26 @@ const shipmentForm = ref({
   courier: '顺丰',
   trackingNo: '',
   quantity: 0
+})
+
+const reorderShipmentForm = ref({
+  courier: '顺丰',
+  trackingNo: '',
+  quantity: 0
+})
+
+const reorderTotalQuantity = computed(() => {
+  if (!currentReorder.value?.items) return 0
+  return currentReorder.value.items.reduce((sum, item) => sum + item.quantity, 0)
+})
+
+const reorderShippedQuantity = computed(() => {
+  if (!currentReorder.value?.shipments) return 0
+  return currentReorder.value.shipments.reduce((sum, s) => sum + s.quantity, 0)
+})
+
+const reorderRemainingQuantity = computed(() => {
+  return reorderTotalQuantity.value - reorderShippedQuantity.value
 })
 
 const statusConfig = {
@@ -356,8 +436,56 @@ function canProcessAfterSale(as) {
   return false
 }
 
+function canCompleteAfterSale(as) {
+  if (as.type !== 'reorder') return true
+  if (!as.shipments || as.shipments.length === 0) return false
+  const total = as.items.reduce((sum, item) => sum + item.quantity, 0)
+  const shipped = as.shipments.reduce((sum, s) => sum + s.quantity, 0)
+  return shipped >= total
+}
+
 function processAfterSale(afterSaleId, status, remark) {
   appStore.updateAfterSaleStatus(order.value.id, afterSaleId, status, remark)
+}
+
+function showReorderShipmentModal(as) {
+  currentReorder.value = as
+  reorderShipmentForm.value = {
+    courier: '顺丰',
+    trackingNo: '',
+    quantity: reorderRemainingQuantity.value
+  }
+  showReorderShipmentModal.value = true
+}
+
+function submitReorderShipment() {
+  if (!reorderShipmentForm.value.trackingNo || reorderShipmentForm.value.quantity <= 0) {
+    alert('请填写完整的运单信息')
+    return
+  }
+  if (reorderShipmentForm.value.quantity > reorderRemainingQuantity.value) {
+    alert(`发货数量不能超过待发货数量 ${reorderRemainingQuantity.value} 件`)
+    return
+  }
+
+  try {
+    appStore.updateReorderShipment(
+      order.value.id,
+      currentReorder.value.id,
+      reorderShipmentForm.value
+    )
+
+    alert(`补单发货成功！\n订单: ${order.value.orderNo}\n单号: ${reorderShipmentForm.value.trackingNo}\n数量: ${reorderShipmentForm.value.quantity} 件`)
+
+    showReorderShipmentModal.value = false
+    reorderShipmentForm.value = {
+      courier: '顺丰',
+      trackingNo: '',
+      quantity: 0
+    }
+  } catch (err) {
+    alert(err.message)
+  }
 }
 
 function addAfterSaleItem() {
@@ -598,6 +726,52 @@ function submitRemark() {
 
 .aftersale-log {
   margin-bottom: 12px;
+}
+
+.aftersale-shipments {
+  margin-bottom: 12px;
+}
+
+.shipment-list-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: white;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.shipment-item-sm {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.shipment-item-sm:last-child {
+  border-bottom: none;
+}
+
+.shipment-item-sm .courier {
+  color: #1890ff;
+  font-weight: 500;
+}
+
+.shipment-item-sm .tracking-no {
+  font-family: monospace;
+  color: #595959;
+}
+
+.shipment-item-sm .quantity {
+  color: #52c41a;
+  font-weight: 500;
+}
+
+.shipment-item-sm .time {
+  color: #8c8c8c;
+  margin-left: auto;
 }
 
 .log-title {

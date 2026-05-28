@@ -107,8 +107,13 @@ npm run tauri:dev
 ### 5. 扫码录入
 - 支持摄像头扫码（条形码/二维码）
 - 支持手动输入单号
-- 扫描结果自动匹配订单
-- **快速发货**：扫码后一键写入订单发货记录（不再只是弹窗）
+- **智能匹配规则**：
+  - **订单号匹配**（`matchType='order'`）：识别为订单条码，禁止直接发货，显示"补充运单"按钮强制录入真实运单号
+  - **运单号匹配**（`matchType='shipment'`）：识别为已发货运单，显示已发货信息，禁用发货操作
+  - **重复单号**（`isDuplicate=true`）：拦截并提示，禁止重复使用
+  - **售后中订单**（`isAfterSale=true`）：禁止发货操作
+- **快速发货**：仅针对未匹配任何单号的新运单号（需要先关联订单）
+- **补充运单**：订单号匹配时弹出表单，录入快递公司、运单号、发货数量
 
 ### 6. 历史追溯
 - 全链路历史记录集中展示
@@ -253,6 +258,35 @@ if (order.status !== 'after_sale') {
 - 扫码前已做重复单号和售后状态检查，无需强制更新
 - 正常订单扫码发货后状态正确更新为 `partial_shipped` 或 `shipped`
 **位置**：[quickShip](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L366-L402)
+
+### 11. 扫码页快速发货不可达问题
+**问题**：新运单号扫描后 `matchType='new'` 且 `matchedOrder=null`，`canQuickShip` 永远返回 false，快速发货功能不可用
+**修复**：
+- 新增 `matchType='new'` 类型，显示"新运单"标签和提示
+- 新增"绑定订单发货"功能，弹出订单选择列表
+- 用户选择目标订单后，填写快递公司和发货数量
+- 调用 `updateShipment` 正常写入，按剩余数量回写 `partial_shipped` 或 `shipped`
+- 扫码结果同步更新为已发货状态
+**位置**：
+  - 绑定逻辑：[canBindShip + showBindOrderModal](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L371-L386)
+  - 绑定发货：[submitBindShipment](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/Scan.vue#L388-L422)
+
+### 12. 售后补单无法登记真实发货
+**问题**：补单在 processing 状态只能点"完成"，不能登记真实运单信息和发货数量
+**修复**：
+- 新增"登记发货"按钮（仓配角色，补单 processing 状态可见）
+- 弹出补单发货登记表单，显示补单进度（总数量/已发货/待发货）
+- 新增 `updateReorderShipment` store 方法：
+  - 写入补单的 `shipments` 字段
+  - 写入主订单的 `shipments` 字段（标记 `isReorder=true`）
+  - **保持主订单 `after_sale` 状态不被覆盖**
+  - 同步更新补单日志（显示进度）和订单历史
+- 新增 `canCompleteAfterSale` 校验：补单必须全部发货完成才能点"完成"
+**位置**：
+  - 补单发货入口：[OrderDetail.vue:159-163](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/OrderDetail.vue#L159-L163)
+  - 完成按钮校验：[canCompleteAfterSale](file:///Users/liu/Documents/private/model-test/trae-test-4/src/views/OrderDetail.vue#L439-L445)
+  - 补单发货逻辑：[updateReorderShipment](file:///Users/liu/Documents/private/model-test/trae-test-4/src/stores/app.js#L139-L183)
+  - 演示数据：GT202405001 补单已包含 20 件发货记录（顺丰 SF8888888888001）
 
 ---
 

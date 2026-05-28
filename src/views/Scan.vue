@@ -66,6 +66,11 @@
                           @click="quickShip(result.matchedOrder, result.code)">
                     快速发货
                   </button>
+                  <button v-if="canBindShip(result)"
+                          class="btn btn-primary btn-sm"
+                          @click="showBindOrderModal(result)">
+                    绑定订单发货
+                  </button>
                   <button v-if="canAddShipment(result)"
                           class="btn btn-primary btn-sm"
                           @click="showAddShipmentModal(result)">
@@ -77,10 +82,14 @@
                   <button v-if="result.isAfterSale" class="btn btn-warning btn-sm" disabled>
                     售后中
                   </button>
-                  <button class="btn btn-default btn-sm" @click="goToOrder(result.matchedOrder.id)">
+                  <button v-if="result.matchedOrder" class="btn btn-default btn-sm" @click="goToOrder(result.matchedOrder.id)">
                     查看详情
                   </button>
                 </div>
+              </div>
+              <div v-else-if="result.matchType === 'new'" class="result-new">
+                <span class="tag tag-primary">新运单</span>
+                <span>请绑定目标订单后发货</span>
               </div>
               <div v-else class="result-no-match">
                 <span class="tag tag-warning">未匹配</span>
@@ -106,6 +115,56 @@
             @keyup.enter="handleManualInput"
           />
           <button class="btn btn-primary" @click="handleManualInput">查询</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBindOrder" class="modal-overlay" @click.self="showBindOrder = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>绑定目标订单</h3>
+          <button class="close-btn" @click="showBindOrder = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="shipment-info-bar">
+            <p><strong>扫描运单号：</strong><code>{{ bindTrackingNo }}</code></p>
+          </div>
+          <div class="form-group">
+            <label>选择目标订单</label>
+            <select v-model="selectedBindOrderId" class="select full-width">
+              <option value="">请选择要绑定的订单</option>
+              <option v-for="order in bindableOrders" :key="order.id" :value="order.id">
+                {{ order.orderNo }} - {{ order.customer }} - {{ order.productName }}
+                (剩余{{ order.quantity - (order.shipments?.reduce((s, x) => s + x.quantity, 0) || 0) }}件)
+              </option>
+            </select>
+          </div>
+          <div v-if="selectedBindOrder" class="order-summary">
+            <p><strong>订单：</strong>{{ selectedBindOrder.orderNo }}</p>
+            <p><strong>客户：</strong>{{ selectedBindOrder.customer }}</p>
+            <p><strong>产品：</strong>{{ selectedBindOrder.productName }}</p>
+            <p><strong>剩余发货：</strong>{{ bindRemainingQuantity }} 件</p>
+          </div>
+          <div class="form-group">
+            <label>快递公司</label>
+            <select v-model="bindForm.courier" class="select full-width">
+              <option value="顺丰">顺丰</option>
+              <option value="京东">京东</option>
+              <option value="圆通">圆通</option>
+              <option value="中通">中通</option>
+              <option value="扫码识别">扫码识别</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>发货数量</label>
+            <input v-model.number="bindForm.quantity" type="number" class="input full-width" :placeholder="`最多 ${bindRemainingQuantity} 件`" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" @click="showBindOrder = false">取消</button>
+          <button class="btn btn-primary" @click="submitBindShipment" :disabled="!selectedBindOrderId || bindForm.quantity <= 0">
+            确认绑定并发货
+          </button>
         </div>
       </div>
     </div>
@@ -168,10 +227,17 @@ const scannerActive = ref(false)
 const scanResults = ref([])
 const manualInput = ref('')
 const showAddShipment = ref(false)
+const showBindOrder = ref(false)
 const selectedResult = ref(null)
+const bindTrackingNo = ref('')
+const selectedBindOrderId = ref('')
 const shipmentForm = ref({
   courier: '顺丰',
   trackingNo: '',
+  quantity: 0
+})
+const bindForm = ref({
+  courier: '顺丰',
   quantity: 0
 })
 let scanner = null
@@ -181,6 +247,26 @@ const remainingQuantity = computed(() => {
   const order = selectedResult.value.matchedOrder
   const shipped = order.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0
   return order.quantity - shipped
+})
+
+const bindableOrders = computed(() => {
+  return orders.value.filter(o => {
+    if (o.status === 'after_sale') return false
+    if (o.status === 'completed') return false
+    const shipped = o.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0
+    return o.quantity > shipped
+  })
+})
+
+const selectedBindOrder = computed(() => {
+  if (!selectedBindOrderId.value) return null
+  return orders.value.find(o => o.id === parseInt(selectedBindOrderId.value))
+})
+
+const bindRemainingQuantity = computed(() => {
+  if (!selectedBindOrder.value) return 0
+  const shipped = selectedBindOrder.value.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0
+  return selectedBindOrder.value.quantity - shipped
 })
 
 async function startScanner() {
@@ -268,20 +354,7 @@ function matchOrder(code) {
     }
   }
 
-  for (const order of orders.value) {
-    if (order.shipments) {
-      const allTrackingNos = order.shipments.map(s => s.trackingNo.toLowerCase())
-      const isDuplicate = allTrackingNos.includes(code.toLowerCase())
-      if (isDuplicate) {
-        result.order = order
-        result.type = 'duplicate'
-        result.isDuplicate = true
-        result.isAfterSale = order.status === 'after_sale'
-        return result
-      }
-    }
-  }
-
+  result.type = 'new'
   return result
 }
 
@@ -289,13 +362,67 @@ function canQuickShip(result) {
   if (currentRole.value !== 'warehouse') return false
   if (!result.matchedOrder) return false
   if (result.isDuplicate) return false
+  if (result.isAfterSale) return false
   if (result.matchType === 'order') return false
   if (result.matchType === 'shipment') return false
-  if (result.isAfterSale) return false
+  if (result.matchType === 'new') return false
 
   const remaining = result.matchedOrder.quantity -
     (result.matchedOrder.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
   return remaining > 0
+}
+
+function canBindShip(result) {
+  if (currentRole.value !== 'warehouse') return false
+  if (result.matchType !== 'new') return false
+  if (result.isDuplicate) return false
+  return bindableOrders.value.length > 0
+}
+
+function showBindOrderModal(result) {
+  bindTrackingNo.value = result.code
+  selectedBindOrderId.value = ''
+  bindForm.value = {
+    courier: '顺丰',
+    quantity: 0
+  }
+  showBindOrder.value = true
+}
+
+function submitBindShipment() {
+  if (!selectedBindOrderId.value || bindForm.value.quantity <= 0) {
+    alert('请选择订单并填写发货数量')
+    return
+  }
+  if (bindForm.value.quantity > bindRemainingQuantity.value) {
+    alert(`发货数量不能超过剩余数量 ${bindRemainingQuantity.value} 件`)
+    return
+  }
+
+  try {
+    appStore.updateShipment(parseInt(selectedBindOrderId.value), {
+      courier: bindForm.value.courier,
+      trackingNo: bindTrackingNo.value,
+      quantity: bindForm.value.quantity
+    })
+
+    const bindOrder = orders.value.find(o => o.id === parseInt(selectedBindOrderId.value))
+    alert(`绑定发货成功！\n订单: ${bindOrder.orderNo}\n单号: ${bindTrackingNo.value}\n数量: ${bindForm.value.quantity} 件`)
+
+    const result = scanResults.value.find(r => r.code === bindTrackingNo.value)
+    if (result) {
+      const updated = matchOrder(bindTrackingNo.value)
+      result.matchedOrder = updated.order
+      result.matchType = updated.type
+      result.shipmentInfo = updated.shipment
+      result.isDuplicate = true
+      result.isAfterSale = updated.isAfterSale
+    }
+
+    showBindOrder.value = false
+  } catch (err) {
+    alert(err.message)
+  }
 }
 
 function canAddShipment(result) {
@@ -653,6 +780,16 @@ onUnmounted(() => {
   color: #8c8c8c;
 }
 
+.result-new {
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #595959;
+}
+
 .btn-sm {
   padding: 4px 12px;
   font-size: 12px;
@@ -752,5 +889,29 @@ onUnmounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+.shipment-info-bar {
+  background: #e6f7ff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.shipment-info-bar p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.shipment-info-bar code {
+  background: rgba(24, 144, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

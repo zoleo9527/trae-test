@@ -33,6 +33,16 @@ export const mockOrders = [
         quantity: 180,
         createdAt: '2024-05-20T10:00:00Z',
         createdBy: '王强'
+      },
+      {
+        id: 3,
+        courier: '顺丰',
+        trackingNo: 'SF8888888888001',
+        quantity: 20,
+        createdAt: '2024-05-24T10:00:00Z',
+        createdBy: '王强',
+        isReorder: true,
+        afterSaleId: 1
       }
     ],
     afterSales: [
@@ -45,6 +55,16 @@ export const mockOrders = [
         items: [
           { name: '金属书签（质量问题补单）', quantity: 20, price: 50 },
           { name: '金属书签（拆单漏发补单）', quantity: 20, price: 50 }
+        ],
+        shipments: [
+          {
+            id: 1,
+            courier: '顺丰',
+            trackingNo: 'SF8888888888001',
+            quantity: 20,
+            createdAt: '2024-05-24T10:00:00Z',
+            createdBy: '王强'
+          }
         ],
         createdAt: '2024-05-22T09:15:00Z',
         createdBy: '张明',
@@ -72,6 +92,12 @@ export const mockOrders = [
             action: '开始生产补单',
             operator: '李芳',
             remark: '生产线已插队生产40件，预计5月24日完成。完成后直接发顺丰到付。'
+          },
+          {
+            time: '2024-05-24T10:00:00Z',
+            action: '补单发货登记',
+            operator: '王强',
+            remark: '补单发货 20 件，快递：顺丰 SF8888888888001（补单进度：20/40）'
           }
         ]
       }

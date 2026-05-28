@@ -136,6 +136,52 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function updateReorderShipment(orderId, afterSaleId, shipmentData) {
+    const order = orders.value.find(o => o.id === orderId)
+    if (!order) return
+
+    const afterSale = order.afterSales?.find(a => a.id === afterSaleId)
+    if (!afterSale) return
+
+    const allTrackingNos = orders.value.flatMap(o =>
+      o.shipments?.map(s => s.trackingNo.toLowerCase()) || []
+    )
+    if (allTrackingNos.includes(shipmentData.trackingNo.toLowerCase())) {
+      throw new Error('该运单号已存在，无法重复使用')
+    }
+
+    const shipmentRecord = {
+      id: Date.now(),
+      ...shipmentData,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser.value.name
+    }
+
+    if (!afterSale.shipments) {
+      afterSale.shipments = []
+    }
+    afterSale.shipments.push(shipmentRecord)
+
+    order.shipments.push({
+      ...shipmentRecord,
+      isReorder: true,
+      afterSaleId: afterSaleId
+    })
+
+    const totalReorderQty = afterSale.items.reduce((sum, item) => sum + item.quantity, 0)
+    const shippedReorderQty = afterSale.shipments.reduce((sum, s) => sum + s.quantity, 0)
+    const shipmentRemark = `补单发货 ${shipmentData.quantity} 件，快递：${shipmentData.courier} ${shipmentData.trackingNo}`
+
+    afterSale.logs.push({
+      time: new Date().toISOString(),
+      action: '补单发货登记',
+      operator: currentUser.value.name,
+      remark: `${shipmentRemark}（补单进度：${shippedReorderQty}/${totalReorderQty}）`
+    })
+
+    addOrderHistory(orderId, '补单发货登记', shipmentRemark)
+  }
+
   return {
     currentRole,
     currentUser,
@@ -151,6 +197,7 @@ export const useAppStore = defineStore('app', () => {
     addOrderHistory,
     createAfterSale,
     updateAfterSaleStatus,
-    updateShipment
+    updateShipment,
+    updateReorderShipment
   }
 })
