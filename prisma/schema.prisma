@@ -60,6 +60,22 @@ enum TaskStatus {
   CANCELLED
 }
 
+enum CrewChangeType {
+  SIGN_ON
+  SIGN_OFF
+  TRANSFER
+  SHORE_LEAVE
+}
+
+enum CrewChangeStatus {
+  PENDING
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -126,7 +142,8 @@ model Terminal {
 
 model BerthingPlan {
   id                String           @id @default(cuid())
-  planNumber        String           @unique
+  planNumber        String
+  chainVersion      Int              @default(1)
   vesselId          String
   vessel            Vessel           @relation(fields: [vesselId], references: [id])
   portId            String
@@ -145,7 +162,6 @@ model BerthingPlan {
   remarks           String?
   priority          Int              @default(5)
   chainId           String
-  chainVersion      Int              @default(1)
   isLatestVersion   Boolean          @default(true)
   parentId          String?
   previousVersion   BerthingPlan?    @relation("PlanVersion", fields: [parentId], references: [id])
@@ -162,6 +178,7 @@ model BerthingPlan {
   createdBy         User             @relation(fields: [createdById], references: [id])
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+  @@unique([planNumber, chainVersion])
   @@index([chainId, isLatestVersion])
   @@index([status])
   @@index([eta])
@@ -297,23 +314,23 @@ model SupplyRequest {
 }
 
 model CrewChange {
-  id              String   @id @default(cuid())
+  id              String           @id @default(cuid())
   berthingPlanId  String
-  berthingPlan    BerthingPlan @relation(fields: [berthingPlanId], references: [id])
+  berthingPlan    BerthingPlan     @relation(fields: [berthingPlanId], references: [id])
   chainId         String
-  type            String
+  type            CrewChangeType
   crewName        String
   position        String
   nationality     String
   passportNo      String
   visaNo          String?
-  status          String   @default("PENDING")
+  status          CrewChangeStatus @default(PENDING)
   approvedDate    DateTime?
   remarks         String?
   createdById     String
-  createdBy       User     @relation(fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdBy       User             @relation(fields: [createdById], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   @@index([chainId])
 }
 

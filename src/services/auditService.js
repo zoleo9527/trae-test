@@ -93,9 +93,11 @@ const auditService = {
   },
 
   async getUserActivity(userId, options = {}) {
-    const { page = 1, pageSize = 20, startDate, endDate } = options;
+    const { page = 1, pageSize = 20, startDate, endDate, entityType, action } = options;
 
     const where = { userId };
+    if (entityType) where.entityType = entityType;
+    if (action) where.action = action;
     if (startDate) where.createdAt = { ...where.createdAt, gte: startDate };
     if (endDate) where.createdAt = { ...where.createdAt, lte: endDate };
 

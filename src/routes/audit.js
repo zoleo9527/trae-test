@@ -61,4 +61,21 @@ router.get('/entity/:entityType/:entityId', requireRole('AGENT_MANAGER'), async 
   }
 });
 
+router.get('/chain/:chainId', requireRole('AGENT_MANAGER'), async (req, res, next) => {
+  try {
+    const options = {
+      page: parseInt(req.query.page) || 1,
+      pageSize: parseInt(req.query.pageSize) || 50,
+    };
+    const result = await auditService.getChainAuditTrail(req.params.chainId, options);
+    res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
