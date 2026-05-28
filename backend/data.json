@@ -1,0 +1,507 @@
+{
+  "users": {
+    "admin": {
+      "username": "admin",
+      "role": "admin",
+      "full_name": "系统管理员",
+      "hashed_password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9"
+    },
+    "owner": {
+      "username": "owner",
+      "role": "owner",
+      "full_name": "店主张三",
+      "hashed_password": "43a0d17178a9d26c9e0fe9a74b0b45e38d32f27aed887a008a54bf6e033bf7b9"
+    },
+    "tech": {
+      "username": "tech",
+      "role": "technician",
+      "full_name": "冲印师李四",
+      "hashed_password": "3ac40463b419a7de590185c7121f0bfbe411d6168699e8014f521b050b1d6653"
+    },
+    "service": {
+      "username": "service",
+      "role": "service",
+      "full_name": "客服小王",
+      "hashed_password": "2399144e96a69e6f5f2b14e6b38cf605ede6b92abd49838b0e4d72a74a6c63be"
+    }
+  },
+  "film_rolls": [
+    {
+      "id": "f5e1eeee-d6b3-41dc-a96f-e31d3a676cbc",
+      "registration_number": "F001000",
+      "customer_name": "陈晓明",
+      "customer_phone": "13800138001",
+      "film_type": "135彩色负片",
+      "film_brand": "柯达 Gold 200",
+      "iso": 200,
+      "frame_count": 36,
+      "development_type": "标准C-41",
+      "scan_resolution": "4K",
+      "special_instructions": "请保留片边",
+      "status": "completed",
+      "priority": "normal",
+      "registered_at": "2026-05-23T21:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 4,
+      "estimated_delivery": "2026-05-26T21:08:13.337899",
+      "actual_delivery": "2026-05-26T05:08:13.337899",
+      "amount": 85.0,
+      "paid": true,
+      "notes": [
+        {
+          "id": "b328a2ec-412a-4360-b84a-b8ff2c4f7514",
+          "content": "客户取片时对颜色很满意",
+          "author": "客服小王",
+          "timestamp": "2026-05-25T21:08:13.337899",
+          "type": "customer"
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-05-23T21:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001000"
+        },
+        {
+          "timestamp": "2026-05-24T03:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+        },
+        {
+          "timestamp": "2026-05-24T23:08:13.337899",
+          "action": "开始扫描",
+          "operator": "冲印师李四",
+          "description": "开始扫描，分辨率：4K"
+        },
+        {
+          "timestamp": "2026-05-25T21:08:13.337899",
+          "action": "质量检查",
+          "operator": "冲印师李四",
+          "description": "进入质量检查环节"
+        },
+        {
+          "timestamp": "2026-05-26T05:08:13.337899",
+          "action": "完成",
+          "operator": "冲印师李四",
+          "description": "冲扫完成，通知客户取片"
+        },
+        {
+          "timestamp": "2026-05-26T07:08:13.337899",
+          "action": "客户取片",
+          "operator": "客服小王",
+          "description": "客户现场确认取片，对扫描效果满意"
+        }
+      ],
+      "exceptions": [],
+      "rework_count": 0,
+      "tags": []
+    },
+    {
+      "id": "d3570803-e380-417c-8da9-fa2f720606ce",
+      "registration_number": "F001001",
+      "customer_name": "林雅琪",
+      "customer_phone": "13900139002",
+      "film_type": "120黑白",
+      "film_brand": "伊尔福 HP5",
+      "iso": 400,
+      "frame_count": 12,
+      "development_type": "D-76 1:1",
+      "scan_resolution": "8K",
+      "special_instructions": "迫冲一档，颗粒稍粗没关系",
+      "status": "quality_check",
+      "priority": "urgent",
+      "registered_at": "2026-05-26T20:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 3,
+      "estimated_delivery": "2026-05-29T20:08:13.337899",
+      "actual_delivery": null,
+      "amount": 128.0,
+      "paid": true,
+      "notes": [],
+      "history": [
+        {
+          "timestamp": "2026-05-26T20:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001001"
+        },
+        {
+          "timestamp": "2026-05-27T02:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，120黑白 - D-76 1:1"
+        },
+        {
+          "timestamp": "2026-05-27T22:08:13.337899",
+          "action": "开始扫描",
+          "operator": "冲印师李四",
+          "description": "开始扫描，分辨率：8K"
+        },
+        {
+          "timestamp": "2026-05-28T20:08:13.337899",
+          "action": "质量检查",
+          "operator": "冲印师李四",
+          "description": "进入质量检查环节"
+        }
+      ],
+      "exceptions": [],
+      "rework_count": 0,
+      "tags": [
+        "加急"
+      ]
+    },
+    {
+      "id": "4ca44664-0dc5-41f8-802a-b3d8e170da6d",
+      "registration_number": "F001002",
+      "customer_name": "王建国",
+      "customer_phone": "13700137003",
+      "film_type": "135彩色负片",
+      "film_brand": "富士 C200",
+      "iso": 200,
+      "frame_count": 36,
+      "development_type": "标准C-41",
+      "scan_resolution": "4K",
+      "special_instructions": "",
+      "status": "scanning",
+      "priority": "normal",
+      "registered_at": "2026-05-25T19:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 2,
+      "estimated_delivery": "2026-05-28T19:08:13.337899",
+      "actual_delivery": null,
+      "amount": 75.0,
+      "paid": false,
+      "notes": [
+        {
+          "id": "7c750d13-0440-4fd0-bf9c-20d74312925b",
+          "content": "客户记错胶卷型号，实际是柯达",
+          "author": "冲印师李四",
+          "timestamp": "2026-05-27T19:08:13.337899",
+          "type": "internal"
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-05-25T19:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001002"
+        },
+        {
+          "timestamp": "2026-05-26T01:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+        },
+        {
+          "timestamp": "2026-05-26T21:08:13.337899",
+          "action": "开始扫描",
+          "operator": "冲印师李四",
+          "description": "开始扫描，分辨率：4K"
+        }
+      ],
+      "exceptions": [
+        {
+          "id": "3e6c0a20-17d8-4e17-bb0b-5d093fd3f612",
+          "type": "胶卷混号",
+          "description": "冲洗时发现胶卷暗盒编号与登记不符，疑似客户错装。实际是柯达 ColorPlus 200",
+          "severity": "medium",
+          "reported_by": "冲印师李四",
+          "timestamp": "2026-05-26T19:08:13.337899",
+          "resolved": true,
+          "resolution": "已电话联系客户确认，按实际胶卷冲洗，已告知差异",
+          "resolved_at": "2026-05-28T19:08:13.337899",
+          "resolved_by": "客服小王"
+        }
+      ],
+      "rework_count": 0,
+      "tags": []
+    },
+    {
+      "id": "4d92013b-861a-46d7-9a73-06b5b4de191e",
+      "registration_number": "F001003",
+      "customer_name": "张雨涵",
+      "customer_phone": "13600136004",
+      "film_type": "135反转片",
+      "film_brand": "富士 Velvia 50",
+      "iso": 50,
+      "frame_count": 36,
+      "development_type": "E-6",
+      "scan_resolution": "8K",
+      "special_instructions": "请严格按标准时间，不要调整反差",
+      "status": "developing",
+      "priority": "high",
+      "registered_at": "2026-05-27T21:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 1,
+      "estimated_delivery": "2026-05-30T21:08:13.337899",
+      "actual_delivery": null,
+      "amount": 168.0,
+      "paid": true,
+      "notes": [],
+      "history": [
+        {
+          "timestamp": "2026-05-27T21:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001003"
+        },
+        {
+          "timestamp": "2026-05-28T03:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，135反转片 - E-6"
+        }
+      ],
+      "exceptions": [],
+      "rework_count": 0,
+      "tags": [
+        "高端客户"
+      ]
+    },
+    {
+      "id": "b14fd3e3-3cf6-4234-b0f4-79629390151a",
+      "registration_number": "F001004",
+      "customer_name": "刘志远",
+      "customer_phone": "13500135005",
+      "film_type": "135彩色负片",
+      "film_brand": "柯达 Portra 400",
+      "iso": 400,
+      "frame_count": 36,
+      "development_type": "标准C-41",
+      "scan_resolution": "4K",
+      "special_instructions": "肤色尽量自然",
+      "status": "rework",
+      "priority": "normal",
+      "registered_at": "2026-05-24T20:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 1,
+      "estimated_delivery": "2026-05-27T20:08:13.337899",
+      "actual_delivery": null,
+      "amount": 98.0,
+      "paid": true,
+      "notes": [
+        {
+          "id": "56250d76-17d0-4048-83fd-02e466b901c7",
+          "content": "客户强烈不满，要求尽快重新交付",
+          "author": "客服小王",
+          "timestamp": "2026-05-26T20:08:13.337899",
+          "type": "urgent"
+        },
+        {
+          "id": "b17e779e-26f1-4da1-a1ce-242418db2187",
+          "content": "正在重新扫描中，优先处理",
+          "author": "冲印师李四",
+          "timestamp": "2026-05-26T20:08:13.337899",
+          "type": "internal"
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-05-24T20:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001004"
+        },
+        {
+          "timestamp": "2026-05-25T02:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+        },
+        {
+          "timestamp": "2026-05-27T06:08:13.337899",
+          "action": "返工确认",
+          "operator": "店主张三",
+          "description": "返工原因：交付版本错误，返工范围：重新扫描并质检"
+        }
+      ],
+      "exceptions": [
+        {
+          "id": "aa5a4abb-f214-41ca-af5d-45f2edaa245b",
+          "type": "交付版本错发",
+          "description": "第一次交付的是低清压缩版，客户要求原始4K文件。客户是专业摄影师需要修图",
+          "severity": "high",
+          "reported_by": "客服小王",
+          "timestamp": "2026-05-25T20:08:13.337899",
+          "resolved": false,
+          "resolution": null,
+          "resolved_at": null,
+          "resolved_by": null
+        }
+      ],
+      "rework_count": 1,
+      "tags": [
+        "返工",
+        "异常"
+      ]
+    },
+    {
+      "id": "37951535-1f1b-43c4-ac14-cf39ca6623ef",
+      "registration_number": "F001005",
+      "customer_name": "周婷婷",
+      "customer_phone": "13400134006",
+      "film_type": "135黑白",
+      "film_brand": "柯达 T-Max 100",
+      "iso": 100,
+      "frame_count": 36,
+      "development_type": "D-76 原液",
+      "scan_resolution": "4K",
+      "special_instructions": "",
+      "status": "registered",
+      "priority": "normal",
+      "registered_at": "2026-05-28T19:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 0,
+      "estimated_delivery": "2026-05-31T19:08:13.337899",
+      "actual_delivery": null,
+      "amount": 88.0,
+      "paid": true,
+      "notes": [],
+      "history": [
+        {
+          "timestamp": "2026-05-28T19:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001005"
+        }
+      ],
+      "exceptions": [],
+      "rework_count": 0,
+      "tags": []
+    },
+    {
+      "id": "97f80d6b-5df0-4b7b-a25c-c1e6964059ca",
+      "registration_number": "F001006",
+      "customer_name": "吴志强",
+      "customer_phone": "13300133007",
+      "film_type": "120彩色负片",
+      "film_brand": "富士 Pro 400H",
+      "iso": 400,
+      "frame_count": 16,
+      "development_type": "标准C-41",
+      "scan_resolution": "8K",
+      "special_instructions": "婚礼照片，请格外小心",
+      "status": "scanning",
+      "priority": "urgent",
+      "registered_at": "2026-05-26T21:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 2,
+      "estimated_delivery": "2026-05-29T21:08:13.337899",
+      "actual_delivery": null,
+      "amount": 198.0,
+      "paid": true,
+      "notes": [],
+      "history": [
+        {
+          "timestamp": "2026-05-26T21:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001006"
+        },
+        {
+          "timestamp": "2026-05-27T03:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，120彩色负片 - 标准C-41"
+        },
+        {
+          "timestamp": "2026-05-27T23:08:13.337899",
+          "action": "开始扫描",
+          "operator": "冲印师李四",
+          "description": "开始扫描，分辨率：8K"
+        }
+      ],
+      "exceptions": [
+        {
+          "id": "c2fdccbb-af83-4c37-8543-91e076293929",
+          "type": "片基划伤",
+          "description": "第8-10帧发现轻微划伤，可能是相机内部造成的",
+          "severity": "low",
+          "reported_by": "冲印师李四",
+          "timestamp": "2026-05-27T21:08:13.337899",
+          "resolved": true,
+          "resolution": "已尝试修复，效果尚可。已向客户说明情况，客户表示理解",
+          "resolved_at": "2026-05-28T21:08:13.337899",
+          "resolved_by": "客服小王"
+        }
+      ],
+      "rework_count": 0,
+      "tags": [
+        "加急",
+        "婚礼"
+      ]
+    },
+    {
+      "id": "67ea6216-57b3-40c4-b03f-51258a3d7a6c",
+      "registration_number": "F001007",
+      "customer_name": "郑美玲",
+      "customer_phone": "13200132008",
+      "film_type": "135彩色负片",
+      "film_brand": "柯达 UltraMax 400",
+      "iso": 400,
+      "frame_count": 24,
+      "development_type": "标准C-41",
+      "scan_resolution": "2K",
+      "special_instructions": "第一次拍胶片，谢谢！",
+      "status": "completed",
+      "priority": "normal",
+      "registered_at": "2026-05-22T20:08:13.337899",
+      "registered_by": "客服小王",
+      "current_step": 4,
+      "estimated_delivery": "2026-05-25T20:08:13.337899",
+      "actual_delivery": "2026-05-25T04:08:13.337899",
+      "amount": 58.0,
+      "paid": true,
+      "notes": [
+        {
+          "id": "b11a1a9c-7641-4535-8687-926e8047c391",
+          "content": "新客户，后续可以发优惠活动信息",
+          "author": "客服小王",
+          "timestamp": "2026-05-24T20:08:13.337899",
+          "type": "marketing"
+        }
+      ],
+      "history": [
+        {
+          "timestamp": "2026-05-22T20:08:13.337899",
+          "action": "登记",
+          "operator": "客服小王",
+          "description": "胶卷登记完成，单号：F001007"
+        },
+        {
+          "timestamp": "2026-05-23T02:08:13.337899",
+          "action": "开始冲洗",
+          "operator": "冲印师李四",
+          "description": "胶卷进入冲洗流程，135彩色负片 - 标准C-41"
+        },
+        {
+          "timestamp": "2026-05-23T22:08:13.337899",
+          "action": "开始扫描",
+          "operator": "冲印师李四",
+          "description": "开始扫描，分辨率：2K"
+        },
+        {
+          "timestamp": "2026-05-24T20:08:13.337899",
+          "action": "质量检查",
+          "operator": "冲印师李四",
+          "description": "进入质量检查环节"
+        },
+        {
+          "timestamp": "2026-05-25T04:08:13.337899",
+          "action": "完成",
+          "operator": "冲印师李四",
+          "description": "冲扫完成，通知客户取片"
+        }
+      ],
+      "exceptions": [],
+      "rework_count": 0,
+      "tags": [
+        "新客户"
+      ]
+    }
+  ],
+  "next_reg_num": 1015
+}
