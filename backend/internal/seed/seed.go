@@ -458,29 +458,54 @@ func seedOperationLogs() {
 
 func seedReviewRecords() {
 	now := time.Now()
-	review := models.ReviewRecord{
-		ID:            uuid.New(),
-		ProductID:     productIDs[4],
-		ProductSKU:    "COLLAB-005",
-		ProductName:   "兵马俑联名秦俑手办",
-		ReviewType:    "off_shelf",
-		TotalQuantity: 2500,
-		TotalSales:    2340,
-		TotalRevenue:  463320.00,
-		InventoryLeft: 160,
-		DisplayScore:  85,
-		TimingScore:   90,
-		SalesScore:    95,
-		OverallScore:  90,
-		Problems:      []string{"部分门店补货不及时", "周末高峰时段库存不足"},
-		Lessons:       []string{"热门SKU需提前备货30%", "周末需要安排专人负责联名区"},
-		Improvements:  []string{"建立补货预警机制", "增加大店安全库存"},
-		ReviewedBy:    managerID,
-		ReviewedByName: "张店长",
-		ReviewedAt:    now,
+	reviews := []models.ReviewRecord{
+		{
+			ID:            uuid.New(),
+			ProductID:     productIDs[4],
+			ProductSKU:    "COLLAB-005",
+			ProductName:   "兵马俑联名秦俑手办",
+			ReviewType:    "overall",
+			TotalQuantity: 2500,
+			TotalSales:    2340,
+			TotalRevenue:  463320.00,
+			InventoryLeft: 160,
+			DisplayScore:  8,
+			TimingScore:   9,
+			SalesScore:    9,
+			OverallScore:  9,
+			Problems:      []string{"部分门店补货不及时", "周末高峰时段库存不足"},
+			Lessons:       []string{"热门SKU需提前备货30%", "周末需要安排专人负责联名区"},
+			Improvements:  []string{"建立补货预警机制", "增加大店安全库存"},
+			ReviewedBy:    managerID,
+			ReviewedByName: "张店长",
+			ReviewedAt:    now,
+		},
+		{
+			ID:            uuid.New(),
+			ProductID:     productIDs[0],
+			ProductSKU:    "COLLAB-001",
+			ProductName:   "故宫联名文创笔记本",
+			ReviewType:    "overall",
+			TotalQuantity: 1500,
+			TotalSales:    856,
+			TotalRevenue:  109568.00,
+			InventoryLeft: 644,
+			DisplayScore:  7,
+			TimingScore:   8,
+			SalesScore:    6,
+			OverallScore:  7,
+			Problems:      []string{"定价偏高影响销量", "部分门店陈列位置不佳"},
+			Lessons:       []string{"文创类产品价格需更亲民", "陈列位置直接影响转化率"},
+			Improvements:  []string{"调整价格策略", "优化门店陈列指引"},
+			ReviewedBy:    managerID,
+			ReviewedByName: "张店长",
+			ReviewedAt:    now.AddDate(0, 0, -7),
+		},
 	}
 
-	if err := models.DB.FirstOrCreate(&review, models.ReviewRecord{ProductID: productIDs[4]}).Error; err != nil {
-		log.Printf("Error seeding review record: %v", err)
+	for _, review := range reviews {
+		if err := models.DB.FirstOrCreate(&review, models.ReviewRecord{ID: review.ID}).Error; err != nil {
+			log.Printf("Error seeding review record: %v", err)
+		}
 	}
 }

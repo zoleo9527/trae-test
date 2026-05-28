@@ -114,6 +114,7 @@ declare module '$env/static/private' {
 	export const npm_package_version: string;
 	export const TRAE_SANDBOX_LOG_DIR: string;
 	export const XPC_SERVICE_NAME: string;
+	export const VSCODE_INJECTION: string;
 	export const SAFE_RM_SOURCE_FLAG: string;
 	export const HOME: string;
 	export const SHLVL: string;
@@ -138,7 +139,6 @@ declare module '$env/static/private' {
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const COLORTERM: string;
-	export const NODE_ENV: string;
 }
 
 /**
@@ -301,6 +301,7 @@ declare module '$env/dynamic/private' {
 		npm_package_version: string;
 		TRAE_SANDBOX_LOG_DIR: string;
 		XPC_SERVICE_NAME: string;
+		VSCODE_INJECTION: string;
 		SAFE_RM_SOURCE_FLAG: string;
 		HOME: string;
 		SHLVL: string;
@@ -325,7 +326,6 @@ declare module '$env/dynamic/private' {
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		COLORTERM: string;
-		NODE_ENV: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}

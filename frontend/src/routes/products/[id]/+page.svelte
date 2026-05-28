@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { productApi, orderApi, inventoryApi, inspectionApi, exceptionApi, storeApi } from '$lib/api';
+	import { productApi, orderApi, inventoryApi, inspectionApi, exceptionApi, storeApi, reviewApi } from '$lib/api';
 	import { user } from '$lib/stores/user';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -32,6 +32,7 @@
 	let inspections = [];
 	let exceptions = [];
 	let stores = [];
+	let reviews = [];
 	let activeTab = 'detail';
 
 	let approveRemark = '';
@@ -57,13 +58,14 @@
 	async function loadData() {
 		loading = true;
 		try {
-			const [productData, ordersData, inventoryData, inspectionsData, exceptionsData, storesData] = await Promise.all([
+			const [productData, ordersData, inventoryData, inspectionsData, exceptionsData, storesData, reviewsData] = await Promise.all([
 				productApi.get(productId),
 				orderApi.list({}),
 				inventoryApi.list({ productId }),
 				inspectionApi.list({ productId }),
 				exceptionApi.list({ productId }),
-				storeApi.list()
+				storeApi.list(),
+				reviewApi.list({ productId })
 			]);
 			product = productData.product;
 			logs = productData.logs;
@@ -72,6 +74,7 @@
 			inspections = inspectionsData;
 			exceptions = exceptionsData;
 			stores = storesData;
+			reviews = reviewsData;
 		} catch (e) {
 			console.error('Failed to load product detail:', e);
 			if (isAuthError(e)) {
@@ -170,9 +173,17 @@
 			currentUser && (currentUser.role === 'warehouse' || currentUser.role === 'manager');
 	}
 
-	function canReview() {
+	function canStartReview() {
 		return product && product.status === 'off_shelf' &&
 			currentUser && (currentUser.role === 'planner' || currentUser.role === 'manager');
+	}
+
+	function canViewReview() {
+		return product && product.status === 'reviewing' && currentUser;
+	}
+
+	function hasReview() {
+		return reviews && reviews.length > 0;
 	}
 
 	function canCreateOrder() {
@@ -237,9 +248,14 @@
 						📴 确认下架
 					</button>
 				{/if}
-				{#if canReview()}
+				{#if canStartReview()}
 					<button class="btn btn-primary" on:click={() => goto(`/reviews/new?productId=${product.id}`)} disabled={actionLoading}>
 						📊 开始复盘
+					</button>
+				{/if}
+				{#if canViewReview()}
+					<button class="btn btn-secondary" on:click={() => goto(`/reviews?productId=${product.id}`)} disabled={actionLoading}>
+						📊 查看复盘
 					</button>
 				{/if}
 				<button class="btn btn-secondary" on:click={loadData}>🔄 刷新</button>

@@ -435,7 +435,7 @@ func CompleteReview(c *fiber.Ctx) error {
 	}
 
 	oldStatus := product.Status
-	product.Status = models.ProductStatusReviewing
+	product.Status = models.ProductStatusReviewed
 	product.ReviewNote = req.ReviewNote
 	product.UpdatedAt = time.Now()
 

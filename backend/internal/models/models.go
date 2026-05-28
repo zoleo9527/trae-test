@@ -42,6 +42,7 @@ const (
 	ProductStatusOffShelf   ProductStatus = "off_shelf"
 	ProductStatusRejected   ProductStatus = "rejected"
 	ProductStatusReviewing  ProductStatus = "reviewing"
+	ProductStatusReviewed   ProductStatus = "reviewed"
 )
 
 type CollabProduct struct {

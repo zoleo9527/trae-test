@@ -125,6 +125,8 @@ func CreateReview(c *fiber.Ctx) error {
 	models.LogOperation("review", review.ID, "create", nil, review,
 		"创建复盘记录", user.ID, user.Name, user.Role)
 
+	models.DB.Model(&models.CollabProduct{}).Where("id = ?", productID).Update("status", models.ProductStatusReviewing)
+
 	return c.JSON(review)
 }
 
