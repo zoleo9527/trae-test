@@ -13,6 +13,15 @@ CREW_ROLES = {models.UserRole.ADMIN, models.UserRole.AGENT_MANAGER, models.UserR
 router = APIRouter(prefix="/dashboard", tags=["首页数据"])
 
 
+def build_checkpoint_context(cp: models.CheckpointReminder, can_see_crew: bool) -> str:
+    parts = []
+    if cp.berth_plan:
+        parts.append(f"船舶: {cp.berth_plan.vessel_name} ({cp.berth_plan.port})")
+    if cp.crew_change and can_see_crew:
+        parts.append(f"船员: {cp.crew_change.crew_name} - {cp.crew_change.change_type.value}")
+    return " / ".join(parts)
+
+
 @router.get("/", response_model=schemas.DashboardResponse)
 def get_dashboard(
     db: Session = Depends(get_db),
@@ -117,7 +126,8 @@ def get_dashboard(
             due_date=cp.due_date,
             assigned_to=assignee_name,
             priority=cp.priority,
-            created_at=cp.created_at
+            created_at=cp.created_at,
+            context=build_checkpoint_context(cp, can_see_crew)
         ))
 
     berths = db.query(models.BerthPlan).filter(
@@ -141,13 +151,15 @@ def get_dashboard(
         ).order_by(models.CrewChange.created_at.desc()).limit(5).all()
 
         for c in crew_changes:
+            context = f"船舶: {c.berth_plan.vessel_name} ({c.berth_plan.port})" if c.berth_plan else None
             pending_items.append(schemas.DashboardItem(
                 id=c.id,
                 type="crew",
                 title=f"{c.crew_name} - {c.change_type.value}",
                 status=c.status,
                 assigned_to=c.creator.full_name if c.creator else None,
-                created_at=c.created_at
+                created_at=c.created_at,
+                context=context
             ))
 
     rejected_items_list = []
@@ -166,7 +178,8 @@ def get_dashboard(
             due_date=cp.due_date,
             assigned_to=assignee_name,
             priority=cp.priority,
-            created_at=cp.created_at
+            created_at=cp.created_at,
+            context=build_checkpoint_context(cp, can_see_crew)
         ))
 
     rejected_br = db.query(models.BerthPlan).filter(
@@ -190,13 +203,15 @@ def get_dashboard(
         ).order_by(models.CrewChange.updated_at.desc()).limit(5).all()
 
         for c in rejected_crew_list:
+            context = f"船舶: {c.berth_plan.vessel_name} ({c.berth_plan.port})" if c.berth_plan else None
             rejected_items_list.append(schemas.DashboardItem(
                 id=c.id,
                 type="crew",
                 title=f"{c.crew_name} - {c.change_type.value}",
                 status=c.status,
                 assigned_to=c.creator.full_name if c.creator else None,
-                created_at=c.created_at
+                created_at=c.created_at,
+                context=context
             ))
 
     need_review_list = []
@@ -215,7 +230,8 @@ def get_dashboard(
             due_date=cp.due_date,
             assigned_to=assignee_name,
             priority=cp.priority,
-            created_at=cp.created_at
+            created_at=cp.created_at,
+            context=build_checkpoint_context(cp, can_see_crew)
         ))
 
     review_br = db.query(models.BerthPlan).filter(
@@ -239,14 +255,39 @@ def get_dashboard(
         ).order_by(models.CrewChange.updated_at.desc()).limit(5).all()
 
         for c in review_crew_list:
+            context = f"船舶: {c.berth_plan.vessel_name} ({c.berth_plan.port})" if c.berth_plan else None
             need_review_list.append(schemas.DashboardItem(
                 id=c.id,
                 type="crew",
                 title=f"{c.crew_name} - {c.change_type.value}",
                 status=c.status,
                 assigned_to=c.creator.full_name if c.creator else None,
-                created_at=c.created_at
+                created_at=c.created_at,
+                context=context
             ))
+
+    overdue_items = []
+
+    overdue_cp_query = db.query(models.CheckpointReminder).filter(
+        and_(
+            models.CheckpointReminder.due_date < now,
+            models.CheckpointReminder.status != models.TaskStatus.COMPLETED
+        )
+    ).order_by(models.CheckpointReminder.due_date.asc()).limit(20).all()
+
+    for cp in overdue_cp_query:
+        assignee_name = cp.assignee.full_name if cp.assignee else None
+        overdue_items.append(schemas.DashboardItem(
+            id=cp.id,
+            type="checkpoint",
+            title=cp.title,
+            status=cp.status,
+            due_date=cp.due_date,
+            assigned_to=assignee_name,
+            priority=cp.priority,
+            created_at=cp.created_at,
+            context=build_checkpoint_context(cp, can_see_crew)
+        ))
 
     return schemas.DashboardResponse(
         stats=schemas.DashboardStats(
@@ -261,5 +302,6 @@ def get_dashboard(
         ),
         pending_items=pending_items,
         rejected_items=rejected_items_list,
-        need_review_items=need_review_list
+        need_review_items=need_review_list,
+        overdue_items=overdue_items
     )

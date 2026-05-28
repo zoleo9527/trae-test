@@ -310,6 +310,7 @@ class DashboardItem(BaseModel):
     assigned_to: Optional[str] = None
     priority: Optional[int] = None
     created_at: datetime
+    context: Optional[str] = None
 
 
 class DashboardResponse(BaseModel):
@@ -317,3 +318,4 @@ class DashboardResponse(BaseModel):
     pending_items: List[DashboardItem]
     rejected_items: List[DashboardItem]
     need_review_items: List[DashboardItem]
+    overdue_items: List[DashboardItem]
