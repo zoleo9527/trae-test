@@ -3,6 +3,7 @@ package service
 import (
 	"camp-system/internal/database"
 	"camp-system/internal/model"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -259,14 +260,13 @@ func (s *MedicalService) GetMedicalReport(reportID string) (*model.MedicalReport
 		Preload("Reporter").
 		Preload("TreatmentStaff").
 		Preload("ResolvedStaff").
+		Preload("RelatedCheckIns.CheckIn").
+		Preload("RelatedCheckIns.Operator").
 		Where("id = ?", reportID).
 		First(&report).Error
 	if err != nil {
 		return nil, err
 	}
-
-	var links []model.CheckInMedicalLink
-	database.DB.Where("medical_report_id = ?", reportID).Preload("CheckIn").Find(&links)
 
 	return &report, nil
 }
@@ -293,9 +293,8 @@ func (s *MedicalService) GetCampMedicalReports(campID string, status model.Medic
 	err := query.Preload("Camper").
 		Preload("Reporter").
 		Preload("TreatmentStaff").
-		Preload("StatusHistory").
-		Preload("ParentNotifications").
-		Preload("RelatedCheckIn").
+		Preload("ResolvedStaff").
+		Preload("RelatedCheckIns.CheckIn").
 		Order("report_time DESC").
 		Offset(offset).
 		Limit(pageSize).
@@ -351,6 +350,27 @@ func (s *MedicalService) GetMedicalStatistics(campID string) (map[string]interfa
 		"critical":         critical,
 		"parent_notified_pending": parentNotNotified,
 	}, nil
+}
+
+func (s *MedicalService) ValidateCamperAccess(camperID string, userID string, userRole model.Role) error {
+	var camper model.Camper
+	if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+		return errors.New("营员不存在: " + camperID)
+	}
+
+	if userRole == model.RoleTeacher && camper.TeacherID != userID {
+		return errors.New("无权限处理非本班营员: " + camper.Name)
+	}
+	return nil
+}
+
+func (s *MedicalService) ValidateReportAccess(reportID string, userID string, userRole model.Role) error {
+	var report model.MedicalReport
+	if err := database.DB.Where("id = ?", reportID).First(&report).Error; err != nil {
+		return errors.New("医疗报告不存在: " + reportID)
+	}
+
+	return s.ValidateCamperAccess(report.CamperID, userID, userRole)
 }
 
 func (s *MedicalService) GetPendingMedicalTasks(campID string) ([]model.MedicalReport, error) {

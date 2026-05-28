@@ -36,6 +36,11 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 		return
 	}
 
+	if !userCtx.HasCampAccess(campID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该营地数据"})
+		return
+	}
+
 	var data interface{}
 	var err error
 

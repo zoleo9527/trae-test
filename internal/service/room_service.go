@@ -44,7 +44,23 @@ func (s *RoomService) AssignRoom(req AssignRoomRequest) error {
 			return err
 		}
 
-		if room.GetAvailableBeds() <= 0 {
+		if req.BedNumber < 1 || req.BedNumber > room.BedCount {
+			return errors.New("床位号超出范围")
+		}
+
+		if camper.RoomID == req.RoomID && camper.BedNumber == req.BedNumber {
+			return errors.New("营员已在该房间该床位，无需重复分配")
+		}
+
+		if room.Beds != nil {
+			for _, bed := range room.Beds {
+				if bed.Number == req.BedNumber && bed.Occupied && bed.CamperID != req.CamperID {
+					return errors.New("该床位已被占用")
+				}
+			}
+		}
+
+		if room.GetAvailableBeds() <= 0 && camper.RoomID != req.RoomID {
 			return errors.New("房间没有可用床位")
 		}
 
@@ -178,6 +194,18 @@ func (s *RoomService) GetRoomStatistics(campID string) (map[string]interface{}, 
 			return float64(usedBeds) / float64(totalBeds) * 100
 		}(),
 	}, nil
+}
+
+func (s *RoomService) ValidateCamperAccess(camperID string, userID string, userRole model.Role) error {
+	var camper model.Camper
+	if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+		return errors.New("营员不存在: " + camperID)
+	}
+
+	if userRole == model.RoleTeacher && camper.TeacherID != userID {
+		return errors.New("无权限处理非本班营员: " + camper.Name)
+	}
+	return nil
 }
 
 func (s *RoomService) GetCamperRoomChanges(camperID string) ([]model.RoomChangeLog, error) {

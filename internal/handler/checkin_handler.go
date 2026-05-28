@@ -48,6 +48,11 @@ func (h *CheckInHandler) BatchCheckIn(c *gin.Context) {
 		status = model.CheckInStatusPresent
 	}
 
+	if err := h.checkInService.ValidateCampersAccess(req.CamperIDs, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	result, err := h.checkInService.BatchCheckIn(service.BatchCheckInRequest{
 		ActivityID:    req.ActivityID,
 		CamperIDs:     req.CamperIDs,
@@ -98,6 +103,12 @@ func (h *CheckInHandler) GetActivityCheckIns(c *gin.Context) {
 }
 
 func (h *CheckInHandler) GetCheckInStatistics(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	activityID := c.Param("activity_id")
 	if activityID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少活动ID"})
@@ -114,9 +125,20 @@ func (h *CheckInHandler) GetCheckInStatistics(c *gin.Context) {
 }
 
 func (h *CheckInHandler) GetCamperCheckIns(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	camperID := c.Param("camper_id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if err := h.checkInService.ValidateCampersAccess([]string{camperID}, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
 
 	checkIns, total, err := h.checkInService.GetCamperCheckIns(camperID, page, pageSize)
 	if err != nil {

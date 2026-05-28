@@ -154,6 +154,8 @@ func (s *CheckInService) GetActivityCheckIns(activityID string, userID string, u
 
 	err := query.Preload("Camper").
 		Preload("Checker").
+		Preload("RelatedMedicals.MedicalReport").
+		Preload("RelatedMedicals.Operator").
 		Find(&checkIns).Error
 	return checkIns, err
 }
@@ -207,6 +209,20 @@ func (s *CheckInService) GetCheckInStatistics(activityID string) (map[string]int
 			return float64(present) / float64(total) * 100
 		}(),
 	}, nil
+}
+
+func (s *CheckInService) ValidateCampersAccess(camperIDs []string, userID string, userRole model.Role) error {
+	for _, camperID := range camperIDs {
+		var camper model.Camper
+		if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+			return errors.New("营员不存在: " + camperID)
+		}
+
+		if userRole == model.RoleTeacher && camper.TeacherID != userID {
+			return errors.New("无权限处理非本班营员: " + camper.Name)
+		}
+	}
+	return nil
 }
 
 func (s *CheckInService) LinkToMedical(checkInID, medicalID, userID, reason string) error {

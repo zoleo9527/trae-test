@@ -39,6 +39,11 @@ func (h *RoomHandler) AssignRoom(c *gin.Context) {
 		return
 	}
 
+	if err := h.roomService.ValidateCamperAccess(req.CamperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	err := h.roomService.AssignRoom(service.AssignRoomRequest{
 		CamperID:       req.CamperID,
 		RoomID:         req.RoomID,
@@ -105,7 +110,18 @@ func (h *RoomHandler) GetRoomStatistics(c *gin.Context) {
 }
 
 func (h *RoomHandler) GetCamperRoomChanges(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	camperID := c.Param("camper_id")
+
+	if err := h.roomService.ValidateCamperAccess(camperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
 
 	changes, err := h.roomService.GetCamperRoomChanges(camperID)
 	if err != nil {

@@ -80,10 +80,32 @@ func (h *CamperHandler) GetCampers(c *gin.Context) {
 }
 
 func (h *CamperHandler) GetCamper(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	id := c.Param("id")
 
 	var camper model.Camper
-	err := database.DB.Preload("Room").
+	err := database.DB.Where("id = ?", id).First(&camper).Error
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "营员不存在"})
+		return
+	}
+
+	if !userCtx.HasCampAccess(camper.CampID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该营地数据"})
+		return
+	}
+
+	if userCtx.Role == model.RoleTeacher && camper.TeacherID != userCtx.UserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问非本班营员"})
+		return
+	}
+
+	err = database.DB.Preload("Room").
 		Preload("Teacher").
 		Preload("MedicalReports").
 		Preload("CheckIns").
@@ -104,7 +126,29 @@ func (h *CamperHandler) GetCamper(c *gin.Context) {
 }
 
 func (h *CamperHandler) GetCamperHistory(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	camperID := c.Param("id")
+
+	var camper model.Camper
+	if err := database.DB.Where("id = ?", camperID).First(&camper).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "营员不存在"})
+		return
+	}
+
+	if !userCtx.HasCampAccess(camper.CampID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该营地数据"})
+		return
+	}
+
+	if userCtx.Role == model.RoleTeacher && camper.TeacherID != userCtx.UserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问非本班营员"})
+		return
+	}
 
 	history, err := h.logService.GetCamperFullHistory(camperID)
 	if err != nil {

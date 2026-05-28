@@ -40,6 +40,8 @@ var (
 	Material4ID    = uuid.New().String()
 	CheckIn1ID     = uuid.New().String()
 	CheckInAbnormalID = uuid.New().String()
+	MaterialIssue1ID = uuid.New().String()
+	MaterialIssue2ID = uuid.New().String()
 )
 
 func SeedData() error {
@@ -984,7 +986,7 @@ func seedMaterials() error {
 	}
 
 	issue1 := &model.MaterialIssue{
-		BaseModel:   model.BaseModel{ID: uuid.New().String()},
+		BaseModel:   model.BaseModel{ID: MaterialIssue1ID},
 		CamperID:    Camper6ID,
 		ItemID:      Material1ID,
 		RequesterID: MedicalID,
@@ -999,10 +1001,10 @@ func seedMaterials() error {
 	}
 	issue1.CreatedBy = MedicalID
 	issue1.UpdatedBy = MedicalID
-	DB.FirstOrCreate(issue1, "camper_id = ? AND item_id = ? AND request_time = ?", issue1.CamperID, issue1.ItemID, issue1.RequestTime)
+	DB.FirstOrCreate(issue1, "id = ?", issue1.ID)
 
 	issue2 := &model.MaterialIssue{
-		BaseModel:   model.BaseModel{ID: uuid.New().String()},
+		BaseModel:   model.BaseModel{ID: MaterialIssue2ID},
 		CamperID:    Camper2ID,
 		ItemID:      Material4ID,
 		RequesterID: Teacher1ID,
@@ -1015,7 +1017,7 @@ func seedMaterials() error {
 	}
 	issue2.CreatedBy = Teacher1ID
 	issue2.UpdatedBy = Teacher1ID
-	DB.FirstOrCreate(issue2, "camper_id = ? AND item_id = ? AND request_time = ?", issue2.CamperID, issue2.ItemID, issue2.RequestTime)
+	DB.FirstOrCreate(issue2, "id = ?", issue2.ID)
 
 	return nil
 }
@@ -1181,7 +1183,7 @@ func seedOperationLogs() error {
 			UserRole:   string(model.RoleMedical),
 			Action:     "material_request",
 			EntityType: "material_issue",
-			EntityID:   Material1ID,
+			EntityID:   MaterialIssue1ID,
 			NewValue:   `{"item":"感冒药","quantity":1,"reason":"感冒咳嗽"}`,
 			CreatedAt:  time.Date(2024, 7, 16, 22, 35, 0, 0, time.Local),
 		},
@@ -1192,7 +1194,7 @@ func seedOperationLogs() error {
 			UserRole:   string(model.RoleLogistics),
 			Action:     "material_issue",
 			EntityType: "material_issue",
-			EntityID:   Material1ID,
+			EntityID:   MaterialIssue1ID,
 			OldValue:   `{"status":"approved"}`,
 			NewValue:   `{"status":"issued"}`,
 			CreatedAt:  time.Date(2024, 7, 16, 22, 40, 0, 0, time.Local),

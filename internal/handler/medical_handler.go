@@ -47,6 +47,11 @@ func (h *MedicalHandler) CreateMedicalReport(c *gin.Context) {
 		return
 	}
 
+	if err := h.medicalService.ValidateCamperAccess(req.CamperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	report, err := h.medicalService.CreateMedicalReport(service.CreateMedicalReportRequest{
 		CamperID:        req.CamperID,
 		ReporterID:      userCtx.UserID,
@@ -100,6 +105,11 @@ func (h *MedicalHandler) UpdateMedicalStatus(c *gin.Context) {
 		return
 	}
 
+	if err := h.medicalService.ValidateReportAccess(reportID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	report, err := h.medicalService.UpdateMedicalStatus(service.UpdateMedicalStatusRequest{
 		ReportID:    reportID,
 		Status:      model.MedicalStatus(req.Status),
@@ -145,6 +155,11 @@ func (h *MedicalHandler) NotifyParent(c *gin.Context) {
 		return
 	}
 
+	if err := h.medicalService.ValidateReportAccess(reportID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	err := h.medicalService.NotifyParent(service.NotifyParentRequest{
 		ReportID:  reportID,
 		UserID:    userCtx.UserID,
@@ -165,7 +180,18 @@ func (h *MedicalHandler) NotifyParent(c *gin.Context) {
 }
 
 func (h *MedicalHandler) GetMedicalReport(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	reportID := c.Param("id")
+
+	if err := h.medicalService.ValidateReportAccess(reportID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
 
 	report, err := h.medicalService.GetMedicalReport(reportID)
 	if err != nil {
@@ -213,7 +239,18 @@ func (h *MedicalHandler) GetCampMedicalReports(c *gin.Context) {
 }
 
 func (h *MedicalHandler) GetCamperMedicalReports(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	camperID := c.Param("camper_id")
+
+	if err := h.medicalService.ValidateCamperAccess(camperID, userCtx.UserID, userCtx.Role); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
 
 	reports, err := h.medicalService.GetCamperMedicalReports(camperID)
 	if err != nil {
@@ -225,7 +262,22 @@ func (h *MedicalHandler) GetCamperMedicalReports(c *gin.Context) {
 }
 
 func (h *MedicalHandler) GetMedicalStatistics(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	campID := c.Query("camp_id")
+	if campID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少camp_id参数"})
+		return
+	}
+
+	if !userCtx.HasCampAccess(campID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该营地数据"})
+		return
+	}
 
 	stats, err := h.medicalService.GetMedicalStatistics(campID)
 	if err != nil {
