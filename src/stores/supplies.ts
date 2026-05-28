@@ -175,16 +175,27 @@ export const useSuppliesStore = defineStore('supplies', () => {
     addComment(applicationId, `证件"${doc.name}"状态更新为: ${newStatus === 'received' ? '已收到' : newStatus === 'expired' ? '已过期' : '待收取'}`, 'system')
   }
 
+  const canSetToPaid = (app: SuppliesApplication): boolean => {
+    return app.status === 'completed' || app.status === 'paid'
+  }
+
   const updatePaymentInfo = (applicationId: string, paymentData: {
     paymentStatus?: 'unpaid' | 'partial' | 'paid'
     actualPayment?: number
     paymentDueDate?: string
-  }) => {
+  }): { success: boolean; message?: string } => {
     const userStore = useUserStore()
     const app = applications.value.find(a => a.id === applicationId)
-    if (!app) return
+    if (!app) return { success: false, message: '申请不存在' }
 
     const isSettingPaid = paymentData.paymentStatus === 'paid'
+    
+    if (isSettingPaid && !canSetToPaid(app)) {
+      return { 
+        success: false, 
+        message: '仅已完成的申请可以标记为已结清，请先完成补给流程' 
+      }
+    }
     
     if (paymentData.paymentStatus !== undefined) {
       app.paymentStatus = paymentData.paymentStatus
@@ -233,12 +244,21 @@ export const useSuppliesStore = defineStore('supplies', () => {
     if (statusText.length > 0) {
       addComment(applicationId, `更新付款信息 - ${statusText.join(', ')}`, 'system')
     }
+    
+    return { success: true }
   }
 
-  const markAsPaid = (applicationId: string) => {
+  const markAsPaid = (applicationId: string): { success: boolean; message?: string } => {
     const userStore = useUserStore()
     const app = applications.value.find(a => a.id === applicationId)
-    if (!app) return
+    if (!app) return { success: false, message: '申请不存在' }
+
+    if (!canSetToPaid(app)) {
+      return { 
+        success: false, 
+        message: '仅已完成的申请可以标记为已结清，请先完成补给流程' 
+      }
+    }
 
     app.paymentStatus = 'paid'
     app.actualPayment = app.totalAmount
@@ -247,6 +267,8 @@ export const useSuppliesStore = defineStore('supplies', () => {
     
     updateStatus(applicationId, 'paid', '款项已结清')
     addComment(applicationId, `款项已全部结清，实际支付: ¥${app.totalAmount.toLocaleString()}`, 'system')
+    
+    return { success: true }
   }
 
   return {

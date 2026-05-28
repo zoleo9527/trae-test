@@ -139,15 +139,28 @@ const markCompleted = () => {
   ElMessage.success('已标记完成')
 }
 
+const canMarkAsPaid = computed(() => {
+  if (!application.value) return false
+  return application.value.status === 'completed' || application.value.status === 'paid'
+})
+
 const markPaid = () => {
   if (!application.value) return
+  if (!canMarkAsPaid.value) {
+    ElMessage.warning('仅已完成的申请可以标记为已结清，请先完成补给流程')
+    return
+  }
   ElMessageBox.confirm('确认该申请款项已全部结清？', '确认', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   }).then(() => {
-    suppliesStore.markAsPaid(application.value!.id)
-    ElMessage.success('已标记已结算')
+    const result = suppliesStore.markAsPaid(application.value!.id)
+    if (result.success) {
+      ElMessage.success('已标记已结算')
+    } else {
+      ElMessage.error(result.message || '操作失败')
+    }
   }).catch(() => {})
 }
 
@@ -192,9 +205,13 @@ const confirmPaymentUpdate = () => {
     updateData.paymentDueDate = paymentForm.value.paymentDueDate
   }
   
-  suppliesStore.updatePaymentInfo(application.value.id, updateData)
-  paymentDialog.value = false
-  ElMessage.success('付款信息已更新')
+  const result = suppliesStore.updatePaymentInfo(application.value.id, updateData)
+  if (result.success) {
+    paymentDialog.value = false
+    ElMessage.success('付款信息已更新')
+  } else {
+    ElMessage.error(result.message || '更新失败')
+  }
 }
 </script>
 
@@ -464,12 +481,25 @@ const confirmPaymentUpdate = () => {
     </el-dialog>
 
     <el-dialog v-model="paymentDialog" title="更新付款信息" width="500px">
+      <el-alert 
+        v-if="!canMarkAsPaid" 
+        type="warning" 
+        size="small" 
+        show-icon 
+        style="margin-bottom: 16px"
+      >
+        仅已完成的申请可以标记为已结清，当前状态不允许选择"已结清"
+      </el-alert>
       <el-form label-width="100px">
         <el-form-item label="付款状态">
           <el-select v-model="paymentForm.paymentStatus" style="width: 100%">
             <el-option label="未付" value="unpaid" />
             <el-option label="部分支付" value="partial" />
-            <el-option label="已结清" value="paid" />
+            <el-option 
+              label="已结清" 
+              value="paid" 
+              :disabled="!canMarkAsPaid"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="实际支付">
