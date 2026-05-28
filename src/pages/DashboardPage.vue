@@ -4,11 +4,12 @@ import { useRouter } from 'vue-router'
 import {
   AlertTriangle, PackageCheck, Clock, Wallet, AlertCircle,
   ClipboardList, Eye, Guitar, Wrench, ArrowRight, ChevronDown,
-  ChevronUp, School, PlusCircle, ListChecks
+  ChevronUp, School, PlusCircle, ListChecks, PanelRight
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useOrderStore } from '@/stores/order'
 import { useNotificationStore } from '@/stores/notification'
+import { useSidePanel } from '@/composables/useSidePanel'
 import { ORDER_STATUS_LABELS, REPAIR_STATUS_LABELS } from '@/types'
 import type { Order, UserRole } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -18,6 +19,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const orderStore = useOrderStore()
 const notificationStore = useNotificationStore()
+const { openPanel } = useSidePanel()
 
 const alertExpanded = ref(false)
 
@@ -96,6 +98,11 @@ function navigateToOrder(id: string) {
 
 function navigateTo(path: string) {
   router.push(path)
+}
+
+function openOrderPanel(orderId: string, event: Event) {
+  event.stopPropagation()
+  openPanel(orderId)
 }
 
 const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
@@ -223,7 +230,16 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 <p class="text-sm text-txt-primary truncate">{{ getInstrumentName(order) }}</p>
                 <p class="text-xs text-txt-muted mt-0.5">{{ getCustomerName(order) }}</p>
               </div>
-              <StatusBadge :status="order.status" />
+              <div class="flex items-center gap-2">
+                <StatusBadge :status="order.status" />
+                <button
+                  @click="openOrderPanel(order.id, $event)"
+                  class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                  title="打开处理台"
+                >
+                  <PanelRight :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -245,9 +261,18 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 <p class="text-sm text-txt-primary truncate">{{ getSchoolName(order) }}</p>
                 <p class="text-xs text-txt-muted mt-0.5">{{ order.orderNo }}</p>
               </div>
-              <div class="text-right flex-shrink-0 ml-3">
-                <p class="text-sm font-medium text-red-400">¥{{ getOverdueAmount(order).toLocaleString() }}</p>
-                <p class="text-xs text-txt-muted">逾期{{ getOverdueDays(order) }}天</p>
+              <div class="flex items-center gap-2">
+                <div class="text-right flex-shrink-0">
+                  <p class="text-sm font-medium text-red-400">¥{{ getOverdueAmount(order).toLocaleString() }}</p>
+                  <p class="text-xs text-txt-muted">逾期{{ getOverdueDays(order) }}天</p>
+                </div>
+                <button
+                  @click="openOrderPanel(order.id, $event)"
+                  class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                  title="打开处理台"
+                >
+                  <PanelRight :size="14" />
+                </button>
               </div>
             </div>
           </div>
@@ -324,7 +349,16 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 <p class="text-sm text-txt-primary truncate">{{ getInstrumentName(order) }}</p>
                 <p class="text-xs text-txt-muted mt-0.5">{{ getCustomerName(order) }}</p>
               </div>
-              <StatusBadge :status="order.status" />
+              <div class="flex items-center gap-2">
+                <StatusBadge :status="order.status" />
+                <button
+                  @click="openOrderPanel(order.id, $event)"
+                  class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                  title="打开处理台"
+                >
+                  <PanelRight :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -339,19 +373,29 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
             <div
               v-for="order in overdueOrders"
               :key="order.id"
-              class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-bg-tertiary/50"
+              @click="navigateToOrder(order.id)"
+              class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-bg-tertiary/50 cursor-pointer hover:bg-bg-tertiary transition-colors"
             >
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-txt-primary truncate">{{ getInstrumentName(order) }}</p>
                 <p class="text-xs text-txt-muted mt-0.5">{{ getCustomerName(order) }}</p>
               </div>
-              <button
-                @click.stop="navigateToOrder(order.id)"
-                class="flex-shrink-0 ml-3 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-accent bg-accent/10 hover:bg-accent/20 transition-colors"
-              >
-                跟进
-                <ArrowRight :size="12" />
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  @click.stop="navigateToOrder(order.id)"
+                  class="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-accent bg-accent/10 hover:bg-accent/20 transition-colors"
+                >
+                  跟进
+                  <ArrowRight :size="12" />
+                </button>
+                <button
+                  @click="openOrderPanel(order.id, $event)"
+                  class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                  title="打开处理台"
+                >
+                  <PanelRight :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -442,8 +486,19 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 @click="navigateToOrder(order.id)"
                 class="p-3 rounded-lg bg-bg-tertiary border border-border cursor-pointer hover:border-accent/30 transition-colors"
               >
-                <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
-                <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                <div class="flex items-start justify-between">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
+                    <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                  </div>
+                  <button
+                    @click="openOrderPanel(order.id, $event)"
+                    class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors flex-shrink-0 ml-2"
+                    title="打开处理台"
+                  >
+                    <PanelRight :size="14" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -457,8 +512,19 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 @click="navigateToOrder(order.id)"
                 class="p-3 rounded-lg bg-bg-tertiary border border-purple-500/20 cursor-pointer hover:border-purple-500/40 transition-colors"
               >
-                <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
-                <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                <div class="flex items-start justify-between">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
+                    <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                  </div>
+                  <button
+                    @click="openOrderPanel(order.id, $event)"
+                    class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors flex-shrink-0 ml-2"
+                    title="打开处理台"
+                  >
+                    <PanelRight :size="14" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -472,8 +538,19 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 @click="navigateToOrder(order.id)"
                 class="p-3 rounded-lg bg-bg-tertiary border border-violet-500/20 cursor-pointer hover:border-violet-500/40 transition-colors"
               >
-                <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
-                <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                <div class="flex items-start justify-between">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
+                    <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.damageCause }}</p>
+                  </div>
+                  <button
+                    @click="openOrderPanel(order.id, $event)"
+                    class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors flex-shrink-0 ml-2"
+                    title="打开处理台"
+                  >
+                    <PanelRight :size="14" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -487,8 +564,19 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
                 @click="navigateToOrder(order.id)"
                 class="p-3 rounded-lg bg-bg-tertiary border border-orange-500/20 cursor-pointer hover:border-orange-500/40 transition-colors"
               >
-                <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
-                <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.returnReason || order.repairTask!.damageCause }}</p>
+                <div class="flex items-start justify-between">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-txt-primary">{{ getInstrumentName(order) }}</p>
+                    <p class="text-xs text-txt-muted mt-1">{{ order.repairTask!.returnReason || order.repairTask!.damageCause }}</p>
+                  </div>
+                  <button
+                    @click="openOrderPanel(order.id, $event)"
+                    class="p-1.5 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors flex-shrink-0 ml-2"
+                    title="打开处理台"
+                  >
+                    <PanelRight :size="14" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

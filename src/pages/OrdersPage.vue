@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Search, Filter, ChevronDown, Clock, AlertTriangle, Package,
-  GitBranch, Circle, CheckCircle2, AlertCircle, Wrench, Wallet, User
+  GitBranch, Circle, CheckCircle2, AlertCircle, Wrench, Wallet, User, PanelRight
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useOrderStore } from '@/stores/order'
+import { useSidePanel } from '@/composables/useSidePanel'
 import { ORDER_STATUS_LABELS, ORDER_STATUS_DOT_COLORS } from '@/types'
 import type { Order, OrderStatus, UserRole } from '@/types'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 const orderStore = useOrderStore()
+const { openPanel } = useSidePanel()
 
 const searchQuery = ref('')
 const statusFilter = ref<OrderStatus | 'all'>('all')
@@ -116,6 +118,11 @@ function navigateToOrder(id: string) {
 
 function navigateTo(path: string) {
   router.push(path)
+}
+
+function openOrderPanel(orderId: string, event: Event) {
+  event.stopPropagation()
+  openPanel(orderId)
 }
 
 const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
@@ -279,11 +286,20 @@ const roleBadgeMap: Record<UserRole, { label: string; class: string }> = {
               </div>
             </div>
           </div>
-          <div class="text-right">
-            <p class="text-sm text-txt-primary">押金 ¥{{ order.depositAmount.toLocaleString() }}</p>
-            <p class="text-xs text-txt-muted mt-0.5">
-              {{ new Date(order.checkoutAt).toLocaleDateString() }} → {{ new Date(order.expectedReturnAt).toLocaleDateString() }}
-            </p>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-sm text-txt-primary">押金 ¥{{ order.depositAmount.toLocaleString() }}</p>
+              <p class="text-xs text-txt-muted mt-0.5">
+                {{ new Date(order.checkoutAt).toLocaleDateString() }} → {{ new Date(order.expectedReturnAt).toLocaleDateString() }}
+              </p>
+            </div>
+            <button
+              @click="openOrderPanel(order.id, $event)"
+              class="p-2 rounded-lg text-txt-muted hover:text-accent hover:bg-accent/10 transition-colors flex-shrink-0"
+              title="打开处理台"
+            >
+              <PanelRight :size="16" />
+            </button>
           </div>
         </div>
 
