@@ -49,6 +49,7 @@ export const materialApi = {
   getDistributions: (camperId?: string) => 
     api.get('/materials/distributions', { params: camperId ? { camperId } : {} }),
   distribute: (data: any) => api.post('/materials/distribute', data),
+  restock: (id: string, quantity: number) => api.post(`/materials/${id}/restock`, { quantity }),
 }
 
 export const resupplyApi = {

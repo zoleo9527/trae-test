@@ -31,7 +31,7 @@
           @change="handleUnassignedChange"
         >
           <template #item="{ element }">
-            <div class="camper-card drag-handle">
+            <div class="camper-card">
               <div
                 class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm"
                 :class="element.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'"
@@ -72,33 +72,42 @@
             </template>
 
             <div class="grid grid-cols-2 gap-2">
-              <div
+              <draggable
                 v-for="bedNum in room.bedCount"
                 :key="bedNum"
+                v-model="bedLists[`${room.id}-${bedNum}`]"
+                group="campers"
+                item-key="id"
                 class="bed-slot"
-                :class="{ 'bed-occupied': room.assignments?.[bedNum] }"
+                :class="{ 'bed-occupied': bedLists[`${room.id}-${bedNum}`]?.length }"
+                ghost-class="ghost"
+                @change="(evt: any) => handleBedChange(evt, room.id, bedNum)"
               >
-                <div v-if="room.assignments?.[bedNum]" class="bed-occupied-content">
-                  <div
-                    class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs"
-                    :class="room.assignments[bedNum].gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'"
-                  >
-                    {{ room.assignments[bedNum].name.charAt(0) }}
+                <template #item="{ element }">
+                  <div class="bed-occupied-content">
+                    <div
+                      class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs"
+                      :class="element.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'"
+                    >
+                      {{ element.name.charAt(0) }}
+                    </div>
+                    <span class="text-xs ml-1 truncate">{{ element.name }}</span>
+                    <el-button
+                      link
+                      type="danger"
+                      class="ml-auto remove-btn"
+                      @click.stop="removeFromRoom(element.id)"
+                    >
+                      <component :is="icons.X" class="w-4 h-4" />
+                    </el-button>
                   </div>
-                  <span class="text-xs ml-1 truncate">{{ room.assignments[bedNum].name }}</span>
-                  <el-button
-                    link
-                    type="danger"
-                    class="ml-auto remove-btn"
-                    @click="removeFromRoom(room.assignments[bedNum].id)"
-                  >
-                    <component :is="icons.X" class="w-4 h-4" />
-                  </el-button>
-                </div>
-                <div v-else class="bed-empty">
-                  <span class="text-gray-400 text-xs">{{ bedNum }}号床</span>
-                </div>
-              </div>
+                </template>
+                <template #footer>
+                  <div v-if="!bedLists[`${room.id}-${bedNum}`]?.length" class="bed-empty">
+                    <span class="text-gray-400 text-xs">{{ bedNum }}号床</span>
+                  </div>
+                </template>
+              </draggable>
             </div>
 
             <div class="mt-3 pt-3 border-t text-center text-sm text-gray-500">
@@ -121,10 +130,8 @@ import { ElMessage } from 'element-plus'
 
 const campers = ref<any[]>([])
 const roomAssignments = ref<any[]>([])
-
-const unassignedCampers = computed(() => {
-  return campers.value.filter((c) => !c.roomId)
-})
+const unassignedCampers = ref<any[]>([])
+const bedLists = ref<Record<string, any[]>>({})
 
 const occupancyRate = computed(() => {
   const total = roomAssignments.value.reduce((sum, r) => sum + r.bedCount, 0)
@@ -136,6 +143,21 @@ const loadData = async () => {
   try {
     campers.value = await camperApi.getList()
     roomAssignments.value = await roomApi.getAssignments()
+
+    unassignedCampers.value = campers.value.filter((c) => !c.roomId)
+
+    const newBedLists: Record<string, any[]> = {}
+    for (const room of roomAssignments.value) {
+      for (let bedNum = 1; bedNum <= room.bedCount; bedNum++) {
+        const key = `${room.id}-${bedNum}`
+        if (room.assignments?.[bedNum]) {
+          newBedLists[key] = [{ ...room.assignments[bedNum] }]
+        } else {
+          newBedLists[key] = []
+        }
+      }
+    }
+    bedLists.value = newBedLists
   } catch (e) {
     console.error('Failed to load data', e)
   }
@@ -144,16 +166,37 @@ const loadData = async () => {
 const handleUnassignedChange = async (evt: any) => {
   if (evt.added) {
     const camper = evt.added.element
-    await camperApi.unassignRoom(camper.id)
-    ElMessage.success(`${camper.name} 已移出房间`)
+    try {
+      await camperApi.unassignRoom(camper.id)
+      ElMessage.success(`${camper.name} 已移出房间`)
+    } catch (e) {
+      ElMessage.error('移出房间失败')
+    }
+    loadData()
+  }
+}
+
+const handleBedChange = async (evt: any, roomId: string, bedNum: number) => {
+  if (evt.added) {
+    const camper = evt.added.element
+    try {
+      await roomApi.assignBed(roomId, { bedNumber: bedNum, camperId: camper.id })
+      ElMessage.success(`${camper.name} 已分配到 ${bedNum}号床`)
+    } catch (e) {
+      ElMessage.error('分配床位失败')
+    }
     loadData()
   }
 }
 
 const removeFromRoom = async (camperId: string) => {
   const camper = campers.value.find((c) => c.id === camperId)
-  await camperApi.unassignRoom(camperId)
-  ElMessage.success(`${camper?.name} 已移出房间`)
+  try {
+    await camperApi.unassignRoom(camperId)
+    ElMessage.success(`${camper?.name} 已移出房间`)
+  } catch (e) {
+    ElMessage.error('移出房间失败')
+  }
   loadData()
 }
 
@@ -182,11 +225,16 @@ onMounted(() => {
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   transition: all 0.2s;
+  cursor: grab;
 }
 
 .camper-card:hover {
   background: #f1f5f9;
   border-color: #cbd5e1;
+}
+
+.camper-card:active {
+  cursor: grabbing;
 }
 
 .ghost {
@@ -218,6 +266,7 @@ onMounted(() => {
   align-items: center;
   padding: 6px 8px;
   transition: all 0.2s;
+  min-width: 0;
 }
 
 .bed-slot:hover {
