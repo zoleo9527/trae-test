@@ -3,10 +3,10 @@ import { Search, Play, MapPin, CheckCircle } from 'lucide-react'
 import Modal from '../components/Modal'
 import { useApp } from '../store/AppContext'
 import { Delivery } from '../types'
-import { formatDate, getStatusColor, getDeliveryStatusName } from '../utils'
+import { formatDate, getStatusColor, getDeliveryStatusName, generateReturnNo } from '../utils'
 
 export default function Deliveries() {
-  const { deliveries, currentUser, updateDelivery, addTimelineEntry, updateBucketReturn, bucketReturns } = useApp()
+  const { deliveries, orders, inventory, currentUser, updateDelivery, updateOrder, addBucketReturn, addInventoryRecord, addTimelineEntry, bucketReturns } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null)
@@ -31,8 +31,15 @@ export default function Deliveries() {
   })
 
   const handleStartDelivery = (delivery: Delivery) => {
-    const updated = { ...delivery, status: 'in_transit' as const, startedAt: new Date().toISOString() }
+    const now = new Date().toISOString()
+    const updated = { ...delivery, status: 'in_transit' as const, startedAt: now }
     updateDelivery(updated)
+    
+    const relatedOrder = orders.find(o => o.id === delivery.orderId)
+    if (relatedOrder) {
+      updateOrder({ ...relatedOrder, status: 'delivering' as const })
+    }
+    
     addTimelineEntry({
       id: `t${Date.now()}`,
       actionType: 'delivery_started',
@@ -41,7 +48,7 @@ export default function Deliveries() {
       actorId: currentUser.id,
       actorName: currentUser.name,
       actorRole: currentUser.role,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       description: '开始配送',
       details: {},
     })
@@ -89,11 +96,16 @@ export default function Deliveries() {
     }
     updateDelivery(updatedDelivery)
 
+    const relatedOrder = orders.find(o => o.id === selectedDelivery.orderId)
+    if (relatedOrder) {
+      updateOrder({ ...relatedOrder, status: 'completed' as const, completedAt: now })
+    }
+
     const existingReturn = bucketReturns.find(br => br.deliveryId === selectedDelivery.id)
     if (!existingReturn) {
       const newReturn = {
         id: `br${Date.now()}`,
-        returnNo: `BRT${Date.now()}`,
+        returnNo: generateReturnNo(),
         deliveryId: selectedDelivery.id,
         orderId: selectedDelivery.orderId,
         orderNo: selectedDelivery.orderNo,
@@ -110,7 +122,46 @@ export default function Deliveries() {
           : 0,
         disputeReason: completeData.hasDispute ? completeData.disputeNote : undefined,
       }
-      updateBucketReturn(newReturn)
+      addBucketReturn(newReturn)
+
+      const waterInventory = inventory.find(i => i.itemType === 'water')
+      const bucketInventory = inventory.find(i => i.itemType === 'bucket')
+
+      if (completeData.actualWaterDelivered > 0 && waterInventory) {
+        addInventoryRecord({
+          id: `ir${Date.now()}`,
+          recordNo: `INV${Date.now()}`,
+          type: 'out',
+          itemType: 'water',
+          quantity: -completeData.actualWaterDelivered,
+          beforeQuantity: waterInventory.totalQuantity,
+          afterQuantity: waterInventory.totalQuantity - completeData.actualWaterDelivered,
+          relatedOrderId: selectedDelivery.orderId,
+          relatedDeliveryId: selectedDelivery.id,
+          operatorId: currentUser.id,
+          operatorName: currentUser.name,
+          operatedAt: now,
+          notes: `配送出库-${selectedDelivery.customerName}订单`,
+        })
+      }
+
+      if (completeData.actualBucketsCollected > 0 && bucketInventory && !completeData.hasDispute) {
+        addInventoryRecord({
+          id: `ir${Date.now() + 1}`,
+          recordNo: `INV${Date.now() + 1}`,
+          type: 'in',
+          itemType: 'bucket',
+          quantity: completeData.actualBucketsCollected,
+          beforeQuantity: bucketInventory.totalQuantity,
+          afterQuantity: bucketInventory.totalQuantity + completeData.actualBucketsCollected,
+          relatedOrderId: selectedDelivery.orderId,
+          relatedDeliveryId: selectedDelivery.id,
+          operatorId: currentUser.id,
+          operatorName: currentUser.name,
+          operatedAt: now,
+          notes: `空桶回收入库-${selectedDelivery.customerName}订单`,
+        })
+      }
 
       if (completeData.hasDispute) {
         addTimelineEntry({

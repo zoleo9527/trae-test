@@ -3,10 +3,10 @@ import { Plus, Search, User } from 'lucide-react'
 import Modal from '../components/Modal'
 import { useApp } from '../store/AppContext'
 import { Order } from '../types'
-import { formatDate, getStatusColor, getOrderStatusName, generateOrderNo } from '../utils'
+import { formatDate, getStatusColor, getOrderStatusName, generateOrderNo, generateDeliveryNo } from '../utils'
 
 export default function Orders() {
-  const { orders, users, addOrder, updateOrder, currentUser, addTimelineEntry } = useApp()
+  const { orders, users, addOrder, updateOrder, addDelivery, currentUser, addTimelineEntry } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -67,6 +67,8 @@ export default function Orders() {
 
   const handleAssignDriver = (order: Order, driverId: string) => {
     const driver = users.find(u => u.id === driverId)
+    const now = new Date().toISOString()
+    
     const updatedOrder = {
       ...order,
       status: 'assigned' as const,
@@ -74,6 +76,24 @@ export default function Orders() {
       assignedDriverName: driver?.name,
     }
     updateOrder(updatedOrder)
+    
+    const newDelivery = {
+      id: `d${Date.now()}`,
+      deliveryNo: generateDeliveryNo(),
+      orderId: order.id,
+      orderNo: order.orderNo,
+      driverId: driverId,
+      driverName: driver?.name || '',
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      waterQuantity: order.waterQuantity,
+      bucketQuantity: order.bucketQuantity,
+      status: 'pending' as const,
+      hasDispute: false,
+    }
+    addDelivery(newDelivery)
+    
     addTimelineEntry({
       id: `t${Date.now()}`,
       actionType: 'order_assigned',
@@ -82,9 +102,9 @@ export default function Orders() {
       actorId: currentUser.id,
       actorName: currentUser.name,
       actorRole: currentUser.role,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       description: `分配给${driver?.name}`,
-      details: { driverId, driverName: driver?.name },
+      details: { driverId, driverName: driver?.name, deliveryNo: newDelivery.deliveryNo },
     })
     setSelectedOrder(null)
   }

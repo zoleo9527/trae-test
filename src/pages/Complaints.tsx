@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Search, CheckCircle, RefreshCw, Plus } from 'lucide-react'
 import { useApp } from '@/store/AppContext'
 import Modal from '@/components/Modal'
-import { formatDate, generateComplaintNo, getComplaintTypeName, getPriorityName, getPriorityColor, getStatusColor } from '@/utils'
+import { formatDate, generateComplaintNo, generateOrderNo, generateDeliveryNo, getComplaintTypeName, getPriorityName, getPriorityColor, getStatusColor } from '@/utils'
 import type { Complaint } from '@/types'
 
 export default function Complaints() {
-  const { complaints, orders, users, currentUser, addComplaint, updateComplaint, addTimelineEntry, addReDelivery } = useApp()
+  const { complaints, orders, users, currentUser, addComplaint, updateComplaint, addOrder, addDelivery, addTimelineEntry, addReDelivery } = useApp()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -105,36 +105,84 @@ export default function Complaints() {
   const handleReDelivery = () => {
     if (!selectedComplaint) return
 
+    const now = new Date().toISOString()
     const driver = users.find(u => u.id === reDeliveryData.driverId)
+    const originalOrder = orders.find(o => o.id === selectedComplaint.orderId)
+
+    const newOrder = {
+      id: `o${Date.now()}`,
+      orderNo: generateOrderNo(),
+      customerName: originalOrder?.customerName || selectedComplaint.customerName,
+      customerPhone: originalOrder?.customerPhone || selectedComplaint.customerPhone,
+      customerAddress: originalOrder?.customerAddress || '',
+      waterQuantity: reDeliveryData.waterQuantity,
+      bucketQuantity: 0,
+      amount: 0,
+      status: 'assigned' as const,
+      assignedDriverId: reDeliveryData.driverId,
+      assignedDriverName: driver?.name,
+      createdAt: now,
+      scheduledTime: reDeliveryData.scheduledTime,
+      notes: `补送订单，关联投诉: ${selectedComplaint.complaintNo}`,
+    }
+    addOrder(newOrder)
+
+    const newDelivery = {
+      id: `d${Date.now() + 1}`,
+      deliveryNo: generateDeliveryNo(),
+      orderId: newOrder.id,
+      orderNo: newOrder.orderNo,
+      driverId: reDeliveryData.driverId,
+      driverName: driver?.name || '',
+      customerName: newOrder.customerName,
+      customerPhone: newOrder.customerPhone,
+      customerAddress: newOrder.customerAddress,
+      waterQuantity: newOrder.waterQuantity,
+      bucketQuantity: newOrder.bucketQuantity,
+      status: 'pending' as const,
+      hasDispute: false,
+    }
+    addDelivery(newDelivery)
+
     addReDelivery({
-      id: `rd${Date.now()}`,
+      id: `rd${Date.now() + 2}`,
       reDeliveryNo: `RED${Date.now()}`,
       originalOrderId: selectedComplaint.orderId || '',
       complaintId: selectedComplaint.id,
+      newOrderId: newOrder.id,
+      newDeliveryId: newDelivery.id,
       driverId: reDeliveryData.driverId,
       driverName: driver?.name,
       waterQuantity: reDeliveryData.waterQuantity,
       status: 'assigned',
       scheduledTime: reDeliveryData.scheduledTime,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
     })
+
     updateComplaint({
       ...selectedComplaint,
       hasReDelivery: true,
-      reDeliveryOrderId: `rd${Date.now()}`,
+      reDeliveryOrderId: newOrder.id,
     })
+
     addTimelineEntry({
-      id: `t${Date.now()}`,
+      id: `t${Date.now() + 3}`,
       actionType: 'redelivery_created',
       relatedId: selectedComplaint.id,
       relatedType: 'complaint',
       actorId: currentUser.id,
       actorName: currentUser.name,
       actorRole: currentUser.role,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       description: '安排补送',
-      details: { waterQuantity: reDeliveryData.waterQuantity, driver: driver?.name },
+      details: { 
+        waterQuantity: reDeliveryData.waterQuantity, 
+        driver: driver?.name,
+        orderNo: newOrder.orderNo,
+        deliveryNo: newDelivery.deliveryNo,
+      },
     })
+
     setIsReDeliveryModalOpen(false)
     setSelectedComplaint(null)
   }

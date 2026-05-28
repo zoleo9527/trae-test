@@ -41,7 +41,9 @@ interface AppContextType {
   
   updateOrder: (order: Order) => void
   addOrder: (order: Order) => void
+  addDelivery: (delivery: Delivery) => void
   updateDelivery: (delivery: Delivery) => void
+  addBucketReturn: (bucketReturn: BucketReturn) => void
   updateBucketReturn: (bucketReturn: BucketReturn) => void
   addComplaint: (complaint: Complaint) => void
   updateComplaint: (complaint: Complaint) => void
@@ -75,8 +77,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOrders(prev => [order, ...prev])
   }, [])
 
+  const addDelivery = useCallback((delivery: Delivery) => {
+    setDeliveries(prev => [delivery, ...prev])
+  }, [])
+
   const updateDelivery = useCallback((delivery: Delivery) => {
     setDeliveries(prev => prev.map(d => d.id === delivery.id ? delivery : d))
+  }, [])
+
+  const addBucketReturn = useCallback((bucketReturn: BucketReturn) => {
+    setBucketReturns(prev => [bucketReturn, ...prev])
   }, [])
 
   const updateBucketReturn = useCallback((bucketReturn: BucketReturn) => {
@@ -95,7 +105,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setInventoryRecords(prev => [record, ...prev])
     setInventory(prev => prev.map(inv => {
       if (inv.itemType === record.itemType) {
-        return { ...inv, totalQuantity: record.afterQuantity, lastUpdated: record.operatedAt }
+        const quantityDiff = record.afterQuantity - record.beforeQuantity
+        return { 
+          ...inv, 
+          totalQuantity: inv.totalQuantity + quantityDiff,
+          availableQuantity: inv.availableQuantity + quantityDiff,
+          lastUpdated: record.operatedAt 
+        }
       }
       return inv
     }))
@@ -126,7 +142,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dailyStats,
         updateOrder,
         addOrder,
+        addDelivery,
         updateDelivery,
+        addBucketReturn,
         updateBucketReturn,
         addComplaint,
         updateComplaint,

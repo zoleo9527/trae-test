@@ -135,6 +135,8 @@ export interface ReDelivery {
   reDeliveryNo: string
   originalOrderId: string
   complaintId: string
+  newOrderId?: string
+  newDeliveryId?: string
   driverId?: string
   driverName?: string
   waterQuantity: number
