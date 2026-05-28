@@ -91,7 +91,7 @@ func SetupRouter() *gin.Engine {
 			{
 				materials.GET("/items", materialHandler.GetMaterialItems)
 				materials.GET("/low-stock", materialHandler.GetLowStockItems)
-				materials.POST("/request", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.RequestMaterial)
+				materials.POST("/request", auth.PermissionMiddleware(auth.PermMaterialRequest), materialHandler.RequestMaterial)
 				materials.PUT("/:id/approve", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.ApproveMaterial)
 				materials.PUT("/:id/issue", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.IssueMaterial)
 				materials.GET("/issues", materialHandler.GetCampMaterialIssues)

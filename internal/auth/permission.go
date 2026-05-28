@@ -11,23 +11,24 @@ import (
 type Permission string
 
 const (
-	PermCampView       Permission = "camp:view"
-	PermCampManage     Permission = "camp:manage"
-	PermCamperView     Permission = "camper:view"
-	PermCamperManage   Permission = "camper:manage"
-	PermCheckInView    Permission = "checkin:view"
-	PermCheckInManage  Permission = "checkin:manage"
-	PermMedicalView    Permission = "medical:view"
-	PermMedicalManage  Permission = "medical:manage"
-	PermRoomView       Permission = "room:view"
-	PermRoomManage     Permission = "room:manage"
-	PermMaterialView   Permission = "material:view"
-	PermMaterialManage Permission = "material:manage"
-	PermFollowUpView   Permission = "followup:view"
-	PermFollowUpManage Permission = "followup:manage"
-	PermLogView        Permission = "log:view"
-	PermUserManage     Permission = "user:manage"
-	PermDashboard      Permission = "dashboard:view"
+	PermCampView        Permission = "camp:view"
+	PermCampManage      Permission = "camp:manage"
+	PermCamperView      Permission = "camper:view"
+	PermCamperManage    Permission = "camper:manage"
+	PermCheckInView     Permission = "checkin:view"
+	PermCheckInManage   Permission = "checkin:manage"
+	PermMedicalView     Permission = "medical:view"
+	PermMedicalManage   Permission = "medical:manage"
+	PermRoomView        Permission = "room:view"
+	PermRoomManage      Permission = "room:manage"
+	PermMaterialView    Permission = "material:view"
+	PermMaterialRequest Permission = "material:request"
+	PermMaterialManage  Permission = "material:manage"
+	PermFollowUpView    Permission = "followup:view"
+	PermFollowUpManage  Permission = "followup:manage"
+	PermLogView         Permission = "log:view"
+	PermUserManage      Permission = "user:manage"
+	PermDashboard       Permission = "dashboard:view"
 )
 
 var rolePermissions = map[model.Role][]Permission{
@@ -37,7 +38,7 @@ var rolePermissions = map[model.Role][]Permission{
 		PermCheckInView, PermCheckInManage,
 		PermMedicalView, PermMedicalManage,
 		PermRoomView, PermRoomManage,
-		PermMaterialView, PermMaterialManage,
+		PermMaterialView, PermMaterialRequest, PermMaterialManage,
 		PermFollowUpView, PermFollowUpManage,
 		PermLogView, PermDashboard,
 		PermUserManage,
@@ -49,7 +50,7 @@ var rolePermissions = map[model.Role][]Permission{
 		PermMedicalView, PermMedicalManage,
 		PermRoomView,
 		PermFollowUpView, PermFollowUpManage,
-		PermMaterialView,
+		PermMaterialView, PermMaterialRequest,
 		PermDashboard,
 	},
 	model.RoleLogistics: {
@@ -67,7 +68,7 @@ var rolePermissions = map[model.Role][]Permission{
 		PermMedicalView, PermMedicalManage,
 		PermCheckInView, PermCheckInManage,
 		PermFollowUpView, PermFollowUpManage,
-		PermMaterialView,
+		PermMaterialView, PermMaterialRequest,
 		PermLogView, PermDashboard,
 	},
 	model.RoleAdmin: {
@@ -76,7 +77,7 @@ var rolePermissions = map[model.Role][]Permission{
 		PermCheckInView, PermCheckInManage,
 		PermMedicalView, PermMedicalManage,
 		PermRoomView, PermRoomManage,
-		PermMaterialView, PermMaterialManage,
+		PermMaterialView, PermMaterialRequest, PermMaterialManage,
 		PermFollowUpView, PermFollowUpManage,
 		PermLogView, PermDashboard,
 		PermUserManage,
