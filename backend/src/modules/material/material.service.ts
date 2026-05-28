@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Material, MaterialDistribution } from '../../entities';
@@ -35,6 +35,18 @@ export class MaterialService {
   }
 
   async distribute(data: Partial<MaterialDistribution>): Promise<MaterialDistribution> {
+    const material = await this.materialRepository.findOne({ where: { id: data.materialId } });
+    if (!material) {
+      throw new HttpException('物资不存在', HttpStatus.NOT_FOUND);
+    }
+
+    if (material.stockQuantity < data.quantity) {
+      throw new HttpException(
+        `${material.name} 库存不足，当前库存 ${material.stockQuantity} ${material.unit}，申请发放 ${data.quantity} ${material.unit}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const distribution = this.distributionRepository.create(data);
     const result = await this.distributionRepository.save(distribution);
     

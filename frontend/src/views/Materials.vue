@@ -65,6 +65,9 @@
         <el-form-item label="物资名称">
           <el-input :value="selectedMaterial?.name" disabled />
         </el-form-item>
+        <el-form-item label="当前库存">
+          <el-input :value="`${selectedMaterial?.stockQuantity} ${selectedMaterial?.unit}`" disabled />
+        </el-form-item>
         <el-form-item label="营员">
           <el-select v-model="distributeForm.camperId" placeholder="选择营员" style="width: 100%">
             <el-option
@@ -76,7 +79,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="发放数量">
-          <el-input-number v-model="distributeForm.quantity" :min="1" />
+          <el-input-number v-model="distributeForm.quantity" :min="1" :max="selectedMaterial?.stockQuantity || 1" />
         </el-form-item>
         <el-form-item label="发放人">
           <el-input v-model="distributeForm.distributedBy" />
@@ -190,8 +193,9 @@ const confirmDistribute = async () => {
     ElMessage.success('发放成功')
     showDistribute.value = false
     loadData()
-  } catch (e) {
-    ElMessage.error('发放失败')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '发放失败'
+    ElMessage.error(msg)
   }
 }
 

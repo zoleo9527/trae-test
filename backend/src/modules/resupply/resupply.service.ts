@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResupplyRequest, EvidenceChain, Material } from '../../entities';
@@ -68,6 +68,18 @@ export class ResupplyService {
 
   async fulfill(id: string, data: { operator: string; note?: string }): Promise<ResupplyRequest> {
     const request = await this.findOne(id);
+    const material = await this.materialRepository.findOne({ where: { id: request.materialId } });
+
+    if (!material) {
+      throw new HttpException('物资不存在', HttpStatus.NOT_FOUND);
+    }
+
+    if (material.stockQuantity < request.quantity) {
+      throw new HttpException(
+        `${material.name} 库存不足，当前库存 ${material.stockQuantity} ${material.unit}，补领数量 ${request.quantity} ${material.unit}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     
     await this.requestRepository.update(id, {
       status: 'fulfilled',

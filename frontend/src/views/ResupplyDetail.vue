@@ -200,6 +200,19 @@
 
     <el-dialog v-model="showFulfill" title="完成发放" width="500px">
       <el-form label-width="100px">
+        <el-form-item label="物资名称">
+          <el-input :value="request?.material?.name" disabled />
+        </el-form-item>
+        <el-form-item label="补领数量">
+          <el-input :value="`${request?.quantity} ${request?.material?.unit}`" disabled />
+        </el-form-item>
+        <el-form-item label="当前库存" :error="stockInsufficient ? '库存不足，无法发放' : ''">
+          <el-input
+            :value="materialStock !== null ? `${materialStock} ${request?.material?.unit}` : '加载中...'"
+            disabled
+            :class="{ 'stock-error': stockInsufficient }"
+          />
+        </el-form-item>
         <el-form-item label="发放说明">
           <el-input v-model="fulfillNote" type="textarea" :rows="3" />
         </el-form-item>
@@ -209,7 +222,9 @@
       </el-form>
       <template #footer>
         <el-button @click="showFulfill = false">取消</el-button>
-        <el-button type="primary" @click="confirmFulfill">确认</el-button>
+        <el-button type="primary" :disabled="stockInsufficient" @click="confirmFulfill">
+          {{ stockInsufficient ? '库存不足' : '确认发放' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -252,7 +267,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { resupplyApi } from '@/api'
+import { resupplyApi, materialApi } from '@/api'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import * as icons from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
@@ -261,6 +276,7 @@ import dayjs from 'dayjs'
 const route = useRoute()
 const userStore = useUserStore()
 const request = ref<any>(null)
+const materialStock = ref<number | null>(null)
 const showReview = ref(false)
 const showFulfill = ref(false)
 const showClose = ref(false)
@@ -292,6 +308,11 @@ const canFulfill = computed(() => {
 
 const canClose = computed(() => {
   return request.value?.status === 'fulfilled' && userStore.user?.role === 'teacher'
+})
+
+const stockInsufficient = computed(() => {
+  if (materialStock.value === null || !request.value) return false
+  return materialStock.value < request.value.quantity
 })
 
 const getStatusType = (status: string) => {
@@ -372,9 +393,16 @@ const showReviewDialog = () => {
   showReview.value = true
 }
 
-const showFulfillDialog = () => {
+const showFulfillDialog = async () => {
   fulfillNote.value = ''
+  materialStock.value = null
   showFulfill.value = true
+  try {
+    const material = await materialApi.getDetail(request.value.materialId)
+    materialStock.value = material.stockQuantity
+  } catch (e) {
+    console.error('Failed to load material stock', e)
+  }
 }
 
 const showCloseDialog = () => {
@@ -393,8 +421,9 @@ const confirmReview = async () => {
     ElMessage.success('操作成功')
     showReview.value = false
     loadData()
-  } catch (e) {
-    ElMessage.error('操作失败')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '操作失败'
+    ElMessage.error(msg)
   }
 }
 
@@ -407,8 +436,9 @@ const confirmFulfill = async () => {
     ElMessage.success('操作成功')
     showFulfill.value = false
     loadData()
-  } catch (e) {
-    ElMessage.error('操作失败')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '操作失败'
+    ElMessage.error(msg)
   }
 }
 
@@ -422,8 +452,9 @@ const confirmClose = async () => {
     ElMessage.success('操作成功')
     showClose.value = false
     loadData()
-  } catch (e) {
-    ElMessage.error('操作失败')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '操作失败'
+    ElMessage.error(msg)
   }
 }
 
@@ -439,8 +470,9 @@ const addEvidence = async () => {
     showAddEvidence.value = false
     evidenceContent.value = ''
     loadData()
-  } catch (e) {
-    ElMessage.error('操作失败')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '添加失败'
+    ElMessage.error(msg)
   }
 }
 
@@ -448,3 +480,17 @@ onMounted(() => {
   loadData()
 })
 </script>
+
+<style scoped>
+.timeline-item:not(:last-child) {
+  border-left: 2px solid #e5e7eb;
+  margin-left: 12px;
+  padding-left: 24px;
+}
+
+.stock-error :deep(.el-input__wrapper) {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+</style>

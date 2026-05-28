@@ -46,6 +46,7 @@ export const roomApi = {
 
 export const materialApi = {
   getList: () => api.get('/materials'),
+  getDetail: (id: string) => api.get(`/materials/${id}`),
   getDistributions: (camperId?: string) => 
     api.get('/materials/distributions', { params: camperId ? { camperId } : {} }),
   distribute: (data: any) => api.post('/materials/distribute', data),
