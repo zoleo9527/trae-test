@@ -1,6 +1,14 @@
 <template>
   <div class="ws-container" v-loading="loading">
-    <section class="ws-section" v-if="continuous.order">
+    <div v-if="continuousError" class="ws-error">
+      <el-alert type="error" :closable="false">
+        <template #title>
+          数据加载失败：{{ (continuousError as any)?.data?.detail || (continuousError as any)?.message }}
+          <el-button size="small" type="primary" style="margin-left:12px" @click="load">重试</el-button>
+        </template>
+      </el-alert>
+    </div>
+    <section class="ws-section" v-else-if="continuous.order">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div>
           <h2 style="margin:0">连续回查面板</h2>
@@ -18,7 +26,7 @@
       </div>
     </section>
 
-    <section class="ws-section" v-if="continuous.batches && continuous.batches.length">
+    <section class="ws-section" v-if="!continuousError && continuous.batches && continuous.batches.length">
       <h2>批次对比（按版本聚合）</h2>
       <el-alert type="info" :closable="false" title="同一订单所有回传批次在这里聚合，避免翻聊天记录拼接上下文。点击任意照片可复核、驳回或回查。" style="margin-bottom:12px" />
 
@@ -39,7 +47,7 @@
       </el-tabs>
     </section>
 
-    <section class="ws-section" v-if="comparisonRows.length">
+    <section class="ws-section" v-if="!continuousError && comparisonRows.length">
       <h2>版本并排对比</h2>
       <div class="ws-compare">
         <div v-for="row in comparisonRows" :key="row.key" class="ws-compare-item">
@@ -113,8 +121,8 @@ const route = useRoute()
 const api = useWsApi()
 const orderId = computed(() => route.params.id as string)
 
-const { data: continuousData, refresh: refreshContinuous } = await useFetch<Continuous>(
-  () => `/api/orders/${orderId.value}/continuous-review`,
+const { data: continuousData, error: continuousError, refresh: refreshContinuous } = await useFetch<Continuous>(
+  () => `/orders/${orderId.value}/continuous-review`,
   {
     $fetch: api.nativeFetch(),
     lazy: false,
@@ -267,6 +275,7 @@ const resubmit = async () => {
 </script>
 
 <style scoped>
+.ws-error { margin-bottom: 16px; }
 .ws-order-sub { margin-top: 2px; color: var(--ws-muted); font-size: 13px; }
 .ws-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .ws-compare-photo { background: #fff; border: 1px solid #eee; border-radius: 6px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }

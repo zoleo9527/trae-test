@@ -1,6 +1,16 @@
 <template>
   <div class="ws-container">
-    <div v-if="!order" class="ws-empty">加载中...</div>
+    <div v-if="orderError || timelineError" class="ws-error">
+      <el-alert type="error" :closable="false">
+        <template #title>
+          数据加载失败
+          <span v-if="orderError">{{ (orderError as any)?.data?.detail || (orderError as any)?.message }}</span>
+          <span v-else-if="timelineError">{{ (timelineError as any)?.data?.detail || (timelineError as any)?.message }}</span>
+          <el-button size="small" type="primary" style="margin-left:12px" @click="load">重试</el-button>
+        </template>
+      </el-alert>
+    </div>
+    <div v-else-if="!order" class="ws-empty">加载中...</div>
     <div v-else>
       <section class="ws-section">
         <div class="ws-order-head">
@@ -121,8 +131,8 @@ const route = useRoute()
 const api = useWsApi()
 const orderId = computed(() => route.params.id as string)
 
-const { data: order, refresh: refreshOrder } = await useFetch<Order>(
-  () => `/api/orders/${orderId.value}`,
+const { data: order, error: orderError, refresh: refreshOrder } = await useFetch<Order>(
+  () => `/orders/${orderId.value}`,
   {
     $fetch: api.nativeFetch(),
     lazy: false,
@@ -130,8 +140,8 @@ const { data: order, refresh: refreshOrder } = await useFetch<Order>(
   }
 )
 
-const { data: timeline, refresh: refreshTimeline } = await useFetch<TimelineEvent[]>(
-  () => `/api/orders/${orderId.value}/timeline`,
+const { data: timeline, error: timelineError, refresh: refreshTimeline } = await useFetch<TimelineEvent[]>(
+  () => `/orders/${orderId.value}/timeline`,
   {
     $fetch: api.nativeFetch(),
     lazy: false,
@@ -228,6 +238,7 @@ const submitAddBatch = async () => {
 </script>
 
 <style scoped>
+.ws-error { margin-bottom: 16px; }
 .ws-order-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
 .ws-order-sub { margin-top: 2px; color: var(--ws-muted); font-size: 13px; }
 .ws-order-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }

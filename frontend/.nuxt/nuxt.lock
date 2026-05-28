@@ -1,6 +1,6 @@
 {
-  "pid": 38954,
-  "startedAt": 1779950049799,
+  "pid": 69301,
+  "startedAt": 1779950725344,
   "command": "dev",
   "cwd": "/Users/liu/Documents/private/model-test/trae-test-2/frontend",
   "port": 3000,
