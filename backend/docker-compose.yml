@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: instrument_rental_db
+    environment:
+      POSTGRES_USER: rental
+      POSTGRES_PASSWORD: rental123
+      POSTGRES_DB: instrument_rental
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
