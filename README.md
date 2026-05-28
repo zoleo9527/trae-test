@@ -236,7 +236,7 @@ POST /api/transfer-orders/2/submit/
 **操作**: 尝试下架联名款 SKU002 故宫联名文创胶带（有待处理补货单）
 
 ```bash
-PATCH /api/products/2/
+POST /api/products/2/sync-status/
 Content-Type: application/json
 
 {
@@ -248,8 +248,8 @@ Content-Type: application/json
 ```json
 {
     "code": "collaboration_sync_error",
-    "message": "联名商品同步失败",
-    "details": "联名商品 [SKU002 故宫联名文创胶带 存在 2 条待处理补货单",
+    "message": "该联名商品存在2条待处理补货单，无法下架",
+    "details": null,
     "suggestion": "请先处理完相关补货单后再操作"
 }
 ```

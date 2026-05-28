@@ -147,6 +147,7 @@ def _get_business_suggestion(code):
         'permission_denied': '请联系管理员获取相应权限',
         'inventory_shortage': '库存不足，请调整数量或先补货',
         'product_delisted': '该商品已下架，无法进行此操作',
+        'collaboration_sync_error': '请先处理完相关补货单后再操作',
         'data_deviation': '数据存在偏差，请先进行库存盘点校准',
         'not_found': '请求的资源不存在，请检查ID是否正确',
     }
