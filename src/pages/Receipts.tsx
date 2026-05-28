@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { EmptyState } from '../components/common/EmptyState'
 import { useSplitStore } from '../store/splitStore'
@@ -17,12 +17,29 @@ export const Receipts: React.FC = () => {
   const { getOrderById } = useOrderStore()
   const { currentRole } = useRoleStore()
   const permissions = getRolePermissions(currentRole)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const [statusFilter, setStatusFilter] = useState<ReceiptStatus | 'all'>('all')
   const [showReceiptPanel, setShowReceiptPanel] = useState<string | null>(null)
   const [receiptStatus, setReceiptStatus] = useState<ReceiptStatus>('signed')
   const [signedBy, setSignedBy] = useState('')
   const [exceptionNote, setExceptionNote] = useState('')
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const splitId = params.get('splitId')
+    if (splitId && permissions.canEnterReceipt) {
+      const split = splits.find((s) => s.id === splitId)
+      if (split && split.status === 'shipped') {
+        const receipt = receipts.find((r) => r.splitId === splitId)
+        if (!receipt) {
+          setShowReceiptPanel(splitId)
+          navigate('/receipts', { replace: true })
+        }
+      }
+    }
+  }, [location.search, splits, receipts, permissions.canEnterReceipt, navigate])
 
   const receiptData = useMemo(() => {
     return splits

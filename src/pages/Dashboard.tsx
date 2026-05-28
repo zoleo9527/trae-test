@@ -42,6 +42,7 @@ export const Dashboard: React.FC = () => {
       status: string
       priority: 'high' | 'medium' | 'low'
       orderId?: string
+      splitId?: string
     }> = []
 
     orders.forEach((order) => {
@@ -100,6 +101,7 @@ export const Dashboard: React.FC = () => {
             status: 'pending' as ReceiptStatus,
             priority: 'medium',
             orderId: split.orderId,
+            splitId: split.id,
           })
         }
       }
@@ -188,7 +190,11 @@ export const Dashboard: React.FC = () => {
         }
         break
       case 'receipt':
-        navigate('/receipts')
+        if (item.splitId) {
+          navigate(`/receipts?splitId=${item.splitId}`)
+        } else {
+          navigate('/receipts')
+        }
         break
       case 'refund':
         navigate('/refunds')

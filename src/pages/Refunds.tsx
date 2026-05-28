@@ -121,23 +121,33 @@ export const Refunds: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="card p-4">
-        <div className="flex items-center space-x-4">
-          <span className="text-sm text-dark-600">审批状态：</span>
-          <div className="flex flex-wrap gap-2">
-            {statusOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setStatusFilter(option.value)}
-                className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
-                  statusFilter === option.value
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-dark-600">审批状态：</span>
+            <div className="flex flex-wrap gap-2">
+              {statusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setStatusFilter(option.value)}
+                  className={`px-3 py-1.5 text-sm rounded-btn transition-colors ${
+                    statusFilter === option.value
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-dark-100 text-dark-600 hover:bg-dark-200'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
+          {permissions.canCreateRefund && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="btn-primary"
+            >
+              新建退款申请
+            </button>
+          )}
         </div>
       </div>
 

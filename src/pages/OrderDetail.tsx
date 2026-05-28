@@ -83,6 +83,35 @@ export const OrderDetail: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {permissions.canEditOrder && (order.status === 'sampling' || order.status === 'draft' || order.status === 'confirmed') && (
+            <button
+              onClick={() => setShowVersionModal(true)}
+              className="btn-primary"
+            >
+              {currentVersion ? '覆盖版本' : '确认打样版本'}
+            </button>
+          )}
+          {permissions.canSplitOrder && order.status !== 'completed' && order.status !== 'rejected' && (
+            <Link
+              to={`/split/${order.id}`}
+              className="btn-secondary"
+            >
+              拆单发货
+            </Link>
+          )}
+          {order.needsReview && (
+            <button
+              onClick={() => markAsReviewed(order.id)}
+              className="btn-secondary"
+            >
+              标记已阅
+            </button>
+          )}
+        </div>
+      </div>
+
       {order.needsReview && showMissingAlert && (
         <ErrorBanner
           message={order.reviewReason || '该订单需要回查确认'}
