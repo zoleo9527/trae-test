@@ -3,6 +3,7 @@
 	"/exceptions": [],
 	"/inspections": [],
 	"/inspections/new": [],
+	"/inspections/[id]": [],
 	"/inventory": [],
 	"/inventory/[id]": [],
 	"/login": [],
@@ -11,5 +12,7 @@
 	"/orders/[id]": [],
 	"/products": [],
 	"/products/[id]": [],
-	"/reviews": []
+	"/reviews": [],
+	"/reviews/new": [],
+	"/reviews/[id]": []
 }

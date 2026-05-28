@@ -29,6 +29,8 @@
 
 	$: currentUser = $user;
 	$: urlStatus = $page.url.searchParams.get('status') || '';
+	$: urlType = $page.url.searchParams.get('type') || '';
+	$: urlSeverity = $page.url.searchParams.get('severity') || '';
 	$: urlNeedReview = $page.url.searchParams.get('needReview') || '';
 
 	onMount(() => {
@@ -37,6 +39,8 @@
 			return;
 		}
 		if (urlStatus) filterStatus = urlStatus;
+		if (urlType) filterType = urlType;
+		if (urlSeverity) filterSeverity = urlSeverity;
 		if (urlNeedReview) filterNeedReview = urlNeedReview;
 		loadData();
 	});

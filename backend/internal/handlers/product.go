@@ -388,7 +388,7 @@ func OffShelfProduct(c *fiber.Ctx) error {
 
 	oldStatus := product.Status
 	now := time.Now()
-	product.Status = models.ProductStatusReviewing
+	product.Status = models.ProductStatusOffShelf
 	product.ActualOffShelfDate = &now
 	product.UpdatedAt = now
 
@@ -400,7 +400,7 @@ func OffShelfProduct(c *fiber.Ctx) error {
 
 	models.LogOperation("product", product.ID, "off_shelf",
 		fiber.Map{"status": oldStatus}, fiber.Map{"status": product.Status},
-		"商品下架，进入复盘阶段", user.ID, user.Name, user.Role)
+		"商品下架", user.ID, user.Name, user.Role)
 
 	return c.JSON(product)
 }
@@ -429,7 +429,7 @@ func CompleteReview(c *fiber.Ctx) error {
 	}
 
 	oldStatus := product.Status
-	product.Status = models.ProductStatusOffShelf
+	product.Status = models.ProductStatusReviewing
 	product.ReviewNote = req.ReviewNote
 	product.UpdatedAt = time.Now()
 

@@ -29,17 +29,20 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/exceptions" | "/inspections" | "/inspections/new" | "/inventory" | "/inventory/[id]" | "/login" | "/orders" | "/orders/new" | "/orders/[id]" | "/products" | "/products/[id]" | "/reviews";
+		RouteId(): "/" | "/exceptions" | "/inspections" | "/inspections/new" | "/inspections/[id]" | "/inventory" | "/inventory/[id]" | "/login" | "/orders" | "/orders/new" | "/orders/[id]" | "/products" | "/products/[id]" | "/reviews" | "/reviews/new" | "/reviews/[id]";
 		RouteParams(): {
+			"/inspections/[id]": { id: string };
 			"/inventory/[id]": { id: string };
 			"/orders/[id]": { id: string };
-			"/products/[id]": { id: string }
+			"/products/[id]": { id: string };
+			"/reviews/[id]": { id: string }
 		};
 		LayoutParams(): {
 			"/": { id?: string | undefined };
 			"/exceptions": Record<string, never>;
-			"/inspections": Record<string, never>;
+			"/inspections": { id?: string | undefined };
 			"/inspections/new": Record<string, never>;
+			"/inspections/[id]": { id: string };
 			"/inventory": { id?: string | undefined };
 			"/inventory/[id]": { id: string };
 			"/login": Record<string, never>;
@@ -48,9 +51,11 @@ declare module "$app/types" {
 			"/orders/[id]": { id: string };
 			"/products": { id?: string | undefined };
 			"/products/[id]": { id: string };
-			"/reviews": Record<string, never>
+			"/reviews": { id?: string | undefined };
+			"/reviews/new": Record<string, never>;
+			"/reviews/[id]": { id: string }
 		};
-		Pathname(): "/" | "/exceptions" | "/inspections" | "/inspections/new" | "/inventory" | `/inventory/${string}` & {} | "/login" | "/orders" | "/orders/new" | `/orders/${string}` & {} | "/products" | `/products/${string}` & {} | "/reviews";
+		Pathname(): "/" | "/exceptions" | "/inspections" | "/inspections/new" | `/inspections/${string}` & {} | "/inventory" | `/inventory/${string}` & {} | "/login" | "/orders" | "/orders/new" | `/orders/${string}` & {} | "/products" | `/products/${string}` & {} | "/reviews" | "/reviews/new" | `/reviews/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

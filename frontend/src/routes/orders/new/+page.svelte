@@ -31,8 +31,6 @@
 		remark: ''
 	};
 
-	$: form.type = urlType;
-	$: form.productId = urlProductId;
 	$: selectedProduct = products.find(p => p.id === form.productId);
 
 	onMount(() => {
@@ -54,6 +52,12 @@
 			stores = storesData;
 			if (stores.length > 0 && !form.toStoreId) {
 				form.toStoreId = stores[0].id;
+			}
+			if (!form.type) {
+				form.type = urlType || 'restock';
+			}
+			if (!form.productId && urlProductId) {
+				form.productId = urlProductId;
 			}
 		} catch (e) {
 			console.error('Failed to load data:', e);

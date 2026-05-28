@@ -16,6 +16,9 @@
 		getOrderStatusClass,
 		getInspectionStatusLabel,
 		getInspectionStatusClass,
+		getExceptionTypeLabel,
+		getExceptionStatusLabel,
+		getExceptionStatusClass,
 		getRoleLabel,
 		getErrorMessage,
 		isAuthError
@@ -602,17 +605,19 @@
 						<tbody>
 							{#each exceptions as exc}
 								<tr>
-									<td><span class="badge">{exc.type}</span></td>
+									<td><span class="badge">{getExceptionTypeLabel(exc.type)}</span></td>
 									<td>{exc.title}</td>
 									<td><span class={`badge ${exc.severity === 'high' ? 'status-rejected' : exc.severity === 'medium' ? 'status-pending' : 'status-passed'}`}>{exc.severity}</span></td>
-									<td><span class={`badge ${getInspectionStatusClass(exc.status)}`}>{exc.status}</span></td>
+									<td><span class={`badge ${getExceptionStatusClass(exc.status)}`}>{getExceptionStatusLabel(exc.status)}</span></td>
 									<td>{exc.reportedByName}</td>
 									<td>{exc.assignedToName || '-'}</td>
 									<td>{formatDate(exc.createdAt)}</td>
 									<td>
-										<button class="btn btn-sm btn-primary" on:click={() => openException(exc.id)}>
-											处理
-										</button>
+										{#if currentUser && (currentUser.role === 'warehouse' || currentUser.role === 'manager')}
+											<button class="btn btn-sm btn-primary" on:click={() => openException(exc.id)}>
+												处理
+											</button>
+										{/if}
 									</td>
 								</tr>
 							{/each}

@@ -3,6 +3,7 @@
 	import { orderApi, storeApi } from '$lib/api';
 	import { user } from '$lib/stores/user';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import AppLayout from '$lib/components/AppLayout.svelte';
 	import {
 		formatDate,
@@ -24,12 +25,16 @@
 	let selectedExceptionId = null;
 
 	$: currentUser = $user;
+	$: urlType = $page.url.searchParams.get('type') || '';
+	$: urlStatus = $page.url.searchParams.get('status') || '';
 
 	onMount(() => {
 		if (!localStorage.getItem('token')) {
 			goto('/login');
 			return;
 		}
+		if (urlType) filterType = urlType;
+		if (urlStatus) filterStatus = urlStatus;
 		loadData();
 	});
 
