@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -580,6 +580,7 @@ def get_logs(
 async def upload_photo(
     order_id: int,
     file: UploadFile = File(...),
+    sign_by: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     db_order = db.query(models.Order).filter(models.Order.id == order_id).first()
@@ -598,14 +599,17 @@ async def upload_photo(
 
     photo_url = f"/uploads/{file_name}"
     db_order.sign_photo_url = photo_url
+    db_order.sign_by = sign_by or "系统"
+    db_order.sign_time = datetime.now()
     db_order.status = "completed"
 
     db_log = models.OperationLog(
         order_id=order_id,
         customer_id=db_order.customer_id,
-        operator="system",
-        action="上传签收照片",
-        new_value=f"照片URL: {photo_url}"
+        operator=sign_by or "系统",
+        action="上传签收照片并完成订单",
+        old_value=f"状态: {db_order.status}",
+        new_value=f"照片URL: {photo_url}, 签收人: {db_order.sign_by}, 签收时间: {db_order.sign_time.strftime('%Y-%m-%d %H:%M:%S')}"
     )
     db.add(db_log)
     db.commit()

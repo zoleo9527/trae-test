@@ -10,6 +10,13 @@ const statusMap: Record<string, { label: string; className: string }> = {
   review: { label: '需回查', className: 'status-review' },
 }
 
+const exceptionTypeMap: Record<string, string> = {
+  bucket_dispute: '空桶争议',
+  photo_issue: '照片问题',
+  complaint: '客户投诉',
+  delivery_delay: '配送延迟',
+}
+
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -22,6 +29,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [showPhotoPreview, setShowPhotoPreview] = useState<string | null>(null)
+  const [signBy, setSignBy] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     customer_id: 0,
@@ -92,8 +100,9 @@ export default function Orders() {
 
     setUploadingPhoto(true)
     try {
-      const result = await orderApi.uploadPhoto(selectedOrder.id, file)
+      const result = await orderApi.uploadPhoto(selectedOrder.id, file, signBy || undefined)
       setSelectedOrder(result.order)
+      setSignBy('')
       loadData()
     } catch (error) {
       console.error('上传照片失败:', error)
@@ -345,43 +354,67 @@ export default function Orders() {
                     <Camera className="w-5 h-5" /> 签收照片
                   </h3>
                   {selectedOrder.sign_photo_url ? (
-                    <div className="relative inline-block">
-                      <img
-                        src={selectedOrder.sign_photo_url}
-                        alt="签收照片"
-                        className="w-48 h-36 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
-                      />
-                      <button
-                        onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
-                      >
-                        <ZoomIn className="w-4 h-4" />
-                      </button>
+                    <div className="space-y-3">
+                      <div className="relative inline-block">
+                        <img
+                          src={selectedOrder.sign_photo_url}
+                          alt="签收照片"
+                          className="w-48 h-36 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
+                        />
+                        <button
+                          onClick={() => setShowPhotoPreview(selectedOrder.sign_photo_url!)}
+                          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <p className="text-gray-600">
+                          <span className="text-gray-500">签收人:</span> {selectedOrder.sign_by || '-'}
+                        </p>
+                        {selectedOrder.sign_time && (
+                          <p className="text-gray-600">
+                            <span className="text-gray-500">签收时间:</span> {new Date(selectedOrder.sign_time).toLocaleString('zh-CN')}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div className="w-48 h-36 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadingPhoto}
-                        className="flex flex-col items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
-                      >
-                        {uploadingPhoto ? (
-                          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Upload className="w-8 h-8" />
-                            <span className="text-sm">点击上传照片</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">签收人</label>
+                        <input
+                          type="text"
+                          value={signBy}
+                          onChange={(e) => setSignBy(e.target.value)}
+                          placeholder="请输入签收人姓名"
+                          className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                      <div className="w-48 h-36 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                          className="hidden"
+                        />
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingPhoto}
+                          className="flex flex-col items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
+                        >
+                          {uploadingPhoto ? (
+                            <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8" />
+                              <span className="text-sm">点击上传照片</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -394,9 +427,7 @@ export default function Orders() {
                       <div key={ex.id} className="p-3 bg-red-50 rounded-lg text-sm">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-red-700">
-                            {ex.type === 'bucket_dispute' ? '空桶争议' :
-                             ex.type === 'photo_issue' ? '照片问题' :
-                             ex.type === 'complaint' ? '客户投诉' : ex.type}
+                            {exceptionTypeMap[ex.type] || ex.type}
                           </span>
                           <span className={`px-2 py-0.5 rounded text-xs ${
                             ex.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'

@@ -34,9 +34,12 @@ export const orderApi = {
   create: (data: Partial<Order>) => api.post<Order>('/orders', data).then(res => res.data),
   update: (id: number, data: Partial<Order>) =>
     api.put<Order>(`/orders/${id}`, data).then(res => res.data),
-  uploadPhoto: (id: number, file: File) => {
+  uploadPhoto: (id: number, file: File, signBy?: string) => {
     const formData = new FormData()
     formData.append('file', file)
+    if (signBy) {
+      formData.append('sign_by', signBy)
+    }
     return api.post(`/orders/${id}/upload-photo`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }).then(res => res.data)

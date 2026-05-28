@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react'
 import {
-  Clock,
-  XCircle,
-  Search,
-  AlertTriangle,
-  Bell,
-  Users,
-  Truck,
-  DollarSign,
-  ArrowRight
+    AlertTriangle,
+    ArrowRight,
+    Bell,
+    Clock,
+    DollarSign,
+    Search,
+    Truck,
+    Users,
+    XCircle
 } from 'lucide-react'
-import { dashboardApi, orderApi, exceptionApi, reminderApi } from '../services/api'
-import type { DashboardStats, Order, OrderException, PaymentReminder } from '../types'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { dashboardApi, exceptionApi, orderApi, reminderApi } from '../services/api'
+import type { DashboardStats, Order, OrderException, PaymentReminder } from '../types'
 
 const statusMap: Record<string, { label: string; className: string }> = {
   pending: { label: '待处理', className: 'status-pending' },
@@ -20,6 +20,13 @@ const statusMap: Record<string, { label: string; className: string }> = {
   rejected: { label: '已驳回', className: 'status-rejected' },
   review: { label: '需回查', className: 'status-review' },
   resolved: { label: '已解决', className: 'status-resolved' },
+}
+
+const exceptionTypeMap: Record<string, string> = {
+  bucket_dispute: '空桶争议',
+  photo_issue: '照片问题',
+  complaint: '客户投诉',
+  delivery_delay: '配送延迟',
 }
 
 export default function Dashboard() {
@@ -146,9 +153,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-red-500" />
                         <span className="text-sm font-medium text-gray-900">
-                          {ex.type === 'bucket_dispute' ? '空桶争议' :
-                           ex.type === 'photo_issue' ? '照片问题' :
-                           ex.type === 'complaint' ? '客户投诉' : ex.type}
+                          {exceptionTypeMap[ex.type] || ex.type}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 mt-1 line-clamp-2">{ex.description}</p>

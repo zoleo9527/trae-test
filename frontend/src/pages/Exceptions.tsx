@@ -400,6 +400,16 @@ export default function Exceptions() {
                           <p className="text-gray-500 text-xs mt-0.5">
                             {log.operator} · {new Date(log.created_at).toLocaleString('zh-CN')}
                           </p>
+                          {log.old_value && (
+                            <p className="text-gray-600 text-xs mt-1">
+                              <span className="text-gray-500">变更前:</span> {log.old_value}
+                            </p>
+                          )}
+                          {log.new_value && (
+                            <p className="text-gray-600 text-xs mt-0.5">
+                              <span className="text-gray-500">变更后:</span> {log.new_value}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
