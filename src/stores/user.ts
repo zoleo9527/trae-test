@@ -15,9 +15,9 @@ const roleLabels: Record<Role, string> = {
 }
 
 const rolePermissions: Record<Role, string[]> = {
-  manager: ['review', 'batch_review', 'assign_supplier', 'view_all', 'approve_payment'],
-  coordinator: ['create', 'edit', 'submit', 'view_own', 'update_progress'],
-  clerk: ['document_management', 'payment_tracking', 'view_all', 'record_keeping']
+  manager: ['review', 'batch_review', 'assign_supplier', 'view_all', 'approve_payment', 'resubmit'],
+  coordinator: ['create', 'edit', 'submit', 'view_own', 'start_progress', 'complete_progress', 'resubmit'],
+  clerk: ['document_management', 'update_document_status', 'payment_tracking', 'update_payment', 'view_all', 'record_keeping', 'mark_paid']
 }
 
 export const useUserStore = defineStore('user', () => {

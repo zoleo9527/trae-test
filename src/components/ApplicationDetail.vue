@@ -1,127 +1,201 @@
-<script setup lang="ts">import { ref, computed } from 'vue';
-import { useSuppliesStore } from '@/stores/supplies';
-import { useUserStore } from '@/stores/user';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { mockSuppliers } from '@/data/mockData';
-import type { SuppliesStatus } from '@/types';
-const suppliesStore = useSuppliesStore();
-const userStore = useUserStore();
-const newComment = ref('');
-const assignSupplierDialog = ref(false);
-const selectedSupplier = ref('');
-const rejectDialog = ref(false);
-const rejectReason = ref('');
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useSuppliesStore } from '@/stores/supplies'
+import { useUserStore } from '@/stores/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { mockSuppliers } from '@/data/mockData'
+import type { SuppliesStatus } from '@/types'
+
+const suppliesStore = useSuppliesStore()
+const userStore = useUserStore()
+
+const newComment = ref('')
+const assignSupplierDialog = ref(false)
+const selectedSupplier = ref('')
+const rejectDialog = ref(false)
+const rejectReason = ref('')
+const paymentDialog = ref(false)
+const paymentForm = ref({
+  paymentStatus: '' as 'unpaid' | 'partial' | 'paid' | '',
+  actualPayment: 0,
+  paymentDueDate: ''
+})
+
 const statusLabels: Record<SuppliesStatus, string> = {
- draft: '草稿',
- pending_review: '待审核',
- reviewed: '已审核',
- rejected: '已驳回',
- supplier_assigned: '供应商已分配',
- in_progress: '执行中',
- completed: '已完成',
- paid: '已结算'
-};
+  draft: '草稿',
+  pending_review: '待审核',
+  reviewed: '已审核',
+  rejected: '已驳回',
+  supplier_assigned: '供应商已分配',
+  in_progress: '执行中',
+  completed: '已完成',
+  paid: '已结算'
+}
+
 const categoryLabels: Record<string, string> = {
- provisions: '食品',
- engine: '机舱',
- deck: '甲板',
- medical: '医疗',
- documents: '文件',
- other: '其他'
-};
+  provisions: '食品',
+  engine: '机舱',
+  deck: '甲板',
+  medical: '医疗',
+  documents: '文件',
+  other: '其他'
+}
+
 const paymentStatusLabels = {
- unpaid: '未付',
- partial: '部分支付',
- paid: '已结清'
-};
+  unpaid: '未付',
+  partial: '部分支付',
+  paid: '已结清'
+}
+
 const paymentStatusColors = {
- unpaid: 'danger',
- partial: 'warning',
- paid: 'success'
-};
-const application = computed(() => suppliesStore.selectedApplication);
+  unpaid: 'danger',
+  partial: 'warning',
+  paid: 'success'
+}
+
+const application = computed(() => suppliesStore.selectedApplication)
 const hasCriticalItem = computed(() => {
- return application.value?.items.some(i => i.urgency === 'critical') ?? false;
-});
+  return application.value?.items.some(i => i.urgency === 'critical') ?? false
+})
+
+const activeTab = ref('basic')
+
+const isPaymentNearDue = (dueDate?: string) => {
+  if (!dueDate) return false
+  const today = new Date()
+  const due = new Date(dueDate)
+  const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return diff <= 3
+}
+
+const isDocumentUrgent = (doc: { deadline: string; status: string }) => {
+  if (doc.status === 'received') return false
+  const today = new Date()
+  const deadline = new Date(doc.deadline)
+  const diff = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return diff <= 3
+}
+
 const submitComment = () => {
- if (!newComment.value.trim() || !application.value)
- return;
- suppliesStore.addComment(application.value.id, newComment.value);
- newComment.value = '';
- ElMessage.success('备注已添加');
-};
+  if (!newComment.value.trim() || !application.value) return
+  suppliesStore.addComment(application.value.id, newComment.value)
+  newComment.value = ''
+  ElMessage.success('备注已添加')
+}
+
 const approve = () => {
- if (!application.value)
- return;
- suppliesStore.updateStatus(application.value.id, 'reviewed', '审核通过');
- suppliesStore.addComment(application.value.id, '审核通过', 'system');
- ElMessage.success('已通过审核');
-};
+  if (!application.value) return
+  suppliesStore.updateStatus(application.value.id, 'reviewed', '审核通过')
+  suppliesStore.addComment(application.value.id, '审核通过', 'system')
+  ElMessage.success('已通过审核')
+}
+
 const openRejectDialog = () => {
- rejectDialog.value = true;
- rejectReason.value = '';
-};
+  rejectDialog.value = true
+  rejectReason.value = ''
+}
+
 const confirmReject = () => {
- if (!application.value || !rejectReason.value.trim()) {
- ElMessage.warning('请填写驳回原因');
- return;
- }
- suppliesStore.updateStatus(application.value.id, 'rejected', rejectReason.value);
- suppliesStore.addComment(application.value.id, rejectReason.value, 'reject');
- rejectDialog.value = false;
- ElMessage.success('已驳回申请');
-};
+  if (!application.value || !rejectReason.value.trim()) {
+    ElMessage.warning('请填写驳回原因')
+    return
+  }
+  suppliesStore.updateStatus(application.value.id, 'rejected', rejectReason.value)
+  suppliesStore.addComment(application.value.id, rejectReason.value, 'reject')
+  rejectDialog.value = false
+  ElMessage.success('已驳回申请')
+}
+
 const openAssignSupplier = () => {
- assignSupplierDialog.value = true;
- selectedSupplier.value = application.value?.supplierId || '';
-};
+  assignSupplierDialog.value = true
+  selectedSupplier.value = application.value?.supplierId || ''
+}
+
 const confirmAssignSupplier = () => {
- if (!application.value || !selectedSupplier.value) {
- ElMessage.warning('请选择供应商');
- return;
- }
- const supplier = mockSuppliers.find(s => s.id === selectedSupplier.value);
- if (supplier) {
- suppliesStore.assignSupplier(application.value.id, supplier.id, supplier.name);
- suppliesStore.addComment(application.value.id, `已分配供应商: ${supplier.name}`, 'system');
- }
- assignSupplierDialog.value = false;
- ElMessage.success('供应商已分配');
-};
+  if (!application.value || !selectedSupplier.value) {
+    ElMessage.warning('请选择供应商')
+    return
+  }
+  const supplier = mockSuppliers.find(s => s.id === selectedSupplier.value)
+  if (supplier) {
+    suppliesStore.assignSupplier(application.value.id, supplier.id, supplier.name)
+    suppliesStore.addComment(application.value.id, `已分配供应商: ${supplier.name}`, 'system')
+  }
+  assignSupplierDialog.value = false
+  ElMessage.success('供应商已分配')
+}
+
 const markInProgress = () => {
- if (!application.value)
- return;
- suppliesStore.updateStatus(application.value.id, 'in_progress', '开始执行');
- suppliesStore.addComment(application.value.id, '已开始执行补给任务', 'system');
- ElMessage.success('已开始执行');
-};
+  if (!application.value) return
+  suppliesStore.updateStatus(application.value.id, 'in_progress', '开始执行')
+  suppliesStore.addComment(application.value.id, '已开始执行补给任务', 'system')
+  ElMessage.success('已开始执行')
+}
+
 const markCompleted = () => {
- if (!application.value)
- return;
- suppliesStore.updateStatus(application.value.id, 'completed', '补给完成');
- suppliesStore.addComment(application.value.id, '补给任务已完成', 'system');
- ElMessage.success('已标记完成');
-};
+  if (!application.value) return
+  suppliesStore.updateStatus(application.value.id, 'completed', '补给完成')
+  suppliesStore.addComment(application.value.id, '补给任务已完成', 'system')
+  ElMessage.success('已标记完成')
+}
+
 const markPaid = () => {
- if (!application.value)
- return;
- ElMessageBox.confirm('确认该申请款项已全部结清？', '确认', {
- confirmButtonText: '确定',
- cancelButtonText: '取消',
- type: 'warning'
- }).then(() => {
- suppliesStore.updateStatus(application.value!.id, 'paid', '款项已结清');
- suppliesStore.addComment(application.value!.id, '款项已结清，流程结束', 'system');
- ElMessage.success('已标记已结算');
- }).catch(() => { });
-};
+  if (!application.value) return
+  ElMessageBox.confirm('确认该申请款项已全部结清？', '确认', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    suppliesStore.markAsPaid(application.value!.id)
+    ElMessage.success('已标记已结算')
+  }).catch(() => {})
+}
+
 const resubmit = () => {
- if (!application.value)
- return;
- suppliesStore.updateStatus(application.value.id, 'pending_review', '重新提交审核');
- suppliesStore.addComment(application.value.id, '已重新提交审核', 'system');
- ElMessage.success('已重新提交');
-};
+  if (!application.value) return
+  suppliesStore.updateStatus(application.value.id, 'pending_review', '重新提交审核')
+  suppliesStore.addComment(application.value.id, '已重新提交审核', 'system')
+  ElMessage.success('已重新提交')
+}
+
+const updateDocumentStatus = (docId: string, newStatus: 'pending' | 'received' | 'expired') => {
+  if (!application.value) return
+  suppliesStore.updateDocumentStatus(application.value.id, docId, newStatus)
+  ElMessage.success('证件状态已更新')
+}
+
+const openPaymentDialog = () => {
+  if (!application.value) return
+  paymentForm.value = {
+    paymentStatus: application.value.paymentStatus,
+    actualPayment: application.value.actualPayment || 0,
+    paymentDueDate: application.value.paymentDueDate || ''
+  }
+  paymentDialog.value = true
+}
+
+const confirmPaymentUpdate = () => {
+  if (!application.value) return
+  const updateData: {
+    paymentStatus?: 'unpaid' | 'partial' | 'paid'
+    actualPayment?: number
+    paymentDueDate?: string
+  } = {}
+  
+  if (paymentForm.value.paymentStatus) {
+    updateData.paymentStatus = paymentForm.value.paymentStatus
+  }
+  if (paymentForm.value.actualPayment >= 0) {
+    updateData.actualPayment = paymentForm.value.actualPayment
+  }
+  if (paymentForm.value.paymentDueDate) {
+    updateData.paymentDueDate = paymentForm.value.paymentDueDate
+  }
+  
+  suppliesStore.updatePaymentInfo(application.value.id, updateData)
+  paymentDialog.value = false
+  ElMessage.success('付款信息已更新')
+}
 </script>
 
 <template>
@@ -185,7 +259,17 @@ const resubmit = () => {
         </div>
 
         <div class="info-section">
-          <h4>费用信息</h4>
+          <div class="section-header">
+            <h4>费用信息</h4>
+            <el-button 
+              v-if="userStore.hasPermission('update_payment')"
+              size="small" 
+              type="primary" 
+              @click="openPaymentDialog"
+            >
+              更新付款
+            </el-button>
+          </div>
           <el-descriptions :column="3" border size="small">
             <el-descriptions-item label="总金额">
               <span class="amount-text">¥{{ application.totalAmount.toLocaleString() }}</span>
@@ -198,12 +282,17 @@ const resubmit = () => {
                 {{ paymentStatusLabels[application.paymentStatus] }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="实际支付" v-if="application.actualPayment">
-              ¥{{ application.actualPayment.toLocaleString() }}
+            <el-descriptions-item label="实际支付">
+              ¥{{ (application.actualPayment || 0).toLocaleString() }}
             </el-descriptions-item>
             <el-descriptions-item label="付款截止日" v-if="application.paymentDueDate">
               <span :class="{ 'text-red-500': isPaymentNearDue(application.paymentDueDate) }">
                 {{ application.paymentDueDate }}
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="待回收">
+              <span :class="{ 'text-red-500 font-bold': application.totalAmount - (application.actualPayment || 0) > 0 }">
+                ¥{{ (application.totalAmount - (application.actualPayment || 0)).toLocaleString() }}
               </span>
             </el-descriptions-item>
           </el-descriptions>
@@ -235,6 +324,30 @@ const resubmit = () => {
                 <span v-for="day in row.reminderDays" :key="day" class="reminder-day">
                   T-{{ day }}
                 </span>
+              </template>
+            </el-table-column>
+            <el-table-column 
+              v-if="userStore.hasPermission('update_document_status')" 
+              label="操作" 
+              width="180" 
+              align="center"
+            >
+              <template #default="{ row }">
+                <el-button 
+                  v-if="row.status !== 'received'" 
+                  size="small" 
+                  type="success" 
+                  @click="updateDocumentStatus(row.id, 'received')"
+                >
+                  标记收到
+                </el-button>
+                <el-button 
+                  v-if="row.status !== 'pending'" 
+                  size="small" 
+                  @click="updateDocumentStatus(row.id, 'pending')"
+                >
+                  重置
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -300,16 +413,16 @@ const resubmit = () => {
       <template v-if="application.status === 'reviewed' && userStore.hasPermission('assign_supplier')">
         <el-button type="primary" @click="openAssignSupplier">分配供应商</el-button>
       </template>
-      <template v-if="application.status === 'supplier_assigned'">
+      <template v-if="application.status === 'supplier_assigned' && userStore.hasPermission('start_progress')">
         <el-button type="primary" @click="markInProgress">开始执行</el-button>
       </template>
-      <template v-if="application.status === 'in_progress'">
+      <template v-if="application.status === 'in_progress' && userStore.hasPermission('complete_progress')">
         <el-button type="success" @click="markCompleted">标记完成</el-button>
       </template>
-      <template v-if="application.status === 'completed' && userStore.hasPermission('approve_payment')">
+      <template v-if="application.status === 'completed' && userStore.hasPermission('mark_paid')">
         <el-button type="success" @click="markPaid">确认结清</el-button>
       </template>
-      <template v-if="application.status === 'rejected'">
+      <template v-if="application.status === 'rejected' && userStore.hasPermission('resubmit')">
         <el-button type="primary" @click="resubmit">重新提交</el-button>
       </template>
       <el-button @click="suppliesStore.selectApplication(null)">关闭</el-button>
@@ -349,38 +462,44 @@ const resubmit = () => {
         <el-button type="primary" @click="confirmAssignSupplier">确认分配</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="paymentDialog" title="更新付款信息" width="500px">
+      <el-form label-width="100px">
+        <el-form-item label="付款状态">
+          <el-select v-model="paymentForm.paymentStatus" style="width: 100%">
+            <el-option label="未付" value="unpaid" />
+            <el-option label="部分支付" value="partial" />
+            <el-option label="已结清" value="paid" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="实际支付">
+          <el-input-number 
+            v-model="paymentForm.actualPayment" 
+            :min="0" 
+            :precision="2"
+            style="width: 100%" 
+          />
+        </el-form-item>
+        <el-form-item label="付款截止日">
+          <el-date-picker
+            v-model="paymentForm.paymentDueDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="paymentDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmPaymentUpdate">确认更新</el-button>
+      </template>
+    </el-dialog>
   </div>
 
   <div v-else class="detail-empty">
     <el-empty description="请选择一个申请查看详情" :image-size="120" />
   </div>
 </template>
-
-<script lang="ts">
-export default {
-  data() {
-    return {
-      activeTab: 'basic'
-    }
-  },
-  methods: {
-    isPaymentNearDue(dueDate?: string) {
-      if (!dueDate) return false
-      const today = new Date()
-      const due = new Date(dueDate)
-      const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      return diff <= 3
-    },
-    isDocumentUrgent(doc: { deadline: string; status: string }) {
-      if (doc.status === 'received') return false
-      const today = new Date()
-      const deadline = new Date(doc.deadline)
-      const diff = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      return diff <= 3
-    }
-  }
-}
-</script>
 
 <style scoped lang="scss">
 .application-detail {
@@ -444,6 +563,13 @@ export default {
 
 .info-section {
   margin-bottom: 24px;
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
 
   h4 {
     margin: 0 0 12px 0;

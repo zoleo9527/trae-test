@@ -137,6 +137,70 @@ export const useSuppliesStore = defineStore('supplies', () => {
     })
   }
 
+  const updateDocumentStatus = (applicationId: string, documentId: string, newStatus: 'pending' | 'received' | 'expired') => {
+    const userStore = useUserStore()
+    const app = applications.value.find(a => a.id === applicationId)
+    if (!app) return
+
+    const doc = app.documents.find(d => d.id === documentId)
+    if (!doc) return
+
+    doc.status = newStatus
+    app.updatedAt = new Date().toISOString()
+    
+    addComment(applicationId, `证件"${doc.name}"状态更新为: ${newStatus === 'received' ? '已收到' : newStatus === 'expired' ? '已过期' : '待收取'}`, 'system')
+  }
+
+  const updatePaymentInfo = (applicationId: string, paymentData: {
+    paymentStatus?: 'unpaid' | 'partial' | 'paid'
+    actualPayment?: number
+    paymentDueDate?: string
+  }) => {
+    const userStore = useUserStore()
+    const app = applications.value.find(a => a.id === applicationId)
+    if (!app) return
+
+    if (paymentData.paymentStatus !== undefined) {
+      app.paymentStatus = paymentData.paymentStatus
+    }
+    if (paymentData.actualPayment !== undefined) {
+      app.actualPayment = paymentData.actualPayment
+    }
+    if (paymentData.paymentDueDate !== undefined) {
+      app.paymentDueDate = paymentData.paymentDueDate
+    }
+    
+    app.currentHandlerId = userStore.currentUser.id
+    app.currentHandlerName = userStore.currentUser.name
+    app.updatedAt = new Date().toISOString()
+    
+    const statusText = []
+    if (paymentData.paymentStatus) {
+      const labels = { unpaid: '未付', partial: '部分支付', paid: '已结清' }
+      statusText.push(`付款状态: ${labels[paymentData.paymentStatus]}`)
+    }
+    if (paymentData.actualPayment !== undefined) {
+      statusText.push(`实际支付: ¥${paymentData.actualPayment.toLocaleString()}`)
+    }
+    if (statusText.length > 0) {
+      addComment(applicationId, `更新付款信息 - ${statusText.join(', ')}`, 'system')
+    }
+  }
+
+  const markAsPaid = (applicationId: string) => {
+    const userStore = useUserStore()
+    const app = applications.value.find(a => a.id === applicationId)
+    if (!app) return
+
+    app.paymentStatus = 'paid'
+    app.actualPayment = app.totalAmount
+    app.currentHandlerId = userStore.currentUser.id
+    app.currentHandlerName = userStore.currentUser.name
+    
+    updateStatus(applicationId, 'paid', '款项已结清')
+    addComment(applicationId, `款项已全部结清，实际支付: ¥${app.totalAmount.toLocaleString()}`, 'system')
+  }
+
   return {
     applications,
     filteredApplications,
@@ -154,6 +218,9 @@ export const useSuppliesStore = defineStore('supplies', () => {
     updateStatus,
     addComment,
     assignSupplier,
-    batchReview
+    batchReview,
+    updateDocumentStatus,
+    updatePaymentInfo,
+    markAsPaid
   }
 })

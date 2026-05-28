@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useSuppliesStore } from '@/stores/supplies'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { SuppliesStatus } from '@/types'
+import type { SuppliesApplication } from '@/types'
 
 const suppliesStore = useSuppliesStore()
 
@@ -10,31 +10,46 @@ const batchReviewVisible = ref(false)
 const selectedIds = ref<string[]>([])
 const batchRejectReason = ref('')
 const reviewMode = ref<'approve' | 'reject' | null>(null)
+const tableRef = ref()
+const isAllSelected = ref(false)
+const isIndeterminate = ref(false)
 
 const pendingApplications = computed(() => {
   return suppliesStore.applications.filter(app => app.status === 'pending_review')
 })
 
-const selectAll = computed({
-  get: () => selectedIds.value.length === pendingApplications.value.length && pendingApplications.value.length > 0,
-  set: (val: boolean) => {
-    selectedIds.value = val ? pendingApplications.value.map(a => a.id) : []
-  }
-})
+const updateSelectionState = () => {
+  const total = pendingApplications.value.length
+  const selected = selectedIds.value.length
+  isAllSelected.value = total > 0 && selected === total
+  isIndeterminate.value = selected > 0 && selected < total
+}
+
+const handleSelectionChange = (selection: SuppliesApplication[]) => {
+  selectedIds.value = selection.map(s => s.id)
+  updateSelectionState()
+}
+
+const handleSelectAll = (checked: boolean) => {
+  nextTick(() => {
+    if (tableRef.value) {
+      tableRef.value.clearSelection()
+      if (checked) {
+        pendingApplications.value.forEach((row, index) => {
+          tableRef.value.toggleRowSelection(row, true)
+        })
+      }
+    }
+  })
+}
 
 const openBatchReview = () => {
   batchReviewVisible.value = true
   selectedIds.value = []
   reviewMode.value = null
   batchRejectReason.value = ''
-}
-
-const handleSelect = (id: string, selected: boolean) => {
-  if (selected) {
-    selectedIds.value.push(id)
-  } else {
-    selectedIds.value = selectedIds.value.filter(i => i !== id)
-  }
+  isAllSelected.value = false
+  isIndeterminate.value = false
 }
 
 const confirmBatchApprove = () => {
@@ -76,6 +91,16 @@ const confirmBatchReject = () => {
   }).catch(() => {})
 }
 
+watch(batchReviewVisible, (val) => {
+  if (val) {
+    nextTick(() => {
+      if (tableRef.value) {
+        tableRef.value.clearSelection()
+      }
+    })
+  }
+})
+
 defineExpose({ openBatchReview })
 </script>
 
@@ -90,15 +115,20 @@ defineExpose({ openBatchReview })
       <div class="stats">
         待审核: <span class="count">{{ pendingApplications.length }}</span> 条
       </div>
-      <el-checkbox v-model="selectAll" :indeterminate="selectedIds.length > 0 && !selectAll">
+      <el-checkbox 
+        v-model="isAllSelected" 
+        :indeterminate="isIndeterminate"
+        @change="handleSelectAll"
+      >
         全选
       </el-checkbox>
     </div>
 
     <div class="application-table">
       <el-table
+        ref="tableRef"
         :data="pendingApplications"
-        @selection-change="(sel) => selectedIds = sel.map(s => s.id)"
+        @selection-change="handleSelectionChange"
         size="small"
       >
         <el-table-column type="selection" width="55" />
