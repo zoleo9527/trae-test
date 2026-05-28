@@ -79,6 +79,24 @@ export const useSuppliesStore = defineStore('supplies', () => {
     searchKeyword.value = keyword
   }
 
+  const getHandlerForStatus = (status: SuppliesStatus): { id: string; name: string } | null => {
+    const userStore = useUserStore()
+    switch (status) {
+      case 'pending_review':
+      case 'reviewed':
+        return { id: '1', name: '张明' }
+      case 'supplier_assigned':
+      case 'in_progress':
+      case 'rejected':
+        return { id: '2', name: '李强' }
+      case 'completed':
+      case 'paid':
+        return { id: '3', name: '王芳' }
+      default:
+        return { id: userStore.currentUser.id, name: userStore.currentUser.name }
+    }
+  }
+
   const updateStatus = (applicationId: string, newStatus: SuppliesStatus, remark?: string) => {
     const userStore = useUserStore()
     const app = applications.value.find(a => a.id === applicationId)
@@ -86,6 +104,12 @@ export const useSuppliesStore = defineStore('supplies', () => {
 
     app.status = newStatus
     app.updatedAt = new Date().toISOString()
+    
+    const handler = getHandlerForStatus(newStatus)
+    if (handler) {
+      app.currentHandlerId = handler.id
+      app.currentHandlerName = handler.name
+    }
     
     app.statusHistory.push({
       id: `h${Date.now()}`,
@@ -160,18 +184,40 @@ export const useSuppliesStore = defineStore('supplies', () => {
     const app = applications.value.find(a => a.id === applicationId)
     if (!app) return
 
+    const isSettingPaid = paymentData.paymentStatus === 'paid'
+    
     if (paymentData.paymentStatus !== undefined) {
       app.paymentStatus = paymentData.paymentStatus
     }
-    if (paymentData.actualPayment !== undefined) {
-      app.actualPayment = paymentData.actualPayment
+    
+    if (isSettingPaid) {
+      app.actualPayment = app.totalAmount
+      app.status = 'paid'
+      const handler = getHandlerForStatus('paid')
+      if (handler) {
+        app.currentHandlerId = handler.id
+        app.currentHandlerName = handler.name
+      }
+      app.statusHistory.push({
+        id: `h${Date.now()}`,
+        status: 'paid',
+        timestamp: new Date().toISOString(),
+        userId: userStore.currentUser.id,
+        userName: userStore.currentUser.name,
+        remark: '付款编辑标记结清'
+      })
+    } else {
+      if (paymentData.actualPayment !== undefined) {
+        app.actualPayment = paymentData.actualPayment
+      }
+      app.currentHandlerId = userStore.currentUser.id
+      app.currentHandlerName = userStore.currentUser.name
     }
+    
     if (paymentData.paymentDueDate !== undefined) {
       app.paymentDueDate = paymentData.paymentDueDate
     }
     
-    app.currentHandlerId = userStore.currentUser.id
-    app.currentHandlerName = userStore.currentUser.name
     app.updatedAt = new Date().toISOString()
     
     const statusText = []
@@ -179,7 +225,9 @@ export const useSuppliesStore = defineStore('supplies', () => {
       const labels = { unpaid: '未付', partial: '部分支付', paid: '已结清' }
       statusText.push(`付款状态: ${labels[paymentData.paymentStatus]}`)
     }
-    if (paymentData.actualPayment !== undefined) {
+    if (isSettingPaid) {
+      statusText.push(`实际支付: ¥${app.totalAmount.toLocaleString()}`)
+    } else if (paymentData.actualPayment !== undefined) {
       statusText.push(`实际支付: ¥${paymentData.actualPayment.toLocaleString()}`)
     }
     if (statusText.length > 0) {
