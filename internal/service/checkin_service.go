@@ -143,10 +143,16 @@ func (s *CheckInService) createAutoMedicalAlert(tx *gorm.DB, checkIn *model.Chec
 	return tx.Create(link).Error
 }
 
-func (s *CheckInService) GetActivityCheckIns(activityID string) ([]model.CheckIn, error) {
+func (s *CheckInService) GetActivityCheckIns(activityID string, userID string, userRole model.Role) ([]model.CheckIn, error) {
 	var checkIns []model.CheckIn
-	err := database.DB.Where("activity_id = ?", activityID).
-		Preload("Camper").
+	query := database.DB.Where("activity_id = ?", activityID).
+		Joins("JOIN campers ON campers.id = check_ins.camper_id")
+
+	if userRole == model.RoleTeacher {
+		query = query.Where("campers.teacher_id = ?", userID)
+	}
+
+	err := query.Preload("Camper").
 		Preload("Checker").
 		Find(&checkIns).Error
 	return checkIns, err

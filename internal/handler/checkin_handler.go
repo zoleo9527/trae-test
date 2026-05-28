@@ -76,13 +76,19 @@ func (h *CheckInHandler) BatchCheckIn(c *gin.Context) {
 }
 
 func (h *CheckInHandler) GetActivityCheckIns(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	activityID := c.Param("activity_id")
 	if activityID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少活动ID"})
 		return
 	}
 
-	checkIns, err := h.checkInService.GetActivityCheckIns(activityID)
+	checkIns, err := h.checkInService.GetActivityCheckIns(activityID, userCtx.UserID, userCtx.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

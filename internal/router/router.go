@@ -25,6 +25,9 @@ func SetupRouter() *gin.Engine {
 	medicalHandler := handler.NewMedicalHandler()
 	camperHandler := handler.NewCamperHandler()
 	logHandler := handler.NewLogHandler()
+	roomHandler := handler.NewRoomHandler()
+	materialHandler := handler.NewMaterialHandler()
+	followUpHandler := handler.NewFollowUpHandler()
 
 	api := r.Group("/api/v1")
 	{
@@ -72,6 +75,37 @@ func SetupRouter() *gin.Engine {
 			{
 				logs.GET("/operations", logHandler.GetOperationLogs)
 				logs.GET("/status/:entity_type/:entity_id", logHandler.GetEntityStatusHistory)
+			}
+
+			rooms := authorized.Group("/rooms")
+			rooms.Use(auth.PermissionMiddleware(auth.PermRoomView))
+			{
+				rooms.POST("/assign", auth.PermissionMiddleware(auth.PermRoomManage), roomHandler.AssignRoom)
+				rooms.GET("", roomHandler.GetCampRooms)
+				rooms.GET("/statistics", roomHandler.GetRoomStatistics)
+				rooms.GET("/changes/camper/:camper_id", roomHandler.GetCamperRoomChanges)
+			}
+
+			materials := authorized.Group("/materials")
+			materials.Use(auth.PermissionMiddleware(auth.PermMaterialView))
+			{
+				materials.GET("/items", materialHandler.GetMaterialItems)
+				materials.GET("/low-stock", materialHandler.GetLowStockItems)
+				materials.POST("/request", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.RequestMaterial)
+				materials.PUT("/:id/approve", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.ApproveMaterial)
+				materials.PUT("/:id/issue", auth.PermissionMiddleware(auth.PermMaterialManage), materialHandler.IssueMaterial)
+				materials.GET("/issues", materialHandler.GetCampMaterialIssues)
+			}
+
+			followups := authorized.Group("/followups")
+			followups.Use(auth.PermissionMiddleware(auth.PermFollowUpView))
+			{
+				followups.POST("", auth.PermissionMiddleware(auth.PermFollowUpManage), followUpHandler.CreateFollowUp)
+				followups.PUT("/:id/status", auth.PermissionMiddleware(auth.PermFollowUpManage), followUpHandler.UpdateFollowUpStatus)
+				followups.GET("", followUpHandler.GetCampFollowUps)
+				followups.GET("/my", followUpHandler.GetMyFollowUps)
+				followups.GET("/overdue", followUpHandler.GetOverdueFollowUps)
+				followups.GET("/camper/:camper_id", followUpHandler.GetCamperFollowUps)
 			}
 		}
 	}

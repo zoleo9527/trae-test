@@ -271,13 +271,17 @@ func (s *MedicalService) GetMedicalReport(reportID string) (*model.MedicalReport
 	return &report, nil
 }
 
-func (s *MedicalService) GetCampMedicalReports(campID string, status model.MedicalStatus, page, pageSize int) ([]model.MedicalReport, int64, error) {
+func (s *MedicalService) GetCampMedicalReports(campID string, status model.MedicalStatus, page, pageSize int, userID string, userRole model.Role) ([]model.MedicalReport, int64, error) {
 	var reports []model.MedicalReport
 	var total int64
 
 	query := database.DB.Model(&model.MedicalReport{}).
 		Joins("JOIN campers ON campers.id = medical_reports.camper_id").
 		Where("campers.camp_id = ?", campID)
+
+	if userRole == model.RoleTeacher {
+		query = query.Where("campers.teacher_id = ?", userID)
+	}
 
 	if status != "" {
 		query = query.Where("medical_reports.status = ?", status)
@@ -288,6 +292,10 @@ func (s *MedicalService) GetCampMedicalReports(campID string, status model.Medic
 	offset := (page - 1) * pageSize
 	err := query.Preload("Camper").
 		Preload("Reporter").
+		Preload("TreatmentStaff").
+		Preload("StatusHistory").
+		Preload("ParentNotifications").
+		Preload("RelatedCheckIn").
 		Order("report_time DESC").
 		Offset(offset).
 		Limit(pageSize).

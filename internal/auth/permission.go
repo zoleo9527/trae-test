@@ -58,7 +58,8 @@ var rolePermissions = map[model.Role][]Permission{
 		PermRoomView, PermRoomManage,
 		PermMaterialView, PermMaterialManage,
 		PermCheckInView,
-		PermLogView,
+		PermFollowUpView,
+		PermLogView, PermDashboard,
 	},
 	model.RoleMedical: {
 		PermCampView,
@@ -66,6 +67,8 @@ var rolePermissions = map[model.Role][]Permission{
 		PermMedicalView, PermMedicalManage,
 		PermCheckInView, PermCheckInManage,
 		PermFollowUpView, PermFollowUpManage,
+		PermMaterialView,
+		PermLogView, PermDashboard,
 	},
 	model.RoleAdmin: {
 		PermCampView, PermCampManage,
@@ -208,4 +211,16 @@ func GetCurrentUserID(c *gin.Context) string {
 		return ""
 	}
 	return uc.UserID
+}
+
+func (u *UserContext) HasCampAccess(campID string) bool {
+	if u.Role == model.RoleAdmin || u.Role == model.RoleDirector {
+		return true
+	}
+	for _, cid := range u.CampIDs {
+		if cid == campID {
+			return true
+		}
+	}
+	return false
 }

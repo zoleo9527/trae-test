@@ -33,15 +33,35 @@ var (
 	Medical1ID     = uuid.New().String()
 	Medical2ID     = uuid.New().String()
 	FollowUp1ID    = uuid.New().String()
+	FollowUp2ID    = uuid.New().String()
 	Material1ID    = uuid.New().String()
 	Material2ID    = uuid.New().String()
 	Material3ID    = uuid.New().String()
 	Material4ID    = uuid.New().String()
 	CheckIn1ID     = uuid.New().String()
+	CheckInAbnormalID = uuid.New().String()
 )
 
 func SeedData() error {
 	log.Println("开始初始化演示数据...")
+
+	DB.Exec("DELETE FROM operation_logs")
+	DB.Exec("DELETE FROM status_histories")
+	DB.Exec("DELETE FROM check_in_medical_links")
+	DB.Exec("DELETE FROM follow_up_histories")
+	DB.Exec("DELETE FROM follow_ups")
+	DB.Exec("DELETE FROM material_issues")
+	DB.Exec("DELETE FROM material_items")
+	DB.Exec("DELETE FROM medical_reports")
+	DB.Exec("DELETE FROM check_ins")
+	DB.Exec("DELETE FROM activities")
+	DB.Exec("DELETE FROM room_change_logs")
+	DB.Exec("DELETE FROM room_assignments")
+	DB.Exec("DELETE FROM campers")
+	DB.Exec("DELETE FROM rooms")
+	DB.Exec("DELETE FROM camps")
+	DB.Exec("DELETE FROM user_login_logs")
+	DB.Exec("DELETE FROM users")
 
 	if err := seedUsers(); err != nil {
 		return err
@@ -72,6 +92,10 @@ func SeedData() error {
 	}
 
 	if err := seedFollowUps(); err != nil {
+		return err
+	}
+
+	if err := seedRoomChangeLogs(); err != nil {
 		return err
 	}
 
@@ -204,14 +228,14 @@ func seedRooms() error {
 			Building:   "A栋",
 			RoomNumber: "201",
 			BedCount:   4,
-			UsedBeds:   3,
+			UsedBeds:   2,
 			GenderType: model.GenderTypeMale,
 			Status:     model.RoomStatusPartial,
 			TeacherID:  Teacher1ID,
 			Beds: []model.Bed{
 				{Number: 1, Occupied: true, CamperID: Camper1ID},
 				{Number: 2, Occupied: true, CamperID: Camper2ID},
-				{Number: 3, Occupied: true, CamperID: Camper3ID},
+				{Number: 3, Occupied: false},
 				{Number: 4, Occupied: false},
 			},
 			Remark: "男生宿舍，靠近楼梯",
@@ -223,17 +247,17 @@ func seedRooms() error {
 			Building:   "A栋",
 			RoomNumber: "202",
 			BedCount:   4,
-			UsedBeds:   2,
+			UsedBeds:   3,
 			GenderType: model.GenderTypeFemale,
 			Status:     model.RoomStatusPartial,
 			TeacherID:  Teacher2ID,
 			Beds: []model.Bed{
 				{Number: 1, Occupied: true, CamperID: Camper4ID},
 				{Number: 2, Occupied: true, CamperID: Camper5ID},
-				{Number: 3, Occupied: false},
+				{Number: 3, Occupied: true, CamperID: Camper3ID},
 				{Number: 4, Occupied: false},
 			},
-			Remark: "女生宿舍",
+			Remark: "女生宿舍，含1名调房男生",
 		},
 		{
 			BaseModel:  model.BaseModel{ID: Room3ID},
@@ -242,17 +266,17 @@ func seedRooms() error {
 			Building:   "A栋",
 			RoomNumber: "203",
 			BedCount:   4,
-			UsedBeds:   1,
+			UsedBeds:   0,
 			GenderType: model.GenderTypeMixed,
-			Status:     model.RoomStatusPartial,
+			Status:     model.RoomStatusAvailable,
 			TeacherID:  Teacher1ID,
 			Beds: []model.Bed{
-				{Number: 1, Occupied: true, CamperID: Camper6ID},
+				{Number: 1, Occupied: false},
 				{Number: 2, Occupied: false},
 				{Number: 3, Occupied: false},
 				{Number: 4, Occupied: false},
 			},
-			Remark: "混合宿舍，特殊安排",
+			Remark: "混合宿舍，原住客已转隔离房",
 		},
 		{
 			BaseModel:  model.BaseModel{ID: Room4ID},
@@ -261,16 +285,16 @@ func seedRooms() error {
 			Building:   "A栋",
 			RoomNumber: "301",
 			BedCount:   4,
-			UsedBeds:   0,
+			UsedBeds:   1,
 			GenderType: model.GenderTypeMixed,
-			Status:     model.RoomStatusAvailable,
+			Status:     model.RoomStatusPartial,
 			Beds: []model.Bed{
-				{Number: 1, Occupied: false},
+				{Number: 1, Occupied: true, CamperID: Camper6ID},
 				{Number: 2, Occupied: false},
 				{Number: 3, Occupied: false},
 				{Number: 4, Occupied: false},
 			},
-			Remark: "备用房间",
+			Remark: "临时隔离房间",
 		},
 	}
 
@@ -373,7 +397,7 @@ func seedCampers() error {
 			Nationality:      "中国",
 			School:           "上海市第三小学",
 			Grade:            "五年级",
-			RoomID:           Room1ID,
+			RoomID:           Room2ID,
 			BedNumber:        3,
 			CheckInTime:      &[]time.Time{time.Date(2024, 7, 15, 9, 30, 0, 0, time.Local)}[0],
 			Tags:             []string{"调皮", "动手能力强"},
@@ -484,7 +508,7 @@ func seedCampers() error {
 			Nationality:      "中国",
 			School:           "上海市第四小学",
 			Grade:            "五年级",
-			RoomID:           Room3ID,
+			RoomID:           Room4ID,
 			BedNumber:        1,
 			CheckInTime:      &[]time.Time{time.Date(2024, 7, 15, 10, 30, 0, 0, time.Local)}[0],
 			Tags:             []string{"活泼", "体育好"},
@@ -649,7 +673,7 @@ func seedCheckIns() error {
 			Remark:       "装备齐全",
 		},
 		{
-			BaseModel:    model.BaseModel{ID: uuid.New().String()},
+			BaseModel:    model.BaseModel{ID: CheckInAbnormalID},
 			ActivityID:   Activity2ID,
 			CamperID:     Camper2ID,
 			Status:       model.CheckInStatusPresent,
@@ -824,10 +848,10 @@ func seedMedicalReports() error {
 
 	link := &model.CheckInMedicalLink{
 		BaseModel:       model.BaseModel{ID: uuid.New().String()},
-		CheckInID:       CheckIn1ID,
+		CheckInID:       CheckInAbnormalID,
 		MedicalReportID: Medical1ID,
 		LinkedBy:        Teacher1ID,
-		LinkReason:      "晨练体温异常后上报",
+		LinkReason:      "徒步活动签到时体温异常后上报",
 	}
 	link.CreatedBy = Teacher1ID
 	link.UpdatedBy = Teacher1ID
@@ -861,7 +885,7 @@ func seedFollowUps() error {
 			Remark:           "每2小时测温一次",
 		},
 		{
-			BaseModel:      model.BaseModel{ID: uuid.New().String()},
+			BaseModel:      model.BaseModel{ID: FollowUp2ID},
 			CamperID:       Camper2ID,
 			Type:           model.FollowUpTypeParent,
 			Status:         model.FollowUpStatusCompleted,
@@ -1180,7 +1204,7 @@ func seedOperationLogs() error {
 			UserRole:   string(model.RoleTeacher),
 			Action:     "followup_update",
 			EntityType: "followup",
-			EntityID:   FollowUp1ID,
+			EntityID:   FollowUp2ID,
 			OldValue:   `{"status":"pending"}`,
 			NewValue:   `{"status":"completed","result":"家长表示满意"}`,
 			CreatedAt:  time.Date(2024, 7, 17, 14, 0, 0, 0, time.Local),
@@ -1192,5 +1216,50 @@ func seedOperationLogs() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func seedRoomChangeLogs() error {
+	changeLogs := []model.RoomChangeLog{
+		{
+			BaseModel:    model.BaseModel{ID: uuid.New().String()},
+			CamperID:     Camper6ID,
+			OldRoomID:    Room3ID,
+			NewRoomID:    Room4ID,
+			OldBedNumber: 2,
+			NewBedNumber: 1,
+			ChangedBy:    LogisticsID,
+			ChangeTime:   time.Date(2024, 7, 16, 23, 10, 0, 0, time.Local),
+			Reason:       "感冒需要隔离观察",
+			Remark:       "因营员出现咳嗽发热症状，安排单独房间隔离，避免传染其他营员",
+			ApprovedBy:   DirectorID,
+			ApprovedAt:   &[]time.Time{time.Date(2024, 7, 16, 23, 5, 0, 0, time.Local)}[0],
+			ApprovalRemark: "同意，确保每2小时测温一次，有情况及时上报",
+		},
+		{
+			BaseModel:    model.BaseModel{ID: uuid.New().String()},
+			CamperID:     Camper3ID,
+			OldRoomID:    Room1ID,
+			NewRoomID:    Room2ID,
+			OldBedNumber: 3,
+			NewBedNumber: 3,
+			ChangedBy:    LogisticsID,
+			ChangeTime:   time.Date(2024, 7, 15, 15, 0, 0, 0, time.Local),
+			Reason:       "调整室友组合",
+			Remark:       "营员家长要求调整到熟人房间",
+			ApprovedBy:   DirectorID,
+			ApprovedAt:   &[]time.Time{time.Date(2024, 7, 15, 14, 30, 0, 0, time.Local)}[0],
+			ApprovalRemark: "同意，已与双方家长沟通确认",
+		},
+	}
+
+	for _, changeLog := range changeLogs {
+		changeLog.CreatedBy = LogisticsID
+		changeLog.UpdatedBy = LogisticsID
+		if err := DB.FirstOrCreate(&changeLog, "id = ?", changeLog.ID).Error; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

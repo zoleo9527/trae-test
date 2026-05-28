@@ -177,12 +177,28 @@ func (h *MedicalHandler) GetMedicalReport(c *gin.Context) {
 }
 
 func (h *MedicalHandler) GetCampMedicalReports(c *gin.Context) {
+	userCtx := auth.GetCurrentUser(c)
+	if userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
 	campID := c.Query("camp_id")
+	if campID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少camp_id参数"})
+		return
+	}
+
+	if !userCtx.HasCampAccess(campID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权限访问该营地数据"})
+		return
+	}
+
 	status := c.Query("status")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	reports, total, err := h.medicalService.GetCampMedicalReports(campID, model.MedicalStatus(status), page, pageSize)
+	reports, total, err := h.medicalService.GetCampMedicalReports(campID, model.MedicalStatus(status), page, pageSize, userCtx.UserID, userCtx.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
