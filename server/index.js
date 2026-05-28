@@ -19,7 +19,7 @@ const supplyRoutes = require('./routes/supplies');
 const alertRoutes = require('./routes/alerts');
 
 const app = express();
-const PORT = 3001;
+const PORT = 3003;
 
 app.use(cors());
 app.use(express.json());

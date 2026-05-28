@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
+import Modal from '../../components/Modal';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Package, 
   Plus, 
@@ -48,26 +50,77 @@ const CategoryBadge = ({ category }) => {
 };
 
 export default function SuppliesPage() {
+  const { hasRole } = useAuth();
   const [supplies, setSupplies] = useState([]);
+  const [berths, setBerths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    berth_plan_id: '',
+    category: 'food',
+    items: '',
+    estimated_cost: '',
+    delivery_date: '',
+    notes: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canCreate = hasRole('field_coordinator');
 
   useEffect(() => {
-    fetchSupplies();
+    fetchData();
   }, [categoryFilter]);
 
-  const fetchSupplies = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       const params = {};
       if (categoryFilter) params.category = categoryFilter;
-      const data = await api.supplies.list(params);
-      setSupplies(data);
+      
+      const [suppliesData, berthsData] = await Promise.all([
+        api.supplies.list(params),
+        api.berth.list(),
+      ]);
+      
+      setSupplies(suppliesData);
+      setBerths(berthsData);
     } catch (err) {
-      console.error('Failed to fetch supplies:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const submitData = {
+        ...formData,
+        berth_plan_id: parseInt(formData.berth_plan_id),
+        estimated_cost: parseFloat(formData.estimated_cost),
+        items: formData.items.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      };
+      await api.supplies.create(submitData);
+      setShowModal(false);
+      setFormData({
+        berth_plan_id: '',
+        category: 'food',
+        items: '',
+        estimated_cost: '',
+        delivery_date: '',
+        notes: '',
+      });
+      fetchData();
+    } catch (err) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -85,10 +138,15 @@ export default function SuppliesPage() {
             <h1 className="text-2xl font-bold text-gray-900">补给管理</h1>
             <p className="text-gray-500 mt-1">管理船舶物资和燃油补给</p>
           </div>
-          <button className="btn btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            新增申请
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setShowModal(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新增申请
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -190,6 +248,90 @@ export default function SuppliesPage() {
           </div>
         )}
       </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="新增补给申请">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">关联靠泊计划 *</label>
+            <select
+              value={formData.berth_plan_id}
+              onChange={(e) => setFormData({ ...formData, berth_plan_id: e.target.value })}
+              className="input"
+              required
+            >
+              <option value="">请选择靠泊计划</option>
+              {berths.map(b => (
+                <option key={b.id} value={b.id}>{b.ship_name} ({b.arrival_date?.split(' ')[0]})</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">补给类型 *</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="input"
+                required
+              >
+                <option value="food">食品</option>
+                <option value="fuel">燃油</option>
+                <option value="material">物料</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">预估费用 (元) *</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.estimated_cost}
+                onChange={(e) => setFormData({ ...formData, estimated_cost: e.target.value })}
+                className="input"
+                placeholder="请输入预估金额"
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">补给明细 *</label>
+            <input
+              type="text"
+              value={formData.items}
+              onChange={(e) => setFormData({ ...formData, items: e.target.value })}
+              className="input"
+              placeholder="用逗号分隔, 如: 蔬菜100kg, 猪肉50kg"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">预计交付日期</label>
+            <input
+              type="date"
+              value={formData.delivery_date}
+              onChange={(e) => setFormData({ ...formData, delivery_date: e.target.value })}
+              className="input"
+            />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
+              {submitting ? '创建中...' : '创建申请'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="btn btn-secondary"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 }

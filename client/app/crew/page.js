@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
+import Modal from '../../components/Modal';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Users, 
   Plus, 
@@ -48,26 +50,81 @@ const DocStatusBadge = ({ status }) => {
 };
 
 export default function CrewPage() {
+  const { hasRole } = useAuth();
   const [crewChanges, setCrewChanges] = useState([]);
+  const [berths, setBerths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    berth_plan_id: '',
+    type: 'sign_on',
+    crew_name: '',
+    rank: '',
+    nationality: '中国',
+    arrival_flight: '',
+    departure_flight: '',
+    visa_expiry: '',
+    notes: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canCreate = hasRole('field_coordinator');
 
   useEffect(() => {
-    fetchCrewChanges();
+    fetchData();
   }, [statusFilter]);
 
-  const fetchCrewChanges = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       const params = {};
       if (statusFilter) params.status = statusFilter;
-      const data = await api.crew.list(params);
-      setCrewChanges(data);
+      
+      const [crewData, berthsData] = await Promise.all([
+        api.crew.list(params),
+        api.berth.list(),
+      ]);
+      
+      setCrewChanges(crewData);
+      setBerths(berthsData);
     } catch (err) {
-      console.error('Failed to fetch crew changes:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const submitData = {
+        ...formData,
+        berth_plan_id: parseInt(formData.berth_plan_id),
+      };
+      await api.crew.create(submitData);
+      setShowModal(false);
+      setFormData({
+        berth_plan_id: '',
+        type: 'sign_on',
+        crew_name: '',
+        rank: '',
+        nationality: '中国',
+        arrival_flight: '',
+        departure_flight: '',
+        visa_expiry: '',
+        notes: '',
+      });
+      fetchData();
+    } catch (err) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -85,10 +142,15 @@ export default function CrewPage() {
             <h1 className="text-2xl font-bold text-gray-900">船员换班</h1>
             <p className="text-gray-500 mt-1">管理船员上下船安排和证件审核</p>
           </div>
-          <button className="btn btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            新增换班
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setShowModal(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新增换班
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -208,6 +270,110 @@ export default function CrewPage() {
           </div>
         )}
       </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="新增船员换班">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">关联靠泊计划 *</label>
+            <select
+              value={formData.berth_plan_id}
+              onChange={(e) => setFormData({ ...formData, berth_plan_id: e.target.value })}
+              className="input"
+              required
+            >
+              <option value="">请选择靠泊计划</option>
+              {berths.map(b => (
+                <option key={b.id} value={b.id}>{b.ship_name} ({b.arrival_date?.split(' ')[0]})</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">换班类型 *</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="input"
+                required
+              >
+                <option value="sign_on">上船</option>
+                <option value="sign_off">下船</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">船员姓名 *</label>
+              <input
+                type="text"
+                value={formData.crew_name}
+                onChange={(e) => setFormData({ ...formData, crew_name: e.target.value })}
+                className="input"
+                placeholder="请输入姓名"
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">职务</label>
+              <input
+                type="text"
+                value={formData.rank}
+                onChange={(e) => setFormData({ ...formData, rank: e.target.value })}
+                className="input"
+                placeholder="如: 船长、大副、水手"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">国籍</label>
+              <input
+                type="text"
+                value={formData.nationality}
+                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                className="input"
+                placeholder="请输入国籍"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">入境航班</label>
+              <input
+                type="text"
+                value={formData.arrival_flight}
+                onChange={(e) => setFormData({ ...formData, arrival_flight: e.target.value })}
+                className="input"
+                placeholder="如: MU501"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">签证到期日</label>
+              <input
+                type="date"
+                value={formData.visa_expiry}
+                onChange={(e) => setFormData({ ...formData, visa_expiry: e.target.value })}
+                className="input"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
+              {submitting ? '创建中...' : '创建换班'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="btn btn-secondary"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 }

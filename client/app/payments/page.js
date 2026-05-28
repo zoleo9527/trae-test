@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
+import Modal from '../../components/Modal';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { 
   CreditCard, 
   Plus, 
@@ -10,9 +12,7 @@ import {
   ChevronRight,
   AlertTriangle,
   CheckCircle,
-  Clock,
-  DollarSign,
-  ArrowDownToLine
+  Clock
 } from 'lucide-react';
 
 const StatusBadge = ({ status }) => {
@@ -36,28 +36,80 @@ const StatusBadge = ({ status }) => {
 };
 
 export default function PaymentsPage() {
+  const { hasRole } = useAuth();
   const [payments, setPayments] = useState([]);
+  const [berths, setBerths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showOverdue, setShowOverdue] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    berth_plan_id: '',
+    invoice_number: '',
+    supplier: '',
+    amount: '',
+    currency: 'CNY',
+    description: '',
+    due_date: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canCreate = hasRole('agent_manager');
 
   useEffect(() => {
-    fetchPayments();
+    fetchData();
   }, [statusFilter, showOverdue]);
 
-  const fetchPayments = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       const params = {};
       if (statusFilter) params.status = statusFilter;
       if (showOverdue) params.overdue = 'true';
-      const data = await api.payments.list(params);
-      setPayments(data);
+      
+      const [paymentsData, berthsData] = await Promise.all([
+        api.payments.list(params),
+        api.berth.list(),
+      ]);
+      
+      setPayments(paymentsData);
+      setBerths(berthsData);
     } catch (err) {
-      console.error('Failed to fetch payments:', err);
+      console.error('Failed to fetch data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const submitData = {
+        ...formData,
+        amount: parseFloat(formData.amount),
+        berth_plan_id: parseInt(formData.berth_plan_id),
+      };
+      await api.payments.create(submitData);
+      setShowModal(false);
+      setFormData({
+        berth_plan_id: '',
+        invoice_number: '',
+        supplier: '',
+        amount: '',
+        currency: 'CNY',
+        description: '',
+        due_date: '',
+      });
+      fetchData();
+    } catch (err) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -77,10 +129,15 @@ export default function PaymentsPage() {
             <h1 className="text-2xl font-bold text-gray-900">费用垫付与回款</h1>
             <p className="text-gray-500 mt-1">管理垫付费用和回款核对</p>
           </div>
-          <button className="btn btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            新增垫付
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setShowModal(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新增垫付
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -215,6 +272,101 @@ export default function PaymentsPage() {
           </div>
         )}
       </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="新增垫付费用">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">关联靠泊计划 *</label>
+            <select
+              value={formData.berth_plan_id}
+              onChange={(e) => setFormData({ ...formData, berth_plan_id: e.target.value })}
+              className="input"
+              required
+            >
+              <option value="">请选择靠泊计划</option>
+              {berths.map(b => (
+                <option key={b.id} value={b.id}>{b.ship_name} ({b.arrival_date?.split(' ')[0]})</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">发票号 *</label>
+              <input
+                type="text"
+                value={formData.invoice_number}
+                onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
+                className="input"
+                placeholder="如: INV-2026-0005"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">供应商 *</label>
+              <input
+                type="text"
+                value={formData.supplier}
+                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                className="input"
+                placeholder="请输入供应商名称"
+                required
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">金额 (元) *</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className="input"
+                placeholder="请输入金额"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">到期日期 *</label>
+              <input
+                type="date"
+                value={formData.due_date}
+                onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                className="input"
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">费用描述</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="input"
+              rows="2"
+              placeholder="请输入费用描述"
+            />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
+              {submitting ? '创建中...' : '创建垫付'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="btn btn-secondary"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 }

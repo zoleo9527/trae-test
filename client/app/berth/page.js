@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
+import Modal from '../../components/Modal';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Ship, 
   Plus, 
   Search, 
-  Filter,
   ChevronRight,
   Clock,
-  CheckCircle2,
   FileText
 } from 'lucide-react';
 
@@ -37,10 +37,24 @@ const StatusBadge = ({ status }) => {
 };
 
 export default function BerthPage() {
+  const { user, hasRole } = useAuth();
   const [berths, setBerths] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    ship_id: '',
+    ship_name: '',
+    arrival_date: '',
+    departure_date: '',
+    berth_number: '',
+    purpose: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canCreate = hasRole('agent_manager', 'field_coordinator');
 
   useEffect(() => {
     fetchBerths();
@@ -58,6 +72,35 @@ export default function BerthPage() {
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const submitData = {
+        ...formData,
+        ship_id: formData.ship_id || 1,
+        agent_id: user?.id,
+      };
+      await api.berth.create(submitData);
+      setShowModal(false);
+      setFormData({
+        ship_id: '',
+        ship_name: '',
+        arrival_date: '',
+        departure_date: '',
+        berth_number: '',
+        purpose: '',
+      });
+      fetchBerths();
+    } catch (err) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filteredBerths = berths.filter(b => 
     b.ship_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -70,10 +113,15 @@ export default function BerthPage() {
             <h1 className="text-2xl font-bold text-gray-900">靠泊计划</h1>
             <p className="text-gray-500 mt-1">管理船舶靠泊安排和相关服务</p>
           </div>
-          <button className="btn btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            新建计划
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setShowModal(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新建计划
+            </button>
+          )}
         </div>
 
         <div className="card p-4">
@@ -144,6 +192,89 @@ export default function BerthPage() {
           </div>
         )}
       </div>
+
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="新建靠泊计划">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">船名 *</label>
+            <input
+              type="text"
+              value={formData.ship_name}
+              onChange={(e) => setFormData({ ...formData, ship_name: e.target.value })}
+              className="input"
+              placeholder="请输入船名"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">到港日期 *</label>
+              <input
+                type="datetime-local"
+                value={formData.arrival_date}
+                onChange={(e) => setFormData({ ...formData, arrival_date: e.target.value })}
+                className="input"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">离港日期</label>
+              <input
+                type="datetime-local"
+                value={formData.departure_date}
+                onChange={(e) => setFormData({ ...formData, departure_date: e.target.value })}
+                className="input"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">泊位号</label>
+              <input
+                type="text"
+                value={formData.berth_number}
+                onChange={(e) => setFormData({ ...formData, berth_number: e.target.value })}
+                className="input"
+                placeholder="如: A-01"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">靠泊目的 *</label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                className="input"
+                required
+              >
+                <option value="">请选择</option>
+                <option value="集装箱装卸">集装箱装卸</option>
+                <option value="散货装卸">散货装卸</option>
+                <option value="燃油补给">燃油补给</option>
+                <option value="船员换班">船员换班</option>
+                <option value="检修">检修</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
+              {submitting ? '创建中...' : '创建计划'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowModal(false)}
+              className="btn btn-secondary"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 }

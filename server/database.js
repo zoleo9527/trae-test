@@ -96,7 +96,7 @@ function initTables() {
       notes TEXT,
       FOREIGN KEY (berth_plan_id) REFERENCES berth_plans(id),
       FOREIGN KEY (service_id) REFERENCES services(id)
-    `);
+    )`);
 
     db.run(`CREATE TABLE IF NOT EXISTS advance_payments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

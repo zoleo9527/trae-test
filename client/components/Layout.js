@@ -13,12 +13,18 @@ import {
   Home
 } from 'lucide-react';
 
+const ROLE_MENUS = {
+  agent_manager: ['/dashboard', '/berth', '/payments', '/crew', '/supplies', '/calendar', '/alerts'],
+  field_coordinator: ['/dashboard', '/berth', '/crew', '/supplies', '/calendar', '/alerts'],
+  document_specialist: ['/dashboard', '/berth', '/payments', '/crew', '/calendar', '/alerts'],
+};
+
 export default function Layout({ children }) {
-  const { user, logout, getRoleName } = useAuth();
+  const { user, logout, getRoleName, hasRole } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
-  const menuItems = [
+  const allMenuItems = [
     { href: '/dashboard', label: '首页', icon: Home },
     { href: '/berth', label: '靠泊计划', icon: Anchor },
     { href: '/payments', label: '费用垫付', icon: CreditCard },
@@ -27,6 +33,9 @@ export default function Layout({ children }) {
     { href: '/calendar', label: '日历视图', icon: Calendar },
     { href: '/alerts', label: '提醒中心', icon: Bell },
   ];
+
+  const allowedMenus = ROLE_MENUS[user?.role] || allMenuItems.map(m => m.href);
+  const menuItems = allMenuItems.filter(item => allowedMenus.includes(item.href));
 
   const handleLogout = () => {
     logout();

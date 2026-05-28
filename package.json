@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "nodemon server/index.js",
-    "dev:client": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start"
+    "dev:client": "cd client && next dev -p 3002",
+    "build": "cd client && next build",
+    "start": "cd client && next start"
   },
+  "workspaces": [
+    "client"
+  ],
   "dependencies": {
     "next": "^14.1.0",
     "react": "^18.2.0",

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Layout from '../../../components/Layout';
+import Modal from '../../../components/Modal';
 import { api } from '../../../lib/api';
+import { useAuth } from '../../../context/AuthContext';
 import { 
   Ship, 
   ArrowLeft,
@@ -57,10 +59,21 @@ const ServiceStatusBadge = ({ status }) => {
 
 export default function BerthDetailPage() {
   const params = useParams();
+  const { hasRole } = useAuth();
   const [berth, setBerth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [serviceForm, setServiceForm] = useState({
+    type: 'crew_change',
+    title: '',
+    description: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canAddService = hasRole('agent_manager', 'field_coordinator');
 
   useEffect(() => {
     fetchBerthDetail();
@@ -90,6 +103,27 @@ export default function BerthDetailPage() {
       fetchBerthDetail();
     } catch (err) {
       console.error('Failed to send message:', err);
+    }
+  };
+
+  const handleAddService = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      await api.berth.addService(params.id, serviceForm);
+      setShowServiceModal(false);
+      setServiceForm({
+        type: 'crew_change',
+        title: '',
+        description: '',
+      });
+      fetchBerthDetail();
+    } catch (err) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -238,10 +272,15 @@ export default function BerthDetailPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">服务列表</h3>
-                <button className="btn btn-secondary text-sm flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  添加服务
-                </button>
+                {canAddService && (
+                  <button 
+                    onClick={() => setShowServiceModal(true)}
+                    className="btn btn-secondary text-sm flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    添加服务
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-gray-100">
                 {berth.services?.map((service) => (
@@ -365,6 +404,64 @@ export default function BerthDetailPage() {
           )}
         </div>
       </div>
+
+      <Modal isOpen={showServiceModal} onClose={() => setShowServiceModal(false)} title="添加服务">
+        <form onSubmit={handleAddService} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">服务类型 *</label>
+            <select
+              value={serviceForm.type}
+              onChange={(e) => setServiceForm({ ...serviceForm, type: e.target.value })}
+              className="input"
+              required
+            >
+              <option value="crew_change">船员换班</option>
+              <option value="supply">物资补给</option>
+              <option value="fuel">燃油补给</option>
+              <option value="repair">维修服务</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">服务名称 *</label>
+            <input
+              type="text"
+              value={serviceForm.title}
+              onChange={(e) => setServiceForm({ ...serviceForm, title: e.target.value })}
+              className="input"
+              placeholder="如: 船员换班"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">服务描述</label>
+            <textarea
+              value={serviceForm.description}
+              onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
+              className="input"
+              rows="3"
+              placeholder="请输入服务描述"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="submit" disabled={submitting} className="btn btn-primary flex-1">
+              {submitting ? '添加中...' : '添加服务'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowServiceModal(false)}
+              className="btn btn-secondary"
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      </Modal>
     </Layout>
   );
 }
