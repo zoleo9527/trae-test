@@ -94,19 +94,49 @@ router.put('/:id', requireRole(ROLES.FIELD_COORDINATOR, ROLES.DOCUMENT_SPECIALIS
           }
         );
       } else if (documents_status === 'rejected') {
-        db.get('SELECT crew_name, rank FROM crew_changes WHERE id = ?', [req.params.id], (selectErr, crew) => {
+        db.get(`
+          SELECT cc.crew_name, cc.rank, 
+                 COALESCE(s.requested_by, bp.agent_id) as handler_id
+          FROM crew_changes cc 
+          LEFT JOIN berth_plans bp ON cc.berth_plan_id = bp.id 
+          LEFT JOIN services s ON cc.service_id = s.id
+          WHERE cc.id = ?
+        `, [req.params.id], (selectErr, crew) => {
           if (selectErr) {
             console.error('Failed to get crew info:', selectErr);
             return;
           }
           if (crew) {
-            const description = notes 
-              ? `${crew.rank || '船员'} 的证件审核未通过：${notes}，请重新处理` 
-              : `${crew.rank || '船员'} 的证件审核未通过，请重新处理`;
-            db.run(
-              'INSERT INTO alerts (type, title, description, related_type, related_id, priority, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              ['document', `证件审核被拒: ${crew.crew_name}`, description, 'crew', req.params.id, 'high', 'pending']
-            );
+            db.get(`
+              SELECT id FROM alerts 
+              WHERE related_type = 'crew' 
+                AND related_id = ? 
+                AND type = 'document' 
+                AND status = 'pending'
+                AND title LIKE '证件审核被拒:%'
+            `, [req.params.id], (existingErr, existingAlert) => {
+              if (existingErr) {
+                console.error('Failed to check existing alert:', existingErr);
+                return;
+              }
+              if (existingAlert) {
+                const description = notes 
+                  ? `${crew.rank || '船员'} 的证件审核未通过：${notes}，请重新处理` 
+                  : `${crew.rank || '船员'} 的证件审核未通过，请重新处理`;
+                db.run(
+                  'UPDATE alerts SET description = ? WHERE id = ?',
+                  [description, existingAlert.id]
+                );
+              } else {
+                const description = notes 
+                  ? `${crew.rank || '船员'} 的证件审核未通过：${notes}，请重新处理` 
+                  : `${crew.rank || '船员'} 的证件审核未通过，请重新处理`;
+                db.run(
+                  'INSERT INTO alerts (type, title, description, related_type, related_id, priority, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                  ['document', `证件审核被拒: ${crew.crew_name}`, description, 'crew', req.params.id, 'high', 'pending', crew.handler_id]
+                );
+              }
+            });
           }
         });
       }

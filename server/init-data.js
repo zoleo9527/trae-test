@@ -136,16 +136,16 @@ function initSampleData() {
     });
 
     const alerts = [
-      { type: 'document', title: '签证到期提醒', description: '孙水手的签证将于2026-05-28到期', related_type: 'crew', related_id: 5, priority: 'high', status: 'pending', due_date: '2026-05-28' },
-      { type: 'payment', title: '付款逾期提醒', description: '船舶物料供应公司 25000元 已逾期', related_type: 'payment', related_id: 3, priority: 'high', status: 'pending', due_date: '2026-05-25' },
-      { type: 'supply', title: '补给交付提醒', description: '润滑油等物料预计5月31日交付', related_type: 'supply', related_id: 2, priority: 'normal', status: 'pending', due_date: '2026-05-31' },
-      { type: 'berth', title: '靠泊待确认', description: '太平洋号靠泊计划待确认', related_type: 'berth', related_id: 4, priority: 'normal', status: 'pending', due_date: '2026-06-04' },
+      { type: 'document', title: '签证到期提醒', description: '孙水手的签证将于2026-05-28到期', related_type: 'crew', related_id: 5, priority: 'high', status: 'pending', due_date: '2026-05-28', user_id: 2 },
+      { type: 'payment', title: '付款逾期提醒', description: '船舶物料供应公司 25000元 已逾期', related_type: 'payment', related_id: 3, priority: 'high', status: 'pending', due_date: '2026-05-25', user_id: 1 },
+      { type: 'supply', title: '补给交付提醒', description: '润滑油等物料预计5月31日交付', related_type: 'supply', related_id: 2, priority: 'normal', status: 'pending', due_date: '2026-05-31', user_id: 2 },
+      { type: 'berth', title: '靠泊待确认', description: '太平洋号靠泊计划待确认', related_type: 'berth', related_id: 4, priority: 'normal', status: 'pending', due_date: '2026-06-04', user_id: 1 },
     ];
 
     alerts.forEach(alert => {
       db.run(
-        'INSERT INTO alerts (type, title, description, related_type, related_id, priority, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [alert.type, alert.title, alert.description, alert.related_type, alert.related_id, alert.priority, alert.status, alert.due_date]
+        'INSERT INTO alerts (type, title, description, related_type, related_id, priority, status, due_date, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [alert.type, alert.title, alert.description, alert.related_type, alert.related_id, alert.priority, alert.status, alert.due_date, alert.user_id]
       );
     });
 

@@ -5,8 +5,8 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
   const { status, priority, type } = req.query;
-  let query = 'SELECT * FROM alerts WHERE 1=1';
-  const params = [];
+  let query = 'SELECT * FROM alerts WHERE (user_id = ? OR user_id IS NULL)';
+  const params = [req.user.id];
 
   if (status) {
     query += ' AND status = ?';
@@ -49,8 +49,9 @@ router.get('/summary', (req, res) => {
       status,
       COUNT(*) as count
     FROM alerts
+    WHERE (user_id = ? OR user_id IS NULL)
     GROUP BY type, priority, status
-  `, (err, rows) => {
+  `, [req.user.id], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     
     const summary = {
