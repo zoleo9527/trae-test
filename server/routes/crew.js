@@ -57,12 +57,23 @@ router.post('/', requireRole(ROLES.FIELD_COORDINATOR), (req, res) => {
 
 router.put('/:id', requireRole(ROLES.FIELD_COORDINATOR, ROLES.DOCUMENT_SPECIALIST), (req, res) => {
   const { status, documents_status, notes } = req.body;
-  
+
   db.run(
     'UPDATE crew_changes SET status = ?, documents_status = ?, notes = ? WHERE id = ?',
     [status, documents_status, notes, req.params.id],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
+
+      if (documents_status === 'approved') {
+        db.run(
+          "UPDATE alerts SET status = 'resolved' WHERE related_type = 'crew' AND related_id = ? AND type = 'document' AND status = 'pending'",
+          [req.params.id],
+          (alertErr) => {
+            if (alertErr) console.error('Alert update failed:', alertErr);
+          }
+        );
+      }
+
       res.json({ updated: this.changes });
     }
   );

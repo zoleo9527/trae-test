@@ -44,7 +44,6 @@ export default function BerthPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
-    ship_id: '',
     ship_name: '',
     arrival_date: '',
     departure_date: '',
@@ -79,14 +78,16 @@ export default function BerthPage() {
 
     try {
       const submitData = {
-        ...formData,
-        ship_id: formData.ship_id || 1,
+        ship_name: formData.ship_name,
+        arrival_date: formData.arrival_date,
+        departure_date: formData.departure_date,
+        berth_number: formData.berth_number,
+        purpose: formData.purpose,
         agent_id: user?.id,
       };
       await api.berth.create(submitData);
       setShowModal(false);
       setFormData({
-        ship_id: '',
         ship_name: '',
         arrival_date: '',
         departure_date: '',

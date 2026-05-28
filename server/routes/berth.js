@@ -76,16 +76,35 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', requireRole(ROLES.AGENT_MANAGER, ROLES.FIELD_COORDINATOR), (req, res) => {
-  const { ship_id, ship_name, arrival_date, departure_date, berth_number, purpose, agent_id } = req.body;
-  
-  db.run(
-    'INSERT INTO berth_plans (ship_id, ship_name, arrival_date, departure_date, berth_number, purpose, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [ship_id, ship_name, arrival_date, departure_date, berth_number, purpose, agent_id],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.status(201).json({ id: this.lastID });
+  const { ship_name, arrival_date, departure_date, berth_number, purpose, agent_id } = req.body;
+
+  db.get('SELECT id FROM ships WHERE name = ?', [ship_name], (err, ship) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    const insertPlan = (resolvedShipId) => {
+      db.run(
+        'INSERT INTO berth_plans (ship_id, ship_name, arrival_date, departure_date, berth_number, purpose, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [resolvedShipId, ship_name, arrival_date, departure_date, berth_number, purpose, agent_id],
+        function(err2) {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.status(201).json({ id: this.lastID });
+        }
+      );
+    };
+
+    if (ship) {
+      insertPlan(ship.id);
+    } else {
+      db.run(
+        'INSERT INTO ships (name) VALUES (?)',
+        [ship_name],
+        function(err3) {
+          if (err3) return res.status(500).json({ error: err3.message });
+          insertPlan(this.lastID);
+        }
+      );
     }
-  );
+  });
 });
 
 router.put('/:id', requireRole(ROLES.AGENT_MANAGER, ROLES.FIELD_COORDINATOR), (req, res) => {

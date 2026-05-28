@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Layout from '../../../components/Layout';
 import { api } from '../../../lib/api';
+import { useAuth } from '../../../context/AuthContext';
 import { 
   CreditCard, 
   ArrowLeft,
@@ -39,6 +40,7 @@ const StatusBadge = ({ status }) => {
 
 export default function PaymentDetailPage() {
   const params = useParams();
+  const { hasRole } = useAuth();
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
@@ -51,6 +53,9 @@ export default function PaymentDetailPage() {
     reference_number: '',
     notes: '',
   });
+
+  const canRegisterCollection = hasRole('agent_manager', 'document_specialist');
+  const canCommunicate = hasRole('agent_manager', 'document_specialist');
 
   useEffect(() => {
     fetchPaymentDetail();
@@ -235,7 +240,7 @@ export default function PaymentDetailPage() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">回款记录</h3>
-              {remainingAmount > 0 && (
+              {remainingAmount > 0 && canRegisterCollection && (
                 <button
                   onClick={() => setShowCollectionForm(!showCollectionForm)}
                   className="btn btn-secondary text-sm flex items-center gap-2"
@@ -364,19 +369,21 @@ export default function PaymentDetailPage() {
               </div>
             ))}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="记录供应商沟通内容..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              className="input flex-1"
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            />
-            <button onClick={handleSendMessage} className="btn btn-primary">
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
+          {canCommunicate && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="记录供应商沟通内容..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="input flex-1"
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              />
+              <button onClick={handleSendMessage} className="btn btn-primary">
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </Layout>
