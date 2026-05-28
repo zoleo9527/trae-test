@@ -1,7 +1,7 @@
+import { CreditCard, DollarSign, Plus, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Plus, CreditCard, DollarSign, User, Calendar } from 'lucide-react'
-import { paymentApi, customerApi } from '../services/api'
-import type { Payment, Customer } from '../types'
+import { customerApi, paymentApi } from '../services/api'
+import type { Customer, Payment } from '../types'
 
 export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])

@@ -1,5 +1,5 @@
+import { DollarSign, Edit2, Eye, History, MapPin, Package, Phone, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Plus, Phone, MapPin, DollarSign, Package, Edit2, Eye, History } from 'lucide-react'
 import { customerApi, logApi, reminderApi } from '../services/api'
 import type { Customer, OperationLog, PaymentReminder } from '../types'
 
@@ -18,6 +18,7 @@ export default function Customers() {
     price_per_bucket: 20,
     balance_buckets: 0,
     credit_limit: 0,
+    current_debt: 0,
   })
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function Customers() {
     try {
       await customerApi.create(formData)
       setShowModal(false)
-      setFormData({ name: '', phone: '', address: '', price_per_bucket: 20, balance_buckets: 0, credit_limit: 0 })
+      setFormData({ name: '', phone: '', address: '', price_per_bucket: 20, balance_buckets: 0, credit_limit: 0, current_debt: 0 })
       loadCustomers()
     } catch (error) {
       console.error('创建客户失败:', error)
@@ -177,7 +178,7 @@ export default function Customers() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">单价(元/桶)</label>
                   <input
@@ -204,6 +205,19 @@ export default function Customers() {
                     onChange={(e) => setFormData({ ...formData, credit_limit: Number(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">初始欠款</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">¥</span>
+                    <input
+                      type="number"
+                      value={formData.current_debt}
+                      onChange={(e) => setFormData({ ...formData, current_debt: Number(e.target.value) })}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      min="0"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex gap-3 pt-4">

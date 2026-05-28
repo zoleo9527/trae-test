@@ -11,6 +11,7 @@ class CustomerBase(BaseModel):
     price_per_bucket: Optional[float] = 20.0
     balance_buckets: Optional[int] = 0
     credit_limit: Optional[float] = 0
+    current_debt: Optional[float] = 0
     status: Optional[str] = "active"
 
 

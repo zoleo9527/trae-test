@@ -416,32 +416,44 @@ def mark_reminder_paid(
     if not db_reminder:
         raise HTTPException(status_code=404, detail="回款提醒不存在")
 
+    if db_reminder.status == "completed":
+        raise HTTPException(status_code=400, detail="该回款提醒已标记为完成，请勿重复操作")
+
     customer = db.query(models.Customer).filter(models.Customer.id == db_reminder.customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="客户不存在")
 
     old_debt = customer.current_debt
-    old_reminder_status = db_reminder.status
+    payment_amount = min(db_reminder.amount_due, max(0, old_debt))
 
-    db_payment = models.Payment(
-        customer_id=db_reminder.customer_id,
-        amount=db_reminder.amount_due,
-        payment_method="银行转账",
-        payment_date=datetime.now(),
-        operator="管理员"
-    )
-    db.add(db_payment)
+    if old_debt > 0:
+        db_payment = models.Payment(
+            customer_id=db_reminder.customer_id,
+            amount=payment_amount,
+            payment_method="银行转账",
+            payment_date=datetime.now(),
+            operator="管理员"
+        )
+        db.add(db_payment)
+        customer.current_debt -= payment_amount
 
-    customer.current_debt -= db_reminder.amount_due
     db_reminder.status = "completed"
 
     db.add(models.OperationLog(
         customer_id=db_reminder.customer_id,
         operator="管理员",
         action="标记已回款并登记收款",
-        old_value=f"原欠款: {old_debt}元, 提醒状态: {old_reminder_status}",
-        new_value=f"收款: {db_reminder.amount_due}元, 剩余欠款: {customer.current_debt}元, 提醒已完成"
+        old_value=f"原欠款: {old_debt}元, 提醒状态: pending",
+        new_value=f"收款: {payment_amount}元, 剩余欠款: {customer.current_debt}元, 提醒已完成"
     ))
+
+    other_pending = db.query(models.PaymentReminder).filter(
+        models.PaymentReminder.customer_id == db_reminder.customer_id,
+        models.PaymentReminder.status == "pending",
+        models.PaymentReminder.id != reminder_id
+    ).first()
+    if other_pending and customer.current_debt > 0:
+        other_pending.amount_due = customer.current_debt
 
     db.commit()
     db.refresh(db_reminder)

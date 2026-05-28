@@ -1,4 +1,4 @@
-import { AlertTriangle, Camera, CheckCircle, Clock, Eye, Filter, Plus } from 'lucide-react'
+import { AlertTriangle, Camera, CheckCircle, Clock, Eye, Filter, Plus, Upload, X, ZoomIn } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { customerApi, exceptionApi, logApi, orderApi } from '../services/api'
 import type { Customer, OperationLog, Order, OrderException } from '../types'

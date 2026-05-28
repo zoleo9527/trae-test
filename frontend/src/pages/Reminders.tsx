@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Bell, Calendar, DollarSign, User, CheckCircle, Clock, Send } from 'lucide-react'
-import { reminderApi, customerApi, paymentApi } from '../services/api'
+import { reminderApi, customerApi } from '../services/api'
 import type { PaymentReminder, Customer } from '../types'
 
 const statusMap: Record<string, { label: string; className: string }> = {
