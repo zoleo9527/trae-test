@@ -140,6 +140,15 @@ const responsiblePartyOptions = [
           </div>
           
           <div class="flex-1 overflow-auto p-6">
+            <div v-if="exception.type === 'refund_required' && userStore.currentUser.role !== 'business'" class="flex flex-col items-center justify-center py-16">
+              <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <AlertTriangle class="w-8 h-8 text-gray-400" />
+              </div>
+              <p class="text-gray-600 font-medium mb-1">无权限查看此异常</p>
+              <p class="text-sm text-gray-400">退款异常仅项目商务可查看和处理</p>
+            </div>
+
+            <template v-else>
             <div class="mb-6">
               <div class="flex items-center gap-2 mb-2">
                 <span 
@@ -398,6 +407,7 @@ const responsiblePartyOptions = [
                 <p class="text-sm text-gray-500">仅项目商务可进行审批操作</p>
               </div>
             </div>
+            </template>
           </div>
         </div>
       </div>

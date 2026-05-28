@@ -562,13 +562,20 @@ export const mockOrders: Order[] = [
   }
 ]
 
-const migrateRefundChain = (chain: any): RefundChain => {
+const migrateRefundChain = (chain: any, operationLogs?: any[]): RefundChain => {
   if (!chain) return chain
 
   const migrated: any = { ...chain }
 
   if ('remark' in migrated && !('applyReason' in migrated)) {
-    migrated.applyReason = migrated.remark || ''
+    const oldRemark = migrated.remark || ''
+    if (migrated.approvalStatus === 'approved' || migrated.approvalStatus === 'rejected') {
+      migrated.applyReason = oldRemark
+      migrated.approvalRemark = oldRemark
+    } else {
+      migrated.applyReason = oldRemark
+      migrated.approvalRemark = undefined
+    }
     delete migrated.remark
   }
   if (!('applyReason' in migrated)) {
@@ -577,8 +584,47 @@ const migrateRefundChain = (chain: any): RefundChain => {
   if (!('approvalRemark' in migrated)) {
     migrated.approvalRemark = undefined
   }
-  if (!('responsiblePartyHistory' in migrated) || !Array.isArray(migrated.responsiblePartyHistory)) {
-    migrated.responsiblePartyHistory = []
+
+  if (!('responsiblePartyHistory' in migrated) || !Array.isArray(migrated.responsiblePartyHistory) || migrated.responsiblePartyHistory.length === 0) {
+    const history: Array<any> = []
+
+    if (operationLogs && Array.isArray(operationLogs)) {
+      const changeLogs = operationLogs.filter((log: any) =>
+        log.action === '变更责任方' || log.action === '发起退款'
+      )
+
+      for (const log of changeLogs) {
+        const detail: string = log.detail || ''
+        const fromMatch = detail.match(/从"(\w+)"变更为/)
+        const toMatch = detail.match(/变更为"(\w+)"/)
+
+        if (fromMatch && toMatch) {
+          history.push({
+            from: fromMatch[1],
+            to: toMatch[1],
+            operator: log.operator,
+            operatorRole: log.operatorRole,
+            timestamp: log.timestamp,
+            remark: undefined
+          })
+        } else if (log.action === '发起退款') {
+          const partyMatch = detail.match(/责任方[：:]?\s*(\S+)/)
+          if (partyMatch) {
+            const party = partyMatch[1].replace(/[，,。.]/, '')
+            history.push({
+              from: party,
+              to: party,
+              operator: log.operator,
+              operatorRole: log.operatorRole,
+              timestamp: log.timestamp,
+              remark: '发起退款时首次认定'
+            })
+          }
+        }
+      }
+    }
+
+    migrated.responsiblePartyHistory = history
   }
 
   return migrated as RefundChain
@@ -592,7 +638,7 @@ export const getInitialData = (): Order[] => {
       for (const order of orders) {
         for (const exception of order.exceptions) {
           if (exception.type === 'refund_required' && exception.refundChain) {
-            exception.refundChain = migrateRefundChain(exception.refundChain)
+            exception.refundChain = migrateRefundChain(exception.refundChain, order.operationLogs)
           }
         }
       }

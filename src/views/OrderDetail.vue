@@ -98,18 +98,26 @@ onMounted(() => {
       if (exceptionType === 'refund') return e.type === 'refund_required'
       return false
     })
-    if (exception) {
+    if (exception && canOpenException(exception)) {
       selectedException.value = exception
       drawerVisible.value = true
     }
   }
 })
 
+const canOpenException = (exception: Exception): boolean => {
+  if (exception.type === 'refund_required' && userStore.currentUser.role !== 'business') {
+    return false
+  }
+  return true
+}
+
 const goBack = () => {
   router.push('/')
 }
 
 const openException = (exception: Exception) => {
+  if (!canOpenException(exception)) return
   selectedException.value = exception
   drawerVisible.value = true
 }
