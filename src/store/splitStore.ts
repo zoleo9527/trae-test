@@ -12,6 +12,7 @@ interface SplitState {
   confirmShip: (id: string, trackingNo: string, shippedBy: string) => void
   detectMissingItems: (orderId: string, currentSplits?: SplitOrder[]) => { missing: OrderItem[]; splitItems: SplitItem[] }
   getSplitsByOrderId: (orderId: string) => SplitOrder[]
+  clearMissingWarning: (orderId: string) => void
   resetData: () => void
 }
 
@@ -61,6 +62,11 @@ export const useSplitStore = create<SplitState>()(
           isException: hasMissing,
           needsReview: hasMissing,
         })
+
+        if (hasMissing) {
+          const missingItems = missing.map((m) => `${m.name}还差${m.quantity}件`).join('，')
+          useOrderStore.getState().setNeedsReview(orderId, true, `拆单漏件：${missingItems}`)
+        }
 
         useOrderStore.getState().updateOrderStatus(orderId, 'split')
 
@@ -130,6 +136,11 @@ export const useSplitStore = create<SplitState>()(
         return { missing, splitItems }
       },
       getSplitsByOrderId: (orderId) => get().splits.filter((s) => s.orderId === orderId),
+      clearMissingWarning: (orderId) => set((state) => ({
+        splits: state.splits.map((s) =>
+          s.orderId === orderId ? { ...s, missingWarning: false } : s
+        ),
+      })),
       resetData: () => set({
         splits: mockSplits,
       }),

@@ -117,6 +117,12 @@ export const useRefundStore = create<RefundState>()(
           needsReview: true,
         })
 
+        useOrderStore.getState().setNeedsReview(
+          refund.orderId,
+          true,
+          `退款被${level === 'finance' ? '财务' : '管理层'}驳回：${opinion}`
+        )
+
         return {
           refunds: state.refunds.map((r) =>
             r.id === id ? { ...r, ...update, status: 'rejected' } : r

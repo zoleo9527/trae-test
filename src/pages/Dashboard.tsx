@@ -107,9 +107,17 @@ export const Dashboard: React.FC = () => {
       }
     })
 
-    receipts.forEach((receipt) => {
-      if (receipt.status === 'exception') {
-        needsReview++
+    orders.forEach((order) => {
+      if (order.needsReview) {
+        pendingItems.push({
+          id: order.id,
+          type: 'order',
+          title: `${order.orderNo} · 需回查`,
+          subTitle: order.reviewReason || '需要确认处理',
+          status: 'needsReview',
+          priority: 'high',
+          orderId: order.id,
+        })
       }
     })
 

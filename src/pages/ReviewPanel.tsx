@@ -42,9 +42,9 @@ export const ReviewPanel: React.FC = () => {
 
   const exceptionStats = useMemo(() => {
     const exceptions = timeline.filter((e) => e.isException).length
-    const needsReview = timeline.filter((e) => e.needsReview).length
+    const needsReview = orders.filter((o) => o.needsReview).length
     return { exceptions, needsReview }
-  }, [timeline])
+  }, [timeline, orders])
 
   const filterOptions = [
     { value: 'all', label: '全部事件' },

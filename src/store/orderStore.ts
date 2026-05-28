@@ -4,6 +4,9 @@ import { nanoid } from 'nanoid'
 import type { Order, OrderItem, OrderVersion, OrderStatus } from '../types'
 import { mockOrders, mockTimeline } from '../data/mockData'
 import type { TimelineEvent } from '../types'
+import { useSplitStore } from './splitStore'
+import { useReceiptStore } from './receiptStore'
+import { useRefundStore } from './refundStore'
 
 interface OrderState {
   orders: Order[]
@@ -13,6 +16,7 @@ interface OrderState {
   updateOrderStatus: (id: string, status: OrderStatus) => void
   addVersion: (orderId: string, version: Omit<OrderVersion, 'id' | 'createdAt'>, overrideReason?: string) => void
   addTimelineEvent: (event: Omit<TimelineEvent, 'id' | 'timestamp'>) => void
+  setNeedsReview: (orderId: string, needsReview: boolean, reviewReason?: string) => void
   markAsReviewed: (orderId: string) => void
   getOrderById: (id: string) => Order | undefined
   detectMissingItems: (orderId: string, splitItems: OrderItem[]) => OrderItem[]
@@ -102,16 +106,54 @@ export const useOrderStore = create<OrderState>()(
       addTimelineEvent: (event) => set((state) => ({
         timeline: [...state.timeline, { ...event, id: nanoid(), timestamp: new Date() }],
       })),
-      markAsReviewed: (orderId) => set((state) => ({
+      setNeedsReview: (orderId, needsReview, reviewReason) => set((state) => ({
         orders: state.orders.map((o) =>
           o.id === orderId
-            ? { ...o, needsReview: false, reviewReason: undefined, updatedAt: new Date() }
+            ? {
+                ...o,
+                needsReview,
+                reviewReason: needsReview ? (reviewReason || o.reviewReason) : undefined,
+                updatedAt: new Date(),
+              }
             : o
         ),
-        timeline: state.timeline.map((e) =>
-          e.orderId === orderId && e.needsReview ? { ...e, needsReview: false } : e
-        ),
       })),
+      markAsReviewed: (orderId) => {
+        const splitState = useSplitStore.getState()
+        const receiptState = useReceiptStore.getState()
+        const refundState = useRefundStore.getState()
+
+        const orderSplits = splitState.splits.filter((s) => s.orderId === orderId)
+        const orderReceipts = receiptState.receipts.filter((r) => {
+          const split = splitState.splits.find((s) => s.id === r.splitId)
+          return split?.orderId === orderId
+        })
+        const orderRefunds = refundState.refunds.filter((r) => r.orderId === orderId)
+
+        const hasUnresolvedMissing = orderSplits.some((s) => s.missingWarning)
+        const hasUnresolvedException = orderReceipts.some((r) => r.status === 'exception')
+        const hasUnresolvedRejection = orderRefunds.some((r) => r.status === 'rejected')
+
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  needsReview: hasUnresolvedMissing || hasUnresolvedException || hasUnresolvedRejection,
+                  reviewReason: hasUnresolvedMissing || hasUnresolvedException || hasUnresolvedRejection
+                    ? o.reviewReason
+                    : undefined,
+                  updatedAt: new Date(),
+                }
+              : o
+          ),
+          timeline: state.timeline.map((e) =>
+            e.orderId === orderId && e.needsReview ? { ...e, needsReview: false } : e
+          ),
+        }))
+
+        splitState.clearMissingWarning(orderId)
+      },
       getOrderById: (id) => get().orders.find((o) => o.id === id),
       detectMissingItems: (orderId, splitItems) => {
         const order = get().orders.find((o) => o.id === orderId)
