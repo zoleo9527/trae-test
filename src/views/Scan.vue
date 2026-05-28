@@ -173,7 +173,24 @@ function goToOrder(orderId) {
 }
 
 function quickShip(order, trackingNo) {
-  alert(`快速发货功能演示：\n订单: ${order.orderNo}\n单号: ${trackingNo}`)
+  const remaining = order.quantity - (order.shipments?.reduce((sum, s) => sum + s.quantity, 0) || 0)
+  if (remaining <= 0) {
+    alert('该订单已全部发货完成')
+    return
+  }
+  
+  appStore.updateShipment(order.id, {
+    courier: '扫码识别',
+    trackingNo: trackingNo,
+    quantity: remaining
+  })
+  
+  alert(`快速发货成功！\n订单: ${order.orderNo}\n单号: ${trackingNo}\n数量: ${remaining} 件`)
+  
+  const result = scanResults.value.find(r => r.code === trackingNo)
+  if (result) {
+    result.matchedOrder = orders.value.find(o => o.id === order.id)
+  }
 }
 
 function clearResults() {

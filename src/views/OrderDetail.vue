@@ -139,12 +139,13 @@
                       @click="processAfterSale(as.id, 'rejected', '审核拒绝')">
                 拒绝
               </button>
-              <button v-if="currentRole === 'warehouse' && as.type === 'reorder' && as.status === 'approved'"
+              <button v-if="(currentRole === 'warehouse' && as.type === 'reorder' && as.status === 'approved') ||
+                      (currentRole === 'sample' && as.type === 'refund' && as.status === 'approved')"
                       class="btn btn-primary btn-sm"
-                      @click="processAfterSale(as.id, 'processing', '开始处理补单')">
+                      @click="processAfterSale(as.id, 'processing', as.type === 'reorder' ? '开始处理补单' : '开始处理退款')">
                 开始处理
               </button>
-              <button v-if="(currentRole === 'warehouse' && as.type === 'reorder') || (currentRole === 'sample' && as.type === 'refund') && as.status === 'processing'"
+              <button v-if="((currentRole === 'warehouse' && as.type === 'reorder') || (currentRole === 'sample' && as.type === 'refund')) && as.status === 'processing'"
                       class="btn btn-success btn-sm"
                       @click="processAfterSale(as.id, 'completed', '处理完成')">
                 完成
@@ -351,7 +352,7 @@ function goBack() {
 function canProcessAfterSale(as) {
   if (currentRole.value === 'sample' && as.status === 'pending') return true
   if (currentRole.value === 'warehouse' && as.type === 'reorder' && (as.status === 'approved' || as.status === 'processing')) return true
-  if (currentRole.value === 'sample' && as.type === 'refund' && as.status === 'processing') return true
+  if (currentRole.value === 'sample' && as.type === 'refund' && (as.status === 'approved' || as.status === 'processing')) return true
   return false
 }
 
@@ -381,7 +382,7 @@ function submitAfterSale() {
 }
 
 function submitShipment() {
-  if (!shipmentForm.value.trackingNo && shipmentForm.value.quantity > 0) {
+  if (shipmentForm.value.trackingNo && shipmentForm.value.quantity > 0) {
     appStore.updateShipment(order.value.id, shipmentForm.value)
     showShipmentModal.value = false
     shipmentForm.value = {
