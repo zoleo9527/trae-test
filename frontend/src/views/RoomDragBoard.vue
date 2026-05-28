@@ -28,10 +28,12 @@
           item-key="id"
           class="drag-list"
           ghost-class="ghost"
+          @start="onUnassignedDragStart"
+          @end="onDragEnd"
           @change="handleUnassignedChange"
         >
           <template #item="{ element }">
-            <div class="camper-card">
+            <div class="camper-card" :data-camper-id="element.id">
               <div
                 class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm"
                 :class="element.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'"
@@ -77,7 +79,7 @@
                 v-for="bedNum in room.bedCount"
                 :key="bedNum"
                 v-model="bedLists[`${room.id}-${bedNum}`]"
-                :group="getBedGroup(room.id, bedNum)"
+                :group="getBedGroup(room, bedNum)"
                 item-key="id"
                 class="bed-slot"
                 :class="{
@@ -85,7 +87,7 @@
                   'bed-blocked': isBedBlocked(room, bedNum),
                 }"
                 ghost-class="ghost"
-                @start="onDragStart($event, room)"
+                @start="(evt: any) => onBedDragStart(evt, room, bedNum)"
                 @end="onDragEnd"
                 @change="(evt: any) => handleBedChange(evt, room.id, bedNum)"
               >
@@ -146,9 +148,12 @@ const occupancyRate = computed(() => {
   return total > 0 ? Math.round((occupied / total) * 100) : 0
 })
 
-const getBedGroup = (roomId: string, bedNum: number) => {
-  const key = `${roomId}-${bedNum}`
+const getBedGroup = (room: any, bedNum: number) => {
+  const key = `${room.id}-${bedNum}`
   if (bedLists.value[key]?.length > 0) {
+    return { name: 'campers', put: false }
+  }
+  if (draggingCamper.value && draggingCamper.value.gender !== room.genderType) {
     return { name: 'campers', put: false }
   }
   return { name: 'campers', put: true }
@@ -159,8 +164,15 @@ const isBedBlocked = (room: any, _bedNum: number) => {
   return draggingCamper.value.gender !== room.genderType
 }
 
-const onDragStart = (evt: any, room: any) => {
-  const key = `${room.id}-${evt.oldIndex + 1}`
+const onUnassignedDragStart = (evt: any) => {
+  const idx = evt.oldIndex
+  if (idx >= 0 && unassignedCampers.value[idx]) {
+    draggingCamper.value = unassignedCampers.value[idx]
+  }
+}
+
+const onBedDragStart = (evt: any, room: any, bedNum: number) => {
+  const key = `${room.id}-${bedNum}`
   const list = bedLists.value[key]
   if (list?.length) {
     draggingCamper.value = list[0]
@@ -211,14 +223,6 @@ const handleUnassignedChange = async (evt: any) => {
 const handleBedChange = async (evt: any, roomId: string, bedNum: number) => {
   if (evt.added) {
     const camper = evt.added.element
-    const room = roomAssignments.value.find((r) => r.id === roomId)
-
-    if (room && camper.gender !== room.genderType) {
-      ElMessage.error(`${camper.name}（${camper.gender === 'male' ? '男' : '女'}）与${room.name}（${room.genderType === 'male' ? '男寝' : '女寝'}）性别不符`)
-      loadData()
-      return
-    }
-
     try {
       await roomApi.assignBed(roomId, { bedNumber: bedNum, camperId: camper.id })
       ElMessage.success(`${camper.name} 已分配到 ${bedNum}号床`)
