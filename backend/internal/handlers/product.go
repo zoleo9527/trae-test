@@ -4,6 +4,7 @@ import (
 	"camp-server/internal/middleware"
 	"camp-server/internal/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -55,7 +56,12 @@ func ListProducts(c *fiber.Ctx) error {
 
 	query := models.DB.Model(&models.CollabProduct{})
 	if status != "" {
-		query = query.Where("status = ?", status)
+		if strings.Contains(status, ",") {
+			statuses := strings.Split(status, ",")
+			query = query.Where("status IN ?", statuses)
+		} else {
+			query = query.Where("status = ?", status)
+		}
 	}
 	if category != "" {
 		query = query.Where("category = ?", category)

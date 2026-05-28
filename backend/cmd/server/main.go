@@ -75,7 +75,7 @@ func main() {
 	products.Post("/:id/reject", middleware.RequireRole(models.RoleManager), handlers.RejectProduct)
 	products.Post("/:id/on-shelf", middleware.RequireRole(models.RoleWarehouse), handlers.OnShelfProduct)
 	products.Post("/:id/off-shelf", middleware.RequireRole(models.RoleManager), handlers.OffShelfProduct)
-	products.Post("/:id/complete-review", middleware.RequireRole(models.RoleManager), handlers.CompleteReview)
+	products.Post("/:id/complete-review", middleware.RequireRole(models.RoleManager, models.RolePlanner), handlers.CompleteReview)
 	products.Get("/:id/review-summary", handlers.GetProductReviewSummary)
 
 	orders := auth.Group("/orders")

@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { exceptionApi, authApi } from '$lib/api';
+	import { exceptionApi, authApi, productApi } from '$lib/api';
 	import { user } from '$lib/stores/user';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -19,10 +19,12 @@
 	let loading = true;
 	let exceptions = [];
 	let users = [];
+	let products = [];
 	let filterStatus = '';
 	let filterType = '';
 	let filterSeverity = '';
 	let filterNeedReview = '';
+	let filterProductId = '';
 
 	let exceptionDrawerOpen = false;
 	let selectedExceptionId = null;
@@ -32,6 +34,7 @@
 	$: urlType = $page.url.searchParams.get('type') || '';
 	$: urlSeverity = $page.url.searchParams.get('severity') || '';
 	$: urlNeedReview = $page.url.searchParams.get('needReview') || '';
+	$: urlProductId = $page.url.searchParams.get('productId') || '';
 
 	onMount(() => {
 		if (!localStorage.getItem('token')) {
@@ -42,23 +45,27 @@
 		if (urlType) filterType = urlType;
 		if (urlSeverity) filterSeverity = urlSeverity;
 		if (urlNeedReview) filterNeedReview = urlNeedReview;
+		if (urlProductId) filterProductId = urlProductId;
 		loadData();
 	});
 
 	async function loadData() {
 		loading = true;
 		try {
-			const [excData, usersData] = await Promise.all([
+			const [excData, usersData, productsData] = await Promise.all([
 				exceptionApi.list({
 					status: filterStatus || undefined,
 					type: filterType || undefined,
 					severity: filterSeverity || undefined,
-					needReview: filterNeedReview === 'true' ? true : filterNeedReview === 'false' ? false : undefined
+					needReview: filterNeedReview === 'true' ? true : filterNeedReview === 'false' ? false : undefined,
+					productId: filterProductId || undefined
 				}),
-				authApi.listUsers()
+				authApi.listUsers(),
+				productApi.list()
 			]);
 			exceptions = excData;
 			users = usersData;
+			products = productsData;
 		} catch (e) {
 			console.error('Failed to load exceptions:', e);
 			if (isAuthError(e)) {
@@ -69,7 +76,7 @@
 		}
 	}
 
-	$: if (filterStatus || filterType || filterSeverity || filterNeedReview) {
+	$: if (filterStatus || filterType || filterSeverity || filterNeedReview || filterProductId) {
 		loadData();
 	}
 
@@ -96,6 +103,12 @@
 	</div>
 
 	<div class="filter-bar">
+		<select bind:value={filterProductId}>
+			<option value="">全部商品</option>
+			{#each products as p}
+				<option value={p.id}>{p.name} ({p.sku})</option>
+			{/each}
+		</select>
 		<select bind:value={filterStatus}>
 			<option value="">全部状态</option>
 			<option value="open">待处理</option>

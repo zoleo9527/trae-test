@@ -66,9 +66,19 @@
 	}
 
 	function getScoreColor(score) {
-		if (score >= 80) return '#16a34a';
-		if (score >= 60) return '#d97706';
+		if (score >= 8) return '#16a34a';
+		if (score >= 6) return '#d97706';
 		return '#dc2626';
+	}
+
+	function getReviewTypeLabel(type) {
+		const labels = {
+			sales: '销售复盘',
+			display: '陈列复盘',
+			timing: '时效复盘',
+			overall: '全面复盘'
+		};
+		return labels[type] || type;
 	}
 </script>
 
@@ -131,7 +141,7 @@
 									<div style="font-weight: 500;">{getProductName(review.productId)}</div>
 									<div style="font-size: 12px; color: #6b7280;">{review.productSku}</div>
 								</td>
-								<td><span class="badge">{review.reviewType}</span></td>
+								<td><span class="badge">{getReviewTypeLabel(review.reviewType)}</span></td>
 								<td>{review.totalQuantity}</td>
 								<td>{formatCurrency(review.totalRevenue)}</td>
 								<td>{review.inventoryLeft}</td>

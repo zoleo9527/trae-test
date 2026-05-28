@@ -36,10 +36,8 @@
 
 	let approveRemark = '';
 	let rejectReason = '';
-	let reviewNote = '';
 	let showApproveModal = false;
 	let showRejectModal = false;
-	let showReviewModal = false;
 	let actionLoading = false;
 
 	let exceptionDrawerOpen = false;
@@ -153,21 +151,6 @@
 		}
 	}
 
-	async function handleCompleteReview() {
-		if (!product || !reviewNote) return;
-		actionLoading = true;
-		try {
-			product = await productApi.completeReview(product.id, reviewNote);
-			showReviewModal = false;
-			reviewNote = '';
-			await loadData();
-		} catch (e) {
-			alert('复盘失败: ' + getErrorMessage(e));
-		} finally {
-			actionLoading = false;
-		}
-	}
-
 	function canSubmit() {
 		return product && product.status === 'draft' &&
 			currentUser && (currentUser.role === 'planner' || currentUser.role === 'manager');
@@ -255,7 +238,7 @@
 					</button>
 				{/if}
 				{#if canReview()}
-					<button class="btn btn-primary" on:click={() => (showReviewModal = true)} disabled={actionLoading}>
+					<button class="btn btn-primary" on:click={() => goto(`/reviews/new?productId=${product.id}`)} disabled={actionLoading}>
 						📊 开始复盘
 					</button>
 				{/if}
@@ -709,32 +692,6 @@
 					<button class="btn btn-secondary" on:click={() => (showRejectModal = false)}>取消</button>
 					<button class="btn btn-danger" on:click={handleReject} disabled={actionLoading || !rejectReason}>
 						{#if actionLoading}处理中...{:else}确认驳回{/if}
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	{#if showReviewModal}
-		<div class="modal-overlay" on:click={() => (showReviewModal = false)}>
-			<div class="modal" on:click|stopPropagation style="max-width: 700px;">
-				<div class="modal-header">
-					<h3 class="modal-title">联名商品复盘</h3>
-					<button class="modal-close" on:click={() => (showReviewModal = false)}>×</button>
-				</div>
-				<div class="modal-body">
-					<div class="alert alert-info">
-						复盘是联名商品全生命周期的重要环节，请认真总结经验教训，为后续联名合作提供参考。
-					</div>
-					<div class="form-group">
-						<label class="form-label">复盘结论 *</label>
-						<textarea class="form-textarea" bind:value={reviewNote} rows={6} placeholder="请从销售表现、陈列效果、时间控制、合作评价等方面进行复盘总结" />
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button class="btn btn-secondary" on:click={() => (showReviewModal = false)}>取消</button>
-					<button class="btn btn-primary" on:click={handleCompleteReview} disabled={actionLoading || !reviewNote}>
-						{#if actionLoading}处理中...{:else}完成复盘{/if}
 					</button>
 				</div>
 			</div>

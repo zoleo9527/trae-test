@@ -19,20 +19,28 @@
 
 	let form = {
 		productId: '',
-		reviewType: 'weekly',
-		issues: [],
-		suggestions: [],
-		salesScore: 5,
+		productSku: '',
+		productName: '',
+		reviewType: 'sales',
+		totalQuantity: 0,
+		totalSales: 0,
+		totalRevenue: 0,
+		inventoryLeft: 0,
 		displayScore: 5,
-		inventoryScore: 5,
+		timingScore: 5,
+		salesScore: 5,
 		overallScore: 5,
-		summary: ''
+		problems: [],
+		lessons: [],
+		improvements: [],
+		reviewedBy: '',
+		reviewedByName: '',
+		reviewedAt: ''
 	};
 
-	let newIssueTitle = '';
-	let newIssueDescription = '';
-	let newSuggestionTitle = '';
-	let newSuggestionDescription = '';
+	let newProblem = '';
+	let newLesson = '';
+	let newImprovement = '';
 
 	$: selectedProduct = products.find(p => p.id === form.productId);
 
@@ -47,7 +55,7 @@
 	async function loadData() {
 		loading = true;
 		try {
-			const productsData = await productApi.list({ status: 'on_shelf' });
+			const productsData = await productApi.list({ status: 'off_shelf,reviewing' });
 			products = productsData;
 			if (!form.productId && urlProductId) {
 				form.productId = urlProductId;
@@ -62,38 +70,45 @@
 		}
 	}
 
-	function addIssue() {
-		if (!newIssueTitle.trim()) return;
-		form.issues = [...form.issues, {
-			title: newIssueTitle.trim(),
-			description: newIssueDescription.trim()
-		}];
-		newIssueTitle = '';
-		newIssueDescription = '';
+	function addProblem() {
+		if (!newProblem.trim()) return;
+		form.problems = [...form.problems, newProblem.trim()];
+		newProblem = '';
 	}
 
-	function removeIssue(index) {
-		form.issues = form.issues.filter((_, i) => i !== index);
+	function removeProblem(index) {
+		form.problems = form.problems.filter((_, i) => i !== index);
 	}
 
-	function addSuggestion() {
-		if (!newSuggestionTitle.trim()) return;
-		form.suggestions = [...form.suggestions, {
-			title: newSuggestionTitle.trim(),
-			description: newSuggestionDescription.trim()
-		}];
-		newSuggestionTitle = '';
-		newSuggestionDescription = '';
+	function addLesson() {
+		if (!newLesson.trim()) return;
+		form.lessons = [...form.lessons, newLesson.trim()];
+		newLesson = '';
 	}
 
-	function removeSuggestion(index) {
-		form.suggestions = form.suggestions.filter((_, i) => i !== index);
+	function removeLesson(index) {
+		form.lessons = form.lessons.filter((_, i) => i !== index);
+	}
+
+	function addImprovement() {
+		if (!newImprovement.trim()) return;
+		form.improvements = [...form.improvements, newImprovement.trim()];
+		newImprovement = '';
+	}
+
+	function removeImprovement(index) {
+		form.improvements = form.improvements.filter((_, i) => i !== index);
 	}
 
 	async function handleSubmit() {
 		if (!form.productId) {
 			error = '请选择商品';
 			return;
+		}
+
+		if (selectedProduct) {
+			form.productSku = selectedProduct.sku;
+			form.productName = selectedProduct.name;
 		}
 
 		submitting = true;
@@ -106,6 +121,16 @@
 		} finally {
 			submitting = false;
 		}
+	}
+
+	function getReviewTypeLabel(type) {
+		const labels = {
+			sales: '销售复盘',
+			display: '陈列复盘',
+			timing: '时效复盘',
+			overall: '全面复盘'
+		};
+		return labels[type] || type;
 	}
 </script>
 
@@ -151,18 +176,40 @@
 
 			<div class="form-group">
 				<label class="form-label">复盘类型</label>
-				<div style="display: flex; gap: 12px;">
-					{#each ['weekly', 'monthly', 'custom'] as t}
-						<label class="checkbox" style="padding: 12px 16px; border: 2px solid {form.reviewType === t ? '#2563eb' : '#e5e7eb'}; border-radius: 8px; cursor: pointer; flex: 1; text-align: center;">
+				<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+					{#each ['sales', 'display', 'timing', 'overall'] as t}
+						<label class="checkbox" style="padding: 12px 16px; border: 2px solid {form.reviewType === t ? '#2563eb' : '#e5e7eb'}; border-radius: 8px; cursor: pointer; flex: 1; text-align: center; min-width: 120px;">
 							<input
 								type="radio"
 								bind:group={form.reviewType}
 								value={t}
 								style="display: none;"
 							/>
-							{t === 'weekly' ? '周复盘' : t === 'monthly' ? '月复盘' : '自定义'}
+							{getReviewTypeLabel(t)}
 						</label>
 					{/each}
+				</div>
+			</div>
+
+			<div class="section" style="margin: 24px 0; padding: 0;">
+				<h3 class="section-title">销售数据</h3>
+				<div class="form-row">
+					<div class="form-group">
+						<label class="form-label">累计销量</label>
+						<input class="form-input" type="number" min="0" bind:value={form.totalQuantity} />
+					</div>
+					<div class="form-group">
+						<label class="form-label">周期销量</label>
+						<input class="form-input" type="number" min="0" bind:value={form.totalSales} />
+					</div>
+					<div class="form-group">
+						<label class="form-label">周期销售额</label>
+						<input class="form-input" type="number" min="0" bind:value={form.totalRevenue} />
+					</div>
+					<div class="form-group">
+						<label class="form-label">剩余库存</label>
+						<input class="form-input" type="number" min="0" bind:value={form.inventoryLeft} />
+					</div>
 				</div>
 			</div>
 
@@ -178,8 +225,8 @@
 						<input class="form-input" type="number" min="0" max="10" bind:value={form.displayScore} />
 					</div>
 					<div class="form-group">
-						<label class="form-label">库存管理 (0-10)</label>
-						<input class="form-input" type="number" min="0" max="10" bind:value={form.inventoryScore} />
+						<label class="form-label">时效表现 (0-10)</label>
+						<input class="form-input" type="number" min="0" max="10" bind:value={form.timingScore} />
 					</div>
 					<div class="form-group">
 						<label class="form-label">综合评分 (0-10)</label>
@@ -190,67 +237,65 @@
 
 			<div class="section" style="margin: 24px 0; padding: 0;">
 				<h3 class="section-title">问题列表</h3>
-				{#if form.issues.length > 0}
+				{#if form.problems.length > 0}
 					<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-						{#each form.issues as issue, index}
-							<div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; display: flex; justify-content: space-between; align-items: flex-start;">
-								<div>
-									<div style="font-weight: 500; color: #dc2626;">{issue.title}</div>
-									{#if issue.description}
-										<div style="font-size: 13px; color: #6b7280; margin-top: 4px;">{issue.description}</div>
-									{/if}
-								</div>
-								<button class="btn btn-secondary btn-sm" on:click={() => removeIssue(index)}>删除</button>
+						{#each form.problems as problem, index}
+							<div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+								<div style="font-weight: 500; color: #dc2626;">{problem}</div>
+								<button class="btn btn-secondary btn-sm" on:click={() => removeProblem(index)}>删除</button>
 							</div>
 						{/each}
 					</div>
 				{/if}
 				<div style="padding: 16px; background: #f9fafb; border-radius: 8px;">
 					<div class="form-group">
-						<label class="form-label">问题标题</label>
-						<input class="form-input" bind:value={newIssueTitle} placeholder="输入问题标题" />
-					</div>
-					<div class="form-group">
 						<label class="form-label">问题描述</label>
-						<textarea class="form-textarea" bind:value={newIssueDescription} rows={2} placeholder="输入问题描述（可选）" />
+						<input class="form-input" bind:value={newProblem} placeholder="输入问题描述" />
 					</div>
-					<button class="btn btn-secondary" on:click={addIssue} disabled={!newIssueTitle.trim()}>+ 添加问题</button>
+					<button class="btn btn-secondary" on:click={addProblem} disabled={!newProblem.trim()}>+ 添加问题</button>
+				</div>
+			</div>
+
+			<div class="section" style="margin: 24px 0; padding: 0;">
+				<h3 class="section-title">经验总结</h3>
+				{#if form.lessons.length > 0}
+					<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+						{#each form.lessons as lesson, index}
+							<div style="padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+								<div style="font-weight: 500; color: #d97706;">📝 {lesson}</div>
+								<button class="btn btn-secondary btn-sm" on:click={() => removeLesson(index)}>删除</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				<div style="padding: 16px; background: #f9fafb; border-radius: 8px;">
+					<div class="form-group">
+						<label class="form-label">经验描述</label>
+						<input class="form-input" bind:value={newLesson} placeholder="输入经验总结" />
+					</div>
+					<button class="btn btn-secondary" on:click={addLesson} disabled={!newLesson.trim()}>+ 添加经验</button>
 				</div>
 			</div>
 
 			<div class="section" style="margin: 24px 0; padding: 0;">
 				<h3 class="section-title">改进建议</h3>
-				{#if form.suggestions.length > 0}
+				{#if form.improvements.length > 0}
 					<div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-						{#each form.suggestions as suggestion, index}
-							<div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; justify-content: space-between; align-items: flex-start;">
-								<div>
-									<div style="font-weight: 500; color: #16a34a;">💡 {suggestion.title}</div>
-									{#if suggestion.description}
-										<div style="font-size: 13px; color: #6b7280; margin-top: 4px;">{suggestion.description}</div>
-									{/if}
-								</div>
-								<button class="btn btn-secondary btn-sm" on:click={() => removeSuggestion(index)}>删除</button>
+						{#each form.improvements as improvement, index}
+							<div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+								<div style="font-weight: 500; color: #16a34a;">💡 {improvement}</div>
+								<button class="btn btn-secondary btn-sm" on:click={() => removeImprovement(index)}>删除</button>
 							</div>
 						{/each}
 					</div>
 				{/if}
 				<div style="padding: 16px; background: #f9fafb; border-radius: 8px;">
 					<div class="form-group">
-						<label class="form-label">建议标题</label>
-						<input class="form-input" bind:value={newSuggestionTitle} placeholder="输入建议标题" />
-					</div>
-					<div class="form-group">
 						<label class="form-label">建议描述</label>
-						<textarea class="form-textarea" bind:value={newSuggestionDescription} rows={2} placeholder="输入建议描述（可选）" />
+						<input class="form-input" bind:value={newImprovement} placeholder="输入改进建议" />
 					</div>
-					<button class="btn btn-secondary" on:click={addSuggestion} disabled={!newSuggestionTitle.trim()}>+ 添加建议</button>
+					<button class="btn btn-secondary" on:click={addImprovement} disabled={!newImprovement.trim()}>+ 添加建议</button>
 				</div>
-			</div>
-
-			<div class="form-group">
-				<label class="form-label">复盘总结</label>
-				<textarea class="form-textarea" bind:value={form.summary} rows={4} placeholder="请输入复盘总结" />
 			</div>
 
 			<div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">

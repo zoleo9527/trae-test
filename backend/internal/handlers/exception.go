@@ -34,6 +34,7 @@ func ListExceptions(c *fiber.Ctx) error {
 	severity := c.Query("severity")
 	assignedTo := c.Query("assignedTo")
 	needReview := c.Query("needReview")
+	productID := c.Query("productId")
 
 	query := models.DB.Model(&models.ExceptionRecord{})
 	if status != "" {
@@ -50,6 +51,9 @@ func ListExceptions(c *fiber.Ctx) error {
 	}
 	if needReview == "true" {
 		query = query.Where("need_review = ?", true)
+	}
+	if productID != "" {
+		query = query.Where("product_id = ?", productID)
 	}
 
 	var exceptions []models.ExceptionRecord

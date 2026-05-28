@@ -47,6 +47,16 @@
 			loading = false;
 		}
 	}
+
+	function getReviewTypeLabel(type) {
+		const labels = {
+			sales: '销售复盘',
+			display: '陈列复盘',
+			timing: '时效复盘',
+			overall: '全面复盘'
+		};
+		return labels[type] || type;
+	}
 </script>
 
 <AppLayout bind:exceptionDrawerOpen bind:selectedExceptionId>
@@ -63,7 +73,7 @@
 				</button>
 				<span style="font-size: 24px; font-weight: 600;">复盘详情</span>
 				<span class="badge" style="margin-left: 12px; background: #f3f4f6;">
-					{review.reviewType === 'weekly' ? '周复盘' : review.reviewType === 'monthly' ? '月复盘' : '复盘'}
+					{getReviewTypeLabel(review.reviewType)}
 				</span>
 			</div>
 			<div class="page-actions">
@@ -91,15 +101,15 @@
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">复盘类型</span>
-							<span class="detail-value">{review.reviewType === 'weekly' ? '周复盘' : review.reviewType === 'monthly' ? '月复盘' : review.reviewType}</span>
+							<span class="detail-value">{getReviewTypeLabel(review.reviewType)}</span>
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">复盘人</span>
-							<span class="detail-value">{review.createdByName}</span>
+							<span class="detail-value">{review.reviewedByName}</span>
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">复盘时间</span>
-							<span class="detail-value">{formatDate(review.createdAt)}</span>
+							<span class="detail-value">{formatDate(review.reviewedAt)}</span>
 						</div>
 					</div>
 				</div>
@@ -116,8 +126,8 @@
 							<span class="detail-value">{review.displayScore || '-'}/10</span>
 						</div>
 						<div class="detail-item">
-							<span class="detail-label">库存管理</span>
-							<span class="detail-value">{review.inventoryScore || '-'}/10</span>
+							<span class="detail-label">时效表现</span>
+							<span class="detail-value">{review.timingScore || '-'}/10</span>
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">综合评分</span>
@@ -126,64 +136,64 @@
 					</div>
 				</div>
 
-				{#if review.issues && review.issues.length > 0}
-					<div class="section">
-						<h3 class="section-title">问题列表</h3>
-						<div style="display: flex; flex-direction: column; gap: 12px;">
-							{#each review.issues as issue}
-								<div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
-									<div style="font-weight: 500; color: #dc2626;">{issue.title}</div>
-									{#if issue.description}
-										<div style="font-size: 13px; color: #6b7280; margin-top: 4px;">{issue.description}</div>
-									{/if}
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				{#if review.suggestions && review.suggestions.length > 0}
-					<div class="section">
-						<h3 class="section-title">改进建议</h3>
-						<div style="display: flex; flex-direction: column; gap: 12px;">
-							{#each review.suggestions as suggestion}
-								<div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
-									<div style="font-weight: 500; color: #16a34a;">💡 {suggestion.title}</div>
-									{#if suggestion.description}
-										<div style="font-size: 13px; color: #6b7280; margin-top: 4px;">{suggestion.description}</div>
-									{/if}
-								</div>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
 				<div class="section">
 					<h3 class="section-title">销售数据</h3>
 					<div class="detail-grid">
 						<div class="detail-item">
 							<span class="detail-label">周期销量</span>
-							<span class="detail-value">{review.periodSalesQty || 0} 件</span>
+							<span class="detail-value">{review.totalSales || 0} 件</span>
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">周期销售额</span>
-							<span class="detail-value">{formatCurrency(review.periodSalesAmount || 0)}</span>
+							<span class="detail-value">{formatCurrency(review.totalRevenue || 0)}</span>
 						</div>
 						<div class="detail-item">
 							<span class="detail-label">累计销量</span>
-							<span class="detail-value">{review.totalSalesQty || 0} 件</span>
+							<span class="detail-value">{review.totalQuantity || 0} 件</span>
 						</div>
 						<div class="detail-item">
-							<span class="detail-label">累计销售额</span>
-							<span class="detail-value">{formatCurrency(review.totalSalesAmount || 0)}</span>
+							<span class="detail-label">剩余库存</span>
+							<span class="detail-value">{review.inventoryLeft || 0} 件</span>
 						</div>
 					</div>
 				</div>
 
-				{#if review.summary}
+				{#if review.problems && review.problems.length > 0}
 					<div class="section">
-						<h3 class="section-title">复盘总结</h3>
-						<p style="line-height: 1.8; color: #374151;">{review.summary}</p>
+						<h3 class="section-title">问题列表</h3>
+						<div style="display: flex; flex-direction: column; gap: 12px;">
+							{#each review.problems as problem}
+								<div style="padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
+									<div style="font-weight: 500; color: #dc2626;">{problem}</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if review.lessons && review.lessons.length > 0}
+					<div class="section">
+						<h3 class="section-title">经验总结</h3>
+						<div style="display: flex; flex-direction: column; gap: 12px;">
+							{#each review.lessons as lesson}
+								<div style="padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;">
+									<div style="font-weight: 500; color: #d97706;">📝 {lesson}</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if review.improvements && review.improvements.length > 0}
+					<div class="section">
+						<h3 class="section-title">改进建议</h3>
+						<div style="display: flex; flex-direction: column; gap: 12px;">
+							{#each review.improvements as improvement}
+								<div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+									<div style="font-weight: 500; color: #16a34a;">💡 {improvement}</div>
+								</div>
+							{/each}
+						</div>
 					</div>
 				{/if}
 			</div>
