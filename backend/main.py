@@ -116,6 +116,7 @@ def continuous_review(order_id: int, db: Session = Depends(get_db)):
                 "version": p.version,
                 "review_status": p.review_status,
                 "latest_feedback": p.latest_feedback,
+                "source_photo_id": p.source_photo_id,
                 "reviews": [
                     {
                         "id": r.id,

@@ -51,16 +51,18 @@ class Photo(Base):
     id = Column(Integer, primary_key=True, index=True)
     batch_id = Column(Integer, ForeignKey("batches.id"), nullable=False, index=True)
     photo_name = Column(String(128), nullable=False)
-    category = Column(String(32), default="主纱")  # 主纱 / 外景 / 中式 / 写真 ...
+    category = Column(String(32), default="主纱")
     image_url = Column(String(255), default="")
     version = Column(Integer, default=1)
-    review_status = Column(String(16), default="待复核")  # 待复核 / 已通过 / 已驳回 / 需回查
+    review_status = Column(String(16), default="待复核")
     latest_feedback = Column(Text, default="")
+    source_photo_id = Column(Integer, ForeignKey("photos.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     batch = relationship("Batch", back_populates="photos")
     reviews = relationship("Review", back_populates="photo", cascade="all, delete-orphan")
+    source_photo = relationship("Photo", remote_side=[id], foreign_keys=[source_photo_id])
 
 
 class Review(Base):

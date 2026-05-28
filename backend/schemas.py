@@ -47,6 +47,7 @@ class PhotoOut(PhotoBase):
     batch_id: int
     review_status: str
     latest_feedback: str = ""
+    source_photo_id: Optional[int] = None
     reviews: List[ReviewOut] = []
 
     class Config:

@@ -347,22 +347,42 @@ def resubmit_photo(db: Session, photo_id: int, payload: schemas.ResubmitPhoto):
     photo = db.query(models.Photo).filter(models.Photo.id == photo_id).first()
     if not photo:
         return None
-    photo.version += 1
-    if payload.image_url:
-        photo.image_url = payload.image_url
-    photo.review_status = "待复核"
-    photo.latest_feedback = payload.remark or ""
-    photo.updated_at = datetime.utcnow()
 
     batch = db.query(models.Batch).filter(models.Batch.id == photo.batch_id).first()
-    if batch:
-        batch.status = "复核中"
-        order = db.query(models.Order).filter(models.Order.id == batch.order_id).first()
-        if order:
-            order.updated_at = datetime.utcnow()
+    if not batch:
+        return None
+
+    new_version = photo.version + 1
+
+    new_photo = models.Photo(
+        batch_id=batch.id,
+        photo_name=photo.photo_name,
+        category=photo.category,
+        image_url=payload.image_url if payload.image_url else photo.image_url,
+        version=new_version,
+        review_status="待复核",
+        latest_feedback=payload.remark or "",
+        source_photo_id=photo.id,
+    )
+    db.add(new_photo)
+
+    photo.review_status = "已通过"
+
+    batch.status = "复核中"
+    order = db.query(models.Order).filter(models.Order.id == batch.order_id).first()
+    if order:
+        order.updated_at = datetime.utcnow()
+        db.add(models.TimelineEvent(
+            order_id=order.id,
+            event_type="回传",
+            title=f"二次回传 {photo.photo_name} v{new_version}",
+            detail=payload.remark or f"修片师基于 v{photo.version} 二次回传",
+            operator=order.retoucher,
+        ))
+
     db.commit()
-    db.refresh(photo)
-    return photo
+    db.refresh(new_photo)
+    return new_photo
 
 
 def add_batch(db: Session, order_id: int, payload: schemas.BatchCreate):
@@ -378,7 +398,26 @@ def add_batch(db: Session, order_id: int, payload: schemas.BatchCreate):
     )
     db.add(batch)
     db.flush()
-    for p in payload.photos:
+
+    photo_items = list(payload.photos)
+    if not photo_items and order.batches:
+        all_batches = sorted(order.batches, key=lambda b: b.batch_no)
+        for prev_b in reversed(all_batches):
+            if prev_b.photos:
+                latest_batch = prev_b
+                break
+        else:
+            latest_batch = None
+        if latest_batch:
+            for p in latest_batch.photos:
+                photo_items.append(schemas.PhotoBase(
+                    photo_name=p.photo_name,
+                    category=p.category,
+                    image_url=f"https://picsum.photos/seed/{p.photo_name}_v{batch.batch_no}/640/480",
+                    version=batch.batch_no,
+                ))
+
+    for p in photo_items:
         photo = models.Photo(
             batch_id=batch.id,
             photo_name=p.photo_name,
@@ -389,12 +428,13 @@ def add_batch(db: Session, order_id: int, payload: schemas.BatchCreate):
             latest_feedback="",
         )
         db.add(photo)
+        db.flush()
 
     db.add(models.TimelineEvent(
         order_id=order.id,
         event_type="回传",
         title=f"第 {batch.batch_no} 次回传",
-        detail=batch.remark,
+        detail=batch.remark or f"第 {batch.batch_no} 次修片回传，含 {len(photo_items)} 张照片",
         operator=order.retoucher,
         created_at=batch.delivered_at,
     ))
@@ -402,6 +442,7 @@ def add_batch(db: Session, order_id: int, payload: schemas.BatchCreate):
     order.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(batch)
+    db.refresh(order)
     return batch
 
 
