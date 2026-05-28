@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Room, Camper } from '../../entities';
@@ -68,6 +68,39 @@ export class RoomService {
   }
 
   async assignBed(roomId: string, bedNumber: number, camperId: string): Promise<Room> {
+    const room = await this.roomRepository.findOne({ where: { id: roomId } });
+    if (!room) {
+      throw new HttpException('房间不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const camper = await this.camperRepository.findOne({ where: { id: camperId } });
+    if (!camper) {
+      throw new HttpException('营员不存在', HttpStatus.NOT_FOUND);
+    }
+
+    if (camper.gender !== room.genderType) {
+      throw new HttpException(
+        `${camper.name}（${camper.gender === 'male' ? '男' : '女'}）与${room.name}（${room.genderType === 'male' ? '男寝' : '女寝'}）性别不符`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const existingOccupant = await this.camperRepository
+      .createQueryBuilder()
+      .where('room_id = :roomId AND bed_number = :bedNumber AND id != :camperId', {
+        roomId,
+        bedNumber,
+        camperId,
+      })
+      .getOne();
+
+    if (existingOccupant) {
+      throw new HttpException(
+        `${bedNumber}号床已被${existingOccupant.name}占用`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
     await this.camperRepository.update(camperId, { roomId, bedNumber });
     return this.findOne(roomId);
   }

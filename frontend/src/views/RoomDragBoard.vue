@@ -57,6 +57,7 @@
             :class="{
               'room-male': room.genderType === 'male',
               'room-female': room.genderType === 'female',
+              'room-gender-blocked': draggingCamper && draggingCamper.gender !== room.genderType,
             }"
           >
             <template #header>
@@ -76,11 +77,16 @@
                 v-for="bedNum in room.bedCount"
                 :key="bedNum"
                 v-model="bedLists[`${room.id}-${bedNum}`]"
-                group="campers"
+                :group="getBedGroup(room.id, bedNum)"
                 item-key="id"
                 class="bed-slot"
-                :class="{ 'bed-occupied': bedLists[`${room.id}-${bedNum}`]?.length }"
+                :class="{
+                  'bed-occupied': bedLists[`${room.id}-${bedNum}`]?.length,
+                  'bed-blocked': isBedBlocked(room, bedNum),
+                }"
                 ghost-class="ghost"
+                @start="onDragStart($event, room)"
+                @end="onDragEnd"
                 @change="(evt: any) => handleBedChange(evt, room.id, bedNum)"
               >
                 <template #item="{ element }">
@@ -132,12 +138,38 @@ const campers = ref<any[]>([])
 const roomAssignments = ref<any[]>([])
 const unassignedCampers = ref<any[]>([])
 const bedLists = ref<Record<string, any[]>>({})
+const draggingCamper = ref<any>(null)
 
 const occupancyRate = computed(() => {
   const total = roomAssignments.value.reduce((sum, r) => sum + r.bedCount, 0)
   const occupied = roomAssignments.value.reduce((sum, r) => sum + (r.occupied || 0), 0)
   return total > 0 ? Math.round((occupied / total) * 100) : 0
 })
+
+const getBedGroup = (roomId: string, bedNum: number) => {
+  const key = `${roomId}-${bedNum}`
+  if (bedLists.value[key]?.length > 0) {
+    return { name: 'campers', put: false }
+  }
+  return { name: 'campers', put: true }
+}
+
+const isBedBlocked = (room: any, _bedNum: number) => {
+  if (!draggingCamper.value) return false
+  return draggingCamper.value.gender !== room.genderType
+}
+
+const onDragStart = (evt: any, room: any) => {
+  const key = `${room.id}-${evt.oldIndex + 1}`
+  const list = bedLists.value[key]
+  if (list?.length) {
+    draggingCamper.value = list[0]
+  }
+}
+
+const onDragEnd = () => {
+  draggingCamper.value = null
+}
 
 const loadData = async () => {
   try {
@@ -179,11 +211,20 @@ const handleUnassignedChange = async (evt: any) => {
 const handleBedChange = async (evt: any, roomId: string, bedNum: number) => {
   if (evt.added) {
     const camper = evt.added.element
+    const room = roomAssignments.value.find((r) => r.id === roomId)
+
+    if (room && camper.gender !== room.genderType) {
+      ElMessage.error(`${camper.name}（${camper.gender === 'male' ? '男' : '女'}）与${room.name}（${room.genderType === 'male' ? '男寝' : '女寝'}）性别不符`)
+      loadData()
+      return
+    }
+
     try {
       await roomApi.assignBed(roomId, { bedNumber: bedNum, camperId: camper.id })
       ElMessage.success(`${camper.name} 已分配到 ${bedNum}号床`)
-    } catch (e) {
-      ElMessage.error('分配床位失败')
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '分配床位失败'
+      ElMessage.error(msg)
     }
     loadData()
   }
@@ -258,6 +299,15 @@ onMounted(() => {
   background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%);
 }
 
+.room-gender-blocked {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.room-gender-blocked :deep(.el-card__header) {
+  filter: grayscale(0.5);
+}
+
 .bed-slot {
   min-height: 48px;
   border: 2px dashed #e5e7eb;
@@ -278,6 +328,11 @@ onMounted(() => {
   border-style: solid;
   border-color: #10b981;
   background: #ecfdf5;
+}
+
+.bed-blocked {
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 .bed-occupied-content {
