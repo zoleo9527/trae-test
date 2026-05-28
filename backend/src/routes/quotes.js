@@ -275,4 +275,30 @@ router.post('/:id/approve', async (req, res) => {
   }
 });
 
+router.post('/:id/complete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { operator_id } = req.body;
+    
+    const quote = await get('SELECT * FROM quotes WHERE id = ?', [id]);
+    if (!quote) {
+      return res.status(404).json({ success: false, message: '报价单不存在' });
+    }
+    
+    if (quote.status !== 'shipped') {
+      return res.status(400).json({ success: false, message: '只有已发货状态才能标记完成' });
+    }
+    
+    await run("UPDATE quotes SET status = 'completed', current_handler = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [operator_id, id]);
+    
+    const user = await get('SELECT name FROM users WHERE id = ?', [operator_id]);
+    await logActivity(id, 'complete', '订单完成', operator_id, user?.name);
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

@@ -198,7 +198,7 @@ async function seedData() {
       checked_by, shipped_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [quote3Id, 'S202405003A', null, 'shipped',
-    3000, 1500, '东莞仓', '中通快递', 'ZT9876543210', 3,
+    1500, 1500, '东莞仓', '中通快递', 'ZT9876543210', 3,
     now.subtract(10, 'day').format(), now.subtract(12, 'day').format()]);
   const ship3aId = ship3aResult.lastID;
 
@@ -213,7 +213,7 @@ async function seedData() {
       checked_by, shipped_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [quote3Id, 'S202405003B', ship3aId, 'pending',
-    3000, 0, '东莞仓', null, null, null, null,
+    1500, 0, '东莞仓', null, null, null, null,
     now.subtract(8, 'day').format()]);
 
   await run(`

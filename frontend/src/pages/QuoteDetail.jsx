@@ -201,14 +201,12 @@ export default function QuoteDetail() {
       return;
     }
     
-    const shippedQty = shipments.filter(s => s.status === 'shipped').reduce((sum, s) => sum + s.shipped_quantity, 0);
-    const pendingQty = shipments.filter(s => s.status === 'pending' && s.id !== currentPendingShipment?.id).reduce((sum, s) => sum + s.total_quantity, 0);
-    const remaining = quote.quantity - shippedQty - pendingQty;
-    
-    if (parseInt(shipmentForm.total_quantity) > remaining) {
-      alert(`发货数量不能超过剩余未发数量：${remaining} 件`);
+    if (parseInt(shipmentForm.total_quantity) > remainingQty) {
+      alert(`发货数量不能超过剩余未发数量：${remainingQty} 件`);
       return;
     }
+    
+    const parentShipmentId = shipments.find(s => s.status === 'shipped')?.id || null;
     
     setLoading(true);
     try {
@@ -221,7 +219,7 @@ export default function QuoteDetail() {
           batch_no: shipmentForm.batch_no,
           remarks: shipmentForm.remarks
         }],
-        parent_shipment_id: currentPendingShipment?.id || null,
+        parent_shipment_id: parentShipmentId,
         created_by: currentUser.id
       });
       setShipmentModal(false);
@@ -294,18 +292,32 @@ export default function QuoteDetail() {
     setLoading(false);
   };
 
-  const handleComplete = () => {
-    if (confirm('确认订单已完成？')) {
-      alert('功能演示：订单状态已更新为已完成');
+  const handleComplete = async () => {
+    if (!confirm('确认订单已完成？')) return;
+    setLoading(true);
+    try {
+      await axios.post(`/api/quotes/${id}/complete`, {
+        operator_id: currentUser.id
+      });
+      fetchData();
+      alert('订单已完成！');
+    } catch (err) {
+      alert('操作失败：' + err.response?.data?.message);
     }
+    setLoading(false);
   };
 
   const canSubmitApproval = quote.status === 'draft' || quote.status === 'rejected';
   const canApprove = quote.status === 'pending_approval';
   const canEditPrice = quote.status === 'draft' || quote.status === 'rejected';
   const canCreateProof = quote.status === 'approved';
-  const canCreateShipment = quote.status === 'production';
+  const canCreateShipment = ['production', 'partial_shipped'].includes(quote.status);
   const canApplyRefund = ['partial_shipped', 'shipped', 'completed'].includes(quote.status);
+
+  const shippedTotal = shipments.filter(s => s.status === 'shipped').reduce((sum, s) => sum + s.shipped_quantity, 0);
+  const pendingTotal = shipments.filter(s => s.status === 'pending').reduce((sum, s) => sum + s.total_quantity, 0);
+  const remainingToShip = quote.quantity - shippedTotal - pendingTotal;
+  const hasPendingShipment = shipments.some(s => s.status === 'pending');
 
   const pendingApproval = approvals.find(a => a.status === 'pending');
   const pendingProof = proofs.find(p => p.status !== 'confirmed');
@@ -396,19 +408,16 @@ export default function QuoteDetail() {
                 💬 客户确认打样
               </button>
             )}
-            {canCreateShipment && (
+            {canCreateShipment && !hasPendingShipment && remainingToShip > 0 && (
               <button className="btn btn-default" onClick={() => {
-                const shippedQty = shipments.filter(s => s.status === 'shipped').reduce((sum, s) => sum + s.shipped_quantity, 0);
-                const pendingQty = shipments.filter(s => s.status === 'pending').reduce((sum, s) => sum + s.total_quantity, 0);
-                const remaining = quote.quantity - shippedQty - pendingQty;
-                const parentShipment = shipments.find(s => s.status === 'shipped') || shipments.find(s => s.status === 'pending');
+                const parentShipment = shipments.find(s => s.status === 'shipped');
                 
-                setRemainingQty(remaining);
+                setRemainingQty(remainingToShip);
                 setCurrentPendingShipment(parentShipment);
                 setShipmentModalType('create');
                 setShipmentForm({ 
-                  total_quantity: remaining > 0 ? remaining : quote.quantity, 
-                  warehouse: '深圳仓', 
+                  total_quantity: remainingToShip, 
+                  warehouse: parentShipment?.warehouse || '深圳仓', 
                   logistics_company: '顺丰速运', 
                   tracking_no: '', 
                   product_name: quote.product_type, 
@@ -417,7 +426,7 @@ export default function QuoteDetail() {
                 });
                 setShipmentModal(true);
               }}>
-                📦 {shipments.length > 0 ? '创建下一批发货' : '创建发货单'}
+                📦 {shipments.length > 0 ? `创建下一批发货（剩余${remainingToShip}件）` : '创建发货单'}
               </button>
             )}
             {pendingShipment && (
