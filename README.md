@@ -157,6 +157,16 @@ Authorization: Bearer <access_token>
 |------|------|------|
 | GET | /api/dashboard/stats/ | 仪表盘统计 |
 
+### 7. 商品 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/products/ | 商品列表 |
+| GET | /api/products/{id}/ | 商品详情 |
+| POST | /api/products/{id}/sync-status/ | 修改商品上下架状态（统一入口） |
+
+**注意**: 禁止通过 `PUT/PATCH /api/products/{id}/` 直接修改 `status` 字段，必须使用 `sync-status` 接口，该接口会自动校验待处理补货单。
+
 ---
 
 ## 五、异常触发场景演示
@@ -282,7 +292,9 @@ Content-Type: application/json
 
 ```bash
 # 先用 store_manager2 登录获取 token
-POST /api/token/
+POST /api/auth/login/
+Content-Type: application/json
+
 {
     "username": "store_manager2",
     "password": "123456"
