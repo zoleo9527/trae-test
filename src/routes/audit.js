@@ -44,7 +44,7 @@ router.get('/summary', requireRole('AGENT_MANAGER'), async (req, res, next) => {
   }
 });
 
-router.get('/entity/:entityType/:entityId', async (req, res, next) => {
+router.get('/entity/:entityType/:entityId', requireRole('AGENT_MANAGER'), async (req, res, next) => {
   try {
     const options = {
       page: parseInt(req.query.page) || 1,

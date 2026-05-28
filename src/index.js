@@ -9,6 +9,11 @@ import documentRoutes from './routes/documents.js';
 import taskRoutes from './routes/tasks.js';
 import auditRoutes from './routes/audit.js';
 import exportRoutes from './routes/export.js';
+import chainRoutes from './routes/chain.js';
+import feeRoutes from './routes/fees.js';
+import crewRoutes from './routes/crew.js';
+import supplyRoutes from './routes/supply.js';
+import communicationRoutes from './routes/communications.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,7 +50,7 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: '船舶代理管理系统 API 运行正常',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.1.0',
   });
 });
 
@@ -55,6 +60,11 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/chain', chainRoutes);
+app.use('/api/fees', feeRoutes);
+app.use('/api/crew', crewRoutes);
+app.use('/api/supply', supplyRoutes);
+app.use('/api/communications', communicationRoutes);
 
 app.use(errorHandler);
 

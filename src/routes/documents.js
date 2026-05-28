@@ -122,7 +122,7 @@ router.put('/:id', requireAnyRole(['DOCUMENT_SPECIALIST', 'AGENT_MANAGER']), asy
   }
 });
 
-router.post('/:id/status', requireAnyRole(['DOCUMENT_SPECIALIST', 'AGENT_MANAGER']), async (req, res, next) => {
+router.post('/:id/status', idempotencyMiddleware, requireAnyRole(['DOCUMENT_SPECIALIST', 'AGENT_MANAGER']), async (req, res, next) => {
   try {
     const { status, reason } = statusSchema.parse(req.body);
     const ipAddress = req.ip;

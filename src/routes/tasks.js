@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import taskService from '../services/taskService.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAnyRole } from '../middleware/auth.js';
+import { idempotencyMiddleware } from '../middleware/idempotency.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -109,7 +110,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', idempotencyMiddleware, requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
   try {
     const data = createTaskSchema.parse(req.body);
     const ipAddress = req.ip;
@@ -123,7 +124,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
   try {
     const data = updateTaskSchema.parse(req.body);
     const ipAddress = req.ip;
@@ -137,7 +138,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/:id/status', async (req, res, next) => {
+router.post('/:id/status', idempotencyMiddleware, requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
   try {
     const { status, blockedReason } = statusSchema.parse(req.body);
     const ipAddress = req.ip;

@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import exportService from '../services/exportService.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authMiddleware);
 
-router.get('/berthing-plans', async (req, res, next) => {
+router.get('/berthing-plans', requireRole('AGENT_MANAGER'), async (req, res, next) => {
   try {
     const filters = {
       status: req.query.status,
@@ -27,7 +27,7 @@ router.get('/berthing-plans', async (req, res, next) => {
   }
 });
 
-router.get('/documents', async (req, res, next) => {
+router.get('/documents', requireRole('AGENT_MANAGER', 'DOCUMENT_SPECIALIST'), async (req, res, next) => {
   try {
     const filters = {
       status: req.query.status,
@@ -48,7 +48,7 @@ router.get('/documents', async (req, res, next) => {
   }
 });
 
-router.get('/fees', async (req, res, next) => {
+router.get('/fees', requireRole('AGENT_MANAGER', 'FINANCE_OFFICER'), async (req, res, next) => {
   try {
     const filters = {
       isPaid: req.query.isPaid === 'true',
@@ -71,7 +71,7 @@ router.get('/fees', async (req, res, next) => {
   }
 });
 
-router.get('/audit-logs', async (req, res, next) => {
+router.get('/audit-logs', requireRole('AGENT_MANAGER'), async (req, res, next) => {
   try {
     const filters = {
       entityType: req.query.entityType,

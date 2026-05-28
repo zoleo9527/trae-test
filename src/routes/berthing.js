@@ -3,6 +3,7 @@ import { z } from 'zod';
 import berthingService from '../services/berthingService.js';
 import taskService from '../services/taskService.js';
 import { authMiddleware, requireAnyRole } from '../middleware/auth.js';
+import { idempotencyMiddleware } from '../middleware/idempotency.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -104,7 +105,7 @@ router.get('/chain/:chainId', async (req, res, next) => {
   }
 });
 
-router.post('/', requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
+router.post('/', idempotencyMiddleware, requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
   try {
     const data = createPlanSchema.parse(req.body);
     const ipAddress = req.ip;
@@ -133,7 +134,7 @@ router.put('/:id', requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async
   }
 });
 
-router.post('/:id/status', requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
+router.post('/:id/status', idempotencyMiddleware, requireAnyRole(['AGENT_MANAGER', 'FIELD_COORDINATOR']), async (req, res, next) => {
   try {
     const { status, remarks } = statusSchema.parse(req.body);
     const ipAddress = req.ip;

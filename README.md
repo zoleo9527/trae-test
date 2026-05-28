@@ -4,10 +4,11 @@
 
 ## 🌟 核心特性
 
-### 🔗 链式追踪
-- **靠泊计划与证件一体化**: 靠泊计划和证件报备共享同一个业务链，不再是两个独立的功能模块
+### 🔗 统一业务链
+- **全链路一体化**: 靠泊计划、证件、任务、换班、补给、费用、沟通共享同一个 `chainId`
 - **版本管理**: 每次修改都会创建新版本，保留完整历史轨迹
 - **链上溯源**: 通过 `chainId` 可以完整追溯整个业务生命周期
+- **链路详情接口**: 一键获取整条业务链的所有相关数据和统计信息
 
 ### 👥 多角色权限分离
 | 角色 | 权限范围 | 视图 |
@@ -22,6 +23,8 @@
 - **CSV导出**: 靠泊计划、证件、费用、审计日志均可导出
 - **审计日志**: 所有关键操作都有记录，支持事后追溯
 - **任务流引擎**: 自动生成任务链，支持前置任务依赖检查
+- **幂等控制**: 创建和状态变更接口支持幂等性，防止重复操作
+- **精确权限控制**: 各模块按角色严格划分权限边界
 
 ### ⚠️ 异常处理体系
 | 错误类型 | HTTP状态码 | 场景 |
@@ -32,6 +35,7 @@
 | `NOT_FOUND` | 404 | 资源不存在 |
 | `CONFLICT_ERROR` | 409 | 状态冲突、前置任务未完成 |
 | `RATE_LIMIT_EXCEEDED` | 429 | 请求过于频繁 |
+| `IDEMPOTENCY_PROCESSING` | 202 | 幂等请求正在处理中 |
 
 ## 🚀 快速开始
 
@@ -113,20 +117,70 @@ GET    /api/tasks              # 获取所有任务
 GET    /api/tasks/my           # 获取我的任务
 GET    /api/tasks/stats/mine   # 获取我的任务统计
 GET    /api/tasks/:id          # 获取任务详情
-POST   /api/tasks              # 创建任务
+POST   /api/tasks              # 创建任务（幂等）
 PUT    /api/tasks/:id          # 更新任务
-POST   /api/tasks/:id/status   # 更新任务状态
+POST   /api/tasks/:id/status   # 更新任务状态（幂等）
 ```
 
-### 导出功能
+### 业务链追踪
 ```
-GET    /api/export/berthing-plans  # 导出口靠泊计划CSV
-GET    /api/export/documents       # 导出证件CSV
-GET    /api/export/fees            # 导出费用CSV
-GET    /api/export/audit-logs      # 导出审计日志CSV
+GET    /api/chain/:chainId           # 获取业务链完整详情
+GET    /api/chain/plan/:planId       # 通过靠泊计划ID获取链详情
+GET    /api/chain/:chainId/timeline  # 获取业务链时间线
+GET    /api/chain/:chainId/stats     # 获取业务链统计
+GET    /api/chain/my/list            # 获取我的业务链列表
 ```
 
-### 审计日志
+### 费用管理
+```
+GET    /api/fees               # 获取费用列表
+GET    /api/fees/overdue       # 获取逾期费用
+GET    /api/fees/stats         # 获取费用统计
+GET    /api/fees/:id           # 获取费用详情
+POST   /api/fees               # 创建费用（幂等）
+PUT    /api/fees/:id           # 更新费用
+POST   /api/fees/:id/pay       # 标记已支付（幂等）
+DELETE /api/fees/:id           # 删除费用
+```
+
+### 船员换班
+```
+GET    /api/crew               # 获取换班列表
+GET    /api/crew/:id           # 获取换班详情
+POST   /api/crew               # 创建换班（幂等）
+PUT    /api/crew/:id           # 更新换班
+POST   /api/crew/:id/status    # 更新换班状态（幂等）
+DELETE /api/crew/:id           # 删除换班
+```
+
+### 补给申请
+```
+GET    /api/supply             # 获取补给列表
+GET    /api/supply/:id         # 获取补给详情
+POST   /api/supply             # 创建补给申请（幂等）
+PUT    /api/supply/:id         # 更新补给申请
+POST   /api/supply/:id/status  # 更新补给状态（幂等）
+DELETE /api/supply/:id         # 删除补给申请
+```
+
+### 供应商沟通
+```
+GET    /api/communications              # 获取沟通记录列表
+GET    /api/communications/supplier/:id # 获取供应商沟通记录
+GET    /api/communications/:id          # 获取沟通详情
+POST   /api/communications              # 创建沟通记录（幂等）
+DELETE /api/communications/:id          # 删除沟通记录
+```
+
+### 导出功能（需经理权限）
+```
+GET    /api/export/berthing-plans  # 导出口靠泊计划CSV（AGENT_MANAGER）
+GET    /api/export/documents       # 导出证件CSV（AGENT_MANAGER / DOCUMENT_SPECIALIST）
+GET    /api/export/fees            # 导出费用CSV（AGENT_MANAGER / FINANCE_OFFICER）
+GET    /api/export/audit-logs      # 导出审计日志CSV（AGENT_MANAGER专属）
+```
+
+### 审计日志（AGENT_MANAGER专属）
 ```
 GET    /api/audit               # 获取审计日志
 GET    /api/audit/summary       # 获取审计统计
@@ -167,6 +221,31 @@ GET    /api/audit/entity/:type/:id  # 获取单实体历史
 - **测试**: 查看状态为 `REJECTED` 的靠泊计划
 - **预期**: 可看到拒绝原因，支持修改后重新提交
 
+## 🔒 幂等控制使用说明
+
+所有创建和状态变更接口支持幂等控制，只需在请求头中添加：
+
+```bash
+x-idempotency-key: your-unique-key
+```
+
+使用相同的幂等键重复请求时，系统会返回第一次请求的结果，不会重复执行操作。
+
+**支持幂等的接口**:
+- 创建靠泊计划
+- 更新靠泊计划状态
+- 创建证件
+- 更新证件状态
+- 创建任务
+- 更新任务状态
+- 创建费用
+- 标记费用已支付
+- 创建船员换班
+- 更新换班状态
+- 创建补给申请
+- 更新补给状态
+- 创建沟通记录
+
 ## 🧪 测试场景示例
 
 ### 测试权限边界
@@ -199,6 +278,35 @@ curl -X POST http://localhost:3000/api/tasks/{task_4_id}/status \
   -d '{"status":"IN_PROGRESS"}'
 ```
 
+### 测试幂等控制
+```bash
+# 使用相同的幂等键重复创建靠泊计划
+# 预期: 第二次请求返回第一次创建的结果，不重复创建
+curl -X POST http://localhost:3000/api/berthing \
+  -H "Authorization: Bearer <manager_token>" \
+  -H "x-idempotency-key: key-12345" \
+  -H "Content-Type: application/json" \
+  -d '{"vesselId":"...","portId":"...","eta":"2024-12-31T12:00:00Z"}'
+```
+
+### 测试业务链详情
+```bash
+# 获取整条业务链的完整信息
+# 预期: 返回靠泊计划、证件、任务、费用、补给、换班、沟通的完整数据
+curl -H "Authorization: Bearer <token>" \
+  http://localhost:3000/api/chain/{chainId}
+```
+
+### 测试费用支付状态冲突
+```bash
+# 对已支付的费用再次标记支付
+# 预期: 返回 409 CONFLICT_ERROR
+curl -X POST http://localhost:3000/api/fees/{paid_fee_id}/pay \
+  -H "Authorization: Bearer <finance_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"paymentRef":"PAY-123"}'
+```
+
 ## 📁 项目结构
 
 ```
@@ -207,21 +315,32 @@ src/
 │   └── prisma.js           # Prisma 客户端配置
 ├── middleware/
 │   ├── auth.js             # 认证和权限中间件
-│   └── errorHandler.js     # 全局错误处理
+│   ├── errorHandler.js     # 全局错误处理
+│   └── idempotency.js      # 幂等控制中间件
 ├── routes/
 │   ├── auth.js             # 认证接口
 │   ├── berthing.js         # 靠泊计划接口
 │   ├── documents.js        # 证件管理接口
 │   ├── tasks.js            # 任务管理接口
 │   ├── audit.js            # 审计日志接口
-│   └── export.js           # 导出功能接口
+│   ├── export.js           # 导出功能接口
+│   ├── chain.js            # 业务链接口
+│   ├── fees.js             # 费用管理接口
+│   ├── crew.js             # 船员换班接口
+│   ├── supply.js           # 补给申请接口
+│   └── communications.js   # 供应商沟通接口
 ├── services/
 │   ├── authService.js      # 认证服务
 │   ├── berthingService.js  # 靠泊计划服务
 │   ├── documentService.js  # 证件服务
 │   ├── taskService.js      # 任务流服务
 │   ├── auditService.js     # 审计服务
-│   └── exportService.js    # 导出服务
+│   ├── exportService.js    # 导出服务
+│   ├── chainService.js     # 业务链服务
+│   ├── feeService.js       # 费用服务
+│   ├── crewService.js      # 船员换班服务
+│   ├── supplyService.js    # 补给申请服务
+│   └── communicationService.js # 沟通记录服务
 ├── utils/
 │   └── errors.js           # 错误类定义
 └── index.js                # 应用入口
