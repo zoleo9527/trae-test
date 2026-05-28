@@ -7,6 +7,7 @@ import { formatDate, getStatusColor, getDeliveryStatusName, generateReturnNo } f
 
 export default function Deliveries() {
   const { deliveries, orders, inventory, currentUser, updateDelivery, updateOrder, addBucketReturn, addInventoryRecord, addTimelineEntry, bucketReturns } = useApp()
+  const isDriver = currentUser.role === 'driver'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null)
@@ -307,7 +308,7 @@ export default function Deliveries() {
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100">
-              {delivery.status === 'pending' && (
+              {delivery.status === 'pending' && isDriver && (
                 <button
                   onClick={() => handleStartDelivery(delivery)}
                   className="w-full btn-primary flex items-center justify-center gap-2"
@@ -316,7 +317,10 @@ export default function Deliveries() {
                   开始配送
                 </button>
               )}
-              {delivery.status === 'in_transit' && (
+              {delivery.status === 'pending' && !isDriver && (
+                <p className="text-xs text-gray-400 text-center">待司机开始配送</p>
+              )}
+              {delivery.status === 'in_transit' && isDriver && (
                 <button
                   onClick={() => handleArrive(delivery)}
                   className="w-full btn-primary flex items-center justify-center gap-2"
@@ -325,7 +329,10 @@ export default function Deliveries() {
                   确认到达
                 </button>
               )}
-              {delivery.status === 'arrived' && (
+              {delivery.status === 'in_transit' && !isDriver && (
+                <p className="text-xs text-blue-500 text-center">配送中</p>
+              )}
+              {delivery.status === 'arrived' && isDriver && (
                 <button
                   onClick={() => handleOpenCompleteModal(delivery)}
                   className="w-full btn-primary flex items-center justify-center gap-2"
@@ -333,6 +340,9 @@ export default function Deliveries() {
                   <CheckCircle className="w-4 h-4" />
                   完成配送
                 </button>
+              )}
+              {delivery.status === 'arrived' && !isDriver && (
+                <p className="text-xs text-orange-500 text-center">已到达，待司机完成签收</p>
               )}
               {delivery.status === 'completed' && (
                 <button

@@ -7,6 +7,8 @@ import type { Complaint } from '@/types'
 
 export default function Complaints() {
   const { complaints, orders, users, currentUser, addComplaint, updateComplaint, addOrder, addDelivery, addTimelineEntry, addReDelivery, bucketReturns, deliveries } = useApp()
+  const isStationMaster = currentUser.role === 'station_master'
+  const isCustomerService = currentUser.role === 'customer_service'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -242,13 +244,15 @@ export default function Complaints() {
             <option value="closed">已关闭</option>
           </select>
         </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          登记投诉
-        </button>
+        {isCustomerService && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            登记投诉
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -300,31 +304,35 @@ export default function Complaints() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    {(complaint.status === 'pending' || complaint.status === 'processing') && (
-                      <>
-                        <button
-                          onClick={() => {
-                            setSelectedComplaint(complaint)
-                            setResolveData({ resolution: '', status: 'resolved' })
-                          }}
-                          className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
-                        >
-                          <CheckCircle className="w-3 h-3" />
-                          解决
-                        </button>
-                        {!complaint.hasReDelivery && (
-                          <button
-                            onClick={() => {
-                              setSelectedComplaint(complaint)
-                              setIsReDeliveryModalOpen(true)
-                            }}
-                            className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            补送
-                          </button>
-                        )}
-                      </>
+                    {(complaint.status === 'pending' || complaint.status === 'processing') && isStationMaster && (
+                      <button
+                        onClick={() => {
+                          setSelectedComplaint(complaint)
+                          setResolveData({ resolution: '', status: 'resolved' })
+                        }}
+                        className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        解决
+                      </button>
+                    )}
+                    {(complaint.status === 'pending' || complaint.status === 'processing') && isCustomerService && !complaint.hasReDelivery && (
+                      <button
+                        onClick={() => {
+                          setSelectedComplaint(complaint)
+                          setIsReDeliveryModalOpen(true)
+                        }}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        补送
+                      </button>
+                    )}
+                    {(complaint.status === 'pending' || complaint.status === 'processing') && isCustomerService && complaint.hasReDelivery && (
+                      <span className="text-xs text-gray-400">已安排补送</span>
+                    )}
+                    {(complaint.status === 'pending' || complaint.status === 'processing') && isStationMaster && (
+                      <span className="text-xs text-gray-400">需站长结案</span>
                     )}
                   </div>
                 </td>

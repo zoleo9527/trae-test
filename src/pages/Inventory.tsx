@@ -6,6 +6,7 @@ import { formatDate } from '../utils'
 
 export default function Inventory() {
   const { inventory, inventoryRecords, currentUser, addInventoryRecord, addTimelineEntry } = useApp()
+  const isStationMaster = currentUser.role === 'station_master'
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
@@ -135,13 +136,15 @@ export default function Inventory() {
             <option value="adjust">调整</option>
           </select>
         </div>
-        <button
-          onClick={() => setIsAdjustModalOpen(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          库存调整
-        </button>
+        {isStationMaster && (
+          <button
+            onClick={() => setIsAdjustModalOpen(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            库存调整
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

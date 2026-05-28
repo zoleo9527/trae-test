@@ -7,6 +7,8 @@ import { formatDate, getStatusColor, getOrderStatusName, generateOrderNo, genera
 
 export default function Orders() {
   const { orders, users, addOrder, updateOrder, addDelivery, currentUser, addTimelineEntry } = useApp()
+  const isStationMaster = currentUser.role === 'station_master'
+  const isCustomerService = currentUser.role === 'customer_service'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -137,10 +139,12 @@ export default function Orders() {
             <option value="completed">已完成</option>
           </select>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          新建订单
-        </button>
+        {isCustomerService && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            新建订单
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -194,13 +198,16 @@ export default function Orders() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  {order.status === 'pending' && (
+                  {order.status === 'pending' && isStationMaster && (
                     <button
                       onClick={() => setSelectedOrder(order)}
                       className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                     >
                       分配
                     </button>
+                  )}
+                  {order.status === 'pending' && !isStationMaster && (
+                    <span className="text-xs text-gray-400">待站长分配</span>
                   )}
                 </td>
               </tr>
