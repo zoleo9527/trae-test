@@ -68,15 +68,7 @@ func (s *SchoolService) Create(input *CreateSchoolInput, userID uint, ip string)
 		return nil, err
 	}
 	newVal := schoolToMap(school)
-	logEntry := model.AuditLog{
-		UserID:     userID,
-		Action:     "create",
-		EntityType: "school",
-		EntityID:   school.ID,
-		NewValue:   newVal,
-		IPAddress:  ip,
-	}
-	database.DB.Create(&logEntry)
+	logSchoolChange(userID, "create_school", school.ID, nil, newVal, ip)
 	return school, nil
 }
 
@@ -85,16 +77,7 @@ func (s *SchoolService) Update(id uint, updates map[string]any, userID uint, ip 
 	err := database.DB.Model(&model.School{}).Where("id = ?", id).Updates(updates).Error
 	if err == nil {
 		newVal := fetchOldSchool(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "update",
-			EntityType: "school",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logSchoolChange(userID, "update_school", id, oldVal, newVal, ip)
 	}
 	return err
 }
@@ -103,20 +86,12 @@ func (s *SchoolService) Delete(id uint, userID uint, ip string) error {
 	oldVal := fetchOldSchool(id)
 	err := database.DB.Delete(&model.School{}, id).Error
 	if err == nil {
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "delete",
-			EntityType: "school",
-			EntityID:   id,
-			OldValue:   oldVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logSchoolChange(userID, "delete_school", id, oldVal, nil, ip)
 	}
 	return err
 }
 
-func fetchOldSchool(id uint) map[string]any {
+func fetchOldSchool(id uint) model.JSONMap {
 	var s model.School
 	if database.DB.First(&s, id).Error == nil {
 		return schoolToMap(&s)
@@ -124,13 +99,26 @@ func fetchOldSchool(id uint) map[string]any {
 	return nil
 }
 
-func schoolToMap(s *model.School) map[string]any {
-	return map[string]any{
+func schoolToMap(s *model.School) model.JSONMap {
+	return model.JSONMap{
 		"id":                 s.ID,
 		"name":               s.Name,
 		"cooperation_status": string(s.CooperationStatus),
 		"contact_person":     s.ContactPerson,
 	}
+}
+
+func logSchoolChange(userID uint, action string, entityID uint, oldVal, newVal model.JSONMap, ip string) {
+	logEntry := model.AuditLog{
+		UserID:     userID,
+		Action:     action,
+		EntityType: "school",
+		EntityID:   entityID,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		IPAddress:  ip,
+	}
+	database.DB.Create(&logEntry)
 }
 
 var _ = gorm.Model{}

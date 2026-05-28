@@ -67,6 +67,10 @@ func (s *RentalService) Create(input *CreateRentalInput, userID uint, ip string)
 	if err != nil {
 		return nil, err
 	}
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
 	rental := &model.Rental{
 		InstrumentID:       input.InstrumentID,
 		SchoolID:           input.SchoolID,
@@ -79,21 +83,20 @@ func (s *RentalService) Create(input *CreateRentalInput, userID uint, ip string)
 		DailyRate:          input.DailyRate,
 		Notes:              input.Notes,
 	}
-	if err := database.DB.Create(rental).Error; err != nil {
+	if err := tx.Create(rental).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
-	database.DB.Model(&model.Instrument{}).Where("id = ?", input.InstrumentID).
-		Update("status", model.InstrumentRented)
-	newVal := rentalToMap(rental)
-	logEntry := model.AuditLog{
-		UserID:     userID,
-		Action:     "create",
-		EntityType: "rental",
-		EntityID:   rental.ID,
-		NewValue:   newVal,
-		IPAddress:  ip,
+	if err := tx.Model(&model.Instrument{}).Where("id = ?", input.InstrumentID).
+		Update("status", model.InstrumentRented).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
-	database.DB.Create(&logEntry)
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+	newVal := rentalToMap(rental)
+	logRentalChange(userID, "create_rental", rental.ID, nil, newVal, ip)
 	return rental, nil
 }
 
@@ -114,16 +117,7 @@ func (s *RentalService) Update(id uint, updates map[string]any, userID uint, ip 
 	err := database.DB.Model(&model.Rental{}).Where("id = ?", id).Updates(updates).Error
 	if err == nil {
 		newVal := fetchOldRental(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "update",
-			EntityType: "rental",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logRentalChange(userID, "update_rental", id, oldVal, newVal, ip)
 	}
 	return err
 }
@@ -136,7 +130,7 @@ func (s *RentalService) MarkOverdue() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-func fetchOldRental(id uint) map[string]any {
+func fetchOldRental(id uint) model.JSONMap {
 	var r model.Rental
 	if database.DB.First(&r, id).Error == nil {
 		return rentalToMap(&r)
@@ -144,8 +138,8 @@ func fetchOldRental(id uint) map[string]any {
 	return nil
 }
 
-func rentalToMap(r *model.Rental) map[string]any {
-	return map[string]any{
+func rentalToMap(r *model.Rental) model.JSONMap {
+	return model.JSONMap{
 		"id":                  r.ID,
 		"instrument_id":       r.InstrumentID,
 		"school_id":           r.SchoolID,
@@ -155,6 +149,19 @@ func rentalToMap(r *model.Rental) map[string]any {
 		"deposit_status":      string(r.DepositStatus),
 		"daily_rate":          r.DailyRate,
 	}
+}
+
+func logRentalChange(userID uint, action string, entityID uint, oldVal, newVal model.JSONMap, ip string) {
+	logEntry := model.AuditLog{
+		UserID:     userID,
+		Action:     action,
+		EntityType: "rental",
+		EntityID:   entityID,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		IPAddress:  ip,
+	}
+	database.DB.Create(&logEntry)
 }
 
 var _ = gorm.Model{}

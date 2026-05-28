@@ -47,7 +47,8 @@ func (h *InstrumentHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(inst); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
-	if err := h.svc.Create(inst); err != nil {
+	userID := middleware.GetUserID(c)
+	if err := h.svc.Create(inst, userID, c.IP()); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(201).JSON(inst)

@@ -64,7 +64,7 @@ func main() {
 	app.Post("/api/auth/register", middleware.AuthRequired(cfg), middleware.RequireRole(model.RoleAdmin), authHandler.Register)
 	app.Get("/api/auth/me", middleware.AuthRequired(cfg), authHandler.Me)
 
-	api := app.Group("/api", middleware.AuthRequired(cfg), middleware.AuditLog())
+	api := app.Group("/api", middleware.AuthRequired(cfg))
 
 	instruments := api.Group("/instruments")
 	instruments.Get("/", instrumentHandler.List)
@@ -112,6 +112,9 @@ func main() {
 	dashboards.Get("/stats", dashboardHandler.GetStats)
 	dashboards.Get("/activities", dashboardHandler.GetRecentActivities)
 	dashboards.Get("/audit-logs", dashboardHandler.GetAuditLogs)
+	dashboards.Get("/items/pending", dashboardHandler.GetPendingItems)
+	dashboards.Get("/items/rejected", dashboardHandler.GetRejectedItems)
+	dashboards.Get("/items/needs-review", dashboardHandler.GetNeedsReviewItems)
 
 	batches := api.Group("/batch", middleware.RequireRole(model.RoleAdmin))
 	batches.Put("/rentals", batchHandler.UpdateRentals)

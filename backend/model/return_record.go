@@ -19,6 +19,8 @@ type ReturnStatus string
 const (
 	ReturnPendingReview ReturnStatus = "pending_review"
 	ReturnApproved      ReturnStatus = "approved"
+	ReturnRejected      ReturnStatus = "rejected"
+	ReturnNeedsReview   ReturnStatus = "needs_review"
 	ReturnDisputed      ReturnStatus = "disputed"
 )
 

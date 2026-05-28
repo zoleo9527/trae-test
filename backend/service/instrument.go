@@ -38,8 +38,13 @@ func (s *InstrumentService) GetByID(id uint) (*model.Instrument, error) {
 	return &inst, err
 }
 
-func (s *InstrumentService) Create(inst *model.Instrument) error {
-	return database.DB.Create(inst).Error
+func (s *InstrumentService) Create(inst *model.Instrument, userID uint, ip string) error {
+	if err := database.DB.Create(inst).Error; err != nil {
+		return err
+	}
+	newVal := instrumentToMap(inst)
+	logInstrumentChange(userID, "create_instrument", inst.ID, nil, newVal, ip)
+	return nil
 }
 
 func (s *InstrumentService) Update(id uint, updates map[string]any, userID uint, ip string) error {
@@ -47,7 +52,7 @@ func (s *InstrumentService) Update(id uint, updates map[string]any, userID uint,
 	err := database.DB.Model(&model.Instrument{}).Where("id = ?", id).Updates(updates).Error
 	if err == nil {
 		newVal := fetchOldInstrument(id)
-		logInstrumentChange(userID, "update", id, oldVal, newVal, ip)
+		logInstrumentChange(userID, "update_instrument", id, oldVal, newVal, ip)
 	}
 	return err
 }
@@ -56,7 +61,7 @@ func (s *InstrumentService) Delete(id uint, userID uint, ip string) error {
 	oldVal := fetchOldInstrument(id)
 	err := database.DB.Delete(&model.Instrument{}, id).Error
 	if err == nil {
-		logInstrumentChange(userID, "delete", id, oldVal, nil, ip)
+		logInstrumentChange(userID, "delete_instrument", id, oldVal, nil, ip)
 	}
 	return err
 }
@@ -72,16 +77,16 @@ func (s *InstrumentService) GetAvailable() ([]model.Instrument, error) {
 	return instruments, err
 }
 
-func fetchOldInstrument(id uint) map[string]any {
+func fetchOldInstrument(id uint) model.JSONMap {
 	var inst model.Instrument
 	if database.DB.First(&inst, id).Error == nil {
-		return instrumentToMap(inst)
+		return instrumentToMap(&inst)
 	}
 	return nil
 }
 
-func instrumentToMap(inst model.Instrument) map[string]any {
-	return map[string]any{
+func instrumentToMap(inst *model.Instrument) model.JSONMap {
+	return model.JSONMap{
 		"id":                inst.ID,
 		"name":              inst.Name,
 		"type":              inst.Type,
@@ -93,7 +98,7 @@ func instrumentToMap(inst model.Instrument) map[string]any {
 	}
 }
 
-func logInstrumentChange(userID uint, action string, entityID uint, oldVal, newVal map[string]any, ip string) {
+func logInstrumentChange(userID uint, action string, entityID uint, oldVal, newVal model.JSONMap, ip string) {
 	logEntry := model.AuditLog{
 		UserID:     userID,
 		Action:     action,

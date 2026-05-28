@@ -54,6 +54,10 @@ func (s *MaintenanceService) Create(input *CreateMaintenanceInput, userID uint, 
 	if err != nil {
 		return nil, err
 	}
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
 	record := &model.Maintenance{
 		InstrumentID: input.InstrumentID,
 		RentalID:     input.RentalID,
@@ -65,21 +69,20 @@ func (s *MaintenanceService) Create(input *CreateMaintenanceInput, userID uint, 
 		StartDate:    sd,
 		Notes:        input.Notes,
 	}
-	if err := database.DB.Create(record).Error; err != nil {
+	if err := tx.Create(record).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
-	database.DB.Model(&model.Instrument{}).Where("id = ?", input.InstrumentID).
-		Update("status", model.InstrumentMaintenance)
-	newVal := maintenanceToMap(record)
-	logEntry := model.AuditLog{
-		UserID:     userID,
-		Action:     "create",
-		EntityType: "maintenance",
-		EntityID:   record.ID,
-		NewValue:   newVal,
-		IPAddress:  ip,
+	if err := tx.Model(&model.Instrument{}).Where("id = ?", input.InstrumentID).
+		Update("status", model.InstrumentMaintenance).Error; err != nil {
+		tx.Rollback()
+		return nil, err
 	}
-	database.DB.Create(&logEntry)
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+	newVal := maintenanceToMap(record)
+	logMaintenanceChange(userID, "create_maintenance", record.ID, nil, newVal, ip)
 	return record, nil
 }
 
@@ -95,21 +98,12 @@ func (s *MaintenanceService) Update(id uint, updates map[string]any, userID uint
 			}
 		}
 		newVal := fetchOldMaintenance(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "update",
-			EntityType: "maintenance",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logMaintenanceChange(userID, "update_maintenance", id, oldVal, newVal, ip)
 	}
 	return err
 }
 
-func fetchOldMaintenance(id uint) map[string]any {
+func fetchOldMaintenance(id uint) model.JSONMap {
 	var m model.Maintenance
 	if database.DB.First(&m, id).Error == nil {
 		return maintenanceToMap(&m)
@@ -117,14 +111,27 @@ func fetchOldMaintenance(id uint) map[string]any {
 	return nil
 }
 
-func maintenanceToMap(m *model.Maintenance) map[string]any {
-	return map[string]any{
+func maintenanceToMap(m *model.Maintenance) model.JSONMap {
+	return model.JSONMap{
 		"id":            m.ID,
 		"instrument_id": m.InstrumentID,
 		"type":          string(m.Type),
 		"cost":          m.Cost,
 		"status":        string(m.Status),
 	}
+}
+
+func logMaintenanceChange(userID uint, action string, entityID uint, oldVal, newVal model.JSONMap, ip string) {
+	logEntry := model.AuditLog{
+		UserID:     userID,
+		Action:     action,
+		EntityType: "maintenance",
+		EntityID:   entityID,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		IPAddress:  ip,
+	}
+	database.DB.Create(&logEntry)
 }
 
 var _ = gorm.Model{}

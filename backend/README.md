@@ -26,7 +26,11 @@ cd backend
 go run main.go
 ```
 
-服务默认监听 `http://localhost:8080`。
+服务默认监听 `http://localhost:8080`。如端口被占用，可通过环境变量指定：
+
+```bash
+PORT=8081 go run main.go
+```
 
 首次启动时，GORM 自动迁移所有表，seed 程序会在 `users` 表为空时自动插入演示数据（含 6 个用户、10 件乐器、5 所学校、4 笔租赁、5 笔回款、2 条维修、1 条待审归还）。
 

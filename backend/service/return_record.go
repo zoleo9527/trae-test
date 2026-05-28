@@ -68,25 +68,11 @@ func (s *ReturnService) Create(input *CreateReturnInput, assessorID uint, ip str
 	if err := database.DB.Create(record).Error; err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	database.DB.Model(&model.Rental{}).Where("id = ?", input.RentalID).
-		Updates(map[string]any{"actual_return_date": now, "status": model.RentalReturned})
-	database.DB.Model(&model.Instrument{}).
-		Joins("JOIN rentals ON rentals.instrument_id = instruments.id").
-		Where("rentals.id = ?", input.RentalID).
-		Update("status", model.InstrumentAvailable)
-	if input.DepositDeduction > 0 {
-		database.DB.Model(&model.Rental{}).Where("id = ?", input.RentalID).
-			Update("deposit_status", model.DepositPartiallyRefunded)
-	} else {
-		database.DB.Model(&model.Rental{}).Where("id = ?", input.RentalID).
-			Update("deposit_status", model.DepositFullyRefunded)
-	}
 	newVal := returnToMap(record)
 	logEntry := model.AuditLog{
 		UserID:     assessorID,
-		Action:     "create",
-		EntityType: "return_record",
+		Action:     "create_return",
+		EntityType: "return",
 		EntityID:   record.ID,
 		NewValue:   newVal,
 		IPAddress:  ip,
@@ -101,31 +87,92 @@ func (s *ReturnService) Review(id uint, status model.ReturnStatus, reviewNotes s
 		"status":       status,
 		"review_notes": reviewNotes,
 	}
-	err := database.DB.Model(&model.ReturnRecord{}).Where("id = ?", id).Updates(updates).Error
-	if err == nil {
-		if status == model.ReturnDisputed {
-			var record model.ReturnRecord
-			if database.DB.First(&record, id).Error == nil {
-				database.DB.Model(&model.Rental{}).Where("id = ?", record.RentalID).
-					Update("deposit_status", model.DepositForfeited)
-			}
-		}
-		newVal := fetchOldReturn(id)
-		logEntry := model.AuditLog{
-			UserID:     reviewerID,
-			Action:     "review",
-			EntityType: "return_record",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
-	return err
+	if err := tx.Model(&model.ReturnRecord{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	var record model.ReturnRecord
+	if err := tx.First(&record, id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	now := time.Now()
+	var rental model.Rental
+	if err := tx.First(&rental, record.RentalID).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	switch status {
+	case model.ReturnApproved:
+		if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
+			Updates(map[string]any{
+				"actual_return_date": now,
+				"status":             model.RentalReturned,
+			}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Model(&model.Instrument{}).Where("id = ?", rental.InstrumentID).
+			Update("status", model.InstrumentAvailable).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		var depositStatus model.DepositStatus
+		if record.DepositDeduction > 0 {
+			depositStatus = model.DepositPartiallyRefunded
+		} else {
+			depositStatus = model.DepositFullyRefunded
+		}
+		if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
+			Update("deposit_status", depositStatus).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	case model.ReturnRejected:
+		if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
+			Updates(map[string]any{
+				"actual_return_date": nil,
+				"status":             model.RentalActive,
+				"deposit_status":     model.DepositCollected,
+			}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Model(&model.Instrument{}).Where("id = ?", rental.InstrumentID).
+			Update("status", model.InstrumentRented).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	case model.ReturnDisputed:
+		if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
+			Update("deposit_status", model.DepositForfeited).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	case model.ReturnNeedsReview:
+	}
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	newVal := fetchOldReturn(id)
+	logEntry := model.AuditLog{
+		UserID:     reviewerID,
+		Action:     "review_return",
+		EntityType: "return",
+		EntityID:   id,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		IPAddress:  ip,
+	}
+	database.DB.Create(&logEntry)
+	return nil
 }
 
-func fetchOldReturn(id uint) map[string]any {
+func fetchOldReturn(id uint) model.JSONMap {
 	var r model.ReturnRecord
 	if database.DB.First(&r, id).Error == nil {
 		return returnToMap(&r)
@@ -133,8 +180,8 @@ func fetchOldReturn(id uint) map[string]any {
 	return nil
 }
 
-func returnToMap(r *model.ReturnRecord) map[string]any {
-	return map[string]any{
+func returnToMap(r *model.ReturnRecord) model.JSONMap {
+	return model.JSONMap{
 		"id":                r.ID,
 		"rental_id":         r.RentalID,
 		"condition":         string(r.Condition),

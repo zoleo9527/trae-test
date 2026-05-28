@@ -44,3 +44,27 @@ func (h *DashboardHandler) GetAuditLogs(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": logs, "total": total, "page": page, "page_size": pageSize})
 }
+
+func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
+	items, err := h.svc.GetPendingItems()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": items, "total": len(items)})
+}
+
+func (h *DashboardHandler) GetRejectedItems(c *fiber.Ctx) error {
+	items, err := h.svc.GetRejectedItems()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": items, "total": len(items)})
+}
+
+func (h *DashboardHandler) GetNeedsReviewItems(c *fiber.Ctx) error {
+	items, err := h.svc.GetNeedsReviewItems()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"data": items, "total": len(items)})
+}

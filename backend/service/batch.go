@@ -13,9 +13,9 @@ type BatchService struct{}
 func NewBatchService() *BatchService { return &BatchService{} }
 
 type BatchOperationResult struct {
-	Total   int   `json:"total"`
-	Success int   `json:"success"`
-	Failed  int   `json:"failed"`
+	Total   int      `json:"total"`
+	Success int      `json:"success"`
+	Failed  int      `json:"failed"`
 	Errors  []string `json:"errors,omitempty"`
 }
 
@@ -31,16 +31,7 @@ func (s *BatchService) BatchUpdateRentals(ids []uint, updates map[string]any, us
 		}
 		result.Success++
 		newVal := fetchOldRental(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "batch_update",
-			EntityType: "rental",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logRentalChange(userID, "batch_update_rental", id, oldVal, newVal, ip)
 	}
 	return result
 }
@@ -57,16 +48,7 @@ func (s *BatchService) BatchUpdatePayments(ids []uint, updates map[string]any, u
 		}
 		result.Success++
 		newVal := fetchOldPayment(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "batch_update",
-			EntityType: "payment",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logPaymentChange(userID, "batch_update_payment", id, oldVal, newVal, ip)
 	}
 	return result
 }
@@ -83,16 +65,7 @@ func (s *BatchService) BatchUpdateSchools(ids []uint, updates map[string]any, us
 		}
 		result.Success++
 		newVal := fetchOldSchool(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "batch_update",
-			EntityType: "school",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logSchoolChange(userID, "batch_update_school", id, oldVal, newVal, ip)
 	}
 	return result
 }
@@ -120,17 +93,9 @@ func (s *BatchService) BatchCreatePayments(inputs []CreatePaymentInput, userID u
 		result.Success++
 		newVal := paymentToMap(payment)
 		bytes, _ := json.Marshal(newVal)
-		var nv map[string]any
+		var nv model.JSONMap
 		json.Unmarshal(bytes, &nv)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "batch_create",
-			EntityType: "payment",
-			EntityID:   payment.ID,
-			NewValue:   nv,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logPaymentChange(userID, "batch_create_payment", payment.ID, nil, nv, ip)
 	}
 	return result
 }

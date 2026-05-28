@@ -75,15 +75,7 @@ func (s *PaymentService) Create(input *CreatePaymentInput, userID uint, ip strin
 		return nil, err
 	}
 	newVal := paymentToMap(payment)
-	logEntry := model.AuditLog{
-		UserID:     userID,
-		Action:     "create",
-		EntityType: "payment",
-		EntityID:   payment.ID,
-		NewValue:   newVal,
-		IPAddress:  ip,
-	}
-	database.DB.Create(&logEntry)
+	logPaymentChange(userID, "create_payment", payment.ID, nil, newVal, ip)
 	return payment, nil
 }
 
@@ -92,16 +84,7 @@ func (s *PaymentService) Update(id uint, updates map[string]any, userID uint, ip
 	err := database.DB.Model(&model.Payment{}).Where("id = ?", id).Updates(updates).Error
 	if err == nil {
 		newVal := fetchOldPayment(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "update",
-			EntityType: "payment",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logPaymentChange(userID, "update_payment", id, oldVal, newVal, ip)
 	}
 	return err
 }
@@ -126,16 +109,7 @@ func (s *PaymentService) RecordPayment(id uint, paidAmount float64, paymentMetho
 	err := database.DB.Model(&model.Payment{}).Where("id = ?", id).Updates(updates).Error
 	if err == nil {
 		newVal := fetchOldPayment(id)
-		logEntry := model.AuditLog{
-			UserID:     userID,
-			Action:     "record_payment",
-			EntityType: "payment",
-			EntityID:   id,
-			OldValue:   oldVal,
-			NewValue:   newVal,
-			IPAddress:  ip,
-		}
-		database.DB.Create(&logEntry)
+		logPaymentChange(userID, "record_payment", id, oldVal, newVal, ip)
 	}
 	return err
 }
@@ -160,7 +134,7 @@ func (s *PaymentService) MarkOverdue() (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-func fetchOldPayment(id uint) map[string]any {
+func fetchOldPayment(id uint) model.JSONMap {
 	var p model.Payment
 	if database.DB.First(&p, id).Error == nil {
 		return paymentToMap(&p)
@@ -168,8 +142,8 @@ func fetchOldPayment(id uint) map[string]any {
 	return nil
 }
 
-func paymentToMap(p *model.Payment) map[string]any {
-	return map[string]any{
+func paymentToMap(p *model.Payment) model.JSONMap {
+	return model.JSONMap{
 		"id":            p.ID,
 		"school_id":     p.SchoolID,
 		"rental_id":     p.RentalID,
@@ -178,6 +152,19 @@ func paymentToMap(p *model.Payment) map[string]any {
 		"status":        string(p.Status),
 		"due_date":      p.DueDate,
 	}
+}
+
+func logPaymentChange(userID uint, action string, entityID uint, oldVal, newVal model.JSONMap, ip string) {
+	logEntry := model.AuditLog{
+		UserID:     userID,
+		Action:     action,
+		EntityType: "payment",
+		EntityID:   entityID,
+		OldValue:   oldVal,
+		NewValue:   newVal,
+		IPAddress:  ip,
+	}
+	database.DB.Create(&logEntry)
 }
 
 var _ = gorm.Model{}
