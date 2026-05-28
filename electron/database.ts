@@ -134,8 +134,8 @@ const initDemoData = () => {
   `)
 
   const insertFilm = db.prepare(`
-    INSERT INTO films (memberId, memberName, filmNo, filmType, filmBrand, iso, format, shots, processType, scanResolution, deliveryVersion, status, storageStartDate, storageEndDate, isUrgent, remark, currentHandler, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO films (memberId, memberName, filmNo, filmType, filmBrand, iso, format, shots, processType, scanResolution, deliveryVersion, status, storageStartDate, storageEndDate, isUrgent, remark, rejectReason, reworkCount, currentHandler, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const insertReminder = db.prepare(`
@@ -181,7 +181,8 @@ const initDemoData = () => {
       endDate: dayjs().subtract(3, 'day').add(12, 'month').format('YYYY-MM-DD'),
       handler: '冲扫员B',
       remark: '暗部颗粒需优化',
-      rejectReason: '扫描有划痕'
+      rejectReason: '扫描有划痕',
+      reworkCount: 1
     },
     {
       memberId: memberIds[1], memberName: '李四', filmNo: 'FLM202401003',
@@ -245,7 +246,7 @@ const initDemoData = () => {
     const result = insertFilm.run(
       f.memberId, f.memberName, f.filmNo, f.type, f.brand, f.iso, f.format,
       f.shots, f.processType, f.resolution, f.version, f.status,
-      f.startDate, f.endDate, f.urgent, f.remark || null, f.handler || null, now, now
+      f.startDate, f.endDate, f.urgent, f.remark || null, f.rejectReason || null, f.reworkCount || 0, f.handler || null, now, now
     )
     filmIds.push(result.lastInsertRowid as number)
 

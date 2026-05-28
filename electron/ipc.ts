@@ -60,10 +60,9 @@ const buildFilmWhereClause = (params: PaginationParams) => {
 }
 
 export const setupIpcHandlers = () => {
-  const db = getDb()
-  const now = getNow()
 
   ipcMain.handle('db:get-members', async (_, params: PaginationParams = {}) => {
+    const db = getDb()
     const page = params.page || 1
     const pageSize = params.pageSize || 20
     const offset = (page - 1) * pageSize
@@ -80,38 +79,46 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:get-member', async (_, id: number) => {
+    const db = getDb()
     return db.prepare('SELECT * FROM members WHERE id = ?').get(id) as Member
   })
 
   ipcMain.handle('db:create-member', async (_, data: Omit<Member, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const db = getDb()
+    const now = getNow()
     const stmt = db.prepare(`
       INSERT INTO members (name, phone, wechatId, memberLevel, storageMonths, totalFilms, activeFilms, remark, createdAt, updatedAt)
       VALUES (@name, @phone, @wechatId, @memberLevel, @storageMonths, 0, 0, @remark, @now, @now)
     `)
-    const result = stmt.run({ ...data, now: getNow() })
+    const result = stmt.run({ ...data, now })
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('create', 'member', result.lastInsertRowid, 'current_user', `创建会员: ${data.name}`, getNow())
+      .run('create', 'member', result.lastInsertRowid, 'current_user', `创建会员: ${data.name}`, now)
     return result.lastInsertRowid
   })
 
   ipcMain.handle('db:update-member', async (_, id: number, data: Partial<Member>) => {
+    const db = getDb()
+    const now = getNow()
     const sets = Object.keys(data).map(k => `${k} = ?`).join(', ')
-    const values = [...Object.values(data), getNow(), id]
+    const values = [...Object.values(data), now, id]
     db.prepare(`UPDATE members SET ${sets}, updatedAt = ? WHERE id = ?`).run(...values)
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('update', 'member', id, 'current_user', `更新会员信息: ${JSON.stringify(data)}`, getNow())
+      .run('update', 'member', id, 'current_user', `更新会员信息: ${JSON.stringify(data)}`, now)
     return true
   })
 
   ipcMain.handle('db:delete-member', async (_, id: number) => {
+    const db = getDb()
+    const now = getNow()
     const member = db.prepare('SELECT name FROM members WHERE id = ?').get(id) as Member
     db.prepare('DELETE FROM members WHERE id = ?').run(id)
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('delete', 'member', id, 'current_user', `删除会员: ${member?.name}`, getNow())
+      .run('delete', 'member', id, 'current_user', `删除会员: ${member?.name}`, now)
     return true
   })
 
   ipcMain.handle('db:get-films', async (_, params: PaginationParams = {}) => {
+    const db = getDb()
     const page = params.page || 1
     const pageSize = params.pageSize || 20
     const offset = (page - 1) * pageSize
@@ -128,12 +135,14 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:get-film', async (_, id: number) => {
+    const db = getDb()
     const film = db.prepare('SELECT * FROM films WHERE id = ?').get(id) as Film
     const records = db.prepare('SELECT * FROM process_records WHERE filmId = ? ORDER BY timestamp DESC').all(id) as ProcessRecord[]
     return { ...film, processRecords: records }
   })
 
   ipcMain.handle('db:check-film-duplicate', async (_, filmNo: string, excludeId?: number) => {
+    const db = getDb()
     let stmt: Statement
     if (excludeId) {
       stmt = db.prepare('SELECT COUNT(*) as count FROM films WHERE filmNo = ? AND id != ?')
@@ -147,6 +156,8 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:create-film', async (_, data: Omit<Film, 'id' | 'createdAt' | 'updatedAt' | 'reworkCount'>) => {
+    const db = getDb()
+    const now = getNow()
     const isDuplicate = db.prepare('SELECT COUNT(*) as count FROM films WHERE filmNo = ?').get(data.filmNo) as { count: number }
     if (isDuplicate.count > 0) {
       throw new Error(`胶卷编号 ${data.filmNo} 已存在`)
@@ -160,7 +171,7 @@ export const setupIpcHandlers = () => {
         @processType, @scanResolution, @deliveryVersion, @status, @storageStartDate, @storageEndDate,
         @isUrgent, @remark, @rejectReason, 0, @currentHandler, @now, @now)
     `)
-    const result = stmt.run({ ...data, now: getNow() })
+    const result = stmt.run({ ...data, now })
     const filmId = result.lastInsertRowid as number
 
     db.prepare('UPDATE members SET totalFilms = totalFilms + 1, activeFilms = activeFilms + 1 WHERE id = ?').run(data.memberId)
@@ -168,41 +179,46 @@ export const setupIpcHandlers = () => {
     db.prepare(`
       INSERT INTO process_records (filmId, filmNo, memberId, memberName, action, previousStatus, newStatus, operator, remark, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(filmId, data.filmNo, data.memberId, data.memberName, 'register', '-', data.status, data.currentHandler || 'system', '胶卷登记入库', getNow())
+    `).run(filmId, data.filmNo, data.memberId, data.memberName, 'register', '-', data.status, data.currentHandler || 'system', '胶卷登记入库', now)
 
     db.prepare(`
       INSERT INTO reminders (type, filmId, filmNo, memberId, memberName, title, content, dueDate, priority, createdAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('pending', filmId, data.filmNo, data.memberId, data.memberName, '待分配冲扫员', '新登记胶卷，等待分配处理人员', 
-           dayjs().add(2, 'day').format('YYYY-MM-DD'), 'medium', getNow())
+           dayjs().add(2, 'day').format('YYYY-MM-DD'), 'medium', now)
 
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('create', 'film', filmId, 'current_user', `登记胶卷: ${data.filmNo}`, getNow())
+      .run('create', 'film', filmId, 'current_user', `登记胶卷: ${data.filmNo}`, now)
 
     return filmId
   })
 
   ipcMain.handle('db:update-film', async (_, id: number, data: Partial<Film>) => {
+    const db = getDb()
+    const now = getNow()
     const sets = Object.keys(data).map(k => `${k} = ?`).join(', ')
-    const values = [...Object.values(data), getNow(), id]
+    const values = [...Object.values(data), now, id]
     db.prepare(`UPDATE films SET ${sets}, updatedAt = ? WHERE id = ?`).run(...values)
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('update', 'film', id, 'current_user', `更新胶卷信息: ${JSON.stringify(data)}`, getNow())
+      .run('update', 'film', id, 'current_user', `更新胶卷信息: ${JSON.stringify(data)}`, now)
     return true
   })
 
   ipcMain.handle('db:delete-film', async (_, id: number) => {
+    const db = getDb()
+    const now = getNow()
     const film = db.prepare('SELECT filmNo, memberId FROM films WHERE id = ?').get(id) as Film
     db.prepare('DELETE FROM films WHERE id = ?').run(id)
     if (film) {
       db.prepare('UPDATE members SET activeFilms = activeFilms - 1 WHERE id = ?').run(film.memberId)
     }
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('delete', 'film', id, 'current_user', `删除胶卷: ${film?.filmNo}`, getNow())
+      .run('delete', 'film', id, 'current_user', `删除胶卷: ${film?.filmNo}`, now)
     return true
   })
 
   ipcMain.handle('db:get-process-records', async (_, params: PaginationParams = {}) => {
+    const db = getDb()
     const page = params.page || 1
     const pageSize = params.pageSize || 50
     const offset = (page - 1) * pageSize
@@ -282,6 +298,7 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:get-reminders', async (_, params: PaginationParams = {}) => {
+    const db = getDb()
     const conditions: string[] = ['isDismissed = 0']
     const values: any[] = []
     
@@ -300,6 +317,7 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:update-reminder', async (_, id: number, data: Partial<Reminder>) => {
+    const db = getDb()
     const sets = Object.keys(data).map(k => `${k} = ?`).join(', ')
     const values = [...Object.values(data), id]
     db.prepare(`UPDATE reminders SET ${sets} WHERE id = ?`).run(...values)
@@ -307,11 +325,14 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:dismiss-reminder', async (_, id: number) => {
-    db.prepare('UPDATE reminders SET isDismissed = 1, dismissedAt = ? WHERE id = ?').run(getNow(), id)
+    const db = getDb()
+    const now = getNow()
+    db.prepare('UPDATE reminders SET isDismissed = 1, dismissedAt = ? WHERE id = ?').run(now, id)
     return true
   })
 
   ipcMain.handle('db:get-audit-logs', async (_, params: PaginationParams = {}) => {
+    const db = getDb()
     const page = params.page || 1
     const pageSize = params.pageSize || 50
     const offset = (page - 1) * pageSize
@@ -326,6 +347,7 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:get-dashboard-stats', async () => {
+    const db = getDb()
     const pending = db.prepare("SELECT COUNT(*) as count FROM films WHERE status IN ('registered', 'waiting_process')").get() as { count: number }
     const rejected = db.prepare("SELECT COUNT(*) as count FROM films WHERE status = 'rework'").get() as { count: number }
     const expiring = db.prepare("SELECT COUNT(*) as count FROM films WHERE status = 'stored' AND storageEndDate <= ?").get(dayjs().add(7, 'day').format('YYYY-MM-DD')) as { count: number }
@@ -379,6 +401,8 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:batch-import-films', async (_, films: any[]) => {
+    const db = getDb()
+    const now = getNow()
     const results = { success: 0, failed: 0, errors: [] as string[] }
     const insertStmt = db.prepare(`
       INSERT INTO films (memberId, memberName, filmNo, filmType, filmBrand, iso, format, shots, 
@@ -412,7 +436,7 @@ export const setupIpcHandlers = () => {
             const memberResult = db.prepare(`
               INSERT INTO members (name, phone, memberLevel, storageMonths, totalFilms, activeFilms, createdAt, updatedAt)
               VALUES (?, ?, 'normal', 6, 0, 0, ?, ?)
-            `).run(data.memberName, data.memberPhone, getNow(), getNow())
+            `).run(data.memberName, data.memberPhone, now, now)
             memberId = memberResult.lastInsertRowid as number
             memberName = data.memberName
             storageMonths = 6
@@ -439,7 +463,7 @@ export const setupIpcHandlers = () => {
             isUrgent: data.isUrgent ? 1 : 0,
             remark: data.remark,
             currentHandler: null,
-            now: getNow()
+            now
           }
 
           const result = insertStmt.run(filmData)
@@ -450,13 +474,13 @@ export const setupIpcHandlers = () => {
           db.prepare(`
             INSERT INTO process_records (filmId, filmNo, memberId, memberName, action, previousStatus, newStatus, operator, remark, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(filmId, data.filmNo, memberId, memberName, 'register', '-', 'registered', 'batch_import', '批量导入', getNow())
+          `).run(filmId, data.filmNo, memberId, memberName, 'register', '-', 'registered', 'batch_import', '批量导入', now)
 
           db.prepare(`
             INSERT INTO reminders (type, filmId, filmNo, memberId, memberName, title, content, dueDate, priority, createdAt)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run('pending', filmId, data.filmNo, memberId, memberName, '待分配冲扫员', '批量导入胶卷，等待分配', 
-                 dayjs().add(2, 'day').format('YYYY-MM-DD'), 'medium', getNow())
+                 dayjs().add(2, 'day').format('YYYY-MM-DD'), 'medium', now)
 
           results.success++
         } catch (e: any) {
@@ -469,12 +493,14 @@ export const setupIpcHandlers = () => {
     transaction(films)
 
     db.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
-      .run('batch_import', 'film', 'current_user', `批量导入: 成功${results.success}条, 失败${results.failed}条`, getNow())
+      .run('batch_import', 'film', 'current_user', `批量导入: 成功${results.success}条, 失败${results.failed}条`, now)
 
     return results
   })
 
   ipcMain.handle('db:export-data', async (_, type: string) => {
+    const db = getDb()
+    const now = getNow()
     let data: any[]
     let filename: string
 
@@ -497,12 +523,14 @@ export const setupIpcHandlers = () => {
     fs.writeFileSync(filePath, '\uFEFF' + csv, 'utf8')
 
     db.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
-      .run('export', type, 'current_user', `导出数据到: ${filePath}`, getNow())
+      .run('export', type, 'current_user', `导出数据到: ${filePath}`, now)
 
     return filePath
   })
 
   ipcMain.handle('db:backup-database', async () => {
+    const db = getDb()
+    const now = getNow()
     const dbPath = getDbPath()
     const backupDir = path.join(app.getPath('userData'), 'backups')
     if (!fs.existsSync(backupDir)) {
@@ -514,8 +542,9 @@ export const setupIpcHandlers = () => {
 
     db.backup(backupPath)
       .then(() => {
-        db.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
-          .run('backup', 'database', 'current_user', `备份数据库到: ${backupPath}`, getNow())
+        const currentDb = getDb()
+        currentDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
+          .run('backup', 'database', 'current_user', `备份数据库到: ${backupPath}`, now)
       })
 
     return backupPath
