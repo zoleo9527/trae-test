@@ -288,4 +288,8 @@ const initDemoData = () => {
 
 export const getDb = () => db
 
+export const setDb = (newDb: Database) => {
+  db = newDb
+}
+
 export { getDbPath }

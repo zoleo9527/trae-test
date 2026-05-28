@@ -1,10 +1,11 @@
 import { ipcMain, app } from 'electron'
-import { getDb, getDbPath } from './database'
+import { getDb, getDbPath, setDb } from './database'
 import dayjs from 'dayjs'
 import fs from 'fs'
 import path from 'path'
 import Papa from 'papaparse'
-import type { Database, Statement } from 'better-sqlite3'
+import Database from 'better-sqlite3'
+import type { Statement } from 'better-sqlite3'
 import type { 
   Member, Film, ProcessRecord, Reminder, AuditLog, 
   DashboardStats, PaginationParams, PaginatedResult 
@@ -232,6 +233,7 @@ export const setupIpcHandlers = () => {
   })
 
   ipcMain.handle('db:create-process-record', async (_, data: Omit<ProcessRecord, 'id' | 'timestamp'>) => {
+    const db = getDb()
     const stmt = db.prepare(`
       INSERT INTO process_records (filmId, filmNo, memberId, memberName, action, previousStatus, newStatus, operator, remark, timestamp)
       VALUES (@filmId, @filmNo, @memberId, @memberName, @action, @previousStatus, @newStatus, @operator, @remark, @now)
@@ -239,10 +241,17 @@ export const setupIpcHandlers = () => {
     const result = stmt.run({ ...data, now: getNow() })
     
     const updateData: any = { status: data.newStatus, currentHandler: data.operator }
-    if (data.action === 'rework') {
-      updateData.reworkCount = db.prepare('SELECT reworkCount FROM films WHERE id = ?').get(data.filmId) as number + 1
+    
+    if (data.action === 'reject') {
       updateData.rejectReason = data.remark
     }
+    
+    if (data.action === 'rework') {
+      const currentRework = db.prepare('SELECT reworkCount FROM films WHERE id = ?').get(data.filmId) as { reworkCount: number }
+      updateData.reworkCount = (currentRework?.reworkCount || 0) + 1
+      updateData.rejectReason = data.remark
+    }
+    
     if (data.action === 'deliver') {
       updateData.currentHandler = null
     }
@@ -256,13 +265,13 @@ export const setupIpcHandlers = () => {
         INSERT INTO reminders (type, filmId, filmNo, memberId, memberName, title, content, dueDate, priority, createdAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run('reject', data.filmId, data.filmNo, data.memberId, data.memberName, '胶卷被驳回', 
-             data.remark || '质量检查未通过', dayjs().add(1, 'day').format('YYYY-MM-DD'), 'high', getNow())
+             data.remark || '质量检查未通过，需要返工', dayjs().add(1, 'day').format('YYYY-MM-DD'), 'high', getNow())
     } else if (data.action === 'rework') {
       db.prepare(`
         INSERT INTO reminders (type, filmId, filmNo, memberId, memberName, title, content, dueDate, priority, createdAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run('rework', data.filmId, data.filmNo, data.memberId, data.memberName, '胶卷需要返工', 
-             data.remark || '需要重新处理', dayjs().add(2, 'day').format('YYYY-MM-DD'), 'high', getNow())
+             data.remark || '根据驳回原因重新处理', dayjs().add(2, 'day').format('YYYY-MM-DD'), 'high', getNow())
     }
 
     db.prepare('INSERT INTO audit_logs (action, module, targetId, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)')
@@ -353,10 +362,12 @@ export const setupIpcHandlers = () => {
       LIMIT 10
     `).all(dayjs().add(7, 'day').format('YYYY-MM-DD')) as Film[]
 
+    const reworkCountResult = db.prepare("SELECT COUNT(*) as count FROM films WHERE reworkCount > 0").get() as { count: number }
+
     return {
       pendingCount: pending.count,
       rejectedCount: rejected.count,
-      reworkCount: db.prepare("SELECT COUNT(*) as count FROM films WHERE reworkCount > 0").get() as { count: number },
+      reworkCount: reworkCountResult.count,
       expiringCount: expiring.count,
       totalActive: totalActive.count,
       todayProcessed: todayProcessed.count,
@@ -516,15 +527,17 @@ export const setupIpcHandlers = () => {
     }
 
     const dbPath = getDbPath()
+    const db = getDb()
     db.close()
 
     fs.copyFileSync(filePath, dbPath)
 
-    db = new Database(dbPath)
-    db.pragma('journal_mode = WAL')
-    db.pragma('foreign_keys = ON')
+    const newDb = new Database(dbPath)
+    newDb.pragma('journal_mode = WAL')
+    newDb.pragma('foreign_keys = ON')
+    setDb(newDb)
 
-    db.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
+    newDb.prepare('INSERT INTO audit_logs (action, module, operator, detail, timestamp) VALUES (?, ?, ?, ?, ?)')
       .run('restore', 'database', 'current_user', `从备份恢复: ${filePath}`, getNow())
 
     return true
