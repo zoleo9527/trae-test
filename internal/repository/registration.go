@@ -42,6 +42,7 @@ func (r *RegistrationRepository) GetByID(id uuid.UUID) (*model.Registration, err
 func (r *RegistrationRepository) GetByCampID(campID uuid.UUID, opts QueryOptions) ([]model.Registration, int64, error) {
 	var regs []model.Registration
 	opts.Filters = append(opts.Filters, QueryFilter{Field: "camp_id", Operator: "eq", Value: campID})
+	opts.Preload = []string{"Camper", "Camp"}
 	total, err := r.Query(&regs, opts)
 	return regs, total, err
 }

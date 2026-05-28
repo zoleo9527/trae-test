@@ -17,11 +17,11 @@ type AuthService struct {
 	jwtSecret string
 }
 
-func NewAuthService(userRepo *repository.UserRepository, auditService *AuditService) *AuthService {
+func NewAuthService(userRepo *repository.UserRepository, auditService *AuditService, jwtSecret string) *AuthService {
 	return &AuthService{
 		userRepo:  userRepo,
 		auditRepo: auditService.repo,
-		jwtSecret: "camp-secret-key-2024-very-long-and-secure",
+		jwtSecret: jwtSecret,
 	}
 }
 

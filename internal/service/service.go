@@ -47,11 +47,11 @@ type Services struct {
 	Export       *ExportService
 }
 
-func NewServices(repos *repository.Repositories, taskQueue *async.TaskQueue) *Services {
+func NewServices(repos *repository.Repositories, taskQueue *async.TaskQueue, jwtSecret string) *Services {
 	auditService := NewAuditService(repos.Audit)
 	
 	return &Services{
-		Auth:         NewAuthService(repos.User, auditService),
+		Auth:         NewAuthService(repos.User, auditService, jwtSecret),
 		Camp:         NewCampService(repos.Camp, auditService),
 		Camper:       NewCamperService(repos.Camper, repos.Camp, repos.Room, auditService, taskQueue),
 		Room:         NewRoomService(repos.Room, repos.Camper, auditService),
@@ -60,6 +60,6 @@ func NewServices(repos *repository.Repositories, taskQueue *async.TaskQueue) *Se
 		Medical:      NewMedicalService(repos.Medical, repos.Camper, auditService, taskQueue),
 		Supply:       NewSupplyService(repos.Supply, repos.Camper, auditService),
 		Audit:        auditService,
-		Export:       NewExportService(repos, taskQueue),
+		Export:       NewExportService(repos, taskQueue, auditService),
 	}
 }

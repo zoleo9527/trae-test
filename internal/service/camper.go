@@ -6,6 +6,7 @@ import (
 	"camp-management/internal/repository"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -103,7 +104,7 @@ func (s *CamperService) BatchCreate(req BatchCreateCamperRequest, userID uuid.UU
 
 	remaining := camp.MaxCampers - camp.CurrentCampers
 	if len(req.Campers) > remaining {
-		return nil, NewServiceError("CAMP_CAPACITY_EXCEEDED", "营地容量不足，剩余空位："+string(rune(remaining)), ErrCapacity)
+		return nil, NewServiceError("CAMP_CAPACITY_EXCEEDED", fmt.Sprintf("营地容量不足，剩余空位：%d", remaining), ErrCapacity)
 	}
 
 	var campers []model.Camper
@@ -218,7 +219,7 @@ func (s *CamperService) BatchAssignRoomAsync(req BatchAssignRoomRequest, userID 
 
 	available := room.BedCount - room.OccupiedBeds
 	if len(req.CamperIDs) > available {
-		return nil, NewServiceError("ROOM_CAPACITY_EXCEEDED", "房间容量不足，剩余空位："+string(rune(available)), ErrCapacity)
+		return nil, NewServiceError("ROOM_CAPACITY_EXCEEDED", fmt.Sprintf("房间容量不足，剩余空位：%d", available), ErrCapacity)
 	}
 
 	return s.taskQueue.Submit(async.TaskTypeBatchAssignRooms, req, userID)
@@ -262,7 +263,7 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		return err
 	}
 
-	task.Result = "成功分配 " + string(rune(len(validCamperIDs))) + " 名营员"
+	task.Result = fmt.Sprintf("成功分配 %d 名营员", len(validCamperIDs))
 	return nil
 }
 

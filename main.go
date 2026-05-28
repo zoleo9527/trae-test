@@ -29,7 +29,7 @@ func main() {
 	defer taskQueue.Stop()
 
 	repos := repository.NewRepositories(db)
-	services := service.NewServices(repos, taskQueue)
+	services := service.NewServices(repos, taskQueue, cfg.JWTSecret)
 	handlers := handler.NewHandlers(services)
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWTSecret)
 

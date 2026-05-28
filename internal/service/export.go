@@ -2,6 +2,7 @@ package service
 
 import (
 	"camp-management/internal/async"
+	"camp-management/internal/model"
 	"camp-management/internal/repository"
 	"encoding/json"
 	"fmt"
@@ -11,12 +12,17 @@ import (
 )
 
 type ExportService struct {
-	repos     *repository.Repositories
-	taskQueue *async.TaskQueue
+	repos        *repository.Repositories
+	taskQueue    *async.TaskQueue
+	auditService *AuditService
 }
 
-func NewExportService(repos *repository.Repositories, taskQueue *async.TaskQueue) *ExportService {
-	service := &ExportService{repos: repos, taskQueue: taskQueue}
+func NewExportService(repos *repository.Repositories, taskQueue *async.TaskQueue, auditService *AuditService) *ExportService {
+	service := &ExportService{
+		repos:        repos,
+		taskQueue:    taskQueue,
+		auditService: auditService,
+	}
 	service.registerTaskHandlers()
 	return service
 }
@@ -87,6 +93,11 @@ func (s *ExportService) handleExportCampersTask(task *async.Task) error {
 	}
 
 	task.Result = fmt.Sprintf("导出成功，共 %d 条记录，文件名：%s", len(campers), fileName)
+
+	s.auditService.Log(task.CreatedBy, model.AuditActionExport, "camper", nil, nil,
+		map[string]interface{}{"count": len(campers), "file_name": fileName, "camp_id": payload.CampID},
+		nil, "", "", "导出营员名单")
+
 	return nil
 }
 
@@ -140,6 +151,11 @@ func (s *ExportService) handleExportRegistrationsTask(task *async.Task) error {
 	}
 
 	task.Result = fmt.Sprintf("导出成功，共 %d 条记录，文件名：%s", len(regs), fileName)
+
+	s.auditService.Log(task.CreatedBy, model.AuditActionExport, "registration", nil, nil,
+		map[string]interface{}{"count": len(regs), "file_name": fileName, "camp_id": campID},
+		nil, "", "", "导出报名名单")
+
 	return nil
 }
 
