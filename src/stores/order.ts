@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Order, OrderStatus, OrderLog, ReturnInspection, RepairTask, RepairLog, DepositSettlement, DeductionItem, Instrument, Customer } from '@/types'
+import type { Order, OrderStatus, OrderLog, ReturnInspection, RepairTask, RepairLog, DepositSettlement, DeductionItem, Instrument, Customer, LiabilityParty } from '@/types'
+import { LIABILITY_PARTY_LABELS } from '@/types'
 import { orders as mockOrders, instruments as mockInstruments, customers as mockCustomers } from '@/data/mock'
 
 export const useOrderStore = defineStore('order', () => {
@@ -273,12 +274,24 @@ export const useOrderStore = defineStore('order', () => {
     if (inst && inst.status !== 'available') inst.status = 'available'
   }
 
-  function resolveDispute(orderId: string, resolution: string, resolvedBy: string) {
+  function resolveDispute(orderId: string, resolution: string, resolvedBy: string, liabilityParty?: LiabilityParty) {
     const order = getOrderById(orderId)
     if (!order) return
     order.status = 'settling'
-    if (order.returnInspection) order.returnInspection.isDisputed = false
-    addOrderLog(orderId, '争议解决', resolvedBy, 'boss', resolution)
+    if (order.returnInspection) {
+      order.returnInspection.isDisputed = false
+      order.returnInspection.disputeResolution = resolution
+      order.returnInspection.disputeResolvedBy = resolvedBy
+      order.returnInspection.disputeResolvedAt = new Date().toISOString()
+      if (liabilityParty) {
+        order.returnInspection.disputeLiabilityParty = liabilityParty
+        order.returnInspection.liabilityParty = liabilityParty
+      }
+    }
+    const note = liabilityParty
+      ? `${resolution}（裁定：${LIABILITY_PARTY_LABELS[liabilityParty]}）`
+      : resolution
+    addOrderLog(orderId, '争议解决', resolvedBy, 'boss', note)
   }
 
   function searchOrders(query: string): Order[] {

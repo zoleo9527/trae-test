@@ -162,6 +162,10 @@ export interface ReturnInspection {
   damagePhotos: string[]
   liabilityParty: LiabilityParty
   isDisputed: boolean
+  disputeResolution?: string
+  disputeResolvedBy?: string
+  disputeResolvedAt?: string
+  disputeLiabilityParty?: LiabilityParty
 }
 
 export interface RepairLog {

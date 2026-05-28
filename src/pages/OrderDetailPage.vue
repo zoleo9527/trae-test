@@ -62,7 +62,7 @@ function openDisputeDialog() {
 
 function resolveDispute() {
   if (!order.value || !disputeResolution.value) return
-  orderStore.resolveDispute(orderId.value, disputeResolution.value + ` (责任判定：${LIABILITY_PARTY_LABELS[disputeLiability.value]})`, authStore.userName)
+  orderStore.resolveDispute(orderId.value, disputeResolution.value, authStore.userName, disputeLiability.value)
   showDisputeDialog.value = false
   disputeResolution.value = ''
 }
@@ -118,12 +118,22 @@ const isSettlementCompleted = computed(() => order.value?.depositSettlement?.sta
 
 function openSettleDialog() {
   if (!order.value || isSettlementCompleted.value) return
-  customDeductions.value = order.value.depositSettlement?.deductions.map(d => ({
-    type: d.type,
-    amount: d.amount,
-    description: d.description,
-    isDisputed: d.isDisputed,
-  })) || []
+  const existing = order.value.depositSettlement?.deductions
+  if (existing && existing.length > 0) {
+    customDeductions.value = existing.map(d => ({
+      type: d.type,
+      amount: d.amount,
+      description: d.description,
+      isDisputed: d.isDisputed,
+    }))
+  } else {
+    customDeductions.value = [
+      { type: 'rental', amount: order.value.rentalFee, description: '租金', isDisputed: false },
+    ]
+    if (order.value.repairTask?.actualCost) {
+      customDeductions.value.push({ type: 'repair', amount: order.value.repairTask.actualCost, description: '维修费', isDisputed: false })
+    }
+  }
   showSettleDialog.value = true
 }
 

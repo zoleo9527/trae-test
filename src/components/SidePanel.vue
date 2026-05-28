@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { X, Clock, User, CheckCircle2, XCircle } from 'lucide-vue-next'
+import { X, Clock, User, CheckCircle2, XCircle, Plus, Trash2 } from 'lucide-vue-next'
 import { useSidePanel } from '@/composables/useSidePanel'
 import { useOrderStore } from '@/stores/order'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
-import { ORDER_STATUS_LABELS, type OrderStatus, type LiabilityParty } from '@/types'
+import { ORDER_STATUS_LABELS, DEDUCTION_TYPE_LABELS, type OrderStatus, type LiabilityParty, type DeductionType } from '@/types'
 import StatusBadge from '@/components/StatusBadge.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
@@ -30,6 +30,39 @@ const returnRepairReason = ref('')
 const disputeResolution = ref('')
 const disputeLiability = ref<LiabilityParty>('undetermined')
 const repairActualCost = ref(0)
+
+const settlementDeductions = ref<Array<{ type: DeductionType; amount: number; description: string; isDisputed: boolean }>>([])
+
+const settlementTotalDeduction = computed(() => settlementDeductions.value.reduce((sum, d) => sum + d.amount, 0))
+const settlementRefundAmount = computed(() => (order.value?.depositAmount || 0) - settlementTotalDeduction.value)
+
+function initSettlementDeductions() {
+  if (!order.value) return
+  const existing = order.value.depositSettlement?.deductions
+  if (existing && existing.length > 0) {
+    settlementDeductions.value = existing.map(d => ({
+      type: d.type,
+      amount: d.amount,
+      description: d.description,
+      isDisputed: d.isDisputed,
+    }))
+  } else {
+    settlementDeductions.value = [
+      { type: 'rental', amount: order.value.rentalFee, description: '租金', isDisputed: false },
+    ]
+    if (order.value.repairTask?.actualCost) {
+      settlementDeductions.value.push({ type: 'repair', amount: order.value.repairTask.actualCost, description: '维修费', isDisputed: false })
+    }
+  }
+}
+
+function addSettlementDeduction() {
+  settlementDeductions.value.push({ type: 'other', amount: 0, description: '', isDisputed: false })
+}
+
+function removeSettlementDeduction(idx: number) {
+  settlementDeductions.value.splice(idx, 1)
+}
 
 const order = computed(() => {
   if (!currentOrderId.value) return null
@@ -123,6 +156,7 @@ function handleAction(action: string) {
       showRepairDialog.value = true
       break
     case '直接结算':
+      initSettlementDeductions()
       showSettleDialog.value = true
       break
     case '接单维修':
@@ -143,6 +177,7 @@ function handleAction(action: string) {
       showReturnRepairDialog.value = true
       break
     case '确认结算':
+      initSettlementDeductions()
       showSettleDialog.value = true
       break
     case '解决争议':
@@ -184,20 +219,15 @@ function returnRepair() {
 
 function resolveDispute() {
   if (!order.value || !disputeResolution.value) return
-  orderStore.resolveDispute(order.value.id, disputeResolution.value, authStore.userName)
+  orderStore.resolveDispute(order.value.id, disputeResolution.value, authStore.userName, disputeLiability.value)
   showDisputeDialog.value = false
   notificationStore.showToast('争议已解决', 'success')
 }
 
 function confirmSettleDeposit() {
   if (!order.value) return
-  const deductions = order.value.depositSettlement?.deductions.map(d => ({
-    type: d.type,
-    amount: d.amount,
-    description: d.description,
-    isDisputed: d.isDisputed,
-  })) || []
-  orderStore.settleDeposit(order.value.id, deductions, authStore.userName)
+  const validDeductions = settlementDeductions.value.filter(d => d.amount > 0)
+  orderStore.settleDeposit(order.value.id, validDeductions, authStore.userName)
   showSettleDialog.value = false
   notificationStore.showToast('结算已完成', 'success')
 }
@@ -380,9 +410,8 @@ function formatAmount(amount: number): string {
               class="w-full px-4 py-2.5 bg-bg-tertiary border border-border rounded-xl text-sm text-txt-primary focus:outline-none focus:border-accent/50"
             >
               <option value="customer">客户责任</option>
-              <option value="natural">自然损耗</option>
-              <option value="quality">质量问题</option>
-              <option value="undetermined">待判定</option>
+              <option value="natural_wear">自然损耗</option>
+              <option value="quality_issue">质量问题</option>
             </select>
           </div>
         </div>
@@ -451,8 +480,8 @@ function formatAmount(amount: number): string {
             class="w-full px-4 py-2.5 bg-bg-tertiary border border-border rounded-xl text-sm text-txt-primary focus:outline-none focus:border-accent/50"
           >
             <option value="customer">客户责任</option>
-            <option value="natural">自然损耗</option>
-            <option value="quality">质量问题</option>
+            <option value="natural_wear">自然损耗</option>
+            <option value="quality_issue">质量问题</option>
             <option value="undetermined">待判定</option>
           </select>
         </div>
@@ -471,11 +500,84 @@ function formatAmount(amount: number): string {
     <ConfirmDialog
       :show="showSettleDialog"
       title="押金结算"
-      message="确认后将完成押金结算，退款金额将退还客户。此操作不可撤销。"
       confirmLabel="确认结算"
       @confirm="confirmSettleDeposit"
       @cancel="showSettleDialog = false"
-    />
+    >
+      <div class="space-y-4">
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="p-2.5 bg-bg-tertiary rounded-xl">
+            <p class="text-xs text-txt-muted mb-0.5">原始押金</p>
+            <p class="text-sm font-semibold text-txt-primary">¥{{ order?.depositAmount?.toLocaleString() || 0 }}</p>
+          </div>
+          <div class="p-2.5 bg-bg-tertiary rounded-xl">
+            <p class="text-xs text-txt-muted mb-0.5">总扣款</p>
+            <p class="text-sm font-semibold text-amber-400">¥{{ settlementTotalDeduction.toLocaleString() }}</p>
+          </div>
+          <div class="p-2.5 bg-bg-tertiary rounded-xl">
+            <p class="text-xs text-txt-muted mb-0.5">应退还</p>
+            <p class="text-sm font-semibold" :class="settlementRefundAmount >= 0 ? 'text-emerald-400' : 'text-red-400'">¥{{ settlementRefundAmount.toLocaleString() }}</p>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm text-txt-secondary">扣款明细</label>
+            <button
+              @click="addSettlementDeduction"
+              class="flex items-center gap-1 text-xs text-accent hover:text-accent-hover"
+            >
+              <Plus :size="12" />
+              添加
+            </button>
+          </div>
+          <div class="space-y-2 max-h-48 overflow-y-auto">
+            <div
+              v-for="(d, idx) in settlementDeductions"
+              :key="idx"
+              class="flex items-center gap-2"
+            >
+              <select
+                v-model="d.type"
+                class="w-20 px-2 py-1.5 bg-bg-tertiary border border-border rounded-lg text-sm text-txt-primary focus:outline-none focus:border-accent/50"
+              >
+                <option v-for="(label, key) in DEDUCTION_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+              </select>
+              <input
+                v-model="d.description"
+                type="text"
+                placeholder="说明"
+                class="flex-1 px-2 py-1.5 bg-bg-tertiary border border-border rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-accent/50"
+              />
+              <div class="relative w-20">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-txt-muted text-xs">¥</span>
+                <input
+                  v-model.number="d.amount"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-full pl-5 pr-2 py-1.5 bg-bg-tertiary border border-border rounded-lg text-sm text-txt-primary placeholder:text-txt-muted focus:outline-none focus:border-accent/50"
+                />
+              </div>
+              <button
+                @click="removeSettlementDeduction(idx)"
+                class="p-1 text-txt-muted hover:text-red-400 transition-colors"
+              >
+                <Trash2 :size="14" />
+              </button>
+            </div>
+          </div>
+          <p v-if="settlementDeductions.length === 0" class="text-xs text-txt-muted text-center py-3">暂无扣款项</p>
+        </div>
+
+        <div v-if="settlementRefundAmount < 0" class="p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+          <p class="text-xs text-red-400">⚠ 扣款总额超过押金金额，请核实扣款明细</p>
+        </div>
+        <div v-if="settlementDeductions.length > 0 && settlementTotalDeduction === 0" class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+          <p class="text-xs text-amber-400">⚠ 存在扣款项但金额为 0，请确认是否合理</p>
+        </div>
+      </div>
+    </ConfirmDialog>
   </Teleport>
 </template>
 
