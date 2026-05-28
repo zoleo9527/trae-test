@@ -266,30 +266,35 @@ func seedScenario1(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		return err
 	}
 
+	note1ID := uuid.New()
+	note2ID := uuid.New()
+	note3ID := uuid.New()
+	note4ID := uuid.New()
+
 	notes := []models.ComplaintNote{
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-47 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note1ID, CreatedAt: now.Add(-47 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户电话投诉，语气比较着急。已告知会在24小时内补送。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-46 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note2ID, CreatedAt: now.Add(-46 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已核实：司机出发时装了10桶，但在途中另一家客户临时加单，司机多卸了2桶。已安排补送。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-25 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note3ID, CreatedAt: now.Add(-25 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已安排王师傅今天上午补送2桶水，同时作为补偿额外赠送1桶。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-3 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note4ID, CreatedAt: now.Add(-3 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   driverID,
 			Content:     "补送完成，客户签收照片已上传。空桶数量：收回8个，与记录一致。",
@@ -320,7 +325,15 @@ func seedScenario1(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     csID,
-			Metadata:   utils.Ptr(`{"note_id":"note_1","is_internal":false}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note1ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-46 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note2ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-46 * time.Hour)},
@@ -343,6 +356,14 @@ func seedScenario1(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr("pending"),
 			NewValue:   utils.Ptr("processing"),
 			Metadata:   utils.Ptr(`{"reason":"Auto-processing on assignment"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-25 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note3ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-24 * time.Hour)},
@@ -376,6 +397,14 @@ func seedScenario1(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr("pending"),
 			NewValue:   utils.Ptr("approved"),
 			Metadata:   utils.Ptr(`{"notes":"Auto-approved by role"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-3 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     driverID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note4ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
@@ -441,37 +470,43 @@ func seedScenario2(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		return err
 	}
 
+	note1ID := uuid.New()
+	note2ID := uuid.New()
+	note3ID := uuid.New()
+	note4ID := uuid.New()
+	note5ID := uuid.New()
+
 	notes := []models.ComplaintNote{
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-11 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note1ID, CreatedAt: now.Add(-11 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   cs1ID,
 			Content:     "客户坚持说有5个空桶，但司机记录只收回2个。需要调取配送记录核实。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-10 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note2ID, CreatedAt: now.Add(-10 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   cs1ID,
 			Content:     "正在核实中，我们会在24小时内给您答复。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-8 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note3ID, CreatedAt: now.Add(-8 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已调取5月20日配送记录：配送5桶，签收照片显示客户门口有5个空桶。司机可能漏收了。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note4ID, CreatedAt: now.Add(-6 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   cs2ID,
 			Content:     "已核实清楚，是我们司机漏收了3个空桶。已在系统中修正记录。给您带来不便非常抱歉！",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note5ID, CreatedAt: now.Add(-2 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   cs2ID,
 			Content:     "客户接受了解释，但是要求下次送水时多带3个桶套作为补偿。已记录。",
@@ -520,43 +555,43 @@ func seedScenario2(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-11 * time.Hour)},
-			EntityType: "complaint_note",
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     cs1ID,
-			Metadata:   utils.Ptr(`{"is_internal":true}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note1ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-10 * time.Hour)},
-			EntityType: "complaint_note",
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     cs1ID,
-			Metadata:   utils.Ptr(`{"is_internal":false}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note2ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-8 * time.Hour)},
-			EntityType: "complaint_note",
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     stationMasterID,
-			Metadata:   utils.Ptr(`{"is_internal":true}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note3ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
-			EntityType: "complaint_note",
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     cs2ID,
-			Metadata:   utils.Ptr(`{"is_internal":false}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note4ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
-			EntityType: "complaint_note",
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionCreateNote,
 			UserID:     cs2ID,
-			Metadata:   utils.Ptr(`{"is_internal":true}`),
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note5ID.String())),
 		},
 	}
 	for _, a := range auditLogs {
@@ -641,37 +676,43 @@ func seedScenario3(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		return err
 	}
 
+	note1ID := uuid.New()
+	note2ID := uuid.New()
+	note3ID := uuid.New()
+	note4ID := uuid.New()
+	note5ID := uuid.New()
+
 	notes := []models.ComplaintNote{
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note1ID, CreatedAt: now.Add(-6 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户很着急，说地板湿了一大片。已告知立即安排处理。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note2ID, CreatedAt: now.Add(-6 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "非常抱歉给您带来麻烦！我们立即安排师傅更换水桶并处理后续事宜。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-5 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note3ID, CreatedAt: now.Add(-5 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户已上传漏水照片，情况属实。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-4 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note4ID, CreatedAt: now.Add(-4 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已安排王师傅立即去更换漏水的水桶，并收回破损桶。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note5ID, CreatedAt: now.Add(-2 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   driverID,
 			Content:     "已更换新桶，收回破损桶1个。客户要求赔偿清洁费50元。",
@@ -697,6 +738,22 @@ func seedScenario3(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			Metadata:   utils.Ptr(`{"type":"damaged_bucket","title":"水桶漏水，地面湿了一片","priority":4}`),
 		},
 		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note1ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-6 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note2ID.String())),
+		},
+		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-5*time.Hour + 30*time.Minute)},
 			EntityType: "complaint",
 			EntityID:   complaintID,
@@ -720,7 +777,15 @@ func seedScenario3(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-5 * time.Hour)},
-			EntityType: "complaint_photo",
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note3ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-5 * time.Hour)},
+			EntityType: "complaint",
 			EntityID:   complaintID,
 			Action:     types.AuditActionUpload,
 			UserID:     csID,
@@ -728,6 +793,14 @@ func seedScenario3(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr(""),
 			NewValue:   utils.Ptr("/uploads/demo_leak1.jpg"),
 			Metadata:   utils.Ptr(`{"file_hash":"a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6","description":"漏水的水桶和湿地板照片"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-4 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note4ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-4 * time.Hour)},
@@ -739,6 +812,14 @@ func seedScenario3(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr(""),
 			NewValue:   utils.Ptr("scheduled"),
 			Metadata:   utils.Ptr(`{"water_amount":1,"empty_bucket_adjust":1,"driver":"王师傅"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     driverID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note5ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-2 * time.Hour)},
@@ -834,30 +915,35 @@ func seedScenario4(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		return err
 	}
 
+	note1ID := uuid.New()
+	note2ID := uuid.New()
+	note3ID := uuid.New()
+	note4ID := uuid.New()
+
 	notes := []models.ComplaintNote{
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-72 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note1ID, CreatedAt: now.Add(-72 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户投诉配送迟到，影响会议。已致歉并告知会有补偿。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-72 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note2ID, CreatedAt: now.Add(-72 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "非常抱歉给您的会议带来影响！作为补偿，您下次订水可享受50元优惠。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-71 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note3ID, CreatedAt: now.Add(-71 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "司机反馈：途中遇到交通事故堵车，已对司机进行教育。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-69 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note4ID, CreatedAt: now.Add(-69 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户接受补偿方案，对处理速度满意。",
@@ -883,6 +969,22 @@ func seedScenario4(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			Metadata:   utils.Ptr(`{"type":"late_delivery","title":"配送晚了3小时","priority":2}`),
 		},
 		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-72 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note1ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-72 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note2ID.String())),
+		},
+		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-71*time.Hour + 30*time.Minute)},
 			EntityType: "complaint",
 			EntityID:   complaintID,
@@ -903,6 +1005,14 @@ func seedScenario4(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr("pending"),
 			NewValue:   utils.Ptr("processing"),
 			Metadata:   utils.Ptr(`{"reason":"Auto-processing on assignment"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-71 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note3ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-71 * time.Hour)},
@@ -936,6 +1046,14 @@ func seedScenario4(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr("processing"),
 			NewValue:   utils.Ptr("resolved"),
 			Metadata:   utils.Ptr(`{"reason":"All redeliveries and compensations completed"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-69 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note4ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-68 * time.Hour)},
@@ -1006,30 +1124,35 @@ func seedScenario5(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 		return err
 	}
 
+	note1ID := uuid.New()
+	note2ID := uuid.New()
+	note3ID := uuid.New()
+	note4ID := uuid.New()
+
 	notes := []models.ComplaintNote{
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-36 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note1ID, CreatedAt: now.Add(-36 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "客户发现送错品牌，要求换货。库存有品牌A，可以安排更换。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-36 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note2ID, CreatedAt: now.Add(-36 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   csID,
 			Content:     "非常抱歉！我们今天下午安排师傅来为您更换成正确品牌的水。",
 			IsInternal:  false,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-30 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note3ID, CreatedAt: now.Add(-30 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已安排刘师傅下午3点去换货，同时提醒司机注意核对品牌。",
 			IsInternal:  true,
 		},
 		{
-			BaseModel:   models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-28 * time.Hour)},
+			BaseModel:   models.BaseModel{ID: note4ID, CreatedAt: now.Add(-28 * time.Hour)},
 			ComplaintID: complaintID,
 			CreatedBy:   stationMasterID,
 			Content:     "已为您安排今天下午3-5点换货，司机会带上10桶品牌A并取回送错的10桶。",
@@ -1055,6 +1178,22 @@ func seedScenario5(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			Metadata:   utils.Ptr(`{"type":"wrong_product","title":"送错了水的品牌","priority":3}`),
 		},
 		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-36 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note1ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-36 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     csID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note2ID.String())),
+		},
+		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-32 * time.Hour)},
 			EntityType: "complaint",
 			EntityID:   complaintID,
@@ -1075,6 +1214,22 @@ func seedScenario5(tx *gorm.DB, customerID, stationID, stationMasterID, driverID
 			OldValue:   utils.Ptr("pending"),
 			NewValue:   utils.Ptr("processing"),
 			Metadata:   utils.Ptr(`{"reason":"Auto-processing on assignment"}`),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-30 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":true}`, note3ID.String())),
+		},
+		{
+			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-28 * time.Hour)},
+			EntityType: "complaint",
+			EntityID:   complaintID,
+			Action:     types.AuditActionCreateNote,
+			UserID:     stationMasterID,
+			Metadata:   utils.Ptr(fmt.Sprintf(`{"note_id":"%s","is_internal":false}`, note4ID.String())),
 		},
 		{
 			BaseModel:  models.BaseModel{ID: uuid.New(), CreatedAt: now.Add(-28 * time.Hour)},

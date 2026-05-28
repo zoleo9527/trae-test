@@ -159,6 +159,9 @@ func (s *ComplaintService) UpdateStatus(complaintID uuid.UUID, userID uuid.UUID,
 			if err := tx.Create(note).Error; err != nil {
 				return err
 			}
+			if err := audit.LogCreateNoteWithTx(tx, complaintID, note.ID, userID, true); err != nil {
+				return err
+			}
 		}
 
 		return nil
