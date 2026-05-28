@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Order, Exception, OperationLog, SampleVersion } from '@/types'
-import { getInitialData, saveOrders } from '@/mock/data'
+import type { Order, Exception, OperationLog, SampleVersion, ProductionSchedule, ResponsibleParty } from '@/types'
+import { getInitialData, saveOrders, mockUsers } from '@/mock/data'
 import { useUserStore } from './user'
 
 export const useOrderStore = defineStore('order', () => {
@@ -23,7 +23,12 @@ export const useOrderStore = defineStore('order', () => {
     if (userStore.currentUser.role === 'business') {
       return orders.value
     }
-    return orders.value.filter(o => o.assigneeRole === userStore.currentUser.role)
+    return orders.value.filter(o => {
+      if (o.status === 'version_locked' || ['scheduled', 'producing', 'qc_passed', 'shipping', 'completed'].includes(o.status)) {
+        return userStore.currentUser.role === 'warehouse'
+      }
+      return o.assigneeRole === userStore.currentUser.role
+    })
   })
 
   const getOrderById = (id: string): Order | undefined => {
@@ -58,6 +63,47 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
+  const scheduleProduction = (orderId: string, scheduledDate?: string) => {
+    const order = orders.value.find(o => o.id === orderId)
+    if (order) {
+      const schedule: ProductionSchedule = {
+        id: `ps_${Date.now()}`,
+        orderId,
+        scheduledDate: scheduledDate || new Date().toISOString().split('T')[0],
+        productionStatus: 'scheduled',
+        quantity: order.quantity,
+        createdAt: new Date().toISOString()
+      }
+      order.productionSchedules.push(schedule)
+      updateOrderStatus(orderId, 'scheduled')
+      addOperationLog(orderId, '安排排期', `量产排期至${schedule.scheduledDate}，计划数量${order.quantity}件`)
+      saveOrders(orders.value)
+    }
+  }
+
+  const startProduction = (orderId: string) => {
+    const order = orders.value.find(o => o.id === orderId)
+    if (order && order.productionSchedules.length > 0) {
+      const latestSchedule = order.productionSchedules[order.productionSchedules.length - 1]
+      latestSchedule.productionStatus = 'producing'
+      updateOrderStatus(orderId, 'producing')
+      addOperationLog(orderId, '开始生产', '量产生产中')
+      saveOrders(orders.value)
+    }
+  }
+
+  const passQC = (orderId: string, qcResult: string = '合格') => {
+    const order = orders.value.find(o => o.id === orderId)
+    if (order && order.productionSchedules.length > 0) {
+      const latestSchedule = order.productionSchedules[order.productionSchedules.length - 1]
+      latestSchedule.productionStatus = 'qc_passed'
+      latestSchedule.qcResult = qcResult
+      updateOrderStatus(orderId, 'qc_passed')
+      addOperationLog(orderId, '质检通过', `产品质检${qcResult}`)
+      saveOrders(orders.value)
+    }
+  }
+
   const confirmSampleVersion = (orderId: string, versionId: string, lock: boolean = false) => {
     const userStore = useUserStore()
     const order = orders.value.find(o => o.id === orderId)
@@ -70,6 +116,12 @@ export const useOrderStore = defineStore('order', () => {
         
         if (lock) {
           updateOrderStatus(orderId, 'version_locked')
+          const warehouseUser = mockUsers.find(u => u.role === 'warehouse')
+          if (warehouseUser) {
+            order.assignee = warehouseUser.name
+            order.assigneeRole = 'warehouse'
+            addOperationLog(orderId, '转单交接', `版本已锁定，订单转至${warehouseUser.name}（仓配协调）安排排期`)
+          }
           addOperationLog(orderId, '锁定版本', `样品v${version.version}已确认并锁定`)
         } else {
           updateOrderStatus(orderId, 'sample_confirmed')
@@ -159,18 +211,38 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  const approveRefund = (exceptionId: string, approved: boolean) => {
+  const updateRefundResponsibleParty = (exceptionId: string, responsibleParty: ResponsibleParty) => {
+    for (const order of orders.value) {
+      const exception = order.exceptions.find(e => e.id === exceptionId)
+      if (exception && exception.refundChain) {
+        const oldParty = exception.refundChain.responsibleParty
+        exception.refundChain.responsibleParty = responsibleParty
+        exception.description = `退款申请：金额¥${exception.refundChain.amount.toLocaleString()}，责任方：${responsibleParty}`
+        addOperationLog(order.id, '变更责任方', 
+          `退款责任方从"${oldParty}"变更为"${responsibleParty}"`)
+        saveOrders(orders.value)
+        return
+      }
+    }
+  }
+
+  const approveRefund = (exceptionId: string, approved: boolean, remark?: string) => {
+    const userStore = useUserStore()
     for (const order of orders.value) {
       const exception = order.exceptions.find(e => e.id === exceptionId)
       if (exception && exception.refundChain) {
         exception.refundChain.approvalStatus = approved ? 'approved' : 'rejected'
+        exception.refundChain.approver = userStore.currentUser.name
         exception.refundChain.approvedAt = new Date().toISOString()
+        if (remark) {
+          exception.refundChain.remark = remark
+        }
         exception.status = approved ? 'resolved' : 'pending'
         if (approved) {
           exception.resolvedAt = new Date().toISOString()
         }
-        addOperationLog(order.id, approved ? '审批通过' : '审批拒绝', 
-          `退款${approved ? '通过' : '拒绝'}，金额¥${exception.refundChain.amount.toLocaleString()}`)
+        const logDetail = `退款${approved ? '通过' : '拒绝'}，金额¥${exception.refundChain.amount.toLocaleString()}，责任方：${exception.refundChain.responsibleParty}${remark ? `，备注：${remark}` : ''}`
+        addOperationLog(order.id, approved ? '审批通过' : '审批拒绝', logDetail)
         saveOrders(orders.value)
         return
       }
@@ -233,10 +305,14 @@ export const useOrderStore = defineStore('order', () => {
     selectedException,
     getOrderById,
     updateOrderStatus,
+    scheduleProduction,
+    startProduction,
+    passQC,
     confirmSampleVersion,
     createNewSampleVersion,
     resolveException,
     initiateRefund,
+    updateRefundResponsibleParty,
     approveRefund,
     recordShipment,
     selectException,

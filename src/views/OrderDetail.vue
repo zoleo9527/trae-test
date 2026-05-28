@@ -137,18 +137,15 @@ const submitNewVersion = () => {
 }
 
 const handleScheduleProduction = () => {
-  orderStore.updateOrderStatus(orderId.value, 'scheduled')
-  orderStore.addOperationLog(orderId.value, '安排排期', '已安排量产排期')
+  orderStore.scheduleProduction(orderId.value)
 }
 
 const handleStartProduction = () => {
-  orderStore.updateOrderStatus(orderId.value, 'producing')
-  orderStore.addOperationLog(orderId.value, '开始生产', '量产生产中')
+  orderStore.startProduction(orderId.value)
 }
 
 const handleQcPass = () => {
-  orderStore.updateOrderStatus(orderId.value, 'qc_passed')
-  orderStore.addOperationLog(orderId.value, '质检通过', '产品质检合格')
+  orderStore.passQC(orderId.value)
 }
 
 const openShipmentModal = () => {

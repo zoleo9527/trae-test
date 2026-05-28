@@ -70,9 +70,17 @@ const handleResolve = () => {
   emit('close')
 }
 
+const handleResponsiblePartyChange = (party: ResponsibleParty) => {
+  if (!props.exception || !props.exception.refundChain) return
+  if (party !== props.exception.refundChain.responsibleParty) {
+    orderStore.updateRefundResponsibleParty(props.exception.id, party)
+    responsibleParty.value = party
+  }
+}
+
 const handleApproveRefund = (approved: boolean) => {
   if (!props.exception) return
-  orderStore.approveRefund(props.exception.id, approved)
+  orderStore.approveRefund(props.exception.id, approved, refundRemark.value)
   emit('close')
 }
 
@@ -288,7 +296,7 @@ const responsiblePartyOptions = [
                   <button 
                     v-for="opt in responsiblePartyOptions" 
                     :key="opt.value"
-                    @click="responsibleParty = opt.value as ResponsibleParty"
+                    @click="handleResponsiblePartyChange(opt.value as ResponsibleParty)"
                     class="p-3 rounded-lg border-2 text-left transition-all"
                     :class="responsibleParty === opt.value 
                       ? 'border-primary bg-primary/5' 
