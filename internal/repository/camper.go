@@ -18,6 +18,7 @@ type BatchAssignResult struct {
 	OldOccupied int
 	NewOccupied int
 	Assignments []CamperAssignment
+	IsRoomFull  bool
 }
 
 type CamperRepository struct {
@@ -67,6 +68,18 @@ func (r *CamperRepository) AssignRoom(camperID uuid.UUID, roomID uuid.UUID) (int
 
 		if room.OccupiedBeds >= room.BedCount {
 			return ErrCapacityFull
+		}
+
+		var camper model.Camper
+		if err := tx.First(&camper, "id = ? AND room_id IS NULL", camperID).Error; err != nil {
+			return ErrInvalidStatus
+		}
+
+		if room.Gender != model.RoomGenderMixed {
+			if (camper.Gender == "男" && room.Gender != model.RoomGenderMale) ||
+				(camper.Gender == "女" && room.Gender != model.RoomGenderFemale) {
+				return ErrInvalidStatus
+			}
 		}
 
 		bedNumber = room.OccupiedBeds + 1
@@ -128,6 +141,7 @@ func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UU
 
 		availableBeds := room.BedCount - room.OccupiedBeds
 		if availableBeds <= 0 {
+			result.IsRoomFull = true
 			return nil
 		}
 
@@ -140,6 +154,18 @@ func (r *CamperRepository) BatchAssignRoom(camperIDs []uuid.UUID, roomID uuid.UU
 		result.Assignments = make([]CamperAssignment, 0, len(toAssign))
 
 		for _, camperID := range toAssign {
+			var camper model.Camper
+			if err := tx.First(&camper, "id = ? AND room_id IS NULL", camperID).Error; err != nil {
+				continue
+			}
+
+			if room.Gender != model.RoomGenderMixed {
+				if (camper.Gender == "男" && room.Gender != model.RoomGenderMale) ||
+					(camper.Gender == "女" && room.Gender != model.RoomGenderFemale) {
+					continue
+				}
+			}
+
 			updateResult := tx.Model(&model.Camper{}).
 				Where("id = ? AND room_id IS NULL", camperID).
 				Updates(map[string]interface{}{

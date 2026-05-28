@@ -234,7 +234,13 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		return err
 	}
 
-	var validCamperIDs []uuid.UUID
+	room, err := s.roomRepo.GetByID(req.RoomID)
+	if err != nil {
+		task.Result = "房间不存在"
+		return err
+	}
+
+	genderFiltered := make([]uuid.UUID, 0)
 	camperNameMap := make(map[uuid.UUID]string)
 	for _, camperID := range req.CamperIDs {
 		camper, err := s.repo.GetByID(camperID)
@@ -244,23 +250,34 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 		if !camper.CanAssignRoom() || camper.RoomID != nil {
 			continue
 		}
-		validCamperIDs = append(validCamperIDs, camperID)
+		if room.Gender != model.RoomGenderMixed {
+			if (camper.Gender == "男" && room.Gender != model.RoomGenderMale) ||
+				(camper.Gender == "女" && room.Gender != model.RoomGenderFemale) {
+				continue
+			}
+		}
+		genderFiltered = append(genderFiltered, camperID)
 		camperNameMap[camperID] = camper.Name
 	}
 
-	if len(validCamperIDs) == 0 {
+	if len(genderFiltered) == 0 {
 		task.Result = "没有符合条件的营员"
 		return nil
 	}
 
-	assignResult, err := s.repo.BatchAssignRoom(validCamperIDs, req.RoomID)
+	assignResult, err := s.repo.BatchAssignRoom(genderFiltered, req.RoomID)
 	if err != nil {
 		task.Result = fmt.Sprintf("分配失败: %v", err)
 		return err
 	}
 
 	if len(assignResult.Assignments) == 0 {
-		task.Result = "房间已满，无法分配"
+		if assignResult.IsRoomFull {
+			task.Result = fmt.Sprintf("房间%s已满，无法分配", assignResult.RoomNumber)
+		} else {
+			skipped := len(genderFiltered)
+			task.Result = fmt.Sprintf("未分配成功，%d名营员已被其他任务占用", skipped)
+		}
 		return nil
 	}
 
@@ -294,7 +311,13 @@ func (s *CamperService) handleBatchAssignRoomsTask(task *async.Task) error {
 			"", "", fmt.Sprintf("分配房间: %s到%s床%d", camperNameMap[a.CamperID], assignResult.RoomNumber, a.BedNumber))
 	}
 
-	task.Result = fmt.Sprintf("成功分配 %d 名营员到房间%s", len(assignResult.Assignments), assignResult.RoomNumber)
+	skipped := len(genderFiltered) - len(assignResult.Assignments)
+	if skipped > 0 {
+		task.Result = fmt.Sprintf("成功分配 %d 名营员到房间%s，%d名营员已被其他任务占用",
+			len(assignResult.Assignments), assignResult.RoomNumber, skipped)
+	} else {
+		task.Result = fmt.Sprintf("成功分配 %d 名营员到房间%s", len(assignResult.Assignments), assignResult.RoomNumber)
+	}
 	return nil
 }
 
