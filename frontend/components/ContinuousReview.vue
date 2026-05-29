@@ -129,23 +129,69 @@
           
           <div class="p-6">
             <div v-if="activeSection === 'timeline'" class="space-y-4">
+              <div class="flex gap-2 mb-4 pb-4 border-b border-gray-100">
+                <button
+                  v-for="tab in timelineFilterTabs"
+                  :key="tab.key"
+                  @click="timelineFilter = tab.key"
+                  :class="[
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all',
+                    timelineFilter === tab.key
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ]"
+                >
+                  <span>{{ tab.icon }}</span>
+                  {{ tab.name }}
+                  <span
+                    v-if="tab.key !== 'all' && selectedRoll?.history"
+                    class="ml-1 text-xs px-1.5 py-0.5 rounded-full"
+                    :class="timelineFilter === tab.key ? 'bg-white/20' : 'bg-gray-200'"
+                  >
+                    {{ selectedRoll.history.filter((e: any) => getEventCategory(e) === tab.key).length }}
+                  </span>
+                </button>
+              </div>
+              
               <div
-                v-for="(event, index) in selectedRoll.history"
+                v-for="(event, index) in filteredHistory"
                 :key="index"
                 class="flex gap-4"
               >
                 <div class="flex flex-col items-center">
                   <div class="w-3 h-3 rounded-full" :class="getEventBg(event.action)"></div>
-                  <div v-if="index < selectedRoll.history.length - 1" class="w-0.5 h-full bg-gray-200 mt-1"></div>
+                  <div v-if="index < filteredHistory.length - 1" class="w-0.5 h-full bg-gray-200 mt-1"></div>
                 </div>
                 <div class="flex-1 pb-4">
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-medium text-gray-900">{{ event.action }}</span>
+                    <template v-if="isStatusTransition(event)">
+                      <span class="inline-flex items-center gap-1 text-xs">
+                        <span
+                          class="px-2 py-0.5 rounded-full font-medium"
+                          :class="getStatusClass(event.from_status)"
+                        >
+                          {{ getStatusName(event.from_status) }}
+                        </span>
+                        <span class="text-gray-400">→</span>
+                        <span
+                          class="px-2 py-0.5 rounded-full font-medium"
+                          :class="getStatusClass(event.to_status)"
+                        >
+                          {{ getStatusName(event.to_status) }}
+                        </span>
+                      </span>
+                    </template>
                     <span class="text-xs text-gray-400">{{ event.operator }}</span>
                     <span class="text-xs text-gray-400 ml-auto">{{ formatDateTime(event.timestamp) }}</span>
                   </div>
                   <p class="text-sm text-gray-600 mt-1">{{ event.description }}</p>
                 </div>
+              </div>
+              
+              <div v-if="filteredHistory.length === 0" class="text-center py-8 text-gray-400">
+                <p class="text-3xl mb-2">📭</p>
+                <p>该分类下暂无记录</p>
               </div>
             </div>
             
@@ -345,6 +391,15 @@ const newException = ref({ type: '', severity: 'medium', description: '' })
 const newNote = ref({ content: '', type: 'normal' })
 const reworkReason = ref('')
 const reworkScope = ref('rescan')
+const timelineFilter = ref('all')
+
+const timelineFilterTabs = [
+  { key: 'all', name: '全部', icon: '📋' },
+  { key: 'process', name: '工序', icon: '⚙️' },
+  { key: 'exception', name: '异常', icon: '⚠️' },
+  { key: 'rework', name: '返工', icon: '🔄' },
+  { key: 'note', name: '备注', icon: '📝' }
+]
 
 const sections = [
   { key: 'timeline', name: '时间线' },
@@ -380,6 +435,29 @@ const displayRolls = computed(() => {
 const unresolvedExceptions = computed(() => {
   return selectedRoll.value?.exceptions?.filter((e: any) => !e.resolved) || []
 })
+
+const getEventCategory = (event: any): string => {
+  const action = event.action || ''
+  if (action.includes('异常')) return 'exception'
+  if (action.includes('返工')) return 'rework'
+  if (action.includes('备注') || action.includes('沟通') || action.includes('事项')) return 'note'
+  if (action.includes('登记') && event.from_status === undefined && event.to_status === undefined) {
+    return 'process'
+  }
+  if (event.from_status !== undefined || event.to_status !== undefined) return 'process'
+  if (['开始冲洗', '开始扫描', '质量检查', '完成'].includes(action)) return 'process'
+  return 'process'
+}
+
+const filteredHistory = computed(() => {
+  if (!selectedRoll.value?.history) return []
+  if (timelineFilter.value === 'all') return selectedRoll.value.history
+  return selectedRoll.value.history.filter((e: any) => getEventCategory(e) === timelineFilter.value)
+})
+
+const isStatusTransition = (event: any): boolean => {
+  return event.from_status !== undefined && event.to_status !== undefined
+}
 
 const getTagClass = (tag: string) => {
   if (tag === '异常') return 'bg-red-100 text-red-800'
@@ -567,6 +645,8 @@ const loadSelectedRoll = async () => {
 
 const selectRoll = async (roll: any) => {
   selectedRoll.value = roll
+  timelineFilter.value = 'all'
+  activeSection.value = 'timeline'
   emit('roll-selected', roll.id)
   await loadSelectedRoll()
 }
