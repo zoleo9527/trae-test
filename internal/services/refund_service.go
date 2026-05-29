@@ -29,20 +29,8 @@ func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequ
 		return nil, errors.New("order not found")
 	}
 
-	if !user.Role.IsStaff() {
-		related := false
-		if user.Role == models.RoleUser && order.UserID == user.UserID {
-			related = true
-		}
-		if user.Role == models.RoleRunner && order.RunnerID != nil && *order.RunnerID == user.UserID {
-			related = true
-		}
-		if user.Role == models.RoleMerchant && order.MerchantID == user.UserID {
-			related = true
-		}
-		if !related {
-			return nil, errors.New("you can only create refunds for orders you are involved in")
-		}
+	if user.Role != models.RoleUser || order.UserID != user.UserID {
+		return nil, errors.New("only the order owner can create a refund")
 	}
 
 	if order.Status == models.OrderStatusRefunded {
@@ -58,7 +46,7 @@ func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequ
 	refund := &models.Refund{
 		RefundNo:             utils.GenerateRefundNo(),
 		OrderID:              orderID,
-		UserID:               user.UserID,
+		UserID:               order.UserID,
 		Status:               models.RefundStatusPending,
 		Reason:               req.Reason,
 		Amount:               req.Amount,
