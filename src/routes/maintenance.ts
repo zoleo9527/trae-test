@@ -62,9 +62,9 @@ router.post('/',
     try {
       const maintenance = await createMaintenance({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: maintenance, message: '维修单创建成功' })
@@ -74,7 +74,7 @@ router.post('/',
   }
 )
 
-router.post('/complete',
+router.post('/:id/complete',
   requirePermission('maintenance:complete'),
   idempotencyMiddleware,
   validateRequest(completeMaintenanceSchema),
@@ -82,9 +82,10 @@ router.post('/complete',
     try {
       const maintenance = await completeMaintenance({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        maintenanceId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: maintenance, message: '维修完成' })

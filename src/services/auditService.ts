@@ -1,7 +1,7 @@
-import { AuditAction, Role } from '@prisma/client'
+import { AuditAction, Role, EntityType } from '../types/enums'
 import prisma from '../lib/prisma'
-import { EntityType } from '../types'
 import { saveIdempotentResponse } from '../middleware/idempotency'
+import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 
 interface AuditLogParams {
   action: AuditAction
@@ -24,9 +24,10 @@ export const createAuditLog = async (params: AuditLogParams) => {
   const auditLog = await prisma.auditLog.create({
     data: {
       ...logData,
-      oldValue: logData.oldValue as object,
-      newValue: logData.newValue as object,
-      changes: logData.changes as object,
+      oldValue: toJsonString(logData.oldValue),
+      newValue: toJsonString(logData.newValue),
+      changes: toJsonString(logData.changes),
+      responseBody: toJsonString(responseBody),
       idempotencyKey,
     },
   })
@@ -63,8 +64,16 @@ export const getAuditLogs = async (
     }),
   ])
 
+  const deserializedItems = items.map((log: any) => ({
+    ...log,
+    oldValue: fromJsonString(log.oldValue),
+    newValue: fromJsonString(log.newValue),
+    changes: fromJsonString(log.changes),
+    responseBody: fromJsonString(log.responseBody),
+  }))
+
   return {
-    items,
+    items: deserializedItems,
     total,
     page,
     pageSize,
@@ -73,7 +82,7 @@ export const getAuditLogs = async (
 }
 
 export const getEntityAuditTrail = async (entityType: EntityType, entityId: string) => {
-  return prisma.auditLog.findMany({
+  const logs = await prisma.auditLog.findMany({
     where: { entityType, entityId },
     orderBy: { createdAt: 'asc' },
     include: {
@@ -82,4 +91,12 @@ export const getEntityAuditTrail = async (entityType: EntityType, entityId: stri
       },
     },
   })
+
+  return logs.map((log: any) => ({
+    ...log,
+    oldValue: fromJsonString(log.oldValue),
+    newValue: fromJsonString(log.newValue),
+    changes: fromJsonString(log.changes),
+    responseBody: fromJsonString(log.responseBody),
+  }))
 }

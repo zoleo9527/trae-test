@@ -5,7 +5,7 @@ import { validateRequest } from '../middleware/validate'
 import { settleDepositSchema } from '../lib/validation'
 import { settleDeposit, markDepositDisputed, getDepositList, getDepositDetail } from '../services/depositService'
 import { AuthenticatedRequest } from '../types'
-import { DepositStatus } from '@prisma/client'
+import { DepositStatus } from '../types/enums'
 
 const router = Router()
 
@@ -35,7 +35,7 @@ router.get('/:id', requirePermission('deposit:read'), async (req: AuthenticatedR
   }
 })
 
-router.post('/settle',
+router.post('/:id/settle',
   requirePermission('deposit:settle'),
   idempotencyMiddleware,
   validateRequest(settleDepositSchema),
@@ -43,9 +43,10 @@ router.post('/settle',
     try {
       const deposit = await settleDeposit({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        depositId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: deposit, message: '押金结算完成' })
@@ -62,9 +63,9 @@ router.post('/:id/dispute',
     try {
       const deposit = await markDepositDisputed(
         req.params.id,
-        req.user.id,
-        req.user.name,
-        req.user.role,
+        req.user!.id,
+        req.user!.name,
+        req.user!.role,
         req.idempotencyKey
       )
       res.json({ success: true, data: deposit, message: '押金标记为有争议' })

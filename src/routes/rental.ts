@@ -5,26 +5,11 @@ import { validateRequest } from '../middleware/validate'
 import { createRentalSchema, returnRentalSchema } from '../lib/validation'
 import { createRental, returnRental, getRentalList, getRentalDetail, getInstrumentList } from '../services/rentalService'
 import { AuthenticatedRequest } from '../types'
-import { RentalStatus, InstrumentStatus } from '@prisma/client'
+import { RentalStatus, InstrumentStatus } from '../types/enums'
 
 const router = Router()
 
 router.use(authenticate)
-
-router.get('/instruments', requirePermission('rental:read'), async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const { status, category, page, pageSize } = req.query
-    const result = await getInstrumentList(
-      status as InstrumentStatus,
-      category as string,
-      Number(page) || 1,
-      Number(pageSize) || 20
-    )
-    res.json({ success: true, data: result })
-  } catch (error) {
-    next(error)
-  }
-})
 
 router.get('/', requirePermission('rental:read'), async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -59,9 +44,9 @@ router.post('/',
     try {
       const rental = await createRental({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: rental, message: '租赁创建成功' })
@@ -71,7 +56,7 @@ router.post('/',
   }
 )
 
-router.post('/return',
+router.post('/:id/return',
   requirePermission('rental:return'),
   idempotencyMiddleware,
   validateRequest(returnRentalSchema),
@@ -79,9 +64,10 @@ router.post('/return',
     try {
       const rental = await returnRental({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        rentalId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: rental, message: '归还成功' })

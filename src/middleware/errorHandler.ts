@@ -36,7 +36,7 @@ export const errorHandler = (
       code: 400,
     }
   } else if (err.name === 'PrismaClientKnownRequestError') {
-    const prismaError = err as { code: string; meta?: { target?: string[] } }
+    const prismaError = err as unknown as { code: string; meta?: { target?: string[] } }
     if (prismaError.code === 'P2002') {
       statusCode = 409
       response = {
@@ -54,12 +54,13 @@ export const errorHandler = (
       }
     }
   } else if (err.name === 'BusinessError') {
-    const businessError = err as { statusCode: number; code: number }
+    const businessError = err as unknown as { statusCode: number; code: number; details?: any }
     statusCode = businessError.statusCode || 400
     response = {
       success: false,
       error: err.message,
       code: businessError.code || 400,
+      ...(businessError.details && { details: businessError.details }),
     }
   }
 
@@ -69,11 +70,13 @@ export const errorHandler = (
 export class BusinessError extends Error {
   statusCode: number
   code: number
+  details?: any
 
-  constructor(message: string, statusCode = 400, code = 400) {
+  constructor(message: string, statusCode = 400, code = 400, details?: any) {
     super(message)
     this.name = 'BusinessError'
     this.statusCode = statusCode
     this.code = code
+    this.details = details
   }
 }

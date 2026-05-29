@@ -1,9 +1,11 @@
-import { AuditAction, InstrumentStatus, RentalStatus } from '@prisma/client'
+import { AuditAction, InstrumentStatus, RentalStatus, EntityType, DepositStatus } from '../types/enums'
 import prisma from '../lib/prisma'
 import { generateOrderNo, calculateRentalFee, compareObjects } from '../lib/utils'
 import { BusinessError } from '../middleware/errorHandler'
-import { createAuditLog } from './auditService'
+import { createAuditLog, getEntityAuditTrail } from './auditService'
 import { createDeposit } from './depositService'
+import { getEntityNotes } from './noteService'
+import { toJsonString, fromJsonString, parseEvidenceUrls } from '../lib/jsonUtils'
 
 interface CreateRentalParams {
   instrumentId: string
@@ -51,7 +53,7 @@ export const createRental = async (params: CreateRentalParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const instrument = await tx.instrument.findUnique({
       where: { id: instrumentId },
     })
@@ -127,7 +129,7 @@ export const createRental = async (params: CreateRentalParams) => {
 
     await createAuditLog({
       action: AuditAction.RENTAL_CREATE,
-      entityType: 'RENTAL',
+      entityType: EntityType.RENTAL,
       entityId: rental.id,
       newValue: rental,
       remark: `租赁创建，单号${rentalNo}，客户${customerName}，租期${startDate.toISOString().split('T')[0]}到${expectedEndDate.toISOString().split('T')[0]}`,
@@ -154,7 +156,7 @@ export const returnRental = async (params: ReturnRentalParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldRental = await tx.rental.findUnique({
       where: { id: rentalId },
       include: { instrument: true, deposit: true },
@@ -219,7 +221,7 @@ export const returnRental = async (params: ReturnRentalParams) => {
 
     await createAuditLog({
       action: AuditAction.RENTAL_RETURN,
-      entityType: 'RENTAL',
+      entityType: EntityType.RENTAL,
       entityId: rentalId,
       oldValue: oldRental,
       newValue: updatedRental,
@@ -262,11 +264,6 @@ export const getRentalList = async (
         deposit: true,
         creator: { select: { id: true, name: true, role: true } },
         handler: { select: { id: true, name: true, role: true } },
-        notes: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { creator: { select: { id: true, name: true, role: true } } },
-        },
       },
     }),
   ])
@@ -291,31 +288,43 @@ export const getRentalDetail = async (id: string) => {
         include: {
           creator: { select: { id: true, name: true, role: true } },
           handler: { select: { id: true, name: true, role: true } },
-          notes: {
-            orderBy: { createdAt: 'desc' },
-            include: { creator: { select: { id: true, name: true, role: true } } },
-          },
         },
       },
       creator: { select: { id: true, name: true, role: true } },
       handler: { select: { id: true, name: true, role: true } },
-      notes: {
-        orderBy: { createdAt: 'desc' },
-        include: { creator: { select: { id: true, name: true, role: true } } },
-      },
     },
   })
 
   if (!rental) {
-    const auditTrail = await prisma.auditLog.findMany({
-      where: { entityType: 'RENTAL', entityId: id },
-      orderBy: { createdAt: 'asc' },
-      include: { operator: { select: { id: true, name: true, role: true } } },
-    })
-    ;(rental as any).auditTrail = auditTrail
+    const auditTrail = await getEntityAuditTrail(EntityType.RENTAL, id)
+    throw new BusinessError(
+      `租赁单不存在，ID: ${id}`,
+      404,
+      404,
+      { auditTrail, requestedId: id }
+    )
   }
 
-  return rental
+  const notes = await getEntityNotes(EntityType.RENTAL, id)
+  const auditLogs = await getEntityAuditTrail(EntityType.RENTAL, id)
+
+  const damageClaimsWithNotes = await Promise.all(
+    rental.damageClaims.map(async (claim: any) => {
+      const claimNotes = await getEntityNotes(EntityType.DAMAGE_CLAIM, claim.id)
+      return {
+        ...claim,
+        evidenceUrls: parseEvidenceUrls(claim.evidenceUrls),
+        notes: claimNotes,
+      }
+    })
+  )
+
+  return {
+    ...rental,
+    damageClaims: damageClaimsWithNotes,
+    notes,
+    auditLogs,
+  }
 }
 
 export const getInstrumentList = async (

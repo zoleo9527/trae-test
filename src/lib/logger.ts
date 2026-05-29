@@ -20,7 +20,7 @@ if (process.env.NODE_ENV !== 'production') {
         winston.format.colorize(),
         winston.format.printf(({ timestamp, level, message, ...meta }) => {
           return `${timestamp} [${level}]: ${message} ${meta ? JSON.stringify(meta) : ''}`
-        }
+        })
       ),
     })
   )

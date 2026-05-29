@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express'
 import { AuthenticatedRequest } from '../types'
 import { verifyToken, hasPermission } from '../lib/auth'
-import { Role } from '@prisma/client'
+import { Role } from '../types/enums'
 
 export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization

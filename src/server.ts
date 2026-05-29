@@ -42,7 +42,7 @@ app.use('/api/rentals', rentalRoutes)
 app.use('/api/deposits', depositRoutes)
 app.use('/api/damage-claims', damageClaimRoutes)
 app.use('/api/maintenances', maintenanceRoutes)
-app.use('/api/common', commonRoutes)
+app.use('/api', commonRoutes)
 
 app.get('/api', (req, res) => {
   res.json({
@@ -56,7 +56,10 @@ app.get('/api', (req, res) => {
         deposits: '/api/deposits',
         damageClaims: '/api/damage-claims',
         maintenances: '/api/maintenances',
-        common: '/api/common',
+        instruments: '/api/instruments',
+        customers: '/api/customers',
+        auditLogs: '/api/audit-logs',
+        notes: '/api/notes',
       },
     },
   })

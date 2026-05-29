@@ -1,8 +1,10 @@
-import { AuditAction, DepositStatus } from '@prisma/client'
+import { AuditAction, DepositStatus, EntityType, RentalStatus } from '../types/enums'
 import prisma from '../lib/prisma'
 import { compareObjects } from '../lib/utils'
 import { BusinessError } from '../middleware/errorHandler'
-import { createAuditLog } from './auditService'
+import { createAuditLog, getEntityAuditTrail } from './auditService'
+import { getEntityNotes } from './noteService'
+import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 
 interface CreateDepositParams {
   rentalId: string
@@ -40,6 +42,8 @@ interface SettleDepositParams {
   refundAmount: number
   deductAmount: number
   deductReason?: string
+  paymentMethod?: string
+  transactionId?: string
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -52,13 +56,15 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     refundAmount,
     deductAmount,
     deductReason,
+    paymentMethod,
+    transactionId,
     operatorId,
     operatorName,
     operatorRole,
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldDeposit = await tx.deposit.findUnique({
       where: { id: depositId },
       include: { rental: true },
@@ -93,13 +99,15 @@ export const settleDeposit = async (params: SettleDepositParams) => {
         refundAmount,
         deductAmount,
         deductReason,
+        paymentMethod,
+        transactionId,
         settledAt: new Date(),
         handledBy: operatorId,
       },
       include: {
         rental: {
           update: {
-            status: 'SETTLED',
+            status: RentalStatus.SETTLED,
           },
         },
         handler: { select: { id: true, name: true, role: true } },
@@ -109,7 +117,7 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     if (oldDeposit.rental) {
       await tx.rental.update({
         where: { id: oldDeposit.rentalId },
-        data: { status: 'SETTLED' },
+        data: { status: RentalStatus.SETTLED },
       })
     }
 
@@ -126,6 +134,15 @@ export const settleDeposit = async (params: SettleDepositParams) => {
       }
     )
 
+    let auditAction: AuditAction
+    if (deductAmount === 0) {
+      auditAction = AuditAction.DEPOSIT_REFUND
+    } else if (refundAmount === 0) {
+      auditAction = AuditAction.DEPOSIT_DEDUCT
+    } else {
+      auditAction = AuditAction.DEPOSIT_PARTIAL_REFUND
+    }
+
     const response = {
       success: true,
       data: updatedDeposit,
@@ -133,8 +150,8 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     }
 
     await createAuditLog({
-      action: AuditAction.DEPOSIT_SETTLE,
-      entityType: 'DEPOSIT',
+      action: auditAction,
+      entityType: EntityType.DEPOSIT,
       entityId: depositId,
       oldValue: oldDeposit,
       newValue: updatedDeposit,
@@ -158,7 +175,7 @@ export const markDepositDisputed = async (
   operatorRole: any,
   idempotencyKey?: string
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldDeposit = await tx.deposit.findUnique({
       where: { id: depositId },
     })
@@ -180,7 +197,7 @@ export const markDepositDisputed = async (
 
     await createAuditLog({
       action: AuditAction.DEPOSIT_DISPUTE,
-      entityType: 'DEPOSIT',
+      entityType: EntityType.DEPOSIT,
       entityId: depositId,
       oldValue: oldDeposit,
       newValue: updatedDeposit,
@@ -220,10 +237,6 @@ export const getDepositList = async (
         },
         creator: { select: { id: true, name: true, role: true } },
         handler: { select: { id: true, name: true, role: true } },
-        notes: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { creator: { select: { id: true, name: true, role: true } } },
       },
     }),
   ])
@@ -243,24 +256,32 @@ export const getDepositDetail = async (id: string) => {
     include: {
       rental: {
         include: {
-        customer: true, instrument: true, damageClaims: true },
+          customer: true,
+          instrument: true,
+          damageClaims: true,
+        },
       },
       creator: { select: { id: true, name: true, role: true } },
       handler: { select: { id: true, name: true, role: true } },
-      notes: {
-        orderBy: { createdAt: 'desc' },
-        include: { creator: { select: { id: true, name: true, role: true } } },
     },
   })
 
   if (!deposit) {
-    const auditTrail = await prisma.auditLog.findMany({
-      where: { entityType: 'DEPOSIT', entityId: id },
-      orderBy: { createdAt: 'asc' },
-      include: { operator: { select: { id: true, name: true, role: true } } },
-    })
-    ;(deposit as any).auditTrail = auditTrail
+    const auditTrail = await getEntityAuditTrail(EntityType.DEPOSIT, id)
+    throw new BusinessError(
+      `押金单不存在，ID: ${id}`,
+      404,
+      404,
+      { auditTrail, requestedId: id }
+    )
   }
 
-  return deposit
+  const notes = await getEntityNotes(EntityType.DEPOSIT, id)
+  const auditLogs = await getEntityAuditTrail(EntityType.DEPOSIT, id)
+
+  return {
+    ...deposit,
+    notes,
+    auditLogs,
+  }
 }

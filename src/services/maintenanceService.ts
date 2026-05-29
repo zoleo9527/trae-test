@@ -1,8 +1,10 @@
-import { AuditAction, InstrumentStatus } from '@prisma/client'
+import { AuditAction, InstrumentStatus, EntityType, DamageClaimStatus, RentalStatus } from '../types/enums'
 import prisma from '../lib/prisma'
 import { generateOrderNo, compareObjects } from '../lib/utils'
 import { BusinessError } from '../middleware/errorHandler'
-import { createAuditLog } from './auditService'
+import { createAuditLog, getEntityAuditTrail } from './auditService'
+import { getEntityNotes } from './noteService'
+import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 
 interface CreateMaintenanceParams {
   instrumentId: string
@@ -33,7 +35,7 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const instrument = await tx.instrument.findUnique({
       where: { id: instrumentId },
     })
@@ -78,7 +80,7 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
 
     await createAuditLog({
       action: AuditAction.MAINTENANCE_CREATE,
-      entityType: 'MAINTENANCE',
+      entityType: EntityType.MAINTENANCE,
       entityId: maintenance.id,
       newValue: maintenance,
       remark: `维修单创建，单号${maintenanceNo}，类型${type}，预估费用${totalCost}元`,
@@ -118,7 +120,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldMaintenance = await tx.maintenance.findUnique({
       where: { id: maintenanceId },
       include: { instrument: true },
@@ -155,7 +157,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
     const hasUnresolvedDamage = await tx.damageClaim.findFirst({
       where: {
         instrumentId: oldMaintenance.instrumentId,
-        status: { in: ['PENDING', 'DISPUTED'] },
+        status: { in: [DamageClaimStatus.PENDING, DamageClaimStatus.DISPUTED] },
       },
     })
 
@@ -194,7 +196,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
 
     await createAuditLog({
       action: AuditAction.MAINTENANCE_COMPLETE,
-      entityType: 'MAINTENANCE',
+      entityType: EntityType.MAINTENANCE,
       entityId: maintenanceId,
       oldValue: oldMaintenance,
       newValue: updatedMaintenance,
@@ -236,11 +238,6 @@ export const getMaintenanceList = async (
         damageClaim: true,
         creator: { select: { id: true, name: true, role: true } },
         handler: { select: { id: true, name: true, role: true } },
-        notes: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { creator: { select: { id: true, name: true, role: true } } },
-        },
       },
     }),
   ])
@@ -262,23 +259,27 @@ export const getMaintenanceDetail = async (id: string) => {
       damageClaim: true,
       creator: { select: { id: true, name: true, role: true } },
       handler: { select: { id: true, name: true, role: true } },
-      notes: {
-        orderBy: { createdAt: 'desc' },
-        include: { creator: { select: { id: true, name: true, role: true } } },
-      },
     },
   })
 
   if (!maintenance) {
-    const auditTrail = await prisma.auditLog.findMany({
-      where: { entityType: 'MAINTENANCE', entityId: id },
-      orderBy: { createdAt: 'asc' },
-      include: { operator: { select: { id: true, name: true, role: true } } },
-    })
-    ;(maintenance as any).auditTrail = auditTrail
+    const auditTrail = await getEntityAuditTrail(EntityType.MAINTENANCE, id)
+    throw new BusinessError(
+      `维修单不存在，ID: ${id}`,
+      404,
+      404,
+      { auditTrail, requestedId: id }
+    )
   }
 
-  return maintenance
+  const notes = await getEntityNotes(EntityType.MAINTENANCE, id)
+  const auditLogs = await getEntityAuditTrail(EntityType.MAINTENANCE, id)
+
+  return {
+    ...maintenance,
+    notes,
+    auditLogs,
+  }
 }
 
 export const getMaintenanceCostSummary = async (
@@ -299,26 +300,26 @@ export const getMaintenanceCostSummary = async (
       partsCost: true,
       laborCost: true,
       totalCost: true,
-      type: true,
+      description: true,
       instrument: { select: { category: true } },
     },
   })
 
   const summary = {
     totalCount: maintenances.length,
-    totalPartsCost: maintenances.reduce((sum, m) => sum + Number(m.partsCost), 0),
-    totalLaborCost: maintenances.reduce((sum, m) => sum + Number(m.laborCost), 0),
-    totalCost: maintenances.reduce((sum, m) => sum + Number(m.totalCost), 0),
+    totalPartsCost: maintenances.reduce((sum: number, m: any) => sum + Number(m.partsCost), 0),
+    totalLaborCost: maintenances.reduce((sum: number, m: any) => sum + Number(m.laborCost), 0),
+    totalCost: maintenances.reduce((sum: number, m: any) => sum + Number(m.totalCost), 0),
     byType: {} as Record<string, { count: number; cost: number }>,
     byCategory: {} as Record<string, { count: number; cost: number }>,
   }
 
-  maintenances.forEach((m) => {
-    if (!summary.byType[m.type]) {
-      summary.byType[m.type] = { count: 0, cost: 0 }
+  maintenances.forEach((m: any) => {
+    if (!summary.byType[m.description]) {
+      summary.byType[m.description] = { count: 0, cost: 0 }
     }
-    summary.byType[m.type].count++
-    summary.byType[m.type].cost += Number(m.totalCost)
+    summary.byType[m.description].count++
+    summary.byType[m.description].cost += Number(m.totalCost)
 
     const category = m.instrument.category
     if (!summary.byCategory[category]) {

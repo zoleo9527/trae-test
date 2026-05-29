@@ -20,7 +20,7 @@ import {
   getEvidenceChain,
 } from '../services/damageClaimService'
 import { AuthenticatedRequest } from '../types'
-import { DamageClaimStatus } from '@prisma/client'
+import { DamageClaimStatus } from '../types/enums'
 
 const router = Router()
 
@@ -68,9 +68,9 @@ router.post('/',
     try {
       const claim = await createDamageClaim({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: claim, message: '损坏申诉创建成功' })
@@ -87,9 +87,9 @@ router.post('/:id/confirm',
     try {
       const claim = await confirmDamageClaim(
         req.params.id,
-        req.user.id,
-        req.user.name,
-        req.user.role,
+        req.user!.id,
+        req.user!.name,
+        req.user!.role,
         req.idempotencyKey
       )
       res.json({ success: true, data: claim, message: '损坏判定已确认' })
@@ -99,7 +99,7 @@ router.post('/:id/confirm',
   }
 )
 
-router.post('/dispute',
+router.post('/:id/dispute',
   requirePermission('damage:report'),
   idempotencyMiddleware,
   validateRequest(disputeDamageClaimSchema),
@@ -107,9 +107,10 @@ router.post('/dispute',
     try {
       const claim = await disputeDamageClaim({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        claimId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: claim, message: '客户申诉已提交' })
@@ -119,7 +120,7 @@ router.post('/dispute',
   }
 )
 
-router.post('/reject',
+router.post('/:id/reject',
   requirePermission('damage:resolve'),
   idempotencyMiddleware,
   validateRequest(rejectDisputeSchema),
@@ -127,9 +128,10 @@ router.post('/reject',
     try {
       const claim = await rejectDispute({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        claimId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: claim, message: '申诉已驳回' })
@@ -139,7 +141,7 @@ router.post('/reject',
   }
 )
 
-router.post('/resolve',
+router.post('/:id/resolve',
   requirePermission('damage:resolve'),
   idempotencyMiddleware,
   validateRequest(resolveDisputeSchema),
@@ -147,9 +149,10 @@ router.post('/resolve',
     try {
       const claim = await resolveDispute({
         ...req.body,
-        operatorId: req.user.id,
-        operatorName: req.user.name,
-        operatorRole: req.user.role,
+        claimId: req.params.id,
+        operatorId: req.user!.id,
+        operatorName: req.user!.name,
+        operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
       res.json({ success: true, data: claim, message: '申诉已通过，重新判定完成' })
@@ -166,9 +169,9 @@ router.post('/:id/close',
     try {
       const claim = await closeDamageClaim(
         req.params.id,
-        req.user.id,
-        req.user.name,
-        req.user.role,
+        req.user!.id,
+        req.user!.name,
+        req.user!.role,
         req.idempotencyKey
       )
       res.json({ success: true, data: claim, message: '损坏申诉已结案' })

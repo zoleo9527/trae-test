@@ -1,7 +1,7 @@
 import prisma from '../lib/prisma'
-import { EntityType } from '../types'
+import { EntityType, AuditAction } from '../types/enums'
 import { createAuditLog } from './auditService'
-import { AuditAction } from '@prisma/client'
+import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 
 interface AddNoteParams {
   entityType: EntityType
@@ -51,11 +51,11 @@ export const addNote = async (params: AddNoteParams) => {
   }
 
   await createAuditLog({
-    action: AuditAction.NOTE_ADD,
+    action: isSupplement ? AuditAction.NOTE_SUPPLEMENT : AuditAction.NOTE_ADD,
     entityType,
     entityId,
     newValue: note,
-    remark: isSupplement ? `补录备注: ${content}` : `添加备注: ${content}`,
+    remark: isSupplement ? `补录备注: ${content}，原因: ${supplementReason}` : `添加备注: ${content}`,
     operatorId,
     operatorName,
     operatorRole,
@@ -64,6 +64,24 @@ export const addNote = async (params: AddNoteParams) => {
   })
 
   return note
+}
+
+interface AddSupplementNoteParams {
+  entityType: EntityType
+  entityId: string
+  content: string
+  supplementReason: string
+  operatorId: string
+  operatorName: string
+  operatorRole: any
+  idempotencyKey?: string
+}
+
+export const addSupplementNote = async (params: AddSupplementNoteParams) => {
+  return addNote({
+    ...params,
+    isSupplement: true,
+  })
 }
 
 export const getEntityNotes = async (entityType: EntityType, entityId: string) => {
@@ -80,7 +98,7 @@ export const getEntityNotes = async (entityType: EntityType, entityId: string) =
 
 export const getNotesWithTimeline = async (entityType: EntityType, entityId: string) => {
   const notes = await getEntityNotes(entityType, entityId)
-  return notes.map((note) => ({
+  return notes.map((note: any) => ({
     ...note,
     timelineType: note.isSupplement ? 'SUPPLEMENT' : 'NOTE',
   }))

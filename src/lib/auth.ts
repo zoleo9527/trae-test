@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import { Role } from '@prisma/client'
+import { Role } from '../types/enums'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'instrument-rental-secret-key-2024'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
@@ -21,7 +21,7 @@ export const comparePassword = (password: string, hash: string): boolean => {
 }
 
 export const generateToken = (user: JWTPayload): string => {
-  return jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
+  return jwt.sign(user, JWT_SECRET as any, { expiresIn: JWT_EXPIRES_IN } as any)
 }
 
 export const verifyToken = (token: string): JWTPayload | null => {

@@ -1,8 +1,10 @@
-import { AuditAction, DamageClaimStatus, DamageSeverity } from '@prisma/client'
+import { AuditAction, DamageClaimStatus, DamageSeverity, EntityType, RentalStatus } from '../types/enums'
 import prisma from '../lib/prisma'
 import { generateOrderNo, compareObjects } from '../lib/utils'
 import { BusinessError } from '../middleware/errorHandler'
-import { createAuditLog } from './auditService'
+import { createAuditLog, getEntityAuditTrail } from './auditService'
+import { getEntityNotes } from './noteService'
+import { toJsonString, fromJsonString, parseEvidenceUrls, toEvidenceUrlsString } from '../lib/jsonUtils'
 
 interface CreateDamageClaimParams {
   rentalId: string
@@ -35,7 +37,7 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const rental = await tx.rental.findUnique({
       where: { id: rentalId },
       include: { customer: true },
@@ -55,7 +57,7 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
         severity,
         description,
         estimatedCost,
-        evidenceUrls,
+        evidenceUrls: toEvidenceUrlsString(evidenceUrls),
         liabilityParty,
         liabilityReason,
         reportedAt: new Date(),
@@ -76,7 +78,7 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
 
     await createAuditLog({
       action: AuditAction.DAMAGE_REPORT,
-      entityType: 'DAMAGE_CLAIM',
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: damageClaim.id,
       newValue: damageClaim,
       remark: `损坏申诉创建，单号${claimNo}，${severity}损坏，预估费用${estimatedCost}元`,
@@ -110,7 +112,7 @@ export const disputeDamageClaim = async (params: DisputeDamageClaimParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldClaim = await tx.damageClaim.findUnique({
       where: { id: claimId },
     })
@@ -146,7 +148,7 @@ export const disputeDamageClaim = async (params: DisputeDamageClaimParams) => {
 
     await createAuditLog({
       action: AuditAction.DAMAGE_DISPUTE,
-      entityType: 'DAMAGE_CLAIM',
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
       oldValue: oldClaim,
       newValue: updatedClaim,
@@ -184,7 +186,7 @@ export const rejectDispute = async (params: RejectDisputeParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldClaim = await tx.damageClaim.findUnique({
       where: { id: claimId },
     })
@@ -224,7 +226,7 @@ export const rejectDispute = async (params: RejectDisputeParams) => {
 
     await createAuditLog({
       action: AuditAction.DAMAGE_REJECT,
-      entityType: 'DAMAGE_CLAIM',
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
       oldValue: oldClaim,
       newValue: updatedClaim,
@@ -266,7 +268,7 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
     idempotencyKey,
   } = params
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldClaim = await tx.damageClaim.findUnique({
       where: { id: claimId },
     })
@@ -316,7 +318,7 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
 
     await createAuditLog({
       action: AuditAction.DAMAGE_RESOLVE,
-      entityType: 'DAMAGE_CLAIM',
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
       oldValue: oldClaim,
       newValue: updatedClaim,
@@ -340,7 +342,7 @@ export const confirmDamageClaim = async (
   operatorRole: any,
   idempotencyKey?: string
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldClaim = await tx.damageClaim.findUnique({
       where: { id: claimId },
     })
@@ -370,7 +372,7 @@ export const confirmDamageClaim = async (
 
     await createAuditLog({
       action: AuditAction.DAMAGE_CONFIRM,
-      entityType: 'DAMAGE_CLAIM',
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
       oldValue: oldClaim,
       newValue: updatedClaim,
@@ -393,7 +395,7 @@ export const closeDamageClaim = async (
   operatorRole: any,
   idempotencyKey?: string
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const oldClaim = await tx.damageClaim.findUnique({
       where: { id: claimId },
     })
@@ -421,8 +423,8 @@ export const closeDamageClaim = async (
     }
 
     await createAuditLog({
-      action: AuditAction.STATUS_CHANGE,
-      entityType: 'DAMAGE_CLAIM',
+      action: AuditAction.DAMAGE_CLOSE,
+      entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
       oldValue: oldClaim,
       newValue: updatedClaim,
@@ -464,17 +466,17 @@ export const getDamageClaimList = async (
         maintenance: true,
         creator: { select: { id: true, name: true, role: true } },
         handler: { select: { id: true, name: true, role: true } },
-        notes: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { creator: { select: { id: true, name: true, role: true } } },
-        },
       },
     }),
   ])
 
+  const itemsWithEvidence = items.map((item: any) => ({
+    ...item,
+    evidenceUrls: parseEvidenceUrls(item.evidenceUrls),
+  }))
+
   return {
-    items,
+    items: itemsWithEvidence,
     total,
     page,
     pageSize,
@@ -491,23 +493,28 @@ export const getDamageClaimDetail = async (id: string) => {
       maintenance: true,
       creator: { select: { id: true, name: true, role: true } },
       handler: { select: { id: true, name: true, role: true } },
-      notes: {
-        orderBy: { createdAt: 'desc' },
-        include: { creator: { select: { id: true, name: true, role: true } } },
-      },
     },
   })
 
   if (!claim) {
-    const auditTrail = await prisma.auditLog.findMany({
-      where: { entityType: 'DAMAGE_CLAIM', entityId: id },
-      orderBy: { createdAt: 'asc' },
-      include: { operator: { select: { id: true, name: true, role: true } } },
-    })
-    ;(claim as any).auditTrail = auditTrail
+    const auditTrail = await getEntityAuditTrail(EntityType.DAMAGE_CLAIM, id)
+    throw new BusinessError(
+      `损坏申诉不存在，ID: ${id}`,
+      404,
+      404,
+      { auditTrail, requestedId: id }
+    )
   }
 
-  return claim
+  const notes = await getEntityNotes(EntityType.DAMAGE_CLAIM, id)
+  const auditLogs = await getEntityAuditTrail(EntityType.DAMAGE_CLAIM, id)
+
+  return {
+    ...claim,
+    evidenceUrls: parseEvidenceUrls(claim.evidenceUrls),
+    notes,
+    auditLogs,
+  }
 }
 
 export const getEvidenceChain = async (claimId: string) => {
@@ -521,14 +528,6 @@ export const getEvidenceChain = async (claimId: string) => {
       disputeReason: true,
       rejectReason: true,
       resolvedReason: true,
-      notes: {
-        orderBy: { createdAt: 'asc' },
-        include: { creator: { select: { id: true, name: true, role: true } } },
-      },
-      auditLogs: {
-        orderBy: { createdAt: 'asc' },
-        include: { operator: { select: { id: true, name: true, role: true } } },
-      },
     },
   })
 
@@ -536,9 +535,12 @@ export const getEvidenceChain = async (claimId: string) => {
     throw new BusinessError('损坏申诉不存在', 404, 404)
   }
 
+  const notes = await getEntityNotes(EntityType.DAMAGE_CLAIM, claimId)
+  const auditLogs = await getEntityAuditTrail(EntityType.DAMAGE_CLAIM, claimId)
+
   return {
     evidence: {
-      photos: claim.evidenceUrls,
+      photos: parseEvidenceUrls(claim.evidenceUrls),
       description: claim.description,
       severity: claim.severity,
       estimatedCost: claim.estimatedCost,
@@ -549,7 +551,7 @@ export const getEvidenceChain = async (claimId: string) => {
       resolvedReason: claim.resolvedReason,
     },
     timeline: [
-      ...claim.notes.map((n) => ({
+      ...notes.map((n: any) => ({
         type: 'NOTE',
         time: n.createdAt,
         content: n.content,
@@ -557,7 +559,7 @@ export const getEvidenceChain = async (claimId: string) => {
         supplementReason: n.supplementReason,
         operator: { id: n.creator.id, name: n.creator.name, role: n.creator.role },
       })),
-      ...claim.auditLogs.map((a) => ({
+      ...auditLogs.map((a: any) => ({
         type: 'AUDIT',
         action: a.action,
         time: a.createdAt,
@@ -565,6 +567,6 @@ export const getEvidenceChain = async (claimId: string) => {
         changes: a.changes,
         operator: { id: a.operatorId, name: a.operator.name, role: a.operator.role },
       })),
-    ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()),
+    ].sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime()),
   }
 }

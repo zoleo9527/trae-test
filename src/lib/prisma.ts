@@ -8,14 +8,14 @@ const prisma = new PrismaClient({
   ],
 })
 
-prisma.$on('query', (e) => {
+prisma.$on('query', (e: any) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`Query: ${e.query}`)
     console.log(`Params: ${e.params}`)
   }
 })
 
-prisma.$on('error', (e) => {
+prisma.$on('error', (e: any) => {
   console.error(`Prisma Error: ${e.message}`)
 })
 

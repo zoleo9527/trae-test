@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express'
 import crypto from 'crypto'
 import { AuthenticatedRequest } from '../types'
 import prisma from '../lib/prisma'
+import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 
 export const idempotencyMiddleware = async (
   req: AuthenticatedRequest,
@@ -33,14 +34,6 @@ export const idempotencyMiddleware = async (
     })
 
     if (existingKey) {
-      if (existingKey.userId !== req.user.id) {
-        return res.status(409).json({
-          success: false,
-          error: '幂等键已被其他用户使用',
-          code: 409,
-        })
-      }
-
       if (existingKey.requestHash !== requestHash) {
         return res.status(422).json({
           success: false,
@@ -50,7 +43,7 @@ export const idempotencyMiddleware = async (
       }
 
       if (existingKey.responseBody) {
-        return res.status(200).json(existingKey.responseBody)
+        return res.status(200).json(fromJsonString(existingKey.responseBody))
       }
 
       return res.status(409).json({
@@ -63,9 +56,7 @@ export const idempotencyMiddleware = async (
     await prisma.idempotencyKey.create({
       data: {
         key: idempotencyKey,
-        userId: req.user.id,
         requestHash,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     })
 
@@ -83,7 +74,7 @@ export const saveIdempotentResponse = async (
   try {
     await prisma.idempotencyKey.update({
       where: { key: idempotencyKey },
-      data: { responseBody: responseBody as object },
+      data: { responseBody: toJsonString(responseBody) },
     })
   } catch (error) {
     console.error('保存幂等响应失败:', error)

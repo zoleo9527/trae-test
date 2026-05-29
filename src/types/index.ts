@@ -1,5 +1,7 @@
 import { Request } from 'express'
-import { Role } from '@prisma/client'
+import { Role, EntityType as EntityTypeEnum } from './enums'
+
+export { EntityTypeEnum as EntityType }
 
 export interface AuthUser {
   id: string
@@ -9,7 +11,7 @@ export interface AuthUser {
 }
 
 export interface AuthenticatedRequest extends Request {
-  user: AuthUser
+  user?: AuthUser
   idempotencyKey?: string
 }
 
@@ -20,8 +22,6 @@ export interface ApiResponse<T = unknown> {
   error?: string
   code?: number
 }
-
-export type EntityType = 'RENTAL' | 'DEPOSIT' | 'DAMAGE_CLAIM' | 'MAINTENANCE'
 
 export interface PaginationParams {
   page?: number

@@ -19,7 +19,6 @@ export const createRentalSchema = z.object({
 })
 
 export const returnRentalSchema = z.object({
-  rentalId: z.string().min(1, '租赁单ID不能为空'),
   actualEndDate: z.coerce.date().optional(),
   checkinNotes: z.string().optional(),
   hasDamage: z.boolean().default(false),
@@ -37,18 +36,15 @@ export const createDamageClaimSchema = z.object({
 })
 
 export const disputeDamageClaimSchema = z.object({
-  claimId: z.string().min(1, '申诉单ID不能为空'),
   disputeReason: z.string().min(1, '申诉理由不能为空'),
 })
 
 export const rejectDisputeSchema = z.object({
-  claimId: z.string().min(1, '申诉单ID不能为空'),
   rejectReason: z.string().min(1, '驳回原因不能为空'),
   finalCost: z.coerce.number().min(0, '最终赔偿金额不能为负'),
 })
 
 export const resolveDisputeSchema = z.object({
-  claimId: z.string().min(1, '申诉单ID不能为空'),
   resolvedReason: z.string().min(1, '申诉通过原因不能为空'),
   finalCost: z.coerce.number().min(0, '最终赔偿金额不能为负'),
   liabilityParty: z.string().optional(),
@@ -56,10 +52,11 @@ export const resolveDisputeSchema = z.object({
 })
 
 export const settleDepositSchema = z.object({
-  depositId: z.string().min(1, '押金单ID不能为空'),
   refundAmount: z.coerce.number().min(0, '退款金额不能为负'),
   deductAmount: z.coerce.number().min(0, '扣款金额不能为负'),
   deductReason: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  transactionId: z.string().optional(),
 })
 
 export const createMaintenanceSchema = z.object({
@@ -73,7 +70,6 @@ export const createMaintenanceSchema = z.object({
 })
 
 export const completeMaintenanceSchema = z.object({
-  maintenanceId: z.string().min(1, '维修单ID不能为空'),
   partsCost: z.coerce.number().min(0, '配件费不能为负'),
   laborCost: z.coerce.number().min(0, '人工费不能为负'),
   technicianNotes: z.string().optional(),

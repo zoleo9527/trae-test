@@ -28,7 +28,7 @@ router.post('/login', validateRequest(loginSchema), async (req, res: Response, n
       id: user.id,
       username: user.username,
       name: user.name,
-      role: user.role,
+      role: user.role as any,
     })
 
     res.json({
