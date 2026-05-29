@@ -22,10 +22,20 @@ function OutboundList() {
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const statusParam = params.get('status')
-    if (statusParam) {
-      setFilterStatus(statusParam)
-    }
+    setFilterStatus(statusParam || '')
   }, [location.search])
+
+  const handleStatusChange = (value) => {
+    setFilterStatus(value || '')
+    const params = new URLSearchParams(location.search)
+    if (value) {
+      params.set('status', value)
+    } else {
+      params.delete('status')
+    }
+    const queryString = params.toString()
+    navigate(`${location.pathname}${queryString ? '?' + queryString : ''}`, { replace: true })
+  }
 
   const statusMap = {
     pending: { label: '待对账', color: 'warning' },
@@ -211,7 +221,8 @@ function OutboundList() {
             placeholder="筛选状态"
             style={{ width: 140 }}
             allowClear
-            onChange={setFilterStatus}
+            value={filterStatus || undefined}
+            onChange={handleStatusChange}
           >
             <Option value="pending">待对账</Option>
             <Option value="reconciled">已对账</Option>
