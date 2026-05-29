@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-warm: #F5F0EB;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #2C2420;
+  --text-primary: #2C2420;
+  --text-secondary: #7A6E65;
+  --accent-amber: #C4813D;
+  --accent-amber-light: #E8A85C;
+  --accent-amber-bg: #FFF8F0;
+  --accent-red: #C44D3D;
+  --accent-red-bg: #FFF0EE;
+  --accent-green: #4D8C5C;
+  --accent-green-bg: #F0FFF2;
+  --accent-blue: #4D7AC4;
+  --accent-blue-bg: #F0F4FF;
+  --border: #E8E0D8;
+  font-family: 'Noto Sans SC', sans-serif;
+}
+
+.dark {
+  --bg-warm: #1A1A1A;
+  --bg-card: #2C2420;
+  --bg-sidebar: #1A1208;
+  --text-primary: #F5F0EB;
+  --text-secondary: #A89888;
+  --accent-amber: #E8A85C;
+  --accent-amber-light: #F0C080;
+  --accent-amber-bg: #3C2E18;
+  --accent-red-bg: #3C1818;
+  --accent-green-bg: #183C20;
+  --accent-blue-bg: #182838;
+  --border: #3C3430;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+body {
+  background-color: var(--bg-warm);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl p-5 shadow-sm;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+
+  .btn-primary {
+    @apply rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.98];
+    background-color: var(--accent-amber);
+    color: #FFFFFF;
+  }
+
+  .btn-secondary {
+    @apply rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.98];
+    background-color: var(--bg-warm);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .btn-danger {
+    @apply rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.98];
+    background-color: var(--accent-red);
+    color: #FFFFFF;
+  }
+
+  .input-field {
+    @apply rounded-lg px-3 py-2 text-sm outline-none transition-all duration-200 w-full;
+    background-color: var(--bg-warm);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .input-field:focus {
+    border-color: var(--accent-amber);
+    box-shadow: 0 0 0 2px var(--accent-amber-bg);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out both;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+.stagger-7 { animation-delay: 0.35s; }
+.stagger-8 { animation-delay: 0.4s; }

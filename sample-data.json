@@ -1,0 +1,1060 @@
+{
+  "exported_at": "2026-05-29T02:19:41.677Z",
+  "summary": {
+    "total_rolls": 6,
+    "by_status": {
+      "completed": 2,
+      "developing": 1,
+      "reworking": 1,
+      "confirming": 1,
+      "compensating": 1
+    },
+    "by_flow_type": {
+      "normal": 1,
+      "in_progress": 2,
+      "rework": 2,
+      "compensation": 1
+    }
+  },
+  "tables": {
+    "film_rolls": [
+      {
+        "id": "roll-001",
+        "roll_number": "A-2024-001",
+        "customer_name": "张伟",
+        "customer_contact": "138-0001-0001",
+        "film_type": "Kodak Gold 200 彩色负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "completed",
+        "registered_at": "2026-05-10T09:00:00",
+        "due_date": "2026-05-16",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+标准扫描"
+      },
+      {
+        "id": "roll-002",
+        "roll_number": "A-2024-002",
+        "customer_name": "刘芳",
+        "customer_contact": "138-0002-0002",
+        "film_type": "Fujifilm Superia 400 彩色负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "developing",
+        "registered_at": "2026-05-26T14:00:00",
+        "due_date": "2026-06-01",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+标准扫描"
+      },
+      {
+        "id": "roll-003",
+        "roll_number": "A-2024-003",
+        "customer_name": "赵敏",
+        "customer_contact": "138-0003-0003",
+        "film_type": "Kodak Portra 400 专业负片",
+        "scan_spec": "高分辨率扫描 6000x4000",
+        "status": "reworking",
+        "registered_at": "2026-05-20T10:00:00",
+        "due_date": "2026-05-26",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+高分辨率扫描"
+      },
+      {
+        "id": "roll-004",
+        "roll_number": "A-2024-004",
+        "customer_name": "孙强",
+        "customer_contact": "138-0004-0004",
+        "film_type": "Ilford HP5 Plus 400 黑白负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "confirming",
+        "registered_at": "2026-05-22T11:00:00",
+        "due_date": "2026-05-28",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: D-76工艺+标准扫描"
+      },
+      {
+        "id": "roll-005",
+        "roll_number": "A-2024-005",
+        "customer_name": "周静",
+        "customer_contact": "138-0005-0005",
+        "film_type": "Kodak Ektar 100 彩色负片",
+        "scan_spec": "高分辨率扫描 6000x4000",
+        "status": "compensating",
+        "registered_at": "2026-05-15T09:00:00",
+        "due_date": "2026-05-21",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+高分辨率扫描"
+      },
+      {
+        "id": "roll-006",
+        "roll_number": "A-2024-006",
+        "customer_name": "吴磊",
+        "customer_contact": "138-0006-0006",
+        "film_type": "Fujifilm Acros 100 II 黑白负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "completed",
+        "registered_at": "2026-05-05T09:00:00",
+        "due_date": "2026-05-11",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: D-76工艺+标准扫描"
+      }
+    ],
+    "actions": [
+      {
+        "id": "act-001",
+        "roll_id": "roll-001",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户张伟到店送交胶卷，办理登记",
+        "created_at": "2026-05-10T09:00:00"
+      },
+      {
+        "id": "act-002",
+        "roll_id": "roll-001",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始C-41工艺冲洗",
+        "created_at": "2026-05-11T10:00:00"
+      },
+      {
+        "id": "act-003",
+        "roll_id": "roll-001",
+        "action_type": "qc_pass",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "质检通过，冲洗效果良好",
+        "created_at": "2026-05-12T11:00:00"
+      },
+      {
+        "id": "act-004",
+        "roll_id": "roll-001",
+        "action_type": "confirm_request",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "通知客户取件确认",
+        "created_at": "2026-05-12T14:00:00"
+      },
+      {
+        "id": "act-005",
+        "roll_id": "roll-001",
+        "action_type": "confirm_pass",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户确认满意，订单完成",
+        "created_at": "2026-05-13T10:00:00"
+      },
+      {
+        "id": "act-006",
+        "roll_id": "roll-002",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户刘芳邮寄胶卷到店，登记入库",
+        "created_at": "2026-05-26T14:00:00"
+      },
+      {
+        "id": "act-007",
+        "roll_id": "roll-002",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始C-41工艺冲洗",
+        "created_at": "2026-05-27T09:00:00"
+      },
+      {
+        "id": "act-008",
+        "roll_id": "roll-003",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户赵敏到店送交胶卷，专业负片高分辨率扫描",
+        "created_at": "2026-05-20T10:00:00"
+      },
+      {
+        "id": "act-009",
+        "roll_id": "roll-003",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始C-41工艺冲洗",
+        "created_at": "2026-05-21T09:00:00"
+      },
+      {
+        "id": "act-010",
+        "roll_id": "roll-003",
+        "action_type": "qc_fail",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "质检未通过，发现水渍问题",
+        "created_at": "2026-05-22T11:00:00"
+      },
+      {
+        "id": "act-011",
+        "roll_id": "roll-003",
+        "action_type": "rework_decide",
+        "operator_id": "staff-owner",
+        "operator_role": "owner",
+        "detail": "店主决定返工重新冲洗",
+        "created_at": "2026-05-22T14:00:00"
+      },
+      {
+        "id": "act-012",
+        "roll_id": "roll-004",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户孙强到店送交胶卷，黑白负片冲洗",
+        "created_at": "2026-05-22T11:00:00"
+      },
+      {
+        "id": "act-013",
+        "roll_id": "roll-004",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始D-76工艺冲洗",
+        "created_at": "2026-05-23T09:00:00"
+      },
+      {
+        "id": "act-014",
+        "roll_id": "roll-004",
+        "action_type": "qc_pass",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "质检通过，冲洗效果良好",
+        "created_at": "2026-05-24T10:00:00"
+      },
+      {
+        "id": "act-015",
+        "roll_id": "roll-004",
+        "action_type": "confirm_request",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "通知客户取件确认",
+        "created_at": "2026-05-24T14:00:00"
+      },
+      {
+        "id": "act-016",
+        "roll_id": "roll-005",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户周静到店送交胶卷",
+        "created_at": "2026-05-15T09:00:00"
+      },
+      {
+        "id": "act-017",
+        "roll_id": "roll-005",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始C-41工艺冲洗",
+        "created_at": "2026-05-16T10:00:00"
+      },
+      {
+        "id": "act-018",
+        "roll_id": "roll-005",
+        "action_type": "qc_pass",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "质检通过",
+        "created_at": "2026-05-17T11:00:00"
+      },
+      {
+        "id": "act-019",
+        "roll_id": "roll-005",
+        "action_type": "confirm_request",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "通知客户取件确认",
+        "created_at": "2026-05-17T15:00:00"
+      },
+      {
+        "id": "act-020",
+        "roll_id": "roll-005",
+        "action_type": "confirm_fail",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户不满意，要求赔偿",
+        "created_at": "2026-05-18T10:00:00"
+      },
+      {
+        "id": "act-021",
+        "roll_id": "roll-006",
+        "action_type": "register",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户吴磊到店送交胶卷",
+        "created_at": "2026-05-05T09:00:00"
+      },
+      {
+        "id": "act-022",
+        "roll_id": "roll-006",
+        "action_type": "develop",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "开始D-76工艺冲洗",
+        "created_at": "2026-05-06T10:00:00"
+      },
+      {
+        "id": "act-023",
+        "roll_id": "roll-006",
+        "action_type": "qc_fail",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "质检未通过，发现底片划伤",
+        "created_at": "2026-05-07T11:00:00"
+      },
+      {
+        "id": "act-024",
+        "roll_id": "roll-006",
+        "action_type": "rework_decide",
+        "operator_id": "staff-owner",
+        "operator_role": "owner",
+        "detail": "店主决定返工重新处理",
+        "created_at": "2026-05-07T14:00:00"
+      },
+      {
+        "id": "act-025",
+        "roll_id": "roll-006",
+        "action_type": "rework_execute",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "返工处理完成，等待复检",
+        "created_at": "2026-05-08T09:00:00"
+      },
+      {
+        "id": "act-026",
+        "roll_id": "roll-006",
+        "action_type": "recheck_pass",
+        "operator_id": "staff-dev",
+        "operator_role": "developer",
+        "detail": "复检通过",
+        "created_at": "2026-05-09T10:00:00"
+      },
+      {
+        "id": "act-027",
+        "roll_id": "roll-006",
+        "action_type": "confirm_request",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "通知客户取件确认",
+        "created_at": "2026-05-09T14:00:00"
+      },
+      {
+        "id": "act-028",
+        "roll_id": "roll-006",
+        "action_type": "confirm_pass",
+        "operator_id": "staff-cs",
+        "operator_role": "cs",
+        "detail": "客户确认满意",
+        "created_at": "2026-05-10T11:00:00"
+      }
+    ],
+    "qc_records": [
+      {
+        "id": "qc-001",
+        "roll_id": "roll-001",
+        "result": "pass",
+        "issue_desc": "",
+        "impact_scope": "",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-12T11:00:00"
+      },
+      {
+        "id": "qc-002",
+        "roll_id": "roll-003",
+        "result": "fail",
+        "issue_desc": "第12-15帧有水渍痕迹，影响画面清晰度",
+        "impact_scope": "4帧画面受影响",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-22T11:00:00"
+      },
+      {
+        "id": "qc-003",
+        "roll_id": "roll-004",
+        "result": "pass",
+        "issue_desc": "",
+        "impact_scope": "",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-24T10:00:00"
+      },
+      {
+        "id": "qc-004",
+        "roll_id": "roll-005",
+        "result": "pass",
+        "issue_desc": "",
+        "impact_scope": "",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-17T11:00:00"
+      },
+      {
+        "id": "qc-005",
+        "roll_id": "roll-006",
+        "result": "fail",
+        "issue_desc": "底片边缘划伤，影响第8-10帧画面",
+        "impact_scope": "3帧画面边缘受损",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-07T11:00:00"
+      }
+    ],
+    "rework_decisions": [
+      {
+        "id": "rd-001",
+        "qc_id": "qc-002",
+        "roll_id": "roll-003",
+        "decision": "rework",
+        "reason": "水渍可通过重新冲洗修复，不影响底片本身",
+        "decided_by": "staff-owner",
+        "created_at": "2026-05-22T14:00:00"
+      },
+      {
+        "id": "rd-002",
+        "qc_id": "qc-005",
+        "roll_id": "roll-006",
+        "decision": "rework",
+        "reason": "划伤为冲洗过程中造成，可通过重新冲洗修复",
+        "decided_by": "staff-owner",
+        "created_at": "2026-05-07T14:00:00"
+      }
+    ],
+    "rework_executions": [
+      {
+        "id": "re-001",
+        "decision_id": "rd-002",
+        "roll_id": "roll-006",
+        "action_detail": "更换冲洗挂具，重新水浴冲洗，注意底片保护",
+        "result": "completed",
+        "operator_id": "staff-dev",
+        "created_at": "2026-05-08T09:00:00"
+      }
+    ],
+    "recheck_records": [
+      {
+        "id": "rr-001",
+        "execution_id": "re-001",
+        "roll_id": "roll-006",
+        "result": "pass",
+        "note": "返工后划伤问题已解决，底片完整",
+        "checked_by": "staff-dev",
+        "created_at": "2026-05-09T10:00:00"
+      }
+    ],
+    "confirm_requests": [
+      {
+        "id": "cr-001",
+        "roll_id": "roll-001",
+        "delivery_desc": "冲扫完成，标准分辨率扫描文件已生成",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-12T14:00:00"
+      },
+      {
+        "id": "cr-002",
+        "roll_id": "roll-004",
+        "delivery_desc": "冲扫完成，黑白扫描文件已生成",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-24T14:00:00"
+      },
+      {
+        "id": "cr-003",
+        "roll_id": "roll-005",
+        "delivery_desc": "冲扫完成，高分辨率扫描文件已生成",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-17T15:00:00"
+      },
+      {
+        "id": "cr-004",
+        "roll_id": "roll-006",
+        "delivery_desc": "返工后冲扫完成，底片完整",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-09T14:00:00"
+      }
+    ],
+    "confirm_results": [
+      {
+        "id": "cres-001",
+        "request_id": "cr-001",
+        "roll_id": "roll-001",
+        "result": "satisfied",
+        "feedback": "效果很好，色彩还原准确",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-13T10:00:00"
+      },
+      {
+        "id": "cres-002",
+        "request_id": "cr-003",
+        "roll_id": "roll-005",
+        "result": "compensate_required",
+        "feedback": "扫描分辨率未达预期，色彩偏暗",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-18T10:00:00"
+      },
+      {
+        "id": "cres-003",
+        "request_id": "cr-004",
+        "roll_id": "roll-006",
+        "result": "satisfied",
+        "feedback": "返工效果不错，满意",
+        "operator_id": "staff-cs",
+        "created_at": "2026-05-10T11:00:00"
+      }
+    ],
+    "compensation_records": []
+  },
+  "rolls": [
+    {
+      "roll": {
+        "id": "roll-001",
+        "roll_number": "A-2024-001",
+        "customer_name": "张伟",
+        "customer_contact": "138-0001-0001",
+        "film_type": "Kodak Gold 200 彩色负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "completed",
+        "registered_at": "2026-05-10T09:00:00",
+        "due_date": "2026-05-16",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+标准扫描"
+      },
+      "actions": [
+        {
+          "id": "act-001",
+          "roll_id": "roll-001",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户张伟到店送交胶卷，办理登记",
+          "created_at": "2026-05-10T09:00:00"
+        },
+        {
+          "id": "act-002",
+          "roll_id": "roll-001",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始C-41工艺冲洗",
+          "created_at": "2026-05-11T10:00:00"
+        },
+        {
+          "id": "act-003",
+          "roll_id": "roll-001",
+          "action_type": "qc_pass",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "质检通过，冲洗效果良好",
+          "created_at": "2026-05-12T11:00:00"
+        },
+        {
+          "id": "act-004",
+          "roll_id": "roll-001",
+          "action_type": "confirm_request",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "通知客户取件确认",
+          "created_at": "2026-05-12T14:00:00"
+        },
+        {
+          "id": "act-005",
+          "roll_id": "roll-001",
+          "action_type": "confirm_pass",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户确认满意，订单完成",
+          "created_at": "2026-05-13T10:00:00"
+        }
+      ],
+      "qc_records": [
+        {
+          "id": "qc-001",
+          "roll_id": "roll-001",
+          "result": "pass",
+          "issue_desc": "",
+          "impact_scope": "",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-12T11:00:00"
+        }
+      ],
+      "rework_decisions": [],
+      "rework_executions": [],
+      "recheck_records": [],
+      "confirm_requests": [
+        {
+          "id": "cr-001",
+          "roll_id": "roll-001",
+          "delivery_desc": "冲扫完成，标准分辨率扫描文件已生成",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-12T14:00:00"
+        }
+      ],
+      "confirm_results": [
+        {
+          "id": "cres-001",
+          "request_id": "cr-001",
+          "roll_id": "roll-001",
+          "result": "satisfied",
+          "feedback": "效果很好，色彩还原准确",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-13T10:00:00"
+        }
+      ],
+      "compensation_records": [],
+      "flow_type": "normal"
+    },
+    {
+      "roll": {
+        "id": "roll-002",
+        "roll_number": "A-2024-002",
+        "customer_name": "刘芳",
+        "customer_contact": "138-0002-0002",
+        "film_type": "Fujifilm Superia 400 彩色负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "developing",
+        "registered_at": "2026-05-26T14:00:00",
+        "due_date": "2026-06-01",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+标准扫描"
+      },
+      "actions": [
+        {
+          "id": "act-006",
+          "roll_id": "roll-002",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户刘芳邮寄胶卷到店，登记入库",
+          "created_at": "2026-05-26T14:00:00"
+        },
+        {
+          "id": "act-007",
+          "roll_id": "roll-002",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始C-41工艺冲洗",
+          "created_at": "2026-05-27T09:00:00"
+        }
+      ],
+      "qc_records": [],
+      "rework_decisions": [],
+      "rework_executions": [],
+      "recheck_records": [],
+      "confirm_requests": [],
+      "confirm_results": [],
+      "compensation_records": [],
+      "flow_type": "in_progress"
+    },
+    {
+      "roll": {
+        "id": "roll-003",
+        "roll_number": "A-2024-003",
+        "customer_name": "赵敏",
+        "customer_contact": "138-0003-0003",
+        "film_type": "Kodak Portra 400 专业负片",
+        "scan_spec": "高分辨率扫描 6000x4000",
+        "status": "reworking",
+        "registered_at": "2026-05-20T10:00:00",
+        "due_date": "2026-05-26",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+高分辨率扫描"
+      },
+      "actions": [
+        {
+          "id": "act-008",
+          "roll_id": "roll-003",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户赵敏到店送交胶卷，专业负片高分辨率扫描",
+          "created_at": "2026-05-20T10:00:00"
+        },
+        {
+          "id": "act-009",
+          "roll_id": "roll-003",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始C-41工艺冲洗",
+          "created_at": "2026-05-21T09:00:00"
+        },
+        {
+          "id": "act-010",
+          "roll_id": "roll-003",
+          "action_type": "qc_fail",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "质检未通过，发现水渍问题",
+          "created_at": "2026-05-22T11:00:00"
+        },
+        {
+          "id": "act-011",
+          "roll_id": "roll-003",
+          "action_type": "rework_decide",
+          "operator_id": "staff-owner",
+          "operator_role": "owner",
+          "detail": "店主决定返工重新冲洗",
+          "created_at": "2026-05-22T14:00:00"
+        }
+      ],
+      "qc_records": [
+        {
+          "id": "qc-002",
+          "roll_id": "roll-003",
+          "result": "fail",
+          "issue_desc": "第12-15帧有水渍痕迹，影响画面清晰度",
+          "impact_scope": "4帧画面受影响",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-22T11:00:00"
+        }
+      ],
+      "rework_decisions": [
+        {
+          "id": "rd-001",
+          "qc_id": "qc-002",
+          "roll_id": "roll-003",
+          "decision": "rework",
+          "reason": "水渍可通过重新冲洗修复，不影响底片本身",
+          "decided_by": "staff-owner",
+          "created_at": "2026-05-22T14:00:00"
+        }
+      ],
+      "rework_executions": [],
+      "recheck_records": [],
+      "confirm_requests": [],
+      "confirm_results": [],
+      "compensation_records": [],
+      "flow_type": "rework"
+    },
+    {
+      "roll": {
+        "id": "roll-004",
+        "roll_number": "A-2024-004",
+        "customer_name": "孙强",
+        "customer_contact": "138-0004-0004",
+        "film_type": "Ilford HP5 Plus 400 黑白负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "confirming",
+        "registered_at": "2026-05-22T11:00:00",
+        "due_date": "2026-05-28",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: D-76工艺+标准扫描"
+      },
+      "actions": [
+        {
+          "id": "act-012",
+          "roll_id": "roll-004",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户孙强到店送交胶卷，黑白负片冲洗",
+          "created_at": "2026-05-22T11:00:00"
+        },
+        {
+          "id": "act-013",
+          "roll_id": "roll-004",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始D-76工艺冲洗",
+          "created_at": "2026-05-23T09:00:00"
+        },
+        {
+          "id": "act-014",
+          "roll_id": "roll-004",
+          "action_type": "qc_pass",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "质检通过，冲洗效果良好",
+          "created_at": "2026-05-24T10:00:00"
+        },
+        {
+          "id": "act-015",
+          "roll_id": "roll-004",
+          "action_type": "confirm_request",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "通知客户取件确认",
+          "created_at": "2026-05-24T14:00:00"
+        }
+      ],
+      "qc_records": [
+        {
+          "id": "qc-003",
+          "roll_id": "roll-004",
+          "result": "pass",
+          "issue_desc": "",
+          "impact_scope": "",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-24T10:00:00"
+        }
+      ],
+      "rework_decisions": [],
+      "rework_executions": [],
+      "recheck_records": [],
+      "confirm_requests": [
+        {
+          "id": "cr-002",
+          "roll_id": "roll-004",
+          "delivery_desc": "冲扫完成，黑白扫描文件已生成",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-24T14:00:00"
+        }
+      ],
+      "confirm_results": [],
+      "compensation_records": [],
+      "flow_type": "in_progress"
+    },
+    {
+      "roll": {
+        "id": "roll-005",
+        "roll_number": "A-2024-005",
+        "customer_name": "周静",
+        "customer_contact": "138-0005-0005",
+        "film_type": "Kodak Ektar 100 彩色负片",
+        "scan_spec": "高分辨率扫描 6000x4000",
+        "status": "compensating",
+        "registered_at": "2026-05-15T09:00:00",
+        "due_date": "2026-05-21",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: C-41工艺+高分辨率扫描"
+      },
+      "actions": [
+        {
+          "id": "act-016",
+          "roll_id": "roll-005",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户周静到店送交胶卷",
+          "created_at": "2026-05-15T09:00:00"
+        },
+        {
+          "id": "act-017",
+          "roll_id": "roll-005",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始C-41工艺冲洗",
+          "created_at": "2026-05-16T10:00:00"
+        },
+        {
+          "id": "act-018",
+          "roll_id": "roll-005",
+          "action_type": "qc_pass",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "质检通过",
+          "created_at": "2026-05-17T11:00:00"
+        },
+        {
+          "id": "act-019",
+          "roll_id": "roll-005",
+          "action_type": "confirm_request",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "通知客户取件确认",
+          "created_at": "2026-05-17T15:00:00"
+        },
+        {
+          "id": "act-020",
+          "roll_id": "roll-005",
+          "action_type": "confirm_fail",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户不满意，要求赔偿",
+          "created_at": "2026-05-18T10:00:00"
+        }
+      ],
+      "qc_records": [
+        {
+          "id": "qc-004",
+          "roll_id": "roll-005",
+          "result": "pass",
+          "issue_desc": "",
+          "impact_scope": "",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-17T11:00:00"
+        }
+      ],
+      "rework_decisions": [],
+      "rework_executions": [],
+      "recheck_records": [],
+      "confirm_requests": [
+        {
+          "id": "cr-003",
+          "roll_id": "roll-005",
+          "delivery_desc": "冲扫完成，高分辨率扫描文件已生成",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-17T15:00:00"
+        }
+      ],
+      "confirm_results": [
+        {
+          "id": "cres-002",
+          "request_id": "cr-003",
+          "roll_id": "roll-005",
+          "result": "compensate_required",
+          "feedback": "扫描分辨率未达预期，色彩偏暗",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-18T10:00:00"
+        }
+      ],
+      "compensation_records": [],
+      "flow_type": "compensation"
+    },
+    {
+      "roll": {
+        "id": "roll-006",
+        "roll_number": "A-2024-006",
+        "customer_name": "吴磊",
+        "customer_contact": "138-0006-0006",
+        "film_type": "Fujifilm Acros 100 II 黑白负片",
+        "scan_spec": "标准扫描 3000x2000",
+        "status": "completed",
+        "registered_at": "2026-05-05T09:00:00",
+        "due_date": "2026-05-11",
+        "assignee_id": "staff-dev",
+        "notes": "冲扫参数: D-76工艺+标准扫描"
+      },
+      "actions": [
+        {
+          "id": "act-021",
+          "roll_id": "roll-006",
+          "action_type": "register",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户吴磊到店送交胶卷",
+          "created_at": "2026-05-05T09:00:00"
+        },
+        {
+          "id": "act-022",
+          "roll_id": "roll-006",
+          "action_type": "develop",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "开始D-76工艺冲洗",
+          "created_at": "2026-05-06T10:00:00"
+        },
+        {
+          "id": "act-023",
+          "roll_id": "roll-006",
+          "action_type": "qc_fail",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "质检未通过，发现底片划伤",
+          "created_at": "2026-05-07T11:00:00"
+        },
+        {
+          "id": "act-024",
+          "roll_id": "roll-006",
+          "action_type": "rework_decide",
+          "operator_id": "staff-owner",
+          "operator_role": "owner",
+          "detail": "店主决定返工重新处理",
+          "created_at": "2026-05-07T14:00:00"
+        },
+        {
+          "id": "act-025",
+          "roll_id": "roll-006",
+          "action_type": "rework_execute",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "返工处理完成，等待复检",
+          "created_at": "2026-05-08T09:00:00"
+        },
+        {
+          "id": "act-026",
+          "roll_id": "roll-006",
+          "action_type": "recheck_pass",
+          "operator_id": "staff-dev",
+          "operator_role": "developer",
+          "detail": "复检通过",
+          "created_at": "2026-05-09T10:00:00"
+        },
+        {
+          "id": "act-027",
+          "roll_id": "roll-006",
+          "action_type": "confirm_request",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "通知客户取件确认",
+          "created_at": "2026-05-09T14:00:00"
+        },
+        {
+          "id": "act-028",
+          "roll_id": "roll-006",
+          "action_type": "confirm_pass",
+          "operator_id": "staff-cs",
+          "operator_role": "cs",
+          "detail": "客户确认满意",
+          "created_at": "2026-05-10T11:00:00"
+        }
+      ],
+      "qc_records": [
+        {
+          "id": "qc-005",
+          "roll_id": "roll-006",
+          "result": "fail",
+          "issue_desc": "底片边缘划伤，影响第8-10帧画面",
+          "impact_scope": "3帧画面边缘受损",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-07T11:00:00"
+        }
+      ],
+      "rework_decisions": [
+        {
+          "id": "rd-002",
+          "qc_id": "qc-005",
+          "roll_id": "roll-006",
+          "decision": "rework",
+          "reason": "划伤为冲洗过程中造成，可通过重新冲洗修复",
+          "decided_by": "staff-owner",
+          "created_at": "2026-05-07T14:00:00"
+        }
+      ],
+      "rework_executions": [
+        {
+          "id": "re-001",
+          "decision_id": "rd-002",
+          "roll_id": "roll-006",
+          "action_detail": "更换冲洗挂具，重新水浴冲洗，注意底片保护",
+          "result": "completed",
+          "operator_id": "staff-dev",
+          "created_at": "2026-05-08T09:00:00"
+        }
+      ],
+      "recheck_records": [
+        {
+          "id": "rr-001",
+          "execution_id": "re-001",
+          "roll_id": "roll-006",
+          "result": "pass",
+          "note": "返工后划伤问题已解决，底片完整",
+          "checked_by": "staff-dev",
+          "created_at": "2026-05-09T10:00:00"
+        }
+      ],
+      "confirm_requests": [
+        {
+          "id": "cr-004",
+          "roll_id": "roll-006",
+          "delivery_desc": "返工后冲扫完成，底片完整",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-09T14:00:00"
+        }
+      ],
+      "confirm_results": [
+        {
+          "id": "cres-003",
+          "request_id": "cr-004",
+          "roll_id": "roll-006",
+          "result": "satisfied",
+          "feedback": "返工效果不错，满意",
+          "operator_id": "staff-cs",
+          "created_at": "2026-05-10T11:00:00"
+        }
+      ],
+      "compensation_records": [],
+      "flow_type": "rework"
+    }
+  ]
+}
