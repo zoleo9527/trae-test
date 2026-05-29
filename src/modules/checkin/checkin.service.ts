@@ -4,6 +4,7 @@ import { Repository, Between } from 'typeorm';
 import { CheckinRecord } from '../../entities/checkin-record.entity';
 import { Credential } from '../../entities/credential.entity';
 import { Person } from '../../entities/person.entity';
+import { Project } from '../../entities/project.entity';
 import { CheckinType, CheckinStatus } from '../../common/enums/checkin.enum';
 import { CredentialStatus } from '../../common/enums/credential.enum';
 import {
@@ -25,6 +26,8 @@ export class CheckinService {
     private credentialRepository: Repository<Credential>,
     @InjectRepository(Person)
     private personRepository: Repository<Person>,
+    @InjectRepository(Project)
+    private projectRepository: Repository<Project>,
     private queryBuilderService: QueryBuilderService,
   ) {}
 
@@ -122,7 +125,7 @@ export class CheckinService {
     type: CheckinType,
     checkinTime: Date,
   ): Promise<CheckinStatus> {
-    const project = await this.checkinRepository.manager.findOne('project', {
+    const project = await this.projectRepository.findOne({
       where: { id: projectId },
     });
 
@@ -139,19 +142,6 @@ export class CheckinService {
     const OVERTIME_THRESHOLD_MINUTES = 20 * 60;
     const LATE_GRACE_MINUTES = 15;
     const EARLY_LEAVE_GRACE_MINUTES = 15;
-
-    if (type === CheckinType.ENTRY) {
-      if (checkinMinutesOfDay > WORK_START_MINUTES + LATE_GRACE_MINUTES) {
-        return CheckinStatus.LATE;
-      }
-    } else if (type === CheckinType.EXIT) {
-      if (checkinMinutesOfDay < WORK_END_MINUTES - EARLY_LEAVE_GRACE_MINUTES) {
-        return CheckinStatus.EARLY_LEAVE;
-      }
-      if (checkinMinutesOfDay >= OVERTIME_THRESHOLD_MINUTES) {
-        return CheckinStatus.OVERTIME;
-      }
-    }
 
     const todayStart = new Date(checkinTime);
     todayStart.setHours(0, 0, 0, 0);
@@ -170,9 +160,34 @@ export class CheckinService {
     const hasEntry = todayRecords.some((r) => r.type === CheckinType.ENTRY);
     const hasExit = todayRecords.some((r) => r.type === CheckinType.EXIT);
 
-    if ((type === CheckinType.ENTRY && hasExit && !hasEntry) ||
-        (type === CheckinType.EXIT && hasEntry && !hasExit)) {
-      return CheckinStatus.ABNORMAL;
+    if (type === CheckinType.ENTRY) {
+      if (checkinMinutesOfDay > WORK_START_MINUTES + LATE_GRACE_MINUTES) {
+        return CheckinStatus.LATE;
+      }
+
+      if (hasExit && !hasEntry) {
+        return CheckinStatus.ABNORMAL;
+      }
+
+      return CheckinStatus.NORMAL;
+    } else if (type === CheckinType.EXIT) {
+      if (checkinMinutesOfDay < WORK_END_MINUTES - EARLY_LEAVE_GRACE_MINUTES) {
+        return CheckinStatus.EARLY_LEAVE;
+      }
+
+      if (checkinMinutesOfDay >= OVERTIME_THRESHOLD_MINUTES) {
+        return CheckinStatus.OVERTIME;
+      }
+
+      if (!hasEntry) {
+        return CheckinStatus.ABNORMAL;
+      }
+
+      if (hasExit) {
+        return CheckinStatus.ABNORMAL;
+      }
+
+      return CheckinStatus.NORMAL;
     }
 
     return CheckinStatus.NORMAL;
