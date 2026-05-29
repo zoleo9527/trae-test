@@ -26,7 +26,7 @@ onMounted(() => {
 })
 
 const availableTransfers = computed(() => {
-  return store.transfers.filter(t => t.status === '进行中')
+  return store.transfers.filter(t => t.status === '待装车')
 })
 
 const columns: Column[] = [

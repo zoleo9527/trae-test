@@ -86,6 +86,7 @@ async function handleSave() {
     order.value = await store.fetchLoadingOrder(order.value.id)
     showEditModal.value = false
     store.fetchLoadingOrders()
+    store.fetchTransfers()
   } catch (e) {
     console.error('保存失败', e)
   }

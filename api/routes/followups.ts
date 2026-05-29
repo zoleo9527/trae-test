@@ -50,7 +50,8 @@ router.put('/:id', (req: Request, res: Response) => {
 
   const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
 
-  const result = db.prepare(
+  const getFollowup = db.prepare('SELECT transfer_id FROM followups WHERE id = ?')
+  const updateFollowup = db.prepare(
     `UPDATE followups SET 
       contact_result = COALESCE(?, contact_result),
       satisfaction = COALESCE(?, satisfaction),
@@ -58,12 +59,26 @@ router.put('/:id', (req: Request, res: Response) => {
       status = COALESCE(?, status),
       followup_at = COALESCE(?, followup_at)
      WHERE id = ?`
-  ).run(contact_result, satisfaction, issue_description, status, now, req.params.id)
+  )
+  const updateTransfer = db.prepare(
+    'UPDATE transfers SET status = ?, updated_at = ? WHERE id = ?'
+  )
 
-  if (result.changes === 0) {
-    res.json({ success: false, error: 'Followup not found' })
-    return
-  }
+  db.transaction(() => {
+    const followup = getFollowup.get(req.params.id) as { transfer_id: number } | undefined
+    if (!followup) {
+      return
+    }
+
+    const result = updateFollowup.run(contact_result, satisfaction, issue_description, status, now, req.params.id)
+    if (result.changes === 0) {
+      return
+    }
+
+    if (status === '已完成') {
+      updateTransfer.run('已完成', now, followup.transfer_id)
+    }
+  })()
 
   res.json({ success: true, data: { updated: true } })
 })

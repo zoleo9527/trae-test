@@ -61,11 +61,14 @@ router.post('/', (req: Request, res: Response) => {
   const insertItem = db.prepare(
     'INSERT INTO loading_items (loading_order_id, species, planned_qty, actual_qty, difference_reason) VALUES (?, ?, ?, ?, ?)'
   )
+  const updateTransfer = db.prepare(
+    'UPDATE transfers SET status = ?, updated_at = ? WHERE id = ?'
+  )
 
   let orderId: number | bigint
 
   db.transaction(() => {
-    const result = insertOrder.run(transfer_id, vehicle_no || null, driver_name || null, '待装车', created_by, now)
+    const result = insertOrder.run(transfer_id, vehicle_no || null, driver_name || null, '装车中', created_by, now)
     orderId = result.lastInsertRowid
 
     if (items && Array.isArray(items)) {
@@ -73,6 +76,8 @@ router.post('/', (req: Request, res: Response) => {
         insertItem.run(orderId, item.species, item.planned_qty || 0, item.actual_qty || 0, item.difference_reason || null)
       }
     }
+
+    updateTransfer.run('运输中', now, transfer_id)
   })()
 
   res.json({ success: true, data: { id: orderId! } })
@@ -85,6 +90,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
   const loadedAt = status === '已完成' ? now : null
 
+  const getOrder = db.prepare('SELECT transfer_id FROM loading_orders WHERE id = ?')
   const updateOrder = db.prepare(
     `UPDATE loading_orders SET vehicle_no = COALESCE(?, vehicle_no), driver_name = COALESCE(?, driver_name),
      status = COALESCE(?, status), loaded_at = COALESCE(?, loaded_at) WHERE id = ?`
@@ -92,8 +98,16 @@ router.put('/:id', (req: Request, res: Response) => {
   const updateItem = db.prepare(
     'UPDATE loading_items SET actual_qty = ?, difference_reason = ? WHERE id = ?'
   )
+  const updateTransfer = db.prepare(
+    'UPDATE transfers SET status = ?, updated_at = ? WHERE id = ?'
+  )
 
   db.transaction(() => {
+    const order = getOrder.get(req.params.id) as { transfer_id: number } | undefined
+    if (!order) {
+      return
+    }
+
     const result = updateOrder.run(vehicle_no, driver_name, status, loadedAt, req.params.id)
     if (result.changes === 0) {
       return
@@ -105,6 +119,10 @@ router.put('/:id', (req: Request, res: Response) => {
           updateItem.run(item.actual_qty ?? 0, item.difference_reason || null, item.id)
         }
       }
+    }
+
+    if (status === '已完成') {
+      updateTransfer.run('待跟进', now, order.transfer_id)
     }
   })()
 

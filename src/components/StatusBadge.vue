@@ -12,16 +12,16 @@ const sizeClass = computed(() => {
 
 const colorClass = computed(() => {
   const s = props.status
-  if (['完成', '已完成', '正常', '在养', '已通过'].includes(s)) {
+  if (['完成', '已完成', '正常', '在养', '已通过', '已回访', '已解决'].includes(s)) {
     return 'bg-green-100 text-status-green'
   }
-  if (['待审批', '待处理', '预警', '进行中', '待起苗', '轻度'].includes(s)) {
+  if (['待审批', '待处理', '预警', '进行中', '待起苗', '轻度', '待装车', '装车中', '运输中', '待跟进', '协商中', '待回访'].includes(s)) {
     return 'bg-amber-100 text-accent-600'
   }
-  if (['超时', '紧急', '重度', '已退回', '已取消'].includes(s)) {
+  if (['超时', '紧急', '重度', '已退回', '已拒绝', '已取消', '空床'].includes(s)) {
     return 'bg-red-100 text-danger-600'
   }
-  if (['中度'].includes(s)) {
+  if (['中度', '部分起苗'].includes(s)) {
     return 'bg-orange-100 text-orange-700'
   }
   return 'bg-gray-100 text-status-gray'

@@ -291,7 +291,7 @@ export function seedDb(): void {
   insertStatusLog.run(plot5.lastInsertRowid, '在养', '空床', '上批次已全部出圃', '张主任', '已完成清床和消毒，等待下一批种植', twoDaysAgo)
 
   const transfer1 = insertTransfer.run(plot3.lastInsertRowid, '上海绿源园林', '香樟', 200, '待装车', '陈销售', '张主任', tomorrow, twoDaysAgo, yesterday)
-  const transfer2 = insertTransfer.run(plot4.lastInsertRowid, '杭州美景市政', '桂花', 150, '运输中', '陈销售', '张主任', twoDaysAgo, twoDaysAgo, yesterday)
+  const transfer2 = insertTransfer.run(plot4.lastInsertRowid, '杭州美景市政', '桂花', 150, '待跟进', '陈销售', '张主任', twoDaysAgo, twoDaysAgo, yesterday)
   const transfer3 = insertTransfer.run(plot1.lastInsertRowid, '南京绿园工程', '红枫', 100, '待审批', '刘销售', null, nextWeek, yesterday, yesterday)
   const transfer4 = insertTransfer.run(plot2.lastInsertRowid, '合肥城市绿化', '紫薇', 300, '已完成', '刘销售', '张主任', threeDaysAgo(), fourDaysAgo(), twoDaysAgo)
 
