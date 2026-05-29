@@ -15,8 +15,8 @@
 			const result = await api.login(username, password);
 			setAuth(result.token, result.user);
 			goto('/orders');
-		} catch (e: any) {
-			error = e.message;
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
 		} finally {
 			loading = false;
 		}

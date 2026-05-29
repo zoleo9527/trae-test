@@ -3,14 +3,14 @@
 	import { api, statusMap } from '$lib/api';
 	import { user } from '$lib/stores/auth';
 
-	let orders: any[] = [];
-	let selectedOrder: any = null;
-	let timeline: any[] = [];
+	let orders = [];
+	let selectedOrder = null;
+	let timeline = [];
 	let filterStatus = '';
 	let loading = false;
 	let showAssignModal = false;
 	let showCreateModal = false;
-	let runners: any[] = [];
+	let runners = [];
 	let selectedRunner = 0;
 
 	async function loadOrders() {
@@ -24,7 +24,7 @@
 		}
 	}
 
-	async function selectOrder(order: any) {
+	async function selectOrder(order) {
 		selectedOrder = order;
 		timeline = await api.getTimeline(order.id);
 	}
@@ -285,12 +285,6 @@
 								</span>
 							</div>
 						</div>
-						<a
-							href="/appeals/{selectedOrder.appeal.id}"
-							class="mt-4 inline-block text-blue-600 text-sm hover:underline"
-						>
-							查看申诉详情 →
-						</a>
 					</div>
 				{/if}
 

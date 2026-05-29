@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 
-	let subsidies: any[] = [];
-	let selectedSubsidy: any = null;
+	let subsidies = [];
+	let selectedSubsidy = null;
 	let filterStatus = '';
 	let loading = false;
 

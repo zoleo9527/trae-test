@@ -4,11 +4,11 @@
 	import { user } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
 
-	let appeals: any[] = [];
-	let selectedAppeal: any = null;
+	let appeals = [];
+	let selectedAppeal = null;
 	let filterStatus = '';
 	let loading = false;
-	let timeline: any[] = [];
+	let timeline = [];
 
 	async function loadAppeals() {
 		loading = true;
@@ -21,7 +21,7 @@
 		}
 	}
 
-	async function selectAppeal(appeal: any) {
+	async function selectAppeal(appeal) {
 		selectedAppeal = appeal;
 		timeline = await api.getTimeline(appeal.order_id);
 	}

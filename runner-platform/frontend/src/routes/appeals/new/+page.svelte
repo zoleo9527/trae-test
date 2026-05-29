@@ -14,14 +14,23 @@
 		evidence_url: ''
 	};
 
-	let orders: any[] = [];
+	let orders = [];
 	let loading = false;
 	let error = '';
+	let selectedOrder = null;
 
 	async function loadOrders() {
 		orders = await api.getOrders();
 		if (orderId) {
 			appeal.order_id = parseInt(orderId);
+			onOrderChange();
+		}
+	}
+
+	function onOrderChange() {
+		selectedOrder = orders.find(o => o.id === appeal.order_id);
+		if (selectedOrder && selectedOrder.runner) {
+			appeal.runner_id = selectedOrder.runner.id;
 		}
 	}
 
@@ -31,15 +40,23 @@
 			return;
 		}
 
-		appeal.runner_id = $user?.id || 4;
+		if (!appeal.runner_id && selectedOrder && selectedOrder.runner) {
+			appeal.runner_id = selectedOrder.runner.id;
+		}
+
+		if (!appeal.runner_id) {
+			error = '该订单没有分配骑手，无法提交申诉';
+			return;
+		}
+
 		loading = true;
 		error = '';
 
 		try {
 			await api.createAppeal(appeal);
 			goto('/appeals');
-		} catch (e: any) {
-			error = e.message;
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
 		} finally {
 			loading = false;
 		}
@@ -59,6 +76,7 @@
 				<label class="block text-sm font-medium text-gray-700 mb-2">关联订单</label>
 				<select
 					bind:value={appeal.order_id}
+					on:change={onOrderChange}
 					class="w-full px-4 py-3 border border-gray-300 rounded-lg"
 					required
 				>
