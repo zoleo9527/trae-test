@@ -217,7 +217,7 @@ def init_mock_data():
             created_at=order.abnormal_time + timedelta(minutes=random.randint(5, 60)),
             processed_at=datetime.now() - timedelta(hours=random.randint(1, 48)) if status != AppealStatus.PENDING else None,
             processor="运营专员" if status != AppealStatus.PENDING else None,
-            process_note="已核实情况，同意补贴" if status == AppealStatus.APPROVED else ("情况不符，驳回申诉" if status == AppealStatus.REJECTED else None),
+            process_note="已核实情况，同意补贴" if status == AppealStatus.APPROVED else ("情况不符，驳回申诉" if status == AppealStatus.REJECTED else ("需进一步核实情况，暂标记为需回查" if status == AppealStatus.NEED_REVIEW else None)),
             subsidy_amount=round(random.uniform(5, 50), 2) if status == AppealStatus.APPROVED else None
         )
 
@@ -277,11 +277,19 @@ def add_operation_log(**kwargs):
     return log
 
 def init_operation_logs_for_seed_data():
+    status_text_map = {
+        AppealStatus.APPROVED: "已通过",
+        AppealStatus.REJECTED: "已驳回",
+        AppealStatus.NEED_REVIEW: "需回查"
+    }
+    
     for appeal in appeals_db.values():
         if appeal.status == AppealStatus.PENDING:
             continue
             
         log_time = appeal.processed_at or (appeal.created_at + timedelta(minutes=30))
+        status_text = status_text_map.get(appeal.status, appeal.status)
+        conclusion = appeal.process_note or "已处理"
         
         add_operation_log(
             appeal_id=appeal.id,
@@ -289,9 +297,9 @@ def init_operation_logs_for_seed_data():
             action="process_appeal",
             operator=appeal.processor or "运营专员",
             operator_role="运营专员",
-            description=f"处理申诉: {appeal.reason}",
-            old_value="pending",
-            new_value=appeal.status,
+            description=f"处理申诉: {appeal.reason}，处理结论: {status_text} - {conclusion}",
+            old_value="待处理",
+            new_value=status_text,
             created_at=log_time
         )
         
@@ -304,7 +312,7 @@ def init_operation_logs_for_seed_data():
                     action="create_subsidy",
                     operator=appeal.processor or "运营专员",
                     operator_role="运营专员",
-                    description=f"创建补贴: ¥{appeal.subsidy_amount} - {appeal.reason}",
+                    description=f"创建补贴: ¥{appeal.subsidy_amount} - {appeal.reason}，处理结论: {conclusion}",
                     old_value=None,
                     new_value=f"¥{appeal.subsidy_amount}",
                     created_at=log_time + timedelta(seconds=5)
@@ -318,7 +326,7 @@ def init_operation_logs_for_seed_data():
                             action="update_settlement",
                             operator=appeal.processor or "运营专员",
                             operator_role="运营专员",
-                            description=f"更新商家结算汇总: 增加补贴 ¥{appeal.subsidy_amount}",
+                            description=f"更新商家结算汇总: 增加补贴 ¥{appeal.subsidy_amount}，处理结论: {conclusion}",
                             old_value=None,
                             new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}",
                             created_at=log_time + timedelta(seconds=10)
@@ -428,15 +436,26 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
     appeal.processor = request.processor
     appeal.subsidy_amount = request.subsidy_amount
     
+    status_text_map = {
+        AppealStatus.PENDING: "待处理",
+        AppealStatus.APPROVED: "已通过",
+        AppealStatus.REJECTED: "已驳回",
+        AppealStatus.NEED_REVIEW: "需回查"
+    }
+    
+    old_status_text = status_text_map.get(old_status, old_status)
+    new_status_text = status_text_map.get(request.status, request.status)
+    conclusion = request.process_note
+    
     add_operation_log(
         appeal_id=appeal_id,
         order_id=appeal.order_id,
         action="process_appeal",
         operator=request.processor,
         operator_role="运营专员",
-        description=f"处理申诉: {appeal.reason}",
-        old_value=old_status,
-        new_value=request.status
+        description=f"处理申诉: {appeal.reason}，处理结论: {new_status_text} - {conclusion}",
+        old_value=old_status_text,
+        new_value=new_status_text
     )
     
     if request.status == AppealStatus.APPROVED and request.subsidy_amount:
@@ -463,7 +482,7 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
             action="create_subsidy",
             operator=request.processor,
             operator_role="运营专员",
-            description=f"创建补贴: ¥{request.subsidy_amount} - {appeal.reason}",
+            description=f"创建补贴: ¥{request.subsidy_amount} - {appeal.reason}，处理结论: {conclusion}",
             old_value=None,
             new_value=f"¥{request.subsidy_amount}"
         )
@@ -504,7 +523,7 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
                 action="create_settlement",
                 operator=request.processor,
                 operator_role="运营专员",
-                description=f"自动创建商家结算单: {appeal.merchant_name}",
+                description=f"自动创建商家结算单: {appeal.merchant_name}，处理结论: {conclusion}",
                 old_value=None,
                 new_value=f"结算单 {settlement_id}"
             )
@@ -518,7 +537,7 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
             action="update_settlement",
             operator=request.processor,
             operator_role="运营专员",
-            description=f"更新商家结算汇总: 增加补贴 ¥{request.subsidy_amount}",
+            description=f"更新商家结算汇总: 增加补贴 ¥{request.subsidy_amount}，处理结论: {conclusion}",
             old_value=None,
             new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}"
         )
