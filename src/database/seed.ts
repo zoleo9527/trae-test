@@ -9,7 +9,7 @@ import { SettlementService } from '../modules/settlement/settlement.service';
 import { CheckinService } from '../modules/checkin/checkin.service';
 import { ProjectStatus, ProjectPhase } from '../common/enums/project.enum';
 import { CredentialType, CredentialStatus } from '../common/enums/credential.enum';
-import { PersonType } from '../common/enums/checkin.enum';
+import { PersonType, CheckinType } from '../common/enums/checkin.enum';
 import { MaterialStatus } from '../common/enums/material.enum';
 import { SettlementStatus } from '../common/enums/settlement.enum';
 
@@ -354,7 +354,7 @@ async function bootstrap() {
         projectId: normalProject.id,
         personId: persons[2].id,
         credentialId: cred1.id,
-        type: 'entry',
+        type: CheckinType.ENTRY,
         checkinTime: `${date}T08:00:00`,
         checkinPoint: '西1入口',
         temperature: 36.5,
@@ -363,7 +363,7 @@ async function bootstrap() {
         projectId: normalProject.id,
         personId: persons[2].id,
         credentialId: cred1.id,
-        type: 'exit',
+        type: CheckinType.EXIT,
         checkinTime: `${date}T18:30:00`,
         checkinPoint: '西1入口',
       }));
@@ -373,7 +373,7 @@ async function bootstrap() {
       projectId: normalProject.id,
       personId: persons[3].id,
       credentialId: cred2.id,
-      type: 'entry',
+      type: CheckinType.ENTRY,
       checkinTime: '2025-04-12T09:15:00',
       checkinPoint: '西1入口',
       temperature: 36.7,

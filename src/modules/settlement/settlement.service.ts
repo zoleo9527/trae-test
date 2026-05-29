@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Settlement } from '../../../entities/settlement.entity';
-import { SettlementStatus, SettlementStatusTransitions } from '../../../common/enums/settlement.enum';
+import { Settlement } from '../../entities/settlement.entity';
+import { SettlementStatus, SettlementStatusTransitions } from '../../common/enums/settlement.enum';
 import {
   CreateSettlementDto,
   UpdateSettlementDto,
@@ -10,11 +10,11 @@ import {
   SupplierConfirmDto,
   SettlementQueryDto,
 } from './dto/settlement.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResponse } from '../../../common/dto/response.dto';
-import { QueryBuilderService } from '../../../common/services/query-builder.service';
-import { StateMachineService } from '../../../common/services/state-machine.service';
-import { BusinessException, ErrorCode } from '../../../common/filters/http-exception.filter';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/response.dto';
+import { QueryBuilderService } from '../../common/services/query-builder.service';
+import { StateMachineService } from '../../common/services/state-machine.service';
+import { BusinessException, ErrorCode } from '../../common/filters/http-exception.filter';
 
 @Injectable()
 export class SettlementService {

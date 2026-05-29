@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Material } from '../../../entities/material.entity';
-import { MaterialStatus, MaterialStatusTransitions } from '../../../common/enums/material.enum';
+import { Material } from '../../entities/material.entity';
+import { MaterialStatus, MaterialStatusTransitions } from '../../common/enums/material.enum';
 import {
   CreateMaterialDto,
   UpdateMaterialDto,
@@ -10,11 +10,11 @@ import {
   MaterialQueryDto,
   CreateNewVersionDto,
 } from './dto/material.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResponse } from '../../../common/dto/response.dto';
-import { QueryBuilderService } from '../../../common/services/query-builder.service';
-import { StateMachineService } from '../../../common/services/state-machine.service';
-import { BusinessException, ErrorCode } from '../../../common/filters/http-exception.filter';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/response.dto';
+import { QueryBuilderService } from '../../common/services/query-builder.service';
+import { StateMachineService } from '../../common/services/state-machine.service';
+import { BusinessException, ErrorCode } from '../../common/filters/http-exception.filter';
 
 @Injectable()
 export class MaterialService {
@@ -48,20 +48,30 @@ export class MaterialService {
 
     if (oldMaterial.status === MaterialStatus.DRAFT) {
       Object.assign(oldMaterial, versionDto);
+      if (versionDto.quantity !== undefined || versionDto.unitPrice !== undefined) {
+        const newQuantity = versionDto.quantity !== undefined ? versionDto.quantity : oldMaterial.quantity;
+        const newUnitPrice = versionDto.unitPrice !== undefined ? versionDto.unitPrice : oldMaterial.unitPrice;
+        oldMaterial.totalPrice = Number((newQuantity * newUnitPrice).toFixed(2));
+      }
       return this.materialRepository.save(oldMaterial);
     }
 
     const newVersion = oldMaterial.version + 1;
+    const newQuantity = versionDto.quantity !== undefined ? versionDto.quantity : oldMaterial.quantity;
+    const newUnitPrice = versionDto.unitPrice !== undefined ? versionDto.unitPrice : oldMaterial.unitPrice;
+    const newTotalPrice = Number((newQuantity * newUnitPrice).toFixed(2));
+
     const newMaterial = this.materialRepository.create({
       projectId: oldMaterial.projectId,
       supplierId: oldMaterial.supplierId,
       name: oldMaterial.name,
       category: oldMaterial.category,
       specification: versionDto.specification || oldMaterial.specification,
-      quantity: versionDto.quantity !== undefined ? versionDto.quantity : oldMaterial.quantity,
+      quantity: newQuantity,
       unit: oldMaterial.unit,
-      unitPrice: versionDto.unitPrice !== undefined ? versionDto.unitPrice : oldMaterial.unitPrice,
-      totalPrice: oldMaterial.totalPrice,
+      unitPrice: newUnitPrice,
+      totalPrice: newTotalPrice,
+      expectedDeliveryDate: oldMaterial.expectedDeliveryDate,
       materialNo: oldMaterial.materialNo,
       version: newVersion,
       status: MaterialStatus.DRAFT,
@@ -122,7 +132,7 @@ export class MaterialService {
     return this.materialRepository.find({
       where: { materialNo },
       order: { version: 'DESC' },
-      relations: ['supplier'],
+      relations: ['project', 'supplier', 'statusLogs'],
     });
   }
 

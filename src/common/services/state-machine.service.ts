@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { StatusLog } from '../entities/status-log.entity';
+import { StatusLog } from '../../entities/status-log.entity';
 import { BusinessException, ErrorCode } from '../filters/http-exception.filter';
 
 export interface StatusTransitionConfig {
@@ -52,7 +52,7 @@ export class StateMachineService {
     projectId?: string,
     metadata?: Record<string, any>,
   ): Promise<StatusLog> {
-    const log = this.statusLogRepository.create({
+    const logData: any = {
       entityType,
       entityId,
       fromStatus,
@@ -61,14 +61,41 @@ export class StateMachineService {
       remark,
       projectId,
       metadata,
-    });
+    };
 
+    switch (entityType) {
+      case 'credential':
+        logData.credentialId = entityId;
+        break;
+      case 'material':
+        logData.materialId = entityId;
+        break;
+      case 'settlement':
+        logData.settlementId = entityId;
+        break;
+    }
+
+    const log = this.statusLogRepository.create(logData as any) as unknown as StatusLog;
     return this.statusLogRepository.save(log);
   }
 
   async getStatusHistory(entityType: string, entityId: string): Promise<StatusLog[]> {
+    const whereCondition: any = { entityType, entityId };
+    
+    switch (entityType) {
+      case 'credential':
+        whereCondition.credentialId = entityId;
+        break;
+      case 'material':
+        whereCondition.materialId = entityId;
+        break;
+      case 'settlement':
+        whereCondition.settlementId = entityId;
+        break;
+    }
+    
     return this.statusLogRepository.find({
-      where: { entityType, entityId },
+      where: whereCondition,
       order: { createdAt: 'DESC' },
     });
   }

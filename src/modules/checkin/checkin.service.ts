@@ -1,20 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { CheckinRecord } from '../../../entities/checkin-record.entity';
-import { Credential } from '../../../entities/credential.entity';
-import { Person } from '../../../entities/person.entity';
-import { CheckinType, CheckinStatus } from '../../../common/enums/checkin.enum';
-import { CredentialStatus } from '../../../common/enums/credential.enum';
+import { CheckinRecord } from '../../entities/checkin-record.entity';
+import { Credential } from '../../entities/credential.entity';
+import { Person } from '../../entities/person.entity';
+import { CheckinType, CheckinStatus } from '../../common/enums/checkin.enum';
+import { CredentialStatus } from '../../common/enums/credential.enum';
 import {
   CreateCheckinRecordDto,
   CheckinQueryDto,
   ManualCheckinDto,
 } from './dto/checkin.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResponse } from '../../../common/dto/response.dto';
-import { QueryBuilderService } from '../../../common/services/query-builder.service';
-import { BusinessException, ErrorCode } from '../../../common/filters/http-exception.filter';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/response.dto';
+import { QueryBuilderService } from '../../common/services/query-builder.service';
+import { BusinessException, ErrorCode } from '../../common/filters/http-exception.filter';
 
 @Injectable()
 export class CheckinService {
@@ -122,6 +122,59 @@ export class CheckinService {
     type: CheckinType,
     checkinTime: Date,
   ): Promise<CheckinStatus> {
+    const project = await this.checkinRepository.manager.findOne('project', {
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      return CheckinStatus.NORMAL;
+    }
+
+    const checkinHour = checkinTime.getHours();
+    const checkinMinute = checkinTime.getMinutes();
+    const checkinMinutesOfDay = checkinHour * 60 + checkinMinute;
+
+    const WORK_START_MINUTES = 8 * 60 + 30;
+    const WORK_END_MINUTES = 18 * 60;
+    const OVERTIME_THRESHOLD_MINUTES = 20 * 60;
+    const LATE_GRACE_MINUTES = 15;
+    const EARLY_LEAVE_GRACE_MINUTES = 15;
+
+    if (type === CheckinType.ENTRY) {
+      if (checkinMinutesOfDay > WORK_START_MINUTES + LATE_GRACE_MINUTES) {
+        return CheckinStatus.LATE;
+      }
+    } else if (type === CheckinType.EXIT) {
+      if (checkinMinutesOfDay < WORK_END_MINUTES - EARLY_LEAVE_GRACE_MINUTES) {
+        return CheckinStatus.EARLY_LEAVE;
+      }
+      if (checkinMinutesOfDay >= OVERTIME_THRESHOLD_MINUTES) {
+        return CheckinStatus.OVERTIME;
+      }
+    }
+
+    const todayStart = new Date(checkinTime);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(checkinTime);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayRecords = await this.checkinRepository.find({
+      where: {
+        projectId,
+        personId,
+        checkinTime: Between(todayStart, todayEnd),
+      },
+      order: { checkinTime: 'ASC' },
+    });
+
+    const hasEntry = todayRecords.some((r) => r.type === CheckinType.ENTRY);
+    const hasExit = todayRecords.some((r) => r.type === CheckinType.EXIT);
+
+    if ((type === CheckinType.ENTRY && hasExit && !hasEntry) ||
+        (type === CheckinType.EXIT && hasEntry && !hasExit)) {
+      return CheckinStatus.ABNORMAL;
+    }
+
     return CheckinStatus.NORMAL;
   }
 

@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Person } from '../../../entities/person.entity';
+import { Person } from '../../entities/person.entity';
 import { CreatePersonDto, UpdatePersonDto, PersonQueryDto } from './dto/person.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResponse } from '../../../common/dto/response.dto';
-import { QueryBuilderService } from '../../../common/services/query-builder.service';
-import { BusinessException, ErrorCode } from '../../../common/filters/http-exception.filter';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/response.dto';
+import { QueryBuilderService } from '../../common/services/query-builder.service';
+import { BusinessException, ErrorCode } from '../../common/filters/http-exception.filter';
 
 @Injectable()
 export class PersonService {

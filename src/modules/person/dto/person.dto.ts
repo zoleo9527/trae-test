@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDateString, IsUUID, IsBoolean, IsPhone } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, IsUUID, IsBoolean } from 'class-validator';
 import { PersonType } from '../../../common/enums/checkin.enum';
 
 export class CreatePersonDto {

@@ -2,19 +2,19 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { Credential } from '../../../entities/credential.entity';
-import { CredentialStatus, CredentialStatusTransitions, CredentialType } from '../../../common/enums/credential.enum';
+import { Credential } from '../../entities/credential.entity';
+import { CredentialStatus, CredentialStatusTransitions, CredentialType } from '../../common/enums/credential.enum';
 import {
   CreateCredentialDto,
   UpdateCredentialDto,
   UpdateCredentialStatusDto,
   CredentialQueryDto,
 } from './dto/credential.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResponse } from '../../../common/dto/response.dto';
-import { QueryBuilderService } from '../../../common/services/query-builder.service';
-import { StateMachineService } from '../../../common/services/state-machine.service';
-import { BusinessException, ErrorCode } from '../../../common/filters/http-exception.filter';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { PaginatedResponse } from '../../common/dto/response.dto';
+import { QueryBuilderService } from '../../common/services/query-builder.service';
+import { StateMachineService } from '../../common/services/state-machine.service';
+import { BusinessException, ErrorCode } from '../../common/filters/http-exception.filter';
 
 @Injectable()
 export class CredentialService {
