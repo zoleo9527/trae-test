@@ -102,6 +102,33 @@ class Command(BaseCommand):
         OrderWorkflowService.request_return(order_return_lyj, sales1, items_data, '客户反馈火花塞型号不符，需要退货')
         self.stdout.write(f'  - 退货申请中: {order_return_lyj.order_no} ({lyj.name})')
 
+        order_return_approved_xd = self._create_order(xd, sales2, [
+            {'part': parts[1], 'quantity': 3},
+            {'part': parts[4], 'quantity': 1}
+        ])
+        OrderWorkflowService.approve_inquiry(order_return_approved_xd, sales2)
+        OrderWorkflowService.lock_stock(order_return_approved_xd, warehouse)
+        OrderWorkflowService.deliver_order(order_return_approved_xd, warehouse)
+        OrderWorkflowService.settle_order(order_return_approved_xd, boss)
+        ra_item = order_return_approved_xd.items.first()
+        ra_items = [{'item_id': ra_item.id, 'quantity': 1, 'reason': '质量问题，外观有划痕'}]
+        OrderWorkflowService.request_return(order_return_approved_xd, sales2, ra_items, '客户收货时发现空气滤清器外包装破损')
+        OrderWorkflowService.approve_return(order_return_approved_xd, boss, '情况属实，同意退货')
+        self.stdout.write(f'  - 退货已批准: {order_return_approved_xd.order_no} ({xd.name})')
+
+        order_return_rejected_hd = self._create_order(hd, sales1, [
+            {'part': parts[3], 'quantity': 2},
+            {'part': parts[8], 'quantity': 1}
+        ])
+        OrderWorkflowService.approve_inquiry(order_return_rejected_hd, sales1)
+        OrderWorkflowService.lock_stock(order_return_rejected_hd, warehouse)
+        OrderWorkflowService.deliver_order(order_return_rejected_hd, warehouse)
+        rr_item = order_return_rejected_hd.items.first()
+        rr_items = [{'item_id': rr_item.id, 'quantity': 1, 'reason': '不想买了，无理由退货'}]
+        OrderWorkflowService.request_return(order_return_rejected_hd, sales1, rr_items, '客户说尺寸不合适想退货')
+        OrderWorkflowService.reject_return(order_return_rejected_hd, boss, '无质量问题不支持无理由退货，已跟客户解释清楚')
+        self.stdout.write(f'  - 退货已驳回: {order_return_rejected_hd.order_no} ({hd.name})')
+
         order_overdue_st = self._create_order(st, sales1, [
             {'part': parts[5], 'quantity': 2},
             {'part': parts[9], 'quantity': 6}
@@ -117,6 +144,8 @@ class Command(BaseCommand):
         OrderRemark.objects.create(order=order_settled_xd, author=sales2, content='客户要求送货上门，已安排配送')
         OrderRemark.objects.create(order=order_settled_xd, author=warehouse, content='货物已发出，走顺丰，注意签收', is_internal=True)
         OrderRemark.objects.create(order=order_return_lyj, author=sales1, content='客户说型号不对，我核对了确实是BKR6E不是BKR5E，需要退货重发')
+        OrderRemark.objects.create(order=order_return_approved_xd, author=sales2, content='客户拍照反馈外包装有划痕，已同意退货')
+        OrderRemark.objects.create(order=order_return_rejected_hd, author=boss, content='无质量问题，已跟客户沟通不支持无理由退货')
         OrderRemark.objects.create(order=order_overdue_st, author=sales1, content='已催过两次，客户说资金紧张')
         OrderRemark.objects.create(order=order_partial_hd, author=sales1, content='客户说先付一半，剩下的下周')
 

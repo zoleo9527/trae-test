@@ -262,57 +262,104 @@ const showReminder = computed(() => {
 
 const workflowSteps = computed(() => {
   if (!order.value) return []
-  const statusOrder = ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED', 'DELIVERED', 'SETTLED', 'PAID_PARTIAL', 'PAID']
+
   const stepDefs = [
-    { title: '创建询价', matchStatus: 'INQUIRY' },
-    { title: '确认询价', matchStatus: 'INQUIRY_APPROVED' },
-    { title: '锁库', matchStatus: 'LOCKED' },
-    { title: '出库', matchStatus: 'DELIVERED' },
-    { title: '结算', matchStatus: 'SETTLED' },
-    { title: '回款确认', matchStatus: null },
+    { title: '创建询价', matchStatus: 'INQUIRY', key: 'inquiry' },
+    { title: '确认询价', matchStatus: 'INQUIRY_APPROVED', key: 'approve' },
+    { title: '锁库', matchStatus: 'LOCKED', key: 'lock' },
+    { title: '出库', matchStatus: 'DELIVERED', key: 'deliver' },
+    { title: '结算', matchStatus: 'SETTLED', key: 'settle' },
+    { title: '回款确认', matchStatus: null, key: 'payment', paidStatuses: ['PAID_PARTIAL', 'PAID'] },
+    { title: '退货申请', matchStatus: 'RETURN_REQUESTED', key: 'return_request' },
+    { title: '退货处理', matchStatus: null, key: 'return_process', returnStatuses: ['RETURN_APPROVED', 'RETURN_REJECTED'] },
   ]
 
   const logs = order.value.status_logs || []
   const currentStatus = order.value.status
-  const currentStatusIdx = statusOrder.indexOf(currentStatus)
+  const isReturnFlow = ['RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_REJECTED'].includes(currentStatus)
 
-  const steps = stepDefs.map((def, index) => {
-    let isCompleted, isCurrent
+  let returnFromStatus = null
+  let returnRequestLog = null
+  let returnProcessLog = null
 
-    if (index === 5) {
-      isCompleted = ['PAID_PARTIAL', 'PAID'].includes(currentStatus)
-      isCurrent = currentStatus === 'PAID_PARTIAL'
+  if (isReturnFlow) {
+    returnRequestLog = logs.find(l => l.to_status === 'RETURN_REQUESTED')
+    returnFromStatus = returnRequestLog?.from_status || 'DELIVERED'
+    if (currentStatus === 'RETURN_APPROVED') {
+      returnProcessLog = logs.find(l => l.to_status === 'RETURN_APPROVED')
+    } else if (currentStatus === 'RETURN_REJECTED') {
+      returnProcessLog = logs.find(l => l.to_status === 'RETURN_REJECTED')
+    }
+  }
+
+  const hasPaymentLog = logs.some(l => ['PAID_PARTIAL', 'PAID'].includes(l.to_status))
+
+  const steps = []
+  let activeStepIndex = -1
+
+  for (let i = 0; i < stepDefs.length; i++) {
+    const def = stepDefs[i]
+    let isCompleted = false
+    let isCurrent = false
+    let log = null
+    let stepTitle = def.title
+
+    if (def.key === 'payment') {
+      log = logs.find(l => ['PAID_PARTIAL', 'PAID'].includes(l.to_status))
+      if (log) {
+        isCompleted = log.to_status === 'PAID'
+        isCurrent = log.to_status === 'PAID_PARTIAL'
+        stepTitle = log.to_status === 'PAID' ? '已结清' : '部分回款'
+      } else {
+        if (isReturnFlow) continue
+        isCompleted = currentStatus === 'PAID'
+        isCurrent = currentStatus === 'PAID_PARTIAL' || currentStatus === 'SETTLED'
+        stepTitle = '回款确认'
+      }
+    } else if (def.key === 'return_request') {
+      if (!isReturnFlow) continue
+      log = returnRequestLog
+      isCompleted = currentStatus !== 'RETURN_REQUESTED'
+      isCurrent = currentStatus === 'RETURN_REQUESTED'
+    } else if (def.key === 'return_process') {
+      if (!isReturnFlow) continue
+      log = returnProcessLog
+      isCompleted = ['RETURN_APPROVED', 'RETURN_REJECTED'].includes(currentStatus)
+      isCurrent = false
+      if (currentStatus === 'RETURN_APPROVED') stepTitle = '退货已批准'
+      if (currentStatus === 'RETURN_REJECTED') stepTitle = '退货已驳回'
     } else {
+      log = logs.find(l => l.to_status === def.matchStatus)
+      const statusOrder = ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED', 'DELIVERED', 'SETTLED']
       const defIdx = statusOrder.indexOf(def.matchStatus)
-      isCompleted = currentStatusIdx > defIdx || (currentStatusIdx === defIdx && index < 5)
-      isCurrent = currentStatusIdx === defIdx && !['PAID_PARTIAL', 'PAID'].includes(currentStatus)
+
+      if (isReturnFlow) {
+        if (!log) continue
+        const returnFromIdx = statusOrder.indexOf(returnFromStatus)
+        isCompleted = defIdx <= returnFromIdx
+      } else {
+        const currentIdx = statusOrder.includes(currentStatus) ? statusOrder.indexOf(currentStatus) : 999
+        isCompleted = log !== undefined && (
+          currentIdx > defIdx ||
+          (currentIdx === defIdx && currentStatus === 'SETTLED') ||
+          ['PAID_PARTIAL', 'PAID'].includes(currentStatus)
+        )
+        isCurrent = def.matchStatus === currentStatus && ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED', 'DELIVERED'].includes(def.matchStatus)
+      }
+    }
+
+    if (isCurrent && activeStepIndex === -1) {
+      activeStepIndex = steps.length
     }
 
     const statusText = isCompleted ? '完成' : isCurrent ? '进行中' : '待处理'
     const type = isCompleted ? 'success' : isCurrent ? 'warning' : 'info'
 
-    let log = null
-    if (index === 5) {
-      log = logs.find(l => ['PAID_PARTIAL', 'PAID'].includes(l.to_status))
-    } else {
-      log = logs.find(l => l.to_status === def.matchStatus)
-    }
-
     const description = log
       ? `${log.operator_name} - ${formatDate(log.created_at)}${log.remark ? ` · ${log.remark}` : ''}`
       : ''
 
-    return { title: def.title, statusText, type, description }
-  })
-
-  if (['RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_REJECTED'].includes(currentStatus)) {
-    const returnLog = logs.find(l => l.to_status === 'RETURN_REQUESTED')
-    steps.push({
-      title: '退货申请',
-      statusText: currentStatus === 'RETURN_REQUESTED' ? '进行中' : '完成',
-      type: currentStatus === 'RETURN_REQUESTED' ? 'warning' : 'success',
-      description: returnLog ? `${returnLog.operator_name} - ${formatDate(returnLog.created_at)}${returnLog.remark ? ` · ${returnLog.remark}` : ''}` : ''
-    })
+    steps.push({ title: stepTitle, statusText, type, description })
   }
 
   return steps
@@ -320,12 +367,13 @@ const workflowSteps = computed(() => {
 
 const currentStep = computed(() => {
   if (!order.value) return 0
-  const statusMap = {
-    INQUIRY: 0, INQUIRY_APPROVED: 1, LOCKED: 2, DELIVERED: 3, SETTLED: 4,
-    PAID_PARTIAL: 5, PAID: 6, OVERDUE: 5,
-    RETURN_REQUESTED: 5, RETURN_APPROVED: 6, RETURN_REJECTED: 6
+  const steps = workflowSteps.value
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].statusText === '进行中') {
+      return i + 1
+    }
   }
-  return statusMap[order.value.status] ?? 0
+  return steps.length
 })
 
 const loadOrder = async () => {
