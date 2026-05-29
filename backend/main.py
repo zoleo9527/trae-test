@@ -265,17 +265,68 @@ def init_mock_data():
         s = settlements_db[settlement_id]
         s.net_amount = round(s.total_goods_amount - s.total_delivery_fee + s.total_subsidy - s.total_deduction, 2)
 
-init_mock_data()
-
 def add_operation_log(**kwargs):
     log_id = f"log{len(operation_logs_db)+1:06d}"
+    created_at = kwargs.pop('created_at', datetime.now())
     log = OperationLog(
         id=log_id,
-        created_at=datetime.now(),
+        created_at=created_at,
         **kwargs
     )
     operation_logs_db[log_id] = log
     return log
+
+def init_operation_logs_for_seed_data():
+    for appeal in appeals_db.values():
+        if appeal.status == AppealStatus.PENDING:
+            continue
+            
+        log_time = appeal.processed_at or (appeal.created_at + timedelta(minutes=30))
+        
+        add_operation_log(
+            appeal_id=appeal.id,
+            order_id=appeal.order_id,
+            action="process_appeal",
+            operator=appeal.processor or "运营专员",
+            operator_role="运营专员",
+            description=f"处理申诉: {appeal.reason}",
+            old_value="pending",
+            new_value=appeal.status,
+            created_at=log_time
+        )
+        
+        if appeal.status == AppealStatus.APPROVED and appeal.subsidy_amount:
+            subsidy = next((s for s in subsidies_db.values() if s.appeal_id == appeal.id), None)
+            if subsidy:
+                add_operation_log(
+                    appeal_id=appeal.id,
+                    order_id=appeal.order_id,
+                    action="create_subsidy",
+                    operator=appeal.processor or "运营专员",
+                    operator_role="运营专员",
+                    description=f"创建补贴: ¥{appeal.subsidy_amount} - {appeal.reason}",
+                    old_value=None,
+                    new_value=f"¥{appeal.subsidy_amount}",
+                    created_at=log_time + timedelta(seconds=5)
+                )
+                
+                for settlement in settlements_db.values():
+                    if settlement.merchant_id == appeal.merchant_id:
+                        add_operation_log(
+                            appeal_id=appeal.id,
+                            order_id=appeal.order_id,
+                            action="update_settlement",
+                            operator=appeal.processor or "运营专员",
+                            operator_role="运营专员",
+                            description=f"更新商家结算汇总: 增加补贴 ¥{appeal.subsidy_amount}",
+                            old_value=None,
+                            new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}",
+                            created_at=log_time + timedelta(seconds=10)
+                        )
+                        break
+
+init_mock_data()
+init_operation_logs_for_seed_data()
 
 @app.get("/")
 async def root():
