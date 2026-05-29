@@ -254,7 +254,7 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 
 	var project models.Project
 	database.DB.First(&project, teardown.ProjectID)
-	if project.Phase == models.PhaseReview {
+	if project.Phase == models.PhaseTeardown || project.Phase == models.PhaseReview {
 		var pendingCount int64
 		database.DB.Model(&models.TeardownReview{}).
 			Where("project_id = ? AND status IN ?", project.ID, []string{string(models.StatusPending), string(models.StatusReviewing)}).

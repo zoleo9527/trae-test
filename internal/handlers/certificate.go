@@ -6,6 +6,7 @@ import (
 	"exhibition-system/internal/models"
 	"exhibition-system/internal/services"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -227,11 +228,6 @@ func (h *CertificateHandler) BatchApprove(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No certificate IDs provided"})
 	}
 
-	idsInterface := make([]interface{}, len(req.IDs))
-	for i, id := range req.IDs {
-		idsInterface[i] = id
-	}
-
 	job, err := h.asyncJobService.CreateJob("certificate_batch_approve", map[string]interface{}{
 		"ids": req.IDs,
 	}, userID)
@@ -252,27 +248,15 @@ func (h *CertificateHandler) BatchApprove(c *fiber.Ctx) error {
 		c.Get("User-Agent"),
 	)
 
-	if err := h.asyncJobService.ProcessJob(job); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":   "Batch approve job failed",
-			"job_id":  job.ID,
-			"details": err.Error(),
-		})
-	}
-
-	processedCount := 0
-	if job.Result != nil {
-		if count, ok := job.Result["processed_count"]; ok {
-			if countInt, ok := count.(int); ok {
-				processedCount = countInt
-			}
+	go func() {
+		if err := h.asyncJobService.ProcessJob(job); err != nil {
+			log.Printf("Async job %d failed: %v", job.ID, err)
 		}
-	}
+	}()
 
-	return c.JSON(fiber.Map{
-		"message":         "Batch approved successfully",
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"message":         "Batch approve job queued",
 		"job_id":          job.ID,
-		"processed_count": processedCount,
 		"total_requested": len(req.IDs),
 	})
 }

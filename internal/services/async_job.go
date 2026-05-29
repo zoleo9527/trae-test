@@ -190,52 +190,56 @@ func (s *AsyncJobService) processInspectionToTeardown(job *models.AsyncJob) erro
 			}
 		}
 
-		if len(failedItems) > 0 {
-			teardown := &models.TeardownReview{
-				ProjectID: projectID,
-				Title:     fmt.Sprintf("验收问题跟进 - %s", insp.Title),
-				Status:    models.StatusPending,
-				Summary:   fmt.Sprintf("从验收单[%s]自动生成的撤场跟进，共%d项未通过", insp.Title, len(failedItems)),
-			}
-			teardown.OperatorID = insp.InspectorID
+		teardown := &models.TeardownReview{
+			ProjectID: projectID,
+			Title:     fmt.Sprintf("撤场复盘 - %s", insp.Title),
+			Status:    models.StatusPending,
+			Summary:   fmt.Sprintf("来自验收单[%s]的撤场复盘", insp.Title),
+		}
+		teardown.OperatorID = insp.InspectorID
 
-			tx := database.DB.Begin()
-			if err := tx.Create(teardown).Error; err != nil {
+		if len(failedItems) > 0 {
+			teardown.Summary = fmt.Sprintf("从验收单[%s]自动生成的撤场跟进，共%d项未通过", insp.Title, len(failedItems))
+		} else {
+			teardown.Summary = fmt.Sprintf("验收单[%s]全部通过，进入撤场复盘", insp.Title)
+		}
+
+		tx := database.DB.Begin()
+		if err := tx.Create(teardown).Error; err != nil {
+			tx.Rollback()
+			continue
+		}
+
+		for _, fi := range failedItems {
+			severity := models.SeverityMinor
+			issue := models.TeardownIssue{
+				TeardownReviewID: teardown.ID,
+				Title:            fi.Name,
+				Description:      fi.Remarks,
+				Severity:         severity,
+				Category:         string(insp.Type),
+				Status:           models.TaskStatusTodo,
+			}
+			if err := tx.Create(&issue).Error; err != nil {
 				tx.Rollback()
 				continue
 			}
-
-			for _, fi := range failedItems {
-				severity := models.SeverityMinor
-				issue := models.TeardownIssue{
-					TeardownReviewID: teardown.ID,
-					Title:            fi.Name,
-					Description:      fi.Remarks,
-					Severity:         severity,
-					Category:         string(insp.Type),
-					Status:           models.TaskStatusTodo,
-				}
-				if err := tx.Create(&issue).Error; err != nil {
-					tx.Rollback()
-					continue
-				}
-			}
-
-			tx.Commit()
-
-			s.auditService.Log(
-				userID,
-				models.ActionCreate,
-				models.ResourceTeardown,
-				teardown.ID,
-				&projectID,
-				nil,
-				teardown,
-				fmt.Sprintf("Auto-created teardown review from inspection: %s", insp.Title),
-				"",
-				"",
-			)
 		}
+
+		tx.Commit()
+
+		s.auditService.Log(
+			userID,
+			models.ActionCreate,
+			models.ResourceTeardown,
+			teardown.ID,
+			&projectID,
+			nil,
+			teardown,
+			fmt.Sprintf("Auto-created teardown review from inspection: %s", insp.Title),
+			"",
+			"",
+		)
 	}
 
 	job.Result = map[string]interface{}{
@@ -286,8 +290,8 @@ func (s *AsyncJobService) processTeardownComplete(job *models.AsyncJob) error {
 		return fmt.Errorf("project not found: %w", err)
 	}
 
-	if project.Phase != models.PhaseReview && project.Phase != models.PhaseTeardown {
-		return fmt.Errorf("project is not in review or teardown phase, current phase: %s", project.Phase)
+	if project.Phase != models.PhaseTeardown && project.Phase != models.PhaseReview {
+		return fmt.Errorf("project is not in teardown or review phase, current phase: %s", project.Phase)
 	}
 
 	oldPhase := project.Phase

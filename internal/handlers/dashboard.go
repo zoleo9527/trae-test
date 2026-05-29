@@ -140,6 +140,10 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 	var rejectedTeardowns []models.TeardownReview
 
 	var reviewNeededCerts []models.Certificate
+	var reviewNeededInspections []models.Inspection
+	var reviewNeededTeardowns []models.TeardownReview
+
+	var completedProjects []models.Project
 
 	database.DB.Where("status = ?", models.StatusPending).
 		Preload("Project").
@@ -183,12 +187,31 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 		Limit(10).
 		Find(&rejectedTeardowns)
 
-	database.DB.Where("status = ? AND updated_at > created_at", models.StatusPending).
+	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
 		Preload("Project").
 		Preload("Owner").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&reviewNeededCerts)
+
+	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
+		Preload("Project").
+		Preload("Inspector").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&reviewNeededInspections)
+
+	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
+		Preload("Project").
+		Preload("Operator").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&reviewNeededTeardowns)
+
+	database.DB.Where("phase = ?", models.PhaseCompleted).
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&completedProjects)
 
 	return c.JSON(fiber.Map{
 		"pending": fiber.Map{
@@ -203,7 +226,10 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 		},
 		"review_needed": fiber.Map{
 			"certificates": reviewNeededCerts,
+			"inspections":  reviewNeededInspections,
+			"teardowns":    reviewNeededTeardowns,
 		},
+		"completed_projects": completedProjects,
 	})
 }
 
