@@ -12,6 +12,7 @@
 	let showCreateModal = false;
 	let runners = [];
 	let selectedRunner = 0;
+	let actionError = '';
 
 	$: permissions = $user ? rolePermissions[$user.role] : null;
 	$: visibleStatusOptions = permissions ? permissions.visibleStatuses : [];
@@ -19,6 +20,7 @@
 
 	async function loadOrders() {
 		loading = true;
+		actionError = '';
 		try {
 			orders = await api.getOrders(filterStatus || undefined);
 		} catch (e) {
@@ -30,7 +32,12 @@
 
 	async function selectOrder(order) {
 		selectedOrder = order;
-		timeline = await api.getTimeline(order.id);
+		actionError = '';
+		try {
+			timeline = await api.getTimeline(order.id);
+		} catch (e) {
+			timeline = [];
+		}
 	}
 
 	async function loadRunners() {
@@ -39,27 +46,66 @@
 
 	async function handleAssign() {
 		if (!selectedOrder || !selectedRunner) return;
-		await api.assignOrder(selectedOrder.id, selectedRunner);
-		showAssignModal = false;
-		selectedRunner = 0;
-		await loadOrders();
-		if (selectedOrder) {
-			selectOrder(orders.find(o => o.id === selectedOrder.id));
+		actionError = '';
+		try {
+			await api.assignOrder(selectedOrder.id, selectedRunner);
+			showAssignModal = false;
+			selectedRunner = 0;
+			await loadOrders();
+			if (selectedOrder) {
+				selectOrder(orders.find(o => o.id === selectedOrder.id));
+			}
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
 		}
 	}
 
 	async function handlePickup() {
 		if (!selectedOrder) return;
-		await api.pickupOrder(selectedOrder.id);
-		await loadOrders();
-		selectOrder(orders.find(o => o.id === selectedOrder.id));
+		actionError = '';
+		try {
+			await api.pickupOrder(selectedOrder.id);
+			await loadOrders();
+			selectOrder(orders.find(o => o.id === selectedOrder.id));
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
+		}
 	}
 
 	async function handleDeliver() {
 		if (!selectedOrder) return;
-		await api.deliverOrder(selectedOrder.id);
-		await loadOrders();
-		selectOrder(orders.find(o => o.id === selectedOrder.id));
+		actionError = '';
+		try {
+			await api.deliverOrder(selectedOrder.id);
+			await loadOrders();
+			selectOrder(orders.find(o => o.id === selectedOrder.id));
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	async function handleMarkTimeout() {
+		if (!selectedOrder) return;
+		actionError = '';
+		try {
+			await api.updateOrderStatus(selectedOrder.id, 'timeout');
+			await loadOrders();
+			selectOrder(orders.find(o => o.id === selectedOrder.id));
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	async function handleCancelOrder() {
+		if (!selectedOrder) return;
+		actionError = '';
+		try {
+			await api.updateOrderStatus(selectedOrder.id, 'cancelled');
+			await loadOrders();
+			selectOrder(orders.find(o => o.id === selectedOrder.id));
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
+		}
 	}
 
 	let newOrder = {
@@ -195,7 +241,7 @@
 								分配骑手
 							</button>
 						{/if}
-						{#if $user?.role === 'runner' && selectedOrder.status === 'assigned'}
+						{#if permissions?.canPickupOrder && selectedOrder.status === 'assigned'}
 							<button
 								on:click={handlePickup}
 								class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700"
@@ -203,12 +249,28 @@
 								确认取餐
 							</button>
 						{/if}
-						{#if $user?.role === 'runner' && selectedOrder.status === 'delivering'}
+						{#if permissions?.canDeliverOrder && selectedOrder.status === 'delivering'}
 							<button
 								on:click={handleDeliver}
 								class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
 							>
 								确认送达
+							</button>
+						{/if}
+						{#if permissions?.canMarkTimeout && selectedOrder.status === 'delivering'}
+							<button
+								on:click={handleMarkTimeout}
+								class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+							>
+								标记超时
+							</button>
+						{/if}
+						{#if permissions?.canCancelOrder && selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && selectedOrder.status !== 'resolved'}
+							<button
+								on:click={handleCancelOrder}
+								class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
+							>
+								取消订单
 							</button>
 						{/if}
 						{#if ($user?.role === 'runner' || $user?.role === 'customer_service') && 
@@ -222,6 +284,11 @@
 						{/if}
 					</div>
 				</div>
+				{#if actionError}
+					<div class="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+						{actionError}
+					</div>
+				{/if}
 			</div>
 
 			<div class="flex-1 overflow-auto p-6 space-y-6">

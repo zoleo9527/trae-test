@@ -47,6 +47,10 @@ export const rolePermissions: Record<string, {
 	canCreateOrder: boolean;
 	canAssignOrder: boolean;
 	canReviewAppeal: boolean;
+	canPickupOrder: boolean;
+	canDeliverOrder: boolean;
+	canMarkTimeout: boolean;
+	canCancelOrder: boolean;
 	visibleStatuses: string[];
 	canAppealStatuses: string[];
 }> = {
@@ -57,6 +61,10 @@ export const rolePermissions: Record<string, {
 		canCreateOrder: true,
 		canAssignOrder: false,
 		canReviewAppeal: true,
+		canPickupOrder: false,
+		canDeliverOrder: false,
+		canMarkTimeout: true,
+		canCancelOrder: true,
 		visibleStatuses: ['pending', 'assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved', 'cancelled'],
 		canAppealStatuses: ['delivering', 'timeout', 'appealing']
 	},
@@ -67,6 +75,10 @@ export const rolePermissions: Record<string, {
 		canCreateOrder: true,
 		canAssignOrder: true,
 		canReviewAppeal: false,
+		canPickupOrder: false,
+		canDeliverOrder: false,
+		canMarkTimeout: false,
+		canCancelOrder: true,
 		visibleStatuses: ['pending', 'assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved', 'cancelled'],
 		canAppealStatuses: ['delivering', 'timeout', 'appealing']
 	},
@@ -77,6 +89,10 @@ export const rolePermissions: Record<string, {
 		canCreateOrder: false,
 		canAssignOrder: false,
 		canReviewAppeal: false,
+		canPickupOrder: false,
+		canDeliverOrder: false,
+		canMarkTimeout: true,
+		canCancelOrder: false,
 		visibleStatuses: ['timeout', 'appealing'],
 		canAppealStatuses: ['timeout', 'appealing']
 	},
@@ -87,6 +103,10 @@ export const rolePermissions: Record<string, {
 		canCreateOrder: false,
 		canAssignOrder: false,
 		canReviewAppeal: false,
+		canPickupOrder: true,
+		canDeliverOrder: true,
+		canMarkTimeout: false,
+		canCancelOrder: false,
 		visibleStatuses: ['assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved'],
 		canAppealStatuses: ['delivering', 'timeout']
 	}

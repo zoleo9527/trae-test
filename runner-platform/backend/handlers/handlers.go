@@ -127,6 +127,10 @@ func AssignOrder(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
 	}
 
+	if order.Status != "pending" {
+		return c.Status(400).JSON(fiber.Map{"error": "只有待分配状态的订单才能分配骑手"})
+	}
+
 	var body struct {
 		RunnerID uint `json:"runner_id"`
 	}
@@ -152,10 +156,19 @@ func AssignOrder(c *fiber.Ctx) error {
 
 func UpdateOrderStatus(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var order models.Order
 
 	if err := database.DB.First(&order, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if userRole == "runner" {
+		if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+			return c.Status(403).JSON(fiber.Map{"error": "无权操作该订单"})
+		}
 	}
 
 	var body struct {
@@ -163,6 +176,46 @@ func UpdateOrderStatus(c *fiber.Ctx) error {
 	}
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "请求参数错误"})
+	}
+
+	validTransitions := map[string][]string{
+		"pending":    {"assigned", "cancelled"},
+		"assigned":   {"picked_up", "cancelled"},
+		"picked_up":  {"delivering", "cancelled"},
+		"delivering": {"delivered", "timeout", "cancelled"},
+		"timeout":    {"appealing", "cancelled"},
+		"appealing":  {"resolved", "cancelled"},
+	}
+
+	allowed, ok := validTransitions[order.Status]
+	if !ok {
+		return c.Status(400).JSON(fiber.Map{"error": "当前订单状态不允许变更"})
+	}
+
+	validNext := false
+	for _, s := range allowed {
+		if s == body.Status {
+			validNext = true
+			break
+		}
+	}
+	if !validNext {
+		return c.Status(400).JSON(fiber.Map{"error": "不允许从 " + getStatusText(order.Status) + " 变更为 " + getStatusText(body.Status)})
+	}
+
+	roleAllowed := false
+	switch userRole {
+	case "manager":
+		roleAllowed = true
+	case "dispatcher":
+		roleAllowed = body.Status == "assigned" || body.Status == "cancelled"
+	case "customer_service":
+		roleAllowed = body.Status == "timeout" || body.Status == "appealing"
+	case "runner":
+		roleAllowed = body.Status == "picked_up" || body.Status == "delivered"
+	}
+	if !roleAllowed {
+		return c.Status(403).JSON(fiber.Map{"error": "当前角色无权执行此操作"})
 	}
 
 	order.Status = body.Status
@@ -191,6 +244,10 @@ func PickupOrder(c *fiber.Ctx) error {
 		return c.Status(403).JSON(fiber.Map{"error": "无权操作该订单"})
 	}
 
+	if order.Status != "assigned" {
+		return c.Status(400).JSON(fiber.Map{"error": "只有待取餐状态的订单才能确认取餐"})
+	}
+
 	order.Status = "delivering"
 	database.DB.Save(&order)
 
@@ -215,6 +272,10 @@ func DeliverOrder(c *fiber.Ctx) error {
 
 	if order.RunnerID == nil || *order.RunnerID != uint(userID) {
 		return c.Status(403).JSON(fiber.Map{"error": "无权操作该订单"})
+	}
+
+	if order.Status != "delivering" {
+		return c.Status(400).JSON(fiber.Map{"error": "只有配送中的订单才能确认送达"})
 	}
 
 	order.Status = "delivered"
@@ -317,10 +378,19 @@ func CreateAppeal(c *fiber.Ctx) error {
 	order.Status = "appealing"
 	database.DB.Save(&order)
 
+	var operatorText string
+	if userRole == "customer_service" {
+		var operator models.User
+		database.DB.First(&operator, userID)
+		operatorText = "客服(" + operator.Name + ")代提申诉: " + appeal.Reason
+	} else {
+		operatorText = "骑手提交申诉: " + appeal.Reason
+	}
+
 	database.DB.Create(&models.TimelineEvent{
 		OrderID: appeal.OrderID,
 		Type:    "appeal_created",
-		Content: "骑手提交申诉: " + appeal.Reason,
+		Content: operatorText,
 	})
 
 	return c.JSON(appeal)
