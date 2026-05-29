@@ -202,11 +202,26 @@ const allIssues = computed(() => orderStore.inspectionIssues)
 
 const filteredIssues = computed(() => {
   const user = authStore.currentUser
-  if (!user) return allIssues.value
-  if (user.role === UserRole.STORE_MANAGER && user.storeId) {
-    return allIssues.value.filter(i => i.storeId === user.storeId)
+  if (!user) return []
+
+  if (user.role === UserRole.STORE_MANAGER) {
+    if (user.storeId) {
+      return allIssues.value.filter(i => i.storeId === user.storeId)
+    }
+    return []
   }
-  return allIssues.value
+
+  if (user.role === UserRole.WAREHOUSE) {
+    return []
+  }
+
+  if (user.role === UserRole.PLANNER) {
+    return allIssues.value.filter(i => 
+      i.reporterId === user.id || i.handlerId === user.id
+    )
+  }
+
+  return []
 })
 
 const pendingCount = computed(() => filteredIssues.value.filter(i => i.status === 'pending').length)
@@ -277,7 +292,8 @@ const canAccept = (issue: InspectionIssue) => {
   const user = authStore.currentUser
   if (!user) return false
   if (issue.status !== 'pending') return false
-  if (user.role === UserRole.STORE_MANAGER && user.storeId && issue.storeId !== user.storeId) return false
+  if (user.role !== UserRole.STORE_MANAGER) return false
+  if (user.storeId && issue.storeId !== user.storeId) return false
   return true
 }
 
@@ -293,10 +309,12 @@ const canClose = (issue: InspectionIssue) => {
   const user = authStore.currentUser
   if (!user) return false
   if (issue.status !== 'resolved') return false
-  if (issue.reporterId === user.id) return true
-  if (user.role === UserRole.STORE_MANAGER && user.storeId === issue.storeId) return true
-  if (user.role === UserRole.PLANNER) return true
-  return false
+  const isReporter = issue.reporterId === user.id
+  const isHandler = issue.handlerId === user.id
+  const isSameStoreManager = user.role === UserRole.STORE_MANAGER && 
+                             !!user.storeId && 
+                             issue.storeId === user.storeId
+  return isReporter || isHandler || isSameStoreManager
 }
 
 const viewDetail = (issue: InspectionIssue) => {

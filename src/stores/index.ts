@@ -675,11 +675,17 @@ export const useOrderStore = defineStore('order', () => {
     return inspectionIssues.value.filter(i => i.storeId === storeId)
   }
 
-  const getMyPendingIssues = (role: UserRole, storeId?: string) => {
+  const getMyPendingIssues = (role: UserRole, storeId?: string, userId?: string) => {
     let issues = inspectionIssues.value.filter(i => i.status === 'pending' || i.status === 'processing')
+    
     if (role === RoleEnum.STORE_MANAGER && storeId) {
       issues = issues.filter(i => i.storeId === storeId)
+    } else if (role === RoleEnum.WAREHOUSE) {
+      issues = []
+    } else if (role === RoleEnum.PLANNER) {
+      issues = issues.filter(i => i.reporterId === userId || i.handlerId === userId)
     }
+    
     return issues
   }
 
@@ -713,8 +719,12 @@ export const useOrderStore = defineStore('order', () => {
       return { success: false, message: '只有待处理状态的问题可以接单' }
     }
 
-    if (operator.role === RoleEnum.STORE_MANAGER && operator.storeId && issue.storeId !== operator.storeId) {
-      return { success: false, message: '只能处理本门店的巡店问题' }
+    if (operator.role !== RoleEnum.STORE_MANAGER) {
+      return { success: false, message: '只有店长可以接单处理巡店问题' }
+    }
+
+    if (operator.storeId && issue.storeId !== operator.storeId) {
+      return { success: false, message: '只能接单本门店的巡店问题' }
     }
 
     issue.status = 'processing'
@@ -752,18 +762,14 @@ export const useOrderStore = defineStore('order', () => {
       return { success: false, message: '只有已解决状态的问题可以关闭' }
     }
 
-    if (operator.role === RoleEnum.STORE_MANAGER && operator.storeId && issue.storeId !== operator.storeId) {
-      return { success: false, message: '只能关闭本门店的巡店问题' }
-    }
+    const isReporter = issue.reporterId === operator.id
+    const isHandler = issue.handlerId === operator.id
+    const isSameStoreManager = operator.role === RoleEnum.STORE_MANAGER && 
+                               !!operator.storeId && 
+                               issue.storeId === operator.storeId
 
-    if (operator.role === RoleEnum.STORE_MANAGER && issue.reporterId !== operator.id && issue.storeId !== operator.storeId) {
-      return { success: false, message: '只有上报人或该门店店长可以关闭问题' }
-    }
-
-    if (issue.reporterId !== operator.id && 
-        !(operator.role === RoleEnum.STORE_MANAGER && issue.storeId === operator.storeId) &&
-        operator.role !== RoleEnum.PLANNER) {
-      return { success: false, message: '只有上报人、门店店长或企划专员可以关闭问题' }
+    if (!isReporter && !isHandler && !isSameStoreManager) {
+      return { success: false, message: '只有上报人、接单责任人或同店店长可以关闭问题' }
     }
 
     issue.status = 'closed'

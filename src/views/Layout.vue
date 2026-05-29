@@ -158,7 +158,8 @@ const pendingCount = computed(() => {
 const issueCount = computed(() => {
   return orderStore.getMyPendingIssues(
     currentUser.value?.role || 'store_manager',
-    currentUser.value?.storeId
+    currentUser.value?.storeId,
+    currentUser.value?.id
   ).length
 })
 
