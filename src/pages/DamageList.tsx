@@ -46,6 +46,7 @@ export default function DamageList({ user }: DamageListProps) {
         status: values.status,
         dispute_note: values.dispute_note,
         resolved_by: user.id,
+        resolved_by_name: user.name,
         compensation_amount: values.compensation_amount || 0
       })
       message.success('处理完成')

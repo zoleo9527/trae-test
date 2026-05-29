@@ -231,24 +231,48 @@ ipcMain.handle('db:getBatchById', (_, id: number) => {
 
 ipcMain.handle('db:addClothes', (_, data: any) => {
   const result = db?.prepare(`
-    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.clothes_no, data.batch_id, data.customer_name, data.customer_phone,
-    data.category, data.brand, data.color, data.size, data.price, data.services
+    data.category, data.brand, data.color, data.size, data.price, data.services,
+    data.status || 'sorting'
   )
-  return result?.lastInsertRowid
+  const clothesId = result?.lastInsertRowid
+  
+  if (data.batch_id) {
+    db?.prepare('UPDATE batches SET total_count = (SELECT COUNT(*) FROM clothes WHERE batch_id = ?) WHERE id = ?').run(data.batch_id, data.batch_id)
+  }
+  
+  if (data.batch_id) {
+    db?.prepare(`
+      INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(clothesId, data.batch_id, '创建衣物记录', data.operator_id || 1, data.operator_name || 'system')
+  }
+  
+  return clothesId
 })
 
 ipcMain.handle('db:batchAddClothes', (_, clothesList: any[]) => {
-  const stmt = db?.prepare(`
-    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const insertStmt = db?.prepare(`
+    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const logStmt = db?.prepare(`
+    INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
+    VALUES (?, ?, ?, ?, ?)
   `)
   const transaction = db?.transaction((list: any[]) => {
     for (const c of list) {
-      stmt?.run(c.clothes_no, c.batch_id, c.customer_name, c.customer_phone,
-        c.category, c.brand, c.color, c.size, c.price, c.services)
+      const result = insertStmt?.run(c.clothes_no, c.batch_id, c.customer_name, c.customer_phone,
+        c.category, c.brand, c.color, c.size, c.price, c.services, c.status || 'received')
+      if (c.batch_id) {
+        logStmt?.run(result?.lastInsertRowid, c.batch_id, '批量导入衣物', c.operator_id || 1, c.operator_name || 'system')
+      }
+    }
+    if (list.length > 0 && list[0].batch_id) {
+      db?.prepare('UPDATE batches SET total_count = (SELECT COUNT(*) FROM clothes WHERE batch_id = ?) WHERE id = ?').run(list[0].batch_id, list[0].batch_id)
     }
   })
   transaction?.(clothesList)
@@ -275,15 +299,24 @@ ipcMain.handle('db:searchClothes', (_, keyword: string) => {
 })
 
 ipcMain.handle('db:updateClothesStatus', (_, id: number, status: string, operatorId: number, operatorName: string) => {
+  const clothes = db?.prepare('SELECT id, batch_id FROM clothes WHERE id = ?').get(id) as any
+  if (!clothes) {
+    throw new Error('衣物记录不存在')
+  }
   db?.prepare('UPDATE clothes SET status = ? WHERE id = ?').run(status, id)
   db?.prepare(`
-    INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name)
-    VALUES (?, ?, ?, ?)
-  `).run(id, `状态变更为: ${status}`, operatorId, operatorName)
+    INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, clothes.batch_id, `状态变更为: ${status}`, operatorId, operatorName)
   return true
 })
 
 ipcMain.handle('db:reportDamage', (_, data: any) => {
+  const clothes = db?.prepare('SELECT id, batch_id FROM clothes WHERE id = ?').get(data.clothes_id) as any
+  if (!clothes) {
+    throw new Error('衣物记录不存在，请先入库再上报污损')
+  }
+  
   const result = db?.prepare(`
     INSERT INTO damage_records (clothes_id, damage_type, description, severity, evidence_photos, reported_by)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -292,9 +325,9 @@ ipcMain.handle('db:reportDamage', (_, data: any) => {
   db?.prepare('UPDATE clothes SET has_damage = 1, status = ? WHERE id = ?').run('damage_reported', data.clothes_id)
   
   db?.prepare(`
-    INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name, note)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(data.clothes_id, '上报污损', data.reported_by, data.reported_by_name, data.description)
+    INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name, note)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(data.clothes_id, clothes.batch_id, '上报污损', data.reported_by, data.reported_by_name, data.description)
   
   return result?.lastInsertRowid
 })
@@ -320,17 +353,42 @@ ipcMain.handle('db:getDamageRecords', (_, status?: string) => {
 })
 
 ipcMain.handle('db:resolveDamage', (_, data: any) => {
+  const damageRecord = db?.prepare('SELECT clothes_id FROM damage_records WHERE id = ?').get(data.id) as any
+  if (!damageRecord) {
+    throw new Error('污损记录不存在')
+  }
+  
+  const clothes = db?.prepare('SELECT id, batch_id FROM clothes WHERE id = ?').get(damageRecord.clothes_id) as any
+  if (!clothes) {
+    throw new Error('关联的衣物记录不存在')
+  }
+  
   db?.prepare(`
     UPDATE damage_records 
     SET status = ?, dispute_note = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP, compensation_amount = ?
     WHERE id = ?
   `).run(data.status, data.dispute_note, data.resolved_by, data.compensation_amount, data.id)
   
+  let newStatus = ''
   if (data.status === 'confirmed') {
-    db?.prepare('UPDATE clothes SET status = ? WHERE id = (SELECT clothes_id FROM damage_records WHERE id = ?)').run('washing', data.id)
+    newStatus = 'washing'
+    db?.prepare('UPDATE clothes SET status = ? WHERE id = ?').run(newStatus, clothes.id)
   } else if (data.status === 'rejected') {
-    db?.prepare('UPDATE clothes SET status = ? WHERE id = (SELECT clothes_id FROM damage_records WHERE id = ?)').run('return_to_store', data.id)
+    newStatus = 'return_to_store'
+    db?.prepare('UPDATE clothes SET status = ? WHERE id = ?').run(newStatus, clothes.id)
   }
+  
+  db?.prepare(`
+    INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name, note)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    clothes.id, 
+    clothes.batch_id, 
+    `污损复判: ${data.status === 'confirmed' ? '确认洗涤' : '退回门店'}`, 
+    data.resolved_by, 
+    data.resolved_by_name || '系统',
+    data.dispute_note || ''
+  )
   
   return true
 })

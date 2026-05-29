@@ -43,7 +43,10 @@ export default function BatchDetail({ user }: BatchDetailProps) {
       await window.electronAPI.addClothes({
         ...values,
         clothes_no: clothesNo,
-        batch_id: Number(id)
+        batch_id: Number(id),
+        status: 'received',
+        operator_id: user.id,
+        operator_name: user.name
       })
       message.success('添加成功')
       setModalVisible(false)
@@ -74,7 +77,10 @@ export default function BatchDetail({ user }: BatchDetailProps) {
         color: item['颜色'] || '',
         size: item['尺码'] || '',
         price: item['价格'] || 0,
-        services: item['服务项目'] || '标准洗涤'
+        services: item['服务项目'] || '标准洗涤',
+        status: 'received',
+        operator_id: user.id,
+        operator_name: user.name
       }))
 
       await window.electronAPI.batchAddClothes(clothesList)
@@ -125,8 +131,7 @@ export default function BatchDetail({ user }: BatchDetailProps) {
             size="small"
             placeholder="变更状态"
             style={{ width: 120 }}
-            onChange={(v) => handleStatusChange(record, v)}
-            value={undefined}
+            onChange={(v: string) => handleStatusChange(record, v)}
           >
             {Object.entries(CLOTHES_STATUS).map(([key, label]) => (
               <Select.Option key={key} value={key}>{label}</Select.Option>
