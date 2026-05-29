@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../types';
+import { AuthenticatedRequest, PaymentStatus, AuditAction } from '../types';
 import { PaymentService } from '../services/payment.service';
 import { AppError } from '../middleware/errorHandler';
 

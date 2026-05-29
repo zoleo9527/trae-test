@@ -1,6 +1,5 @@
-
 import prisma from '../lib/prisma';
-import { AuthUser } from '../types';
+import { AuthUser, AuditAction } from '../types';
 import logger from '../lib/logger';
 
 export class AuditService {

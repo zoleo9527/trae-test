@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
-import { AuthenticatedRequest } from '../types';
+import { AuthenticatedRequest, Role } from '../types';
 import { generateToken } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 
@@ -35,7 +35,7 @@ export const login = async (
       id: user.id,
       username: user.username,
       name: user.name,
-      role: user.role,
+      role: user.role as Role,
     });
 
     res.json({
@@ -46,7 +46,7 @@ export const login = async (
           id: user.id,
           username: user.username,
           name: user.name,
-          role: user.role,
+          role: user.role as Role,
           email: user.email,
           phone: user.phone,
         },

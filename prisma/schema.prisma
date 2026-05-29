@@ -15,9 +15,11 @@ model User {
   role      String
   email     String?
   phone     String?
+  supplierId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
   createdProjects Project[] @relation("ProjectCreator")
   reconciliations Reconciliation[] @relation("ReconciliationCreator")
   payments Payment[] @relation("PaymentCreator")
@@ -40,6 +42,7 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  contactUsers User[]
   projects ProjectSupplier[]
   reconciliations Reconciliation[]
   materials MaterialItem[]

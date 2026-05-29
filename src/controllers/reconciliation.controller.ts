@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../types';
+import { AuthenticatedRequest, ReconciliationStatus, AuditAction } from '../types';
 import { ReconciliationService } from '../services/reconciliation.service';
 import { AppError } from '../middleware/errorHandler';
 

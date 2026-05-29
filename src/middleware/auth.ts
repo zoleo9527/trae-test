@@ -36,7 +36,12 @@ export const authenticate = async (
       return next(new AppError('用户不存在', 401));
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role as Role,
+    };
     next();
   } catch (error) {
     return next(new AppError('无效的认证令牌', 401));

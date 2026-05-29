@@ -12,6 +12,88 @@ export interface CreatePaymentDTO {
 }
 
 export class PaymentService {
+  private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
+    if (user.role !== Role.SUPPLIER_CONTACT) return [];
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { supplierId: true },
+    });
+
+    return fullUser?.supplierId ? [fullUser.supplierId] : [];
+  }
+
+  static canCreate(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.FINANCE] as Role[]).includes(user.role);
+  }
+
+  static canApprove(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.FINANCE] as Role[]).includes(user.role);
+  }
+
+  static canMarkPaid(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.FINANCE] as Role[]).includes(user.role);
+  }
+
+  static canReject(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.FINANCE] as Role[]).includes(user.role);
+  }
+
+  private static async getAccessiblePaymentIds(user: AuthUser): Promise<string[]> {
+    if (([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.FINANCE] as Role[]).includes(user.role)) {
+      return [];
+    }
+
+    const supplierIds = await this.getUserSupplierIds(user);
+    if (supplierIds.length === 0) return ['__no_access__'];
+
+    const payments = await prisma.payment.findMany({
+      where: {
+        reconciliation: { supplierId: { in: supplierIds } },
+      },
+      select: { id: true },
+    });
+
+    return payments.map(p => p.id);
+  }
+
+  private static getSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      code: true,
+      title: true,
+      description: true,
+      projectId: true,
+      reconciliationId: true,
+      status: true,
+      amount: true,
+      payMethod: true,
+      payDate: true,
+      createdAt: true,
+      approvedAt: true,
+      project: { select: { id: true, name: true, code: true } },
+      reconciliation: {
+        select: {
+          id: true, code: true, status: true, totalAmount: true,
+          supplier: { select: { id: true, name: true, contact: true, phone: true } },
+        }
+      },
+      creator: { select: { id: true, name: true, role: true } },
+    };
+
+    if (role === Role.SUPPLIER_CONTACT) {
+      return {
+        ...base,
+        rejectReason: false,
+      };
+    }
+
+    return {
+      ...base,
+      rejectReason: true,
+    };
+  }
+
   static async generateCode(): Promise<string> {
     const today = new Date();
     const prefix = `FK${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -29,6 +111,8 @@ export class PaymentService {
   }
 
   static async create(user: AuthUser, dto: CreatePaymentDTO, ip?: string) {
+    if (!this.canCreate(user)) throw new Error('无权创建付款申请');
+
     if (dto.reconciliationId) {
       const reconciliation = await prisma.reconciliation.findUnique({
         where: { id: dto.reconciliationId },
@@ -72,6 +156,10 @@ export class PaymentService {
   }
 
   static async approve(user: AuthUser, id: string, ip?: string) {
+    if (!this.canApprove(user)) throw new Error('无权审批付款申请');
+    const accessibleIds = await this.getAccessiblePaymentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
@@ -108,6 +196,10 @@ export class PaymentService {
   }
 
   static async markPaid(user: AuthUser, id: string, payDate?: Date, ip?: string) {
+    if (!this.canMarkPaid(user)) throw new Error('无权标记付款完成');
+    const accessibleIds = await this.getAccessiblePaymentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
@@ -170,6 +262,10 @@ export class PaymentService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
+    if (!this.canReject(user)) throw new Error('无权驳回付款申请');
+    const accessibleIds = await this.getAccessiblePaymentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
@@ -203,18 +299,13 @@ export class PaymentService {
   }
 
   static async getById(user: AuthUser, id: string) {
+    const accessibleIds = await this.getAccessiblePaymentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此付款申请');
+
+    const selectFields = this.getSelectFieldsByRole(user.role);
     const payment = await prisma.payment.findUnique({
       where: { id },
-      include: {
-        project: { select: { id: true, code: true, name: true, status: true } },
-        reconciliation: {
-          select: {
-            id: true, code: true, status: true, totalAmount: true,
-            supplier: { select: { id: true, name: true, contact: true, phone: true } },
-          }
-        },
-        creator: { select: { id: true, name: true, role: true } },
-      },
+      select: selectFields,
     });
 
     if (!payment) {
@@ -234,22 +325,15 @@ export class PaymentService {
       }),
     ]);
 
-    const result = {
+    const filteredAuditLogs = user.role === Role.SUPPLIER_CONTACT
+      ? auditLogs.filter(log => ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action))
+      : auditLogs;
+
+    return {
       ...payment,
-      auditLogs,
+      auditLogs: filteredAuditLogs,
       comments,
     };
-
-    if (user.role === Role.SUPPLIER_CONTACT) {
-      return {
-        ...result,
-        auditLogs: auditLogs.filter(log =>
-          ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action)
-        ),
-      };
-    }
-
-    return result;
   }
 
   static async getList(
@@ -270,6 +354,11 @@ export class PaymentService {
     if (params.projectId) where.projectId = params.projectId;
     if (params.reconciliationId) where.reconciliationId = params.reconciliationId;
     if (params.status) where.status = params.status;
+
+    const accessibleIds = await this.getAccessiblePaymentIds(user);
+    if (accessibleIds.length > 0) {
+      where.id = { in: accessibleIds };
+    }
 
     const selectFields = this.getSelectFieldsByRole(user.role);
 
@@ -293,33 +382,4 @@ export class PaymentService {
     };
   }
 
-  private static getSelectFieldsByRole(role: Role) {
-    const base = {
-      id: true,
-      code: true,
-      title: true,
-      status: true,
-      amount: true,
-      payMethod: true,
-      payDate: true,
-      createdAt: true,
-      approvedAt: true,
-      project: { select: { id: true, code: true, name: true } },
-      reconciliation: { select: { id: true, code: true, status: true } },
-      creator: { select: { id: true, name: true, role: true } },
-    };
-
-    switch (role) {
-      case Role.SUPPLIER_CONTACT:
-        return {
-          ...base,
-          rejectReason: false,
-        };
-      default:
-        return {
-          ...base,
-          rejectReason: true,
-        };
-    }
-  }
 }

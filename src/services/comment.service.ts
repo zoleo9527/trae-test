@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma';
-import { AuthUser } from '../types';
+import { AuthUser, AuditAction, Role } from '../types';
 import { AuditService } from './audit.service';
 
 
@@ -56,7 +56,7 @@ export class CommentService {
       throw new Error('备注不存在');
     }
 
-    if (comment.userId !== user.id && user.role !== 'ADMIN') {
+    if (comment.userId !== user.id && user.role !== Role.ADMIN) {
       throw new Error('无权删除此备注');
     }
 

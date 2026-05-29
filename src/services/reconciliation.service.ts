@@ -32,6 +32,88 @@ export interface UpdateReconciliationDTO {
 }
 
 export class ReconciliationService {
+  private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
+    if (user.role !== Role.SUPPLIER_CONTACT) return [];
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { supplierId: true },
+    });
+
+    return fullUser?.supplierId ? [fullUser.supplierId] : [];
+  }
+
+  static canCreate(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.SUPPLIER_CONTACT] as Role[]).includes(user.role);
+  }
+
+  static canSubmit(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.SUPPLIER_CONTACT] as Role[]).includes(user.role);
+  }
+
+  static canApprove(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  static canReject(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  static canRevise(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  private static async getAccessibleReconciliationIds(user: AuthUser): Promise<string[]> {
+    if (([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.FINANCE] as Role[]).includes(user.role)) {
+      return [];
+    }
+
+    const supplierIds = await this.getUserSupplierIds(user);
+    if (supplierIds.length === 0) return ['__no_access__'];
+
+    const reconciliations = await prisma.reconciliation.findMany({
+      where: { supplierId: { in: supplierIds } },
+      select: { id: true },
+    });
+
+    return reconciliations.map(r => r.id);
+  }
+
+  private static getSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      code: true,
+      title: true,
+      description: true,
+      projectId: true,
+      supplierId: true,
+      status: true,
+      totalAmount: true,
+      confirmedAmount: true,
+      createdAt: true,
+      submittedAt: true,
+      approvedAt: true,
+      project: { select: { id: true, name: true, code: true } },
+      supplier: { select: { id: true, name: true, contact: true, phone: true } },
+      creator: { select: { id: true, name: true, role: true } },
+      items: true,
+    };
+
+    if (role === Role.SUPPLIER_CONTACT) {
+      return {
+        ...base,
+        rejectReason: false,
+        reviseNote: false,
+      };
+    }
+
+    return {
+      ...base,
+      rejectReason: true,
+      reviseNote: true,
+    };
+  }
+
   static async generateCode(): Promise<string> {
     const today = new Date();
     const prefix = `DZ${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -49,6 +131,15 @@ export class ReconciliationService {
   }
 
   static async create(user: AuthUser, dto: CreateReconciliationDTO, ip?: string) {
+    if (!this.canCreate(user)) {
+      throw new Error('无权创建对账单');
+    }
+
+    const supplierIds = await this.getUserSupplierIds(user);
+    if (supplierIds.length > 0 && !supplierIds.includes(dto.supplierId)) {
+      throw new Error('无权为该供应商创建对账单');
+    }
+
     const code = await this.generateCode();
     const totalAmount = dto.items.reduce((sum, item) => sum + item.amount, 0);
 
@@ -89,6 +180,15 @@ export class ReconciliationService {
   }
 
   static async update(user: AuthUser, id: string, dto: UpdateReconciliationDTO, ip?: string) {
+    if (!this.canCreate(user)) {
+      throw new Error('无权修改对账单');
+    }
+
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) {
+      throw new Error('无权修改此对账单');
+    }
+
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
       include: { items: true },
@@ -147,6 +247,10 @@ export class ReconciliationService {
   }
 
   static async submit(user: AuthUser, id: string, ip?: string) {
+    if (!this.canSubmit(user)) throw new Error('无权提交对账单');
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
@@ -184,6 +288,10 @@ export class ReconciliationService {
   }
 
   static async approve(user: AuthUser, id: string, confirmedAmount?: number, ip?: string) {
+    if (!this.canApprove(user)) throw new Error('无权审批对账单');
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
@@ -222,6 +330,10 @@ export class ReconciliationService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
+    if (!this.canReject(user)) throw new Error('无权驳回对账单');
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
@@ -256,6 +368,10 @@ export class ReconciliationService {
   }
 
   static async requestRevise(user: AuthUser, id: string, note: string, ip?: string) {
+    if (!this.canRevise(user)) throw new Error('无权退回修改对账单');
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
@@ -293,13 +409,14 @@ export class ReconciliationService {
   }
 
   static async getById(user: AuthUser, id: string) {
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此对账单');
+
+    const selectFields = this.getSelectFieldsByRole(user.role);
     const reconciliation = await prisma.reconciliation.findUnique({
       where: { id },
-      include: {
-        project: { select: { id: true, code: true, name: true, status: true } },
-        supplier: { select: { id: true, name: true, contact: true, phone: true } },
-        creator: { select: { id: true, name: true, role: true } },
-        items: true,
+      select: {
+        ...selectFields,
         payments: {
           select: { id: true, code: true, amount: true, status: true, payDate: true },
         },
@@ -323,22 +440,15 @@ export class ReconciliationService {
       }),
     ]);
 
-    const result = {
+    const filteredAuditLogs = user.role === Role.SUPPLIER_CONTACT
+      ? auditLogs.filter(log => ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action))
+      : auditLogs;
+
+    return {
       ...reconciliation,
-      auditLogs,
+      auditLogs: filteredAuditLogs,
       comments,
     };
-
-    if (user.role === Role.SUPPLIER_CONTACT) {
-      return {
-        ...result,
-        auditLogs: auditLogs.filter(log =>
-          ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action)
-        ),
-      };
-    }
-
-    return result;
   }
 
   static async getList(
@@ -359,6 +469,11 @@ export class ReconciliationService {
     if (params.projectId) where.projectId = params.projectId;
     if (params.supplierId) where.supplierId = params.supplierId;
     if (params.status) where.status = params.status;
+
+    const accessibleIds = await this.getAccessibleReconciliationIds(user);
+    if (accessibleIds.length > 0) {
+      where.id = { in: accessibleIds };
+    }
 
     const selectFields = this.getSelectFieldsByRole(user.role);
 
@@ -382,35 +497,4 @@ export class ReconciliationService {
     };
   }
 
-  private static getSelectFieldsByRole(role: Role) {
-    const base = {
-      id: true,
-      code: true,
-      title: true,
-      status: true,
-      totalAmount: true,
-      confirmedAmount: true,
-      createdAt: true,
-      submittedAt: true,
-      approvedAt: true,
-      project: { select: { id: true, code: true, name: true } },
-      supplier: { select: { id: true, name: true } },
-      creator: { select: { id: true, name: true, role: true } },
-    };
-
-    switch (role) {
-      case Role.SUPPLIER_CONTACT:
-        return {
-          ...base,
-          rejectReason: false,
-          reviseNote: false,
-        };
-      default:
-        return {
-          ...base,
-          rejectReason: true,
-          reviseNote: true,
-        };
-    }
-  }
 }

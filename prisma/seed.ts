@@ -32,6 +32,15 @@ async function main() {
   const createdSuppliers = await prisma.supplier.findMany();
   console.log(`创建了 ${createdSuppliers.length} 个供应商`);
 
+  const supplierContact = createdUsers.find(u => u.username === 'supplier')!;
+  const supplier1 = createdSuppliers[0];
+
+  await prisma.user.update({
+    where: { id: supplierContact.id },
+    data: { supplierId: supplier1.id },
+  });
+  console.log('关联供应商联系人到盛世展览设计有限公司');
+
   const adminUser = createdUsers.find(u => u.username === 'admin')!;
   const coordinatorUser = createdUsers.find(u => u.username === 'coordinator')!;
   const executiveUser = createdUsers.find(u => u.username === 'executive')!;
@@ -57,7 +66,6 @@ async function main() {
   const createdProjects = await prisma.project.findMany();
   console.log(`创建了 ${createdProjects.length} 个项目`);
 
-  const supplier1 = createdSuppliers[0];
   const supplier2 = createdSuppliers[1];
   const supplier3 = createdSuppliers[2];
 
@@ -185,44 +193,58 @@ async function main() {
   });
   console.log('创建付款单2');
 
-  await prisma.document.createMany({
-    data: [
-      { projectId: project1.id, type: 'ENTRY_PERMIT', title: '施工人员进场证件办理', description: '所有施工人员进场证件', status: 'IN_PROGRESS', deadline: new Date('2024-06-10'), assigneeId: executiveUser.id },
-      { projectId: project1.id, type: 'CONSTRUCTION_PERMIT', title: '展台施工许可证', description: '主场搭建施工许可', status: 'APPROVED', deadline: new Date('2024-06-08'), assigneeId: executiveUser.id, approvedAt: new Date('2024-06-05') },
-      { projectId: project1.id, type: 'INSURANCE', title: '工程意外险', description: '施工人员意外险', status: 'NOT_STARTED', deadline: new Date('2024-06-12'), assigneeId: coordinatorUser.id },
-    ],
+  const doc1 = await prisma.document.create({
+    data: {
+      projectId: project1.id, type: 'ENTRY_PERMIT', title: '施工人员进场证件办理', description: '所有施工人员进场证件',
+      status: 'IN_PROGRESS', deadline: new Date('2024-06-10'), assigneeId: executiveUser.id,
+    },
+  });
+
+  const doc2 = await prisma.document.create({
+    data: {
+      projectId: project1.id, type: 'CONSTRUCTION_PERMIT', title: '展台施工许可证', description: '主场搭建施工许可',
+      status: 'APPROVED', deadline: new Date('2024-06-08'), assigneeId: executiveUser.id, approvedAt: new Date('2024-06-05'),
+    },
+  });
+
+  const doc3 = await prisma.document.create({
+    data: {
+      projectId: project1.id, type: 'INSURANCE', title: '工程意外险', description: '施工人员意外险',
+      status: 'NOT_STARTED', deadline: new Date('2024-06-12'), assigneeId: coordinatorUser.id,
+    },
   });
   console.log('创建了证件办理记录');
 
-  await prisma.teardownReview.createMany({
-    data: [
-      {
-        projectId: project3.id,
-        title: '深圳智能家居展-撤场复盘',
-        description: '展会结束后的撤场流程和复盘总结',
-        status: 'COMPLETED',
-        startDate: new Date('2024-05-11'),
-        endDate: new Date('2024-05-13'),
-        materialsReturned: true,
-        siteCleared: true,
-        issuesFound: '部分展架螺丝丢失，需要补充',
-        lessonsLearned: '下次需要提前安排撤场人员，避免赶工',
-        finalReport: '本次撤场顺利完成，耗时约2天。主要问题是部分物料管理不善导致小配件丢失。',
-        assigneeId: executiveUser.id,
-        completedAt: new Date('2024-05-14'),
-      },
-      {
-        projectId: project1.id,
-        title: '上海车展-撤场准备',
-        description: '车展结束后的撤场计划',
-        status: 'PENDING',
-        startDate: new Date('2024-06-26'),
-        endDate: new Date('2024-06-28'),
-        materialsReturned: false,
-        siteCleared: false,
-        assigneeId: executiveUser.id,
-      },
-    ],
+  const teardown1 = await prisma.teardownReview.create({
+    data: {
+      projectId: project3.id,
+      title: '深圳智能家居展-撤场复盘',
+      description: '展会结束后的撤场流程和复盘总结',
+      status: 'COMPLETED',
+      startDate: new Date('2024-05-11'),
+      endDate: new Date('2024-05-13'),
+      materialsReturned: true,
+      siteCleared: true,
+      issuesFound: '部分展架螺丝丢失，需要补充',
+      lessonsLearned: '下次需要提前安排撤场人员，避免赶工',
+      finalReport: '本次撤场顺利完成，耗时约2天。主要问题是部分物料管理不善导致小配件丢失。',
+      assigneeId: executiveUser.id,
+      completedAt: new Date('2024-05-14'),
+    },
+  });
+
+  const teardown2 = await prisma.teardownReview.create({
+    data: {
+      projectId: project1.id,
+      title: '上海车展-撤场准备',
+      description: '车展结束后的撤场计划',
+      status: 'PENDING',
+      startDate: new Date('2024-06-26'),
+      endDate: new Date('2024-06-28'),
+      materialsReturned: false,
+      siteCleared: false,
+      assigneeId: executiveUser.id,
+    },
   });
   console.log('创建了撤场复盘记录');
 
@@ -234,6 +256,14 @@ async function main() {
       { content: '地毯数量需要再确认一下，现场实际用量好像有出入', entityType: 'Reconciliation', entityId: reconciliation3.id, userId: coordinatorUser.id },
       { content: '好的，我重新核对一下物料清单', entityType: 'Reconciliation', entityId: reconciliation3.id, userId: executiveUser.id },
       { content: '这个项目的搭建质量很好，下次继续合作', entityType: 'Project', entityId: project3.id, userId: adminUser.id },
+      { content: '已提交人员名单，请尽快办理进场证', entityType: 'Document', entityId: doc1.id, userId: executiveUser.id },
+      { content: '施工许可证已通过，大家可以进场施工了', entityType: 'Document', entityId: doc2.id, userId: coordinatorUser.id },
+      { content: '请在6月10日前完成保险购买，否则无法进场', entityType: 'Document', entityId: doc3.id, userId: coordinatorUser.id },
+      { content: '撤场人员已安排，预计2天完成', entityType: 'TeardownReview', entityId: teardown1.id, userId: executiveUser.id },
+      { content: '物料已全部归还仓库，数量核对无误', entityType: 'TeardownReview', entityId: teardown1.id, userId: executiveUser.id },
+      { content: '场地已清场，与主场交接完成', entityType: 'TeardownReview', entityId: teardown1.id, userId: coordinatorUser.id },
+      { content: '撤场复盘报告已完成，请查阅', entityType: 'TeardownReview', entityId: teardown1.id, userId: executiveUser.id },
+      { content: '上海车展撤场计划已制定，请提前准备人员和物料', entityType: 'TeardownReview', entityId: teardown2.id, userId: coordinatorUser.id },
     ],
   });
   console.log('创建了备注信息');
@@ -242,12 +272,26 @@ async function main() {
     data: [
       { action: 'CREATE', entityType: 'Project', entityId: project1.id, operatorId: coordinatorUser.id, remark: '创建上海车展项目' },
       { action: 'UPDATE', entityType: 'Project', entityId: project1.id, fieldName: 'status', oldValue: 'PLANNING', newValue: 'PREPARATION', operatorId: coordinatorUser.id, remark: '项目状态更新为筹备中' },
+      { action: 'UPDATE', entityType: 'Project', entityId: project1.id, fieldName: 'status', oldValue: 'PREPARATION', newValue: 'ON_SITE', operatorId: coordinatorUser.id, remark: '项目已进场施工' },
       { action: 'SUBMIT', entityType: 'Reconciliation', entityId: reconciliation1.id, operatorId: executiveUser.id, remark: '提交对账单' },
       { action: 'APPROVE', entityType: 'Reconciliation', entityId: reconciliation1.id, operatorId: coordinatorUser.id, remark: '审批通过对账单' },
       { action: 'CREATE', entityType: 'Payment', entityId: reconciliation1.id, operatorId: financeUser.id, remark: '创建付款申请' },
       { action: 'APPROVE', entityType: 'Payment', entityId: reconciliation1.id, operatorId: adminUser.id, remark: '审批通过付款' },
       { action: 'COMPLETE', entityType: 'Payment', entityId: reconciliation1.id, operatorId: financeUser.id, remark: '付款完成' },
       { action: 'UPDATE', entityType: 'Project', entityId: project3.id, fieldName: 'status', oldValue: 'TEARDOWN', newValue: 'COMPLETED', operatorId: coordinatorUser.id, remark: '项目结案' },
+      { action: 'CREATE', entityType: 'Document', entityId: doc1.id, operatorId: coordinatorUser.id, remark: '创建进场证件办理任务' },
+      { action: 'UPDATE', entityType: 'Document', entityId: doc1.id, fieldName: 'status', oldValue: 'NOT_STARTED', newValue: 'IN_PROGRESS', operatorId: executiveUser.id, remark: '开始办理进场证件' },
+      { action: 'SUBMIT', entityType: 'Document', entityId: doc1.id, operatorId: executiveUser.id, remark: '提交人员资料，等待审核' },
+      { action: 'CREATE', entityType: 'Document', entityId: doc2.id, operatorId: coordinatorUser.id, remark: '创建施工许可证办理任务' },
+      { action: 'SUBMIT', entityType: 'Document', entityId: doc2.id, operatorId: executiveUser.id, remark: '提交施工许可申请材料' },
+      { action: 'APPROVE', entityType: 'Document', entityId: doc2.id, operatorId: coordinatorUser.id, remark: '施工许可证审批通过' },
+      { action: 'CREATE', entityType: 'Document', entityId: doc3.id, operatorId: coordinatorUser.id, remark: '创建工程意外险办理任务' },
+      { action: 'CREATE', entityType: 'TeardownReview', entityId: teardown1.id, operatorId: coordinatorUser.id, remark: '创建深圳展撤场复盘任务' },
+      { action: 'UPDATE', entityType: 'TeardownReview', entityId: teardown1.id, fieldName: 'status', oldValue: 'PENDING', newValue: 'IN_PROGRESS', operatorId: executiveUser.id, remark: '开始撤场作业' },
+      { action: 'UPDATE', entityType: 'TeardownReview', entityId: teardown1.id, fieldName: 'status', oldValue: 'IN_PROGRESS', newValue: 'MATERIALS_RETURNED', operatorId: executiveUser.id, remark: '物料已归还' },
+      { action: 'UPDATE', entityType: 'TeardownReview', entityId: teardown1.id, fieldName: 'status', oldValue: 'MATERIALS_RETURNED', newValue: 'SITE_CLEARED', operatorId: executiveUser.id, remark: '场地已清场' },
+      { action: 'COMPLETE', entityType: 'TeardownReview', entityId: teardown1.id, operatorId: coordinatorUser.id, remark: '撤场复盘完成' },
+      { action: 'CREATE', entityType: 'TeardownReview', entityId: teardown2.id, operatorId: coordinatorUser.id, remark: '创建上海车展撤场准备任务' },
     ],
   });
   console.log('创建了审计日志');

@@ -1,8 +1,90 @@
 import prisma from '../lib/prisma';
-import { AuthUser, PaginatedResult, DocumentType, DocumentStatus, AuditAction } from '../types';
+import { AuthUser, PaginatedResult, Role, DocumentType, DocumentStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
 
 export class DocumentService {
+  private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
+    if (user.role !== Role.SUPPLIER_CONTACT) return [];
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { supplierId: true },
+    });
+
+    return fullUser?.supplierId ? [fullUser.supplierId] : [];
+  }
+
+  static canCreate(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE] as Role[]).includes(user.role);
+  }
+
+  static canStart(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE] as Role[]).includes(user.role);
+  }
+
+  static canSubmit(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE] as Role[]).includes(user.role);
+  }
+
+  static canApprove(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  static canReject(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  private static async getAccessibleDocumentIds(user: AuthUser): Promise<string[]> {
+    if (([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.FINANCE] as Role[]).includes(user.role)) {
+      return [];
+    }
+
+    const supplierIds = await this.getUserSupplierIds(user);
+    if (supplierIds.length === 0) return ['__no_access__'];
+
+    const documents = await prisma.document.findMany({
+      where: {
+        project: {
+          suppliers: {
+            some: { supplierId: { in: supplierIds } },
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    return documents.map(d => d.id);
+  }
+
+  private static getSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      type: true,
+      title: true,
+      description: true,
+      projectId: true,
+      status: true,
+      deadline: true,
+      assigneeId: true,
+      createdAt: true,
+      approvedAt: true,
+      project: { select: { id: true, code: true, name: true } },
+      assignee: { select: { id: true, name: true, role: true } },
+    };
+
+    if (role === Role.SUPPLIER_CONTACT) {
+      return {
+        ...base,
+        rejectReason: false,
+      };
+    }
+
+    return {
+      ...base,
+      rejectReason: true,
+    };
+  }
+
   static async create(user: AuthUser, data: {
     projectId: string;
     type: DocumentType;
@@ -11,6 +93,8 @@ export class DocumentService {
     deadline?: Date;
     assigneeId?: string;
   }, ip?: string) {
+    if (!this.canCreate(user)) throw new Error('无权创建证件任务');
+
     const document = await prisma.document.create({
       data: {
         projectId: data.projectId,
@@ -41,6 +125,10 @@ export class DocumentService {
     deadline?: Date;
     assigneeId?: string;
   }, ip?: string) {
+    if (!this.canCreate(user)) throw new Error('无权修改证件任务');
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+
     const existing = await prisma.document.findUnique({
       where: { id },
     });
@@ -71,6 +159,10 @@ export class DocumentService {
   }
 
   static async startProgress(user: AuthUser, id: string, ip?: string) {
+    if (!this.canStart(user)) throw new Error('无权开始办理证件任务');
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+
     const existing = await prisma.document.findUnique({
       where: { id },
     });
@@ -100,6 +192,10 @@ export class DocumentService {
   }
 
   static async submit(user: AuthUser, id: string, ip?: string) {
+    if (!this.canSubmit(user)) throw new Error('无权提交证件任务');
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+
     const existing = await prisma.document.findUnique({
       where: { id },
     });
@@ -128,6 +224,10 @@ export class DocumentService {
   }
 
   static async approve(user: AuthUser, id: string, ip?: string) {
+    if (!this.canApprove(user)) throw new Error('无权审批证件任务');
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+
     const existing = await prisma.document.findUnique({
       where: { id },
     });
@@ -160,6 +260,10 @@ export class DocumentService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
+    if (!this.canReject(user)) throw new Error('无权驳回证件任务');
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+
     const existing = await prisma.document.findUnique({
       where: { id },
     });
@@ -188,12 +292,13 @@ export class DocumentService {
   }
 
   static async getById(user: AuthUser, id: string) {
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此证件任务');
+
+    const selectFields = this.getSelectFieldsByRole(user.role);
     const document = await prisma.document.findUnique({
       where: { id },
-      include: {
-        project: { select: { id: true, code: true, name: true } },
-        assignee: { select: { id: true, name: true, role: true } },
-      },
+      select: selectFields,
     });
 
     if (!document) {
@@ -213,9 +318,13 @@ export class DocumentService {
       }),
     ]);
 
+    const filteredAuditLogs = user.role === Role.SUPPLIER_CONTACT
+      ? auditLogs.filter(log => ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action))
+      : auditLogs;
+
     return {
       ...document,
-      auditLogs,
+      auditLogs: filteredAuditLogs,
       comments,
     };
   }
@@ -241,15 +350,19 @@ export class DocumentService {
     if (params.status) where.status = params.status;
     if (params.assigneeId) where.assigneeId = params.assigneeId;
 
+    const accessibleIds = await this.getAccessibleDocumentIds(user);
+    if (accessibleIds.length > 0) {
+      where.id = { in: accessibleIds };
+    }
+
+    const selectFields = this.getSelectFieldsByRole(user.role);
+
     const [items, total] = await Promise.all([
       prisma.document.findMany({
         where,
         skip,
         take: pageSize,
-        include: {
-          project: { select: { id: true, code: true, name: true } },
-          assignee: { select: { id: true, name: true, role: true } },
-        },
+        select: selectFields,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.document.count({ where }),

@@ -3,6 +3,45 @@ import { AuthUser, PaginatedResult, Role, ProjectStatus, AuditAction } from '../
 import { AuditService } from './audit.service';
 
 export class ProjectService {
+  private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
+    if (user.role !== Role.SUPPLIER_CONTACT) return [];
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { supplierId: true },
+    });
+
+    return fullUser?.supplierId ? [fullUser.supplierId] : [];
+  }
+
+  private static async getAccessibleProjectIds(user: AuthUser): Promise<string[]> {
+    if (([Role.ADMIN, Role.PROJECT_COORDINATOR, Role.SITE_EXECUTIVE, Role.FINANCE] as Role[]).includes(user.role)) {
+      return [];
+    }
+
+    const supplierIds = await this.getUserSupplierIds(user);
+    if (supplierIds.length === 0) return ['__no_access__'];
+
+    const projectSuppliers = await prisma.projectSupplier.findMany({
+      where: { supplierId: { in: supplierIds } },
+      select: { projectId: true },
+    });
+
+    return projectSuppliers.map(ps => ps.projectId);
+  }
+
+  static canViewProject(user: AuthUser): boolean {
+    return true;
+  }
+
+  static canEditProject(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
+  static canManageSuppliers(user: AuthUser): boolean {
+    return ([Role.ADMIN, Role.PROJECT_COORDINATOR] as Role[]).includes(user.role);
+  }
+
   static async generateCode(): Promise<string> {
     const today = new Date();
     const prefix = `XM${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -27,6 +66,10 @@ export class ProjectService {
     endDate?: Date;
     budget?: number;
   }, ip?: string) {
+    if (!this.canEditProject(user)) {
+      throw new Error('无权创建项目');
+    }
+
     const code = await this.generateCode();
 
     const project = await prisma.project.create({
@@ -62,6 +105,15 @@ export class ProjectService {
     status?: ProjectStatus;
     budget?: number;
   }, ip?: string) {
+    if (!this.canEditProject(user)) {
+      throw new Error('无权编辑项目');
+    }
+
+    const accessibleIds = await this.getAccessibleProjectIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) {
+      throw new Error('无权编辑此项目');
+    }
+
     const existing = await prisma.project.findUnique({
       where: { id },
     });
@@ -92,8 +144,12 @@ export class ProjectService {
   }
 
   static async getById(user: AuthUser, id: string) {
+    const accessibleIds = await this.getAccessibleProjectIds(user);
+    const where: any = { id };
+    if (accessibleIds.length > 0) where.id = { in: accessibleIds };
+
     const project = await prisma.project.findUnique({
-      where: { id },
+      where,
       include: {
         creator: { select: { id: true, name: true, role: true } },
         suppliers: {
@@ -133,9 +189,17 @@ export class ProjectService {
     ]);
 
     const filteredAuditLogs = this.filterAuditLogsByRole(user.role, auditLogs);
+    const selectFields = this.getProjectSelectFieldsByRole(user.role);
+
+    const filteredProject: any = {};
+    for (const [key, value] of Object.entries(project)) {
+      if (selectFields[key as keyof typeof selectFields] !== false) {
+        filteredProject[key] = value;
+      }
+    }
 
     return {
-      ...project,
+      ...filteredProject,
       auditLogs: filteredAuditLogs,
       comments,
     };
@@ -155,6 +219,9 @@ export class ProjectService {
 
     const where: any = {};
     if (params.status) where.status = params.status;
+
+    const accessibleIds = await this.getAccessibleProjectIds(user);
+    if (accessibleIds.length > 0) where.id = { in: accessibleIds };
 
     const selectFields = this.getProjectSelectFieldsByRole(user.role);
 
@@ -220,6 +287,15 @@ export class ProjectService {
   }
 
   static async addSupplier(user: AuthUser, projectId: string, supplierId: string, contractAmount?: number, scope?: string, ip?: string) {
+    if (!this.canManageSuppliers(user)) {
+      throw new Error('无权管理项目供应商');
+    }
+
+    const accessibleIds = await this.getAccessibleProjectIds(user);
+    if (accessibleIds.length > 0 && !accessibleIds.includes(projectId)) {
+      throw new Error('无权管理此项目的供应商');
+    }
+
     const projectSupplier = await prisma.projectSupplier.create({
       data: {
         projectId,
