@@ -4,6 +4,7 @@ import todoService from '../services/todo.service';
 import maintenanceService from '../services/maintenance.service';
 import visitService from '../services/visit.service';
 import { authenticate, requireRole } from '../middleware/auth.middleware';
+import { requireIdempotency, checkIdempotency } from '../middleware/idempotency.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { completeTodoSchema, paginationSchema } from '../validations';
 import { AuthenticatedRequest, ApiResponse, Role, ROLE, TodoType, TODO_TYPE } from '../types';
@@ -96,6 +97,8 @@ router.get(
 router.patch(
   '/todos/:id/complete',
   requireRole([ROLE.BASE_MANAGER, ROLE.MAINTENANCE_WORKER, ROLE.SALES_COORDINATOR]),
+  requireIdempotency,
+  checkIdempotency,
   validate(completeTodoSchema),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {

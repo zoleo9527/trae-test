@@ -209,20 +209,81 @@ export class DashboardService {
   }
 
   private async getRecentActivities(userId: string, role: Role) {
-    const where: Record<string, unknown> = {};
+    const visibleEntityIds: Record<string, string[]> = {
+      TodoItem: [],
+    };
 
-    if (role === ROLE.MAINTENANCE_WORKER) {
-      where.entityType = {
-        in: ['MaintenanceRecord', 'DiseaseReport', 'HarvestRecord', 'TodoItem'],
-      };
+    if (role === ROLE.BASE_MANAGER) {
+      const [
+        maintenanceIds,
+        diseaseIds,
+        harvestIds,
+        visitIds,
+        negotiationIds,
+        todoIds,
+      ] = await Promise.all([
+        prisma.maintenanceRecord.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.diseaseReport.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.harvestRecord.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.customerVisit.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.reseedNegotiation.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.todoItem.findMany({ select: { id: true } }).then(r => r.map(x => x.id)),
+      ]);
+      visibleEntityIds.MaintenanceRecord = maintenanceIds;
+      visibleEntityIds.DiseaseReport = diseaseIds;
+      visibleEntityIds.HarvestRecord = harvestIds;
+      visibleEntityIds.CustomerVisit = visitIds;
+      visibleEntityIds.ReseedNegotiation = negotiationIds;
+      visibleEntityIds.TodoItem = todoIds;
+    } else if (role === ROLE.MAINTENANCE_WORKER) {
+      const [
+        maintenanceIds,
+        diseaseIds,
+        harvestIds,
+        todoIds,
+      ] = await Promise.all([
+        prisma.maintenanceRecord.findMany({ where: { workerId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.diseaseReport.findMany({ where: { reporterId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.harvestRecord.findMany({ where: { assigneeId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.todoItem.findMany({ where: { assigneeId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+      ]);
+      visibleEntityIds.MaintenanceRecord = maintenanceIds;
+      visibleEntityIds.DiseaseReport = diseaseIds;
+      visibleEntityIds.HarvestRecord = harvestIds;
+      visibleEntityIds.TodoItem = todoIds;
     } else if (role === ROLE.SALES_COORDINATOR) {
-      where.entityType = {
-        in: ['CustomerVisit', 'ReseedNegotiation', 'TodoItem'],
-      };
+      const [
+        visitIds,
+        negotiationIds,
+        todoIds,
+      ] = await Promise.all([
+        prisma.customerVisit.findMany({ where: { salesId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.reseedNegotiation.findMany({ where: { creatorId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.todoItem.findMany({ where: { assigneeId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+      ]);
+      visibleEntityIds.CustomerVisit = visitIds;
+      visibleEntityIds.ReseedNegotiation = negotiationIds;
+      visibleEntityIds.TodoItem = todoIds;
+    }
+
+    const orConditions: Array<{ entityType: string; entityId: { in: string[] } }> = [];
+    for (const [entityType, ids] of Object.entries(visibleEntityIds)) {
+      if (ids && ids.length > 0) {
+        orConditions.push({
+          entityType,
+          entityId: { in: ids },
+        });
+      }
+    }
+
+    if (orConditions.length === 0) {
+      return [];
     }
 
     return prisma.auditLog.findMany({
-      where,
+      where: {
+        OR: orConditions,
+      },
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
