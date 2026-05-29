@@ -152,6 +152,7 @@ func (h *CertificateHandler) Approve(c *fiber.Ctx) error {
 	now := time.Now()
 	cert.Status = models.StatusApproved
 	cert.Resubmitted = false
+	cert.RejectReason = ""
 	cert.ApprovedByID = &userID
 	cert.ApprovedAt = &now
 
@@ -193,6 +194,7 @@ func (h *CertificateHandler) Reject(c *fiber.Ctx) error {
 
 	oldCert := cert
 	cert.Status = models.StatusRejected
+	cert.Resubmitted = false
 	cert.RejectReason = req.Reason
 
 	if err := database.DB.Save(&cert).Error; err != nil {

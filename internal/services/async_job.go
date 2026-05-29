@@ -90,6 +90,7 @@ func (s *AsyncJobService) processCertificateBatchApprove(job *models.AsyncJob) e
 		oldCert := cert
 		cert.Status = models.StatusApproved
 		cert.Resubmitted = false
+		cert.RejectReason = ""
 		cert.ApprovedByID = &userID
 		cert.ApprovedAt = &now
 
@@ -117,6 +118,7 @@ func (s *AsyncJobService) processCertificateBatchApprove(job *models.AsyncJob) e
 		Updates(map[string]interface{}{
 			"status":         models.StatusApproved,
 			"resubmitted":    false,
+			"reject_reason":  "",
 			"approved_by_id": userID,
 			"approved_at":    now,
 		})

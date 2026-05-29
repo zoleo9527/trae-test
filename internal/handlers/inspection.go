@@ -253,6 +253,7 @@ func (h *InspectionHandler) Approve(c *fiber.Ctx) error {
 	now := time.Now()
 	inspection.Status = models.StatusApproved
 	inspection.Resubmitted = false
+	inspection.RejectReason = ""
 	inspection.EndTime = &now
 	inspection.ApprovedByID = &userID
 	inspection.ApprovedAt = &now
@@ -346,6 +347,7 @@ func (h *InspectionHandler) Reject(c *fiber.Ctx) error {
 
 	oldInspection := inspection
 	inspection.Status = models.StatusRejected
+	inspection.Resubmitted = false
 	inspection.RejectReason = req.Reason
 
 	if err := database.DB.Save(&inspection).Error; err != nil {

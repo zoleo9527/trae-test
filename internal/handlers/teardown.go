@@ -246,6 +246,7 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 	now := time.Now()
 	teardown.Status = models.StatusApproved
 	teardown.Resubmitted = false
+	teardown.RejectReason = ""
 	teardown.ActualEndTime = &now
 	teardown.ApprovedByID = &userID
 	teardown.ApprovedAt = &now
@@ -340,6 +341,7 @@ func (h *TeardownHandler) Reject(c *fiber.Ctx) error {
 
 	oldTeardown := teardown
 	teardown.Status = models.StatusRejected
+	teardown.Resubmitted = false
 	teardown.RejectReason = req.Reason
 
 	if err := database.DB.Save(&teardown).Error; err != nil {
