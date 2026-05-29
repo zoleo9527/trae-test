@@ -1,6 +1,5 @@
-
 import prisma from '../lib/prisma';
-import { AuthUser, PaginatedResult } from '../types';
+import { AuthUser, PaginatedResult, Role, ReconciliationStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
 
 export interface CreateReconciliationDTO {
@@ -209,11 +208,6 @@ export class ReconciliationService {
         supplier: { select: { id: true, name: true } },
         creator: { select: { id: true, name: true, role: true } },
         items: true,
-        auditLogs: {
-          include: { operator: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
       },
     });
 
@@ -309,14 +303,6 @@ export class ReconciliationService {
         payments: {
           select: { id: true, code: true, amount: true, status: true, payDate: true },
         },
-        auditLogs: {
-          include: { operator: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        comments: {
-          include: { user: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
       },
     });
 
@@ -324,16 +310,35 @@ export class ReconciliationService {
       throw new Error('对账单不存在');
     }
 
+    const [auditLogs, comments] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: { entityType: 'Reconciliation', entityId: id },
+        include: { operator: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.comment.findMany({
+        where: { entityType: 'Reconciliation', entityId: id },
+        include: { user: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const result = {
+      ...reconciliation,
+      auditLogs,
+      comments,
+    };
+
     if (user.role === Role.SUPPLIER_CONTACT) {
       return {
-        ...reconciliation,
-        auditLogs: reconciliation.auditLogs.filter(log => 
+        ...result,
+        auditLogs: auditLogs.filter(log =>
           ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action)
         ),
       };
     }
 
-    return reconciliation;
+    return result;
   }
 
   static async getList(
@@ -355,16 +360,14 @@ export class ReconciliationService {
     if (params.supplierId) where.supplierId = params.supplierId;
     if (params.status) where.status = params.status;
 
+    const selectFields = this.getSelectFieldsByRole(user.role);
+
     const [items, total] = await Promise.all([
       prisma.reconciliation.findMany({
         where,
         skip,
         take: pageSize,
-        include: {
-          project: { select: { id: true, code: true, name: true } },
-          supplier: { select: { id: true, name: true } },
-          creator: { select: { id: true, name: true, role: true } },
-        },
+        select: selectFields,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.reconciliation.count({ where }),
@@ -377,5 +380,37 @@ export class ReconciliationService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private static getSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      code: true,
+      title: true,
+      status: true,
+      totalAmount: true,
+      confirmedAmount: true,
+      createdAt: true,
+      submittedAt: true,
+      approvedAt: true,
+      project: { select: { id: true, code: true, name: true } },
+      supplier: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true, role: true } },
+    };
+
+    switch (role) {
+      case Role.SUPPLIER_CONTACT:
+        return {
+          ...base,
+          rejectReason: false,
+          reviseNote: false,
+        };
+      default:
+        return {
+          ...base,
+          rejectReason: true,
+          reviseNote: true,
+        };
+    }
   }
 }

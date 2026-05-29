@@ -10,6 +10,8 @@ import authRoutes from './routes/auth.routes';
 import projectRoutes from './routes/project.routes';
 import reconciliationRoutes from './routes/reconciliation.routes';
 import paymentRoutes from './routes/payment.routes';
+import documentRoutes from './routes/document.routes';
+import teardownRoutes from './routes/teardown.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +46,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/reconciliations', reconciliationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/teardowns', teardownRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

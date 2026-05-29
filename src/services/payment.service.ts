@@ -1,6 +1,5 @@
-
 import prisma from '../lib/prisma';
-import { AuthUser, PaginatedResult } from '../types';
+import { AuthUser, PaginatedResult, Role, PaymentStatus, ReconciliationStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
 
 export interface CreatePaymentDTO {
@@ -145,7 +144,7 @@ export class PaymentService {
       const allPayments = await prisma.payment.findMany({
         where: { reconciliationId: existing.reconciliationId },
       });
-      
+
       const totalPaid = allPayments
         .filter(p => p.status === PaymentStatus.PAID)
         .reduce((sum, p) => sum + p.amount, 0);
@@ -208,21 +207,13 @@ export class PaymentService {
       where: { id },
       include: {
         project: { select: { id: true, code: true, name: true, status: true } },
-        reconciliation: { 
-          select: { 
+        reconciliation: {
+          select: {
             id: true, code: true, status: true, totalAmount: true,
             supplier: { select: { id: true, name: true, contact: true, phone: true } },
-          } 
+          }
         },
         creator: { select: { id: true, name: true, role: true } },
-        auditLogs: {
-          include: { operator: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        comments: {
-          include: { user: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
       },
     });
 
@@ -230,16 +221,35 @@ export class PaymentService {
       throw new Error('付款申请不存在');
     }
 
+    const [auditLogs, comments] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: { entityType: 'Payment', entityId: id },
+        include: { operator: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.comment.findMany({
+        where: { entityType: 'Payment', entityId: id },
+        include: { user: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const result = {
+      ...payment,
+      auditLogs,
+      comments,
+    };
+
     if (user.role === Role.SUPPLIER_CONTACT) {
       return {
-        ...payment,
-        auditLogs: payment.auditLogs.filter(log => 
+        ...result,
+        auditLogs: auditLogs.filter(log =>
           ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE'].includes(log.action)
         ),
       };
     }
 
-    return payment;
+    return result;
   }
 
   static async getList(
@@ -261,16 +271,14 @@ export class PaymentService {
     if (params.reconciliationId) where.reconciliationId = params.reconciliationId;
     if (params.status) where.status = params.status;
 
+    const selectFields = this.getSelectFieldsByRole(user.role);
+
     const [items, total] = await Promise.all([
       prisma.payment.findMany({
         where,
         skip,
         take: pageSize,
-        include: {
-          project: { select: { id: true, code: true, name: true } },
-          reconciliation: { select: { id: true, code: true, status: true } },
-          creator: { select: { id: true, name: true, role: true } },
-        },
+        select: selectFields,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.payment.count({ where }),
@@ -283,5 +291,35 @@ export class PaymentService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private static getSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      code: true,
+      title: true,
+      status: true,
+      amount: true,
+      payMethod: true,
+      payDate: true,
+      createdAt: true,
+      approvedAt: true,
+      project: { select: { id: true, code: true, name: true } },
+      reconciliation: { select: { id: true, code: true, status: true } },
+      creator: { select: { id: true, name: true, role: true } },
+    };
+
+    switch (role) {
+      case Role.SUPPLIER_CONTACT:
+        return {
+          ...base,
+          rejectReason: false,
+        };
+      default:
+        return {
+          ...base,
+          rejectReason: true,
+        };
+    }
   }
 }

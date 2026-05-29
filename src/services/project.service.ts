@@ -1,6 +1,5 @@
-
 import prisma from '../lib/prisma';
-import { AuthUser, PaginatedResult } from '../types';
+import { AuthUser, PaginatedResult, Role, ProjectStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
 
 export class ProjectService {
@@ -93,7 +92,7 @@ export class ProjectService {
   }
 
   static async getById(user: AuthUser, id: string) {
-    return prisma.project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id },
       include: {
         creator: { select: { id: true, name: true, role: true } },
@@ -114,17 +113,32 @@ export class ProjectService {
         documents: {
           select: { id: true, title: true, type: true, status: true, deadline: true },
         },
-        auditLogs: {
-          include: { operator: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-        },
-        comments: {
-          include: { user: { select: { id: true, name: true, role: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
       },
     });
+
+    if (!project) return null;
+
+    const [auditLogs, comments] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: { entityType: 'Project', entityId: id },
+        include: { operator: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      prisma.comment.findMany({
+        where: { entityType: 'Project', entityId: id },
+        include: { user: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const filteredAuditLogs = this.filterAuditLogsByRole(user.role, auditLogs);
+
+    return {
+      ...project,
+      auditLogs: filteredAuditLogs,
+      comments,
+    };
   }
 
   static async getList(
@@ -142,14 +156,14 @@ export class ProjectService {
     const where: any = {};
     if (params.status) where.status = params.status;
 
+    const selectFields = this.getProjectSelectFieldsByRole(user.role);
+
     const [items, total] = await Promise.all([
       prisma.project.findMany({
         where,
         skip,
         take: pageSize,
-        include: {
-          creator: { select: { id: true, name: true, role: true } },
-        },
+        select: selectFields,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.project.count({ where }),
@@ -162,6 +176,47 @@ export class ProjectService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private static getProjectSelectFieldsByRole(role: Role) {
+    const base = {
+      id: true,
+      code: true,
+      name: true,
+      description: true,
+      location: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      createdAt: true,
+      creator: { select: { id: true, name: true, role: true } },
+    };
+
+    switch (role) {
+      case Role.SUPPLIER_CONTACT:
+        return {
+          ...base,
+          budget: false,
+        };
+      case Role.SITE_EXECUTIVE:
+      case Role.PROJECT_COORDINATOR:
+      case Role.FINANCE:
+      case Role.ADMIN:
+      default:
+        return {
+          ...base,
+          budget: true,
+        };
+    }
+  }
+
+  static filterAuditLogsByRole(role: Role, auditLogs: any[]) {
+    if (role === Role.SUPPLIER_CONTACT) {
+      return auditLogs.filter(log =>
+        ['SUBMIT', 'APPROVE', 'REJECT', 'COMPLETE', 'CREATE'].includes(log.action)
+      );
+    }
+    return auditLogs;
   }
 
   static async addSupplier(user: AuthUser, projectId: string, supplierId: string, contractAmount?: number, scope?: string, ip?: string) {

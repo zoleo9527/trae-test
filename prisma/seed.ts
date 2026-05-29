@@ -194,6 +194,38 @@ async function main() {
   });
   console.log('创建了证件办理记录');
 
+  await prisma.teardownReview.createMany({
+    data: [
+      {
+        projectId: project3.id,
+        title: '深圳智能家居展-撤场复盘',
+        description: '展会结束后的撤场流程和复盘总结',
+        status: 'COMPLETED',
+        startDate: new Date('2024-05-11'),
+        endDate: new Date('2024-05-13'),
+        materialsReturned: true,
+        siteCleared: true,
+        issuesFound: '部分展架螺丝丢失，需要补充',
+        lessonsLearned: '下次需要提前安排撤场人员，避免赶工',
+        finalReport: '本次撤场顺利完成，耗时约2天。主要问题是部分物料管理不善导致小配件丢失。',
+        assigneeId: executiveUser.id,
+        completedAt: new Date('2024-05-14'),
+      },
+      {
+        projectId: project1.id,
+        title: '上海车展-撤场准备',
+        description: '车展结束后的撤场计划',
+        status: 'PENDING',
+        startDate: new Date('2024-06-26'),
+        endDate: new Date('2024-06-28'),
+        materialsReturned: false,
+        siteCleared: false,
+        assigneeId: executiveUser.id,
+      },
+    ],
+  });
+  console.log('创建了撤场复盘记录');
+
   await prisma.comment.createMany({
     data: [
       { content: '设计方案已确认，可以开始施工准备', entityType: 'Project', entityId: project1.id, userId: coordinatorUser.id },
