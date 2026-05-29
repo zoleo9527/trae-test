@@ -159,32 +159,41 @@ export class CheckinService {
 
     const hasEntry = todayRecords.some((r) => r.type === CheckinType.ENTRY);
     const hasExit = todayRecords.some((r) => r.type === CheckinType.EXIT);
+    const lastRecord = todayRecords.length > 0 ? todayRecords[todayRecords.length - 1] : null;
 
     if (type === CheckinType.ENTRY) {
-      if (checkinMinutesOfDay > WORK_START_MINUTES + LATE_GRACE_MINUTES) {
-        return CheckinStatus.LATE;
-      }
-
       if (hasExit && !hasEntry) {
         return CheckinStatus.ABNORMAL;
       }
 
+      if (hasEntry) {
+        return CheckinStatus.ABNORMAL;
+      }
+
+      if (checkinMinutesOfDay > WORK_START_MINUTES + LATE_GRACE_MINUTES) {
+        return CheckinStatus.LATE;
+      }
+
       return CheckinStatus.NORMAL;
     } else if (type === CheckinType.EXIT) {
-      if (checkinMinutesOfDay < WORK_END_MINUTES - EARLY_LEAVE_GRACE_MINUTES) {
-        return CheckinStatus.EARLY_LEAVE;
-      }
-
-      if (checkinMinutesOfDay >= OVERTIME_THRESHOLD_MINUTES) {
-        return CheckinStatus.OVERTIME;
-      }
-
       if (!hasEntry) {
         return CheckinStatus.ABNORMAL;
       }
 
       if (hasExit) {
         return CheckinStatus.ABNORMAL;
+      }
+
+      if (lastRecord && lastRecord.type !== CheckinType.ENTRY) {
+        return CheckinStatus.ABNORMAL;
+      }
+
+      if (checkinMinutesOfDay < WORK_END_MINUTES - EARLY_LEAVE_GRACE_MINUTES) {
+        return CheckinStatus.EARLY_LEAVE;
+      }
+
+      if (checkinMinutesOfDay >= OVERTIME_THRESHOLD_MINUTES) {
+        return CheckinStatus.OVERTIME;
       }
 
       return CheckinStatus.NORMAL;
