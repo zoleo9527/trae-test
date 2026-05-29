@@ -195,10 +195,15 @@ func (s *ReturnService) Review(id uint, newStatus model.ReturnStatus, reviewNote
 		return err
 	}
 
-	origRentalStatus := model.RentalStatus(record.SnapshotRentalStatus)
-	origDepositStatus := model.DepositStatus(record.SnapshotDepositStatus)
-	origInstrumentStatus := model.InstrumentStatus(record.SnapshotInstrumentStatus)
-	origActualReturnDate := record.SnapshotActualReturnDate
+	var instrument model.Instrument
+	if err := tx.First(&instrument, rental.InstrumentID).Error; err != nil {
+		return err
+	}
+
+	origRentalStatus := fallbackRentalStatus(record.SnapshotRentalStatus, &rental)
+	origDepositStatus := fallbackDepositStatus(record.SnapshotDepositStatus, &rental)
+	origInstrumentStatus := fallbackInstrumentStatus(record.SnapshotInstrumentStatus, &instrument)
+	origActualReturnDate := fallbackActualReturnDate(record.SnapshotActualReturnDate, &rental)
 
 	if err := s.applyStateTransition(tx, oldStatus, newStatus, &record, &rental,
 		origRentalStatus, origDepositStatus, origInstrumentStatus, origActualReturnDate, reviewNotes); err != nil {
@@ -321,7 +326,16 @@ func applyNeedsReview(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.R
 		}
 	} else if oldStatus == model.ReturnDisputed {
 		if err := tx.Model(&model.Rental{}).Where("id = ?", rental.ID).
-			Update("deposit_status", origDepositStatus).Error; err != nil {
+			Updates(map[string]any{
+				"actual_return_date": origActualReturnDate,
+				"status":             origRentalStatus,
+				"deposit_status":     origDepositStatus,
+			}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.Instrument{}).Where("id = ?", rental.InstrumentID).
+			Update("status", origInstrumentStatus).Error; err != nil {
 			return err
 		}
 	}
@@ -367,6 +381,48 @@ func returnToMap(r *model.ReturnRecord) model.JSONMap {
 		"snapshot_deposit_status":    r.SnapshotDepositStatus,
 		"snapshot_instrument_status": r.SnapshotInstrumentStatus,
 	}
+}
+
+func fallbackRentalStatus(snapshot string, rental *model.Rental) model.RentalStatus {
+	if snapshot != "" {
+		return model.RentalStatus(snapshot)
+	}
+	if rental.Status == model.RentalReturned {
+		if rental.ExpectedReturnDate.Before(time.Now()) {
+			return model.RentalOverdue
+		}
+		return model.RentalActive
+	}
+	return rental.Status
+}
+
+func fallbackDepositStatus(snapshot string, rental *model.Rental) model.DepositStatus {
+	if snapshot != "" {
+		return model.DepositStatus(snapshot)
+	}
+	if rental.DepositStatus == model.DepositFullyRefunded ||
+		rental.DepositStatus == model.DepositPartiallyRefunded ||
+		rental.DepositStatus == model.DepositForfeited {
+		return model.DepositCollected
+	}
+	return rental.DepositStatus
+}
+
+func fallbackInstrumentStatus(snapshot string, instrument *model.Instrument) model.InstrumentStatus {
+	if snapshot != "" {
+		return model.InstrumentStatus(snapshot)
+	}
+	if instrument.Status == model.InstrumentAvailable {
+		return model.InstrumentRented
+	}
+	return instrument.Status
+}
+
+func fallbackActualReturnDate(snapshot *time.Time, rental *model.Rental) *time.Time {
+	if snapshot != nil {
+		return snapshot
+	}
+	return nil
 }
 
 var _ = gorm.Model{}
