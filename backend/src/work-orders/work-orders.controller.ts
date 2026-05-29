@@ -14,8 +14,8 @@ export class WorkOrdersController {
   }
 
   @Get('stats')
-  async getStats() {
-    return this.workOrdersService.getStats();
+  async getStats(@Request() req: any) {
+    return this.workOrdersService.getStats(req.user);
   }
 
   @Get(':id')

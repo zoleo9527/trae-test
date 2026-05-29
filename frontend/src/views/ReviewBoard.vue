@@ -21,12 +21,24 @@
       <div class="filter-group">
         <select v-model="filters.status" class="filter-select">
           <option value="">全部状态</option>
-          <option v-for="(label, key) in STATUS_LABELS" :key="key" :value="key">{{ label }}</option>
+          <option
+            v-for="(label, key) in filteredStatusOptions"
+            :key="key"
+            :value="key"
+          >
+            {{ label }}
+          </option>
         </select>
 
         <select v-model="filters.problemType" class="filter-select">
           <option value="">全部问题</option>
-          <option v-for="(label, key) in PROBLEM_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+          <option
+            v-for="(label, key) in filteredProblemTypeOptions"
+            :key="key"
+            :value="key"
+          >
+            {{ label }}
+          </option>
         </select>
 
         <label class="checkbox-label" v-if="authStore.userRole !== 'owner'">
@@ -42,7 +54,7 @@
         />
       </div>
 
-      <div class="batch-actions" v-if="selectedIds.length > 0">
+      <div class="batch-actions" v-if="selectedIds.length > 0 && canShowBatchActions">
         <span class="selected-count">已选 {{ selectedIds.length }} 项</span>
         <button v-if="canBatchNegotiate" @click="batchUpdateStatus('negotiating')" class="btn-secondary">
           转入协商
@@ -133,11 +145,58 @@ const router = useRouter();
 const authStore = useAuthStore();
 const workOrdersStore = useWorkOrdersStore();
 
-const filters = ref({
-  status: '',
-  problemType: '',
-  myOnly: false,
-  search: '',
+const getDefaultFilters = () => {
+  const role = authStore.userRole;
+  return {
+    status: '',
+    problemType: role === 'printer' ? '' : '',
+    myOnly: role === 'customer_service',
+    search: '',
+  };
+};
+
+const filters = ref(getDefaultFilters());
+
+const PRINTER_PROBLEM_TYPES = ['mixed_roll', 'quality_issue'];
+
+const filteredStatusOptions = computed(() => {
+  const role = authStore.userRole;
+  const options: Record<string, string> = {};
+  Object.entries(STATUS_LABELS).forEach(([key, label]) => {
+    let visible = false;
+    if (role === 'owner') {
+      visible = true;
+    } else if (role === 'customer_service') {
+      visible = ['pending', 'negotiating', 'approved', 'completed'].includes(key);
+    } else if (role === 'printer') {
+      visible = ['pending', 'negotiating', 'reviewing', 'approved', 'completed'].includes(key);
+    }
+    if (visible) {
+      options[key] = label;
+    }
+  });
+  return options;
+});
+
+const filteredProblemTypeOptions = computed(() => {
+  const role = authStore.userRole;
+  const options: Record<string, string> = {};
+  Object.entries(PROBLEM_TYPE_LABELS).forEach(([key, label]) => {
+    let visible = false;
+    if (role === 'owner' || role === 'customer_service') {
+      visible = true;
+    } else if (role === 'printer') {
+      visible = PRINTER_PROBLEM_TYPES.includes(key);
+    }
+    if (visible) {
+      options[key] = label;
+    }
+  });
+  return options;
+});
+
+const canShowBatchActions = computed(() => {
+  return authStore.userRole !== 'printer';
 });
 
 const selectedIds = ref<string[]>([]);

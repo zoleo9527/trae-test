@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { CreateWorkOrderDto, UpdateWorkOrderDto, BatchUpdateDto, AddNoteDto } from './work-order.dto';
 import * as uuid from 'uuid';
@@ -6,6 +6,53 @@ import * as uuid from 'uuid';
 @Injectable()
 export class WorkOrdersService {
   constructor(private db: DbService) {}
+
+  private readonly PRINTER_PROBLEM_TYPES = ['mixed_roll', 'quality_issue'];
+  private readonly CS_ALLOWED_STATUSES = ['pending', 'negotiating', 'approved', 'completed'];
+  private readonly CS_TRANSITIONS: Record<string, string[]> = {
+    pending: ['negotiating'],
+    negotiating: ['reviewing'],
+    approved: ['completed'],
+  };
+
+  private filterByRole(list: any[], user: any): any[] {
+    if (!user) return [];
+    if (user.role === 'owner') return list;
+
+    if (user.role === 'customer_service') {
+      return list.filter(
+        (item) => item.assigneeId === user.id && this.CS_ALLOWED_STATUSES.includes(item.status),
+      );
+    }
+
+    if (user.role === 'printer') {
+      return list.filter((item) => this.PRINTER_PROBLEM_TYPES.includes(item.problemType));
+    }
+
+    return [];
+  }
+
+  private checkStatusTransitionPermission(workOrder: any, newStatus: string, user: any): boolean {
+    if (user.role === 'owner') return true;
+    if (user.role !== 'customer_service') return false;
+    if (workOrder.assigneeId !== user.id) return false;
+    return this.CS_TRANSITIONS[workOrder.status]?.includes(newStatus) || false;
+  }
+
+  private checkWorkOrderAccess(workOrder: any, user: any): boolean {
+    if (!workOrder || !user) return false;
+    if (user.role === 'owner') return true;
+
+    if (user.role === 'customer_service') {
+      return workOrder.assigneeId === user.id && this.CS_ALLOWED_STATUSES.includes(workOrder.status);
+    }
+
+    if (user.role === 'printer') {
+      return this.PRINTER_PROBLEM_TYPES.includes(workOrder.problemType);
+    }
+
+    return false;
+  }
 
   private enrichWorkOrder(workOrder: any, user?: any): any {
     if (!workOrder) return null;
@@ -66,7 +113,7 @@ export class WorkOrdersService {
       });
     }
 
-    return list
+    return this.filterByRole(list, user)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((wo) => this.enrichWorkOrder(wo, user));
   }
@@ -75,6 +122,9 @@ export class WorkOrdersService {
     const workOrder = this.db.findById('workOrders', id);
     if (!workOrder) {
       throw new NotFoundException('工单不存在');
+    }
+    if (!this.checkWorkOrderAccess(workOrder, user)) {
+      throw new ForbiddenException('无权访问该工单');
     }
     return this.enrichWorkOrder(workOrder, user);
   }
@@ -99,6 +149,10 @@ export class WorkOrdersService {
     const workOrder = await this.findOne(id, operator);
 
     if (updateDto.status && updateDto.status !== workOrder.status) {
+      if (!this.checkStatusTransitionPermission(workOrder, updateDto.status, operator)) {
+        throw new ForbiddenException('无权执行该状态变更操作');
+      }
+
       await this.addStatusLog(id, workOrder.status, updateDto.status, updateDto.remark, operator);
 
       const statusUpdates: any = { status: updateDto.status };
@@ -194,6 +248,20 @@ export class WorkOrdersService {
 
     for (const id of batchDto.ids) {
       try {
+        const wo = this.db.findById('workOrders', id);
+        if (!wo) {
+          failed++;
+          continue;
+        }
+        if (!this.checkWorkOrderAccess(wo, operator)) {
+          failed++;
+          continue;
+        }
+        if (batchDto.status && !this.checkStatusTransitionPermission(wo, batchDto.status, operator)) {
+          failed++;
+          continue;
+        }
+
         await this.update(
           id,
           {
@@ -213,7 +281,7 @@ export class WorkOrdersService {
   }
 
   async addNote(id: string, noteDto: AddNoteDto, creator: any): Promise<any> {
-    await this.findOne(id);
+    await this.findOne(id, creator);
 
     const note = await this.db.create('notes', {
       id: uuid.v4(),
@@ -271,8 +339,8 @@ export class WorkOrdersService {
     return `${prefix}${random}`;
   }
 
-  async getStats(): Promise<any> {
-    const all = this.db.findAll('workOrders');
+  async getStats(user?: any): Promise<any> {
+    const all = this.filterByRole(this.db.findAll('workOrders'), user);
     const countBy = (field: string, value: string) => all.filter((item) => item[field] === value).length;
 
     return {

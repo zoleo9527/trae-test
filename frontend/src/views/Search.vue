@@ -1,7 +1,7 @@
 <template>
   <div class="search-page">
     <div class="page-header">
-      <h1 class="page-title">综合查询</h1>
+      <h1 class="page-title">综合查询 <span v-if="searchScopeHint" class="scope-hint">{{ searchScopeHint }}</span></h1>
     </div>
 
     <div class="search-bar">
@@ -84,12 +84,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import { useWorkOrdersStore } from '@/stores/workOrders';
 import { useFilmRollsStore } from '@/stores/filmRolls';
 import { STATUS_LABELS, STATUS_COLORS } from '@/utils/constants';
 
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 const workOrdersStore = useWorkOrdersStore();
 const filmRollsStore = useFilmRollsStore();
 
@@ -117,6 +119,14 @@ const filmRollsResults = computed(() => {
       roll.customerName.toLowerCase().includes(kw) ||
       roll.customerPhone.includes(kw),
   );
+});
+
+const searchScopeHint = computed(() => {
+  const role = authStore.userRole;
+  if (role === 'owner') return '';
+  if (role === 'customer_service') return '（仅搜索您负责的工单）';
+  if (role === 'printer') return '（仅搜索冲印问题工单）';
+  return '';
 });
 
 function doSearch() {
@@ -153,6 +163,12 @@ onMounted(async () => {
   font-weight: 700;
   color: #1d1d1f;
   margin-bottom: 24px;
+}
+
+.scope-hint {
+  font-size: 14px;
+  font-weight: 400;
+  color: #86868b;
 }
 
 .search-bar {
