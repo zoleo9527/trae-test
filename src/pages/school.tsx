@@ -34,10 +34,18 @@ export default function SchoolPage() {
 
   const handleMarkPaid = async () => {
     if (!detailInvoice || !payAmount) return;
-    await api.school.markPaid(detailInvoice.id, Number(payAmount));
-    setDetailInvoice(null);
-    setPayAmount('');
-    loadData();
+    try {
+      const result: any = await api.school.markPaid(detailInvoice.id, Number(payAmount));
+      if (result._meta?.wasCapped) {
+        alert(`余额不足，实际入账 ¥${result._meta.actualPayment}（请求 ¥${result._meta.requestedAmount}）`);
+      }
+      setDetailInvoice(null);
+      setPayAmount('');
+      loadData();
+    } catch (error: any) {
+      const msg = error?.message || '回款登记失败';
+      alert(msg);
+    }
   };
 
   const statusLabels: Record<string, { label: string; class: string }> = {
@@ -71,8 +79,8 @@ export default function SchoolPage() {
               <div className="text-2xl font-bold text-amber-600">{stats.overdueInvoices}</div>
             </div>
             <div className="card">
-              <div className="text-sm text-gray-500 mb-1">已回款</div>
-              <div className="text-2xl font-bold text-green-600">¥{stats.thisMonthRevenue.toLocaleString()}</div>
+              <div className="text-sm text-gray-500 mb-1">已回款总额</div>
+              <div className="text-2xl font-bold text-green-600">¥{(stats.totalPaid || 0).toLocaleString()}</div>
             </div>
           </div>
         )}
@@ -167,7 +175,7 @@ export default function SchoolPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        {invoice.balance > 0 && (
+                        {invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.balance > 0 && (
                           <button
                             onClick={() => setDetailInvoice(invoice)}
                             className="text-sm text-primary-600 hover:text-primary-700"

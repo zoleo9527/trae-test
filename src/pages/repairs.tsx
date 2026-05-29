@@ -1,24 +1,47 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
 import { api } from '../lib/api';
 import { Repair, PartUsage } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 export default function RepairsPage() {
+  const router = useRouter();
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     status: '',
     priority: '',
   });
+  const [initialized, setInitialized] = useState(false);
   const [detailRepair, setDetailRepair] = useState<Repair | null>(null);
   const [showAddPart, setShowAddPart] = useState(false);
   const [newPart, setNewPart] = useState<Partial<PartUsage>>({});
   const { user, hasRole } = useAuth();
 
   useEffect(() => {
+    if (!router.isReady) return;
+    const { status, priority } = router.query;
+    setFilters({
+      status: (status as string) || '',
+      priority: (priority as string) || '',
+    });
+    setInitialized(true);
+  }, [router.isReady]);
+
+  useEffect(() => {
+    if (!initialized) return;
     loadRepairs();
-  }, [filters]);
+  }, [filters, initialized]);
+
+  const updateFilter = (patch: Partial<typeof filters>) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    const query: Record<string, string> = {};
+    if (next.status) query.status = next.status;
+    if (next.priority) query.priority = next.priority;
+    router.replace({ pathname: '/repairs', query }, undefined, { shallow: true });
+  };
 
   const loadRepairs = async () => {
     setLoading(true);
@@ -102,7 +125,7 @@ export default function RepairsPage() {
             <select
               className="input-field max-w-xs"
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => updateFilter({ status: e.target.value })}
             >
               <option value="">全部状态</option>
               <option value="pending">待处理</option>
@@ -112,7 +135,7 @@ export default function RepairsPage() {
             <select
               className="input-field max-w-xs"
               value={filters.priority}
-              onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+              onChange={(e) => updateFilter({ priority: e.target.value })}
             >
               <option value="">全部优先级</option>
               <option value="urgent">紧急</option>

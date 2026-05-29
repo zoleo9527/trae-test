@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
 import { api } from '../lib/api';
 import { Rental } from '../types';
 
 export default function RentalsPage() {
+  const router = useRouter();
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -11,10 +13,33 @@ export default function RentalsPage() {
     source: '',
     search: '',
   });
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (!router.isReady) return;
+    const { status, source, search } = router.query;
+    setFilters({
+      status: (status as string) || '',
+      source: (source as string) || '',
+      search: (search as string) || '',
+    });
+    setInitialized(true);
+  }, [router.isReady]);
+
+  useEffect(() => {
+    if (!initialized) return;
     loadRentals();
-  }, [filters]);
+  }, [filters, initialized]);
+
+  const updateFilter = (patch: Partial<typeof filters>) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    const query: Record<string, string> = {};
+    if (next.status) query.status = next.status;
+    if (next.source) query.source = next.source;
+    if (next.search) query.search = next.search;
+    router.replace({ pathname: '/rentals', query }, undefined, { shallow: true });
+  };
 
   const loadRentals = async () => {
     setLoading(true);
@@ -49,12 +74,12 @@ export default function RentalsPage() {
               placeholder="搜索订单号/客户名..."
               className="input-field max-w-xs"
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              onChange={(e) => updateFilter({ search: e.target.value })}
             />
             <select
               className="input-field max-w-xs"
               value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              onChange={(e) => updateFilter({ status: e.target.value })}
             >
               <option value="">全部状态</option>
               <option value="active">进行中</option>
@@ -64,7 +89,7 @@ export default function RentalsPage() {
             <select
               className="input-field max-w-xs"
               value={filters.source}
-              onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+              onChange={(e) => updateFilter({ source: e.target.value })}
             >
               <option value="">全部来源</option>
               <option value="retail">散客</option>
