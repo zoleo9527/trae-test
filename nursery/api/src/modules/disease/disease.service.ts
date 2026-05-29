@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Inspection } from '../inspection/inspection.entity';
 import { DiseaseTimeline } from './disease-timeline.entity';
 import { Disease, DiseaseSeverity, DiseaseStatus } from './disease.entity';
 import { CreateDiseaseDto, CreateTimelineDto, QueryDiseaseDto, UpdateDiseaseStatusDto } from './dto/disease.dto';
@@ -12,6 +13,8 @@ export class DiseaseService {
     private readonly diseaseRepository: Repository<Disease>,
     @InjectRepository(DiseaseTimeline)
     private readonly timelineRepository: Repository<DiseaseTimeline>,
+    @InjectRepository(Inspection)
+    private readonly inspectionRepository: Repository<Inspection>,
   ) {}
 
   async findAll(query?: QueryDiseaseDto): Promise<Disease[]> {
@@ -66,6 +69,12 @@ export class DiseaseService {
       reportedAt: new Date(dto.reportedAt),
     });
     const saved = await this.diseaseRepository.save(disease);
+
+    if (dto.inspectionId) {
+      await this.inspectionRepository.update(dto.inspectionId, {
+        hasDisease: true,
+      });
+    }
 
     await this.addTimeline({
       diseaseId: saved.id,

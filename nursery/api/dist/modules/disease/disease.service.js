@@ -16,12 +16,14 @@ exports.DiseaseService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const inspection_entity_1 = require("../inspection/inspection.entity");
 const disease_timeline_entity_1 = require("./disease-timeline.entity");
 const disease_entity_1 = require("./disease.entity");
 let DiseaseService = class DiseaseService {
-    constructor(diseaseRepository, timelineRepository) {
+    constructor(diseaseRepository, timelineRepository, inspectionRepository) {
         this.diseaseRepository = diseaseRepository;
         this.timelineRepository = timelineRepository;
+        this.inspectionRepository = inspectionRepository;
     }
     async findAll(query) {
         const qb = this.diseaseRepository.createQueryBuilder('disease')
@@ -71,6 +73,11 @@ let DiseaseService = class DiseaseService {
             reportedAt: new Date(dto.reportedAt),
         });
         const saved = await this.diseaseRepository.save(disease);
+        if (dto.inspectionId) {
+            await this.inspectionRepository.update(dto.inspectionId, {
+                hasDisease: true,
+            });
+        }
         await this.addTimeline({
             diseaseId: saved.id,
             operatorId: dto.reporterId,
@@ -156,7 +163,9 @@ exports.DiseaseService = DiseaseService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(disease_entity_1.Disease)),
     __param(1, (0, typeorm_1.InjectRepository)(disease_timeline_entity_1.DiseaseTimeline)),
+    __param(2, (0, typeorm_1.InjectRepository)(inspection_entity_1.Inspection)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository])
 ], DiseaseService);
 //# sourceMappingURL=disease.service.js.map

@@ -41,6 +41,18 @@ const handleViewPlot = () => {
   router.push(`/plots`);
 };
 
+const handleReportDisease = () => {
+  if (!inspection.value) return;
+  router.push({
+    path: "/diseases/new",
+    query: {
+      inspectionId: String(inspection.value.id),
+      plotId: String(inspection.value.plotId),
+      inspectorId: String(inspection.value.inspectorId),
+    },
+  });
+};
+
 onMounted(loadDetail);
 </script>
 
@@ -82,6 +94,13 @@ onMounted(loadDetail);
               @click="handleViewDisease"
             >
               查看病害
+            </el-button>
+            <el-button
+              v-else-if="inspection.status === 'completed'"
+              type="warning"
+              @click="handleReportDisease"
+            >
+              上报病害
             </el-button>
             <el-button @click="router.back()">返回</el-button>
           </div>

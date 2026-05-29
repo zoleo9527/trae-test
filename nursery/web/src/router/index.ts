@@ -22,6 +22,12 @@ const router = createRouter({
           meta: { title: '养护巡查' },
         },
         {
+          path: 'inspections/new',
+          name: 'InspectionCreate',
+          component: () => import('@/pages/InspectionCreatePage.vue'),
+          meta: { title: '新增巡查' },
+        },
+        {
           path: 'inspections/:id',
           name: 'InspectionDetail',
           component: () => import('@/pages/InspectionDetailPage.vue'),
@@ -34,6 +40,12 @@ const router = createRouter({
           meta: { title: '病害上报' },
         },
         {
+          path: 'diseases/new',
+          name: 'DiseaseCreate',
+          component: () => import('@/pages/DiseaseCreatePage.vue'),
+          meta: { title: '上报病害' },
+        },
+        {
           path: 'diseases/:id',
           name: 'DiseaseDetail',
           component: () => import('@/pages/DiseaseDetailPage.vue'),
@@ -44,6 +56,12 @@ const router = createRouter({
           name: 'Negotiations',
           component: () => import('@/pages/NegotiationListPage.vue'),
           meta: { title: '补苗协商' },
+        },
+        {
+          path: 'negotiations/new',
+          name: 'NegotiationCreate',
+          component: () => import('@/pages/NegotiationCreatePage.vue'),
+          meta: { title: '新建协商' },
         },
         {
           path: 'negotiations/:id',

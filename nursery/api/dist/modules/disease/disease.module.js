@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DiseaseModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const inspection_entity_1 = require("../inspection/inspection.entity");
 const disease_timeline_entity_1 = require("./disease-timeline.entity");
 const disease_controller_1 = require("./disease.controller");
 const disease_entity_1 = require("./disease.entity");
@@ -18,7 +19,7 @@ let DiseaseModule = class DiseaseModule {
 exports.DiseaseModule = DiseaseModule;
 exports.DiseaseModule = DiseaseModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([disease_entity_1.Disease, disease_timeline_entity_1.DiseaseTimeline])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([disease_entity_1.Disease, disease_timeline_entity_1.DiseaseTimeline, inspection_entity_1.Inspection])],
         providers: [disease_service_1.DiseaseService],
         controllers: [disease_controller_1.DiseaseController],
         exports: [disease_service_1.DiseaseService],

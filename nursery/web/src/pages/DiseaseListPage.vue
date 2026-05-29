@@ -235,6 +235,9 @@ onMounted(loadData);
           >
             ⚠️ {{ diseases.filter((d) => d.isOverdue).length }} 条已逾期
           </el-button>
+          <el-button type="primary" @click="router.push('/diseases/new')">
+            + 新增上报
+          </el-button>
         </div>
       </div>
 
