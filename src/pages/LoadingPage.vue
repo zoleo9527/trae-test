@@ -25,8 +25,12 @@ onMounted(() => {
   store.fetchTransfers()
 })
 
+const usedTransferIds = computed(() => {
+  return new Set(store.loadingOrders.map(o => o.transfer_id))
+})
+
 const availableTransfers = computed(() => {
-  return store.transfers.filter(t => t.status === '待装车')
+  return store.transfers.filter(t => t.status === '待装车' && !usedTransferIds.value.has(t.id))
 })
 
 const columns: Column[] = [
@@ -87,6 +91,7 @@ async function handleCreate() {
     } as any)
     showCreateModal.value = false
     store.fetchLoadingOrders()
+    store.fetchTransfers()
   } catch (e) {
     console.error('创建装车单失败', e)
   }

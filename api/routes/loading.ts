@@ -121,7 +121,9 @@ router.put('/:id', (req: Request, res: Response) => {
       }
     }
 
-    if (status === '已完成') {
+    if (status === '装车中') {
+      updateTransfer.run('运输中', now, order.transfer_id)
+    } else if (status === '已完成') {
       updateTransfer.run('待跟进', now, order.transfer_id)
     }
   })()

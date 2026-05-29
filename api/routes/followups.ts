@@ -37,11 +37,26 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-  const result = db.prepare(
+  const insertFollowup = db.prepare(
     'INSERT INTO followups (transfer_id, customer_name, contact_result, satisfaction, issue_description, followup_by, followup_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(transfer_id, customer_name, contact_result || null, satisfaction || null, issue_description || null, followup_by, followup_at || now, status || '待回访')
+  )
+  const updateTransfer = db.prepare(
+    'UPDATE transfers SET status = ?, updated_at = ? WHERE id = ?'
+  )
 
-  res.json({ success: true, data: { id: result.lastInsertRowid } })
+  const finalStatus = status || '待回访'
+  let followupId: number | bigint
+
+  db.transaction(() => {
+    const result = insertFollowup.run(transfer_id, customer_name, contact_result || null, satisfaction || null, issue_description || null, followup_by, followup_at || now, finalStatus)
+    followupId = result.lastInsertRowid
+
+    if (finalStatus === '已完成') {
+      updateTransfer.run('已完成', now, transfer_id)
+    }
+  })()
+
+  res.json({ success: true, data: { id: followupId! } })
 })
 
 router.put('/:id', (req: Request, res: Response) => {
