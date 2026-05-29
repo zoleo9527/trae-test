@@ -34,9 +34,11 @@ export class NegotiationService {
     fromStatus: NegotiationStatus | null,
     toStatus: NegotiationStatus,
     changedById: string,
-    changeReason?: string
+    changeReason?: string,
+    tx?: any
   ) {
-    await prisma.negotiationStatusHistory.create({
+    const client = tx || prisma;
+    await client.negotiationStatusHistory.create({
       data: {
         negotiationId,
         fromStatus,
@@ -80,7 +82,8 @@ export class NegotiationService {
         null,
         NEGOTIATION_STATUS.DRAFT,
         data.creatorId,
-        '创建补苗协商'
+        '创建补苗协商',
+        tx
       );
 
       return neg;
@@ -130,7 +133,8 @@ export class NegotiationService {
         negotiation.status as NegotiationStatus,
         NEGOTIATION_STATUS.MANAGER_REVIEW,
         userId,
-        '提交审核'
+        '提交审核',
+        tx
       );
 
       await tx.todoItem.create({
@@ -293,7 +297,8 @@ export class NegotiationService {
         oldStatus,
         newStatus,
         userId,
-        changeReason || summary
+        changeReason || summary,
+        tx
       );
 
       if (newStatus === NEGOTIATION_STATUS.APPROVED) {
