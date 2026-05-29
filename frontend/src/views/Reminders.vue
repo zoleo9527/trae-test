@@ -59,7 +59,7 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="viewDetail(row)">详情</el-button>
-            <el-button link type="warning" @click.stop="startReminder(row)" v-if="row.status === 'PENDING'">开始</el-button>
+            <el-button link type="warning" @click.stop="handleStartReminder(row)" v-if="row.status === 'PENDING'">开始</el-button>
             <el-button link type="success" @click.stop="showCompleteDialog(row)" v-if="row.status === 'IN_PROGRESS'">完成</el-button>
           </template>
         </el-table-column>
@@ -97,8 +97,8 @@
             </div>
           </div>
           <div style="margin-top: 10px;">
-            <el-input v-model="newRemark" placeholder="添加跟进记录..." />
-            <el-button type="primary" size="small" style="margin-top: 10px" @click="addRemark" :disabled="!newRemark">
+            <el-input v-model="detailRemark" placeholder="添加跟进记录..." />
+            <el-button type="primary" size="small" style="margin-top: 10px" @click="addDetailRemark" :disabled="!detailRemark">
               添加
             </el-button>
           </div>
@@ -158,7 +158,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth'
-import { getReminders, getReminder, startReminder, completeReminder, createReminder, addReminderRemark, getOrders } from '../api/endpoints'
+import { getReminders, getReminder, startReminder as apiStartReminder, completeReminder as apiCompleteReminder, createReminder as apiCreateReminder, addReminderRemark as apiAddReminderRemark, getOrders } from '../api/endpoints'
 import { Plus, Flag } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -175,7 +175,7 @@ const filters = ref({
 
 const detailDialogVisible = ref(false)
 const currentReminder = ref(null)
-const newRemark = ref('')
+const detailRemark = ref('')
 
 const completeDialogVisible = ref(false)
 const completingReminder = ref(null)
@@ -184,7 +184,7 @@ const completeResult = ref('')
 const createDialogVisible = ref(false)
 const newReminder = ref({ order_id: null, assignee_id: null, title: '', content: '', priority: 'MEDIUM' })
 const overdueOrders = ref([])
-const salesList = ref([{ id: 2, name: '李销售' }, { id: 3, name: '王销售' }])
+const salesList = ref([])
 
 const formatMoney = (value) => Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })
 const formatDate = (date) => date ? new Date(date).toLocaleString('zh-CN') : '-'
@@ -205,6 +205,13 @@ const loadOverdueOrders = async () => {
   overdueOrders.value = await getOrders({ is_overdue: 'true' })
 }
 
+const loadSalesList = async () => {
+  salesList.value = [
+    { id: 2, name: '李销售' },
+    { id: 3, name: '王销售' }
+  ]
+}
+
 const resetFilters = () => {
   filters.value = { status: '', priority: '' }
   loadReminders()
@@ -215,8 +222,8 @@ const viewDetail = async (row) => {
   detailDialogVisible.value = true
 }
 
-const startReminder = async (row) => {
-  await startReminder(row.id)
+const handleStartReminder = async (row) => {
+  await apiStartReminder(row.id)
   ElMessage.success('已开始处理')
   loadReminders()
 }
@@ -228,7 +235,7 @@ const showCompleteDialog = (row) => {
 }
 
 const submitComplete = async () => {
-  await completeReminder(completingReminder.value.id, completeResult.value)
+  await apiCompleteReminder(completingReminder.value.id, completeResult.value)
   ElMessage.success('已完成')
   completeDialogVisible.value = false
   loadReminders()
@@ -237,25 +244,27 @@ const submitComplete = async () => {
 const showCreateDialog = () => {
   newReminder.value = { order_id: null, assignee_id: null, title: '', content: '', priority: 'MEDIUM' }
   loadOverdueOrders()
+  loadSalesList()
   createDialogVisible.value = true
 }
 
 const submitCreate = async () => {
-  await createReminder(newReminder.value)
+  await apiCreateReminder(newReminder.value)
   ElMessage.success('创建成功')
   createDialogVisible.value = false
   loadReminders()
 }
 
-const addRemark = async () => {
-  await addReminderRemark(currentReminder.value.id, newRemark.value)
-  newRemark.value = ''
+const addDetailRemark = async () => {
+  await apiAddReminderRemark(currentReminder.value.id, detailRemark.value)
+  detailRemark.value = ''
   ElMessage.success('已添加')
   viewDetail({ id: currentReminder.value.id })
 }
 
 onMounted(() => {
   loadReminders()
+  loadSalesList()
 })
 </script>
 

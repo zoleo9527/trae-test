@@ -174,6 +174,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         customer_id = self.request.query_params.get('customer_id')
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
+        sales_id = self.request.query_params.get('sales_id')
+        if sales_id:
+            queryset = queryset.filter(sales_person_id=sales_id)
         is_overdue = self.request.query_params.get('is_overdue')
         if is_overdue == 'true':
             today = timezone.now().date()

@@ -256,6 +256,7 @@ class OrderWorkflowService:
             raise ValueError('当前状态不允许确认回款')
 
         order = payment.order
+        old_order_status = order.status
 
         payment.status = 'CONFIRMED'
         payment.confirm_person = operator
@@ -264,18 +265,19 @@ class OrderWorkflowService:
 
         order.paid_amount += payment.amount
         if order.paid_amount >= order.total_amount:
-            order.status = 'PAID'
+            new_status = 'PAID'
             order.customer.credit_used -= order.total_amount
         else:
-            order.status = 'PAID_PARTIAL'
+            new_status = 'PAID_PARTIAL'
             order.customer.credit_used -= payment.amount
+        order.status = new_status
         order.save()
         order.customer.save()
 
         OrderStatusLog.objects.create(
             order=order,
-            from_status=order.status,
-            to_status=order.status,
+            from_status=old_order_status,
+            to_status=new_status,
             operator=operator,
             remark=f'确认回款 {payment.amount} 元'
         )

@@ -31,6 +31,11 @@
             <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="销售员">
+          <el-select v-model="filters.sales_id" clearable placeholder="全部" style="width: 120px">
+            <el-option v-for="s in salesList" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-checkbox v-model="filters.is_overdue" @change="loadOrders">只看逾期</el-checkbox>
         </el-form-item>
@@ -148,10 +153,12 @@ const customers = ref([])
 const parts = ref([])
 const loading = ref(false)
 const createDialogVisible = ref(false)
+const salesList = ref([{ id: 2, name: '李销售' }, { id: 3, name: '王销售' }])
 
 const filters = ref({
   status: route.query.status || '',
   customer_id: route.query.customer_id || '',
+  sales_id: route.query.sales_id || '',
   is_overdue: route.query.is_overdue === 'true'
 })
 
@@ -186,6 +193,7 @@ const loadOrders = async () => {
     const params = { ...filters.value }
     if (!params.status) delete params.status
     if (!params.customer_id) delete params.customer_id
+    if (!params.sales_id) delete params.sales_id
     if (!params.is_overdue) delete params.is_overdue
     orders.value = await getOrders(params)
   } finally {
@@ -202,7 +210,7 @@ const loadParts = async () => {
 }
 
 const resetFilters = () => {
-  filters.value = { status: '', customer_id: '', is_overdue: false }
+  filters.value = { status: '', customer_id: '', sales_id: '', is_overdue: false }
   loadOrders()
 }
 
