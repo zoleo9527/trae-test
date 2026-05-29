@@ -47,9 +47,9 @@ func (h *AppealHandler) GetAppeal(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid appeal ID")
 	}
 
-	appeal, err := h.appealService.GetAppealByID(id)
+	appeal, err := h.appealService.GetAppealByID(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Appeal not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, appeal)
@@ -62,9 +62,9 @@ func (h *AppealHandler) GetAppealDetail(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid appeal ID")
 	}
 
-	detail, err := h.appealService.GetAppealDetail(id)
+	detail, err := h.appealService.GetAppealDetail(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Appeal not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, detail)
@@ -76,7 +76,7 @@ func (h *AppealHandler) ListAppeals(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid query parameters")
 	}
 
-	appeals, total, err := h.appealService.QueryAppeals(&query)
+	appeals, total, err := h.appealService.QueryAppeals(c, &query)
 	if err != nil {
 		return utils.Error(c, 4002, err.Error())
 	}

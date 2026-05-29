@@ -47,9 +47,9 @@ func (h *SubsidyHandler) GetSubsidy(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid subsidy ID")
 	}
 
-	subsidy, err := h.subsidyService.GetSubsidyByID(id)
+	subsidy, err := h.subsidyService.GetSubsidyByID(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Subsidy not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, subsidy)
@@ -62,9 +62,9 @@ func (h *SubsidyHandler) GetSubsidyDetail(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid subsidy ID")
 	}
 
-	detail, err := h.subsidyService.GetSubsidyDetail(id)
+	detail, err := h.subsidyService.GetSubsidyDetail(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Subsidy not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, detail)
@@ -76,7 +76,7 @@ func (h *SubsidyHandler) ListSubsidies(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid query parameters")
 	}
 
-	subsidies, total, err := h.subsidyService.QuerySubsidies(&query)
+	subsidies, total, err := h.subsidyService.QuerySubsidies(c, &query)
 	if err != nil {
 		return utils.Error(c, 5002, err.Error())
 	}

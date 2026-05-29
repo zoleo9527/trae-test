@@ -27,9 +27,9 @@ func Seed() {
 		orders := createOrders(tx, users)
 		refunds := createRefunds(tx, orders, users)
 		appeals := createAppeals(tx, orders, refunds, users)
-		createSubsidies(tx, orders, refunds, appeals, users)
-		createRemarks(tx, refunds, appeals, users)
-		createOperationLogs(tx, orders, refunds, appeals, users)
+		subsidies := createSubsidies(tx, orders, refunds, appeals, users)
+		createRemarks(tx, refunds, appeals, subsidies, users)
+		createOperationLogs(tx, orders, refunds, appeals, subsidies, users)
 
 		return nil
 	})
@@ -186,6 +186,14 @@ func createRefunds(tx *gorm.DB, orders []*models.Order, users map[string]*models
 		models.RefundStatusReviewing,
 		models.RefundStatusApproved,
 	}
+	originalStatuses := []models.OrderStatus{
+		models.OrderStatusCompleted,
+		models.OrderStatusCompleted,
+		models.OrderStatusDelivering,
+		models.OrderStatusCompleted,
+		models.OrderStatusCompleted,
+		models.OrderStatusCompleted,
+	}
 
 	refundOrders := []int{0, 3, 4, 7, 10, 12}
 	csUsers := []*models.User{users["cs_01"], users["cs_02"]}
@@ -205,17 +213,20 @@ func createRefunds(tx *gorm.DB, orders []*models.Order, users map[string]*models
 			amount = order.TotalAmount * 0.5
 		}
 
+		originalStatus := originalStatuses[idx%len(originalStatuses)]
+
 		refund := &models.Refund{
-			RefundNo:       utils.GenerateRefundNo(),
-			OrderID:        order.ID,
-			UserID:         order.UserID,
-			Status:         status,
-			Reason:         reason,
-			Amount:         amount,
-			DeliveryFeeRefund: order.DeliveryFee,
-			GoodsValueRefund: amount - order.DeliveryFee,
-			Description:    getRefundDescription(idx, reason),
-			EvidenceImages: getEvidenceImages(idx),
+			RefundNo:             utils.GenerateRefundNo(),
+			OrderID:              order.ID,
+			UserID:               order.UserID,
+			Status:               status,
+			Reason:               reason,
+			Amount:               amount,
+			DeliveryFeeRefund:    order.DeliveryFee,
+			GoodsValueRefund:     amount - order.DeliveryFee,
+			Description:          getRefundDescription(idx, reason),
+			EvidenceImages:       getEvidenceImages(idx),
+			OriginalOrderStatus:  originalStatus,
 		}
 
 		if status != models.RefundStatusPending && status != models.RefundStatusReviewing {
@@ -319,7 +330,8 @@ func createAppeals(tx *gorm.DB, orders []*models.Order, refunds []*models.Refund
 	return appeals
 }
 
-func createSubsidies(tx *gorm.DB, orders []*models.Order, refunds []*models.Refund, appeals []*models.Appeal, users map[string]*models.User) {
+func createSubsidies(tx *gorm.DB, orders []*models.Order, refunds []*models.Refund, appeals []*models.Appeal, users map[string]*models.User) []*models.Subsidy {
+	var subsidyList []*models.Subsidy
 	statuses := []models.SubsidyStatus{
 		models.SubsidyStatusPaid,
 		models.SubsidyStatusApproved,
@@ -386,12 +398,15 @@ func createSubsidies(tx *gorm.DB, orders []*models.Order, refunds []*models.Refu
 		if err := tx.Create(subsidy).Error; err != nil {
 			log.Fatalf("Failed to create subsidy: %v", err)
 		}
+
+		subsidyList = append(subsidyList, subsidy)
 	}
 
-	log.Printf("Created 4 subsidies")
+	log.Printf("Created %d subsidies", len(subsidyList))
+	return subsidyList
 }
 
-func createRemarks(tx *gorm.DB, refunds []*models.Refund, appeals []*models.Appeal, users map[string]*models.User) {
+func createRemarks(tx *gorm.DB, refunds []*models.Refund, appeals []*models.Appeal, subsidies []*models.Subsidy, users map[string]*models.User) {
 	remarkAuthors := []*models.User{users["cs_01"], users["cs_02"], users["ops_manager"], users["dispatcher_01"]}
 
 	for i, refund := range refunds {
@@ -422,10 +437,24 @@ func createRemarks(tx *gorm.DB, refunds []*models.Refund, appeals []*models.Appe
 		}
 	}
 
-	log.Printf("Created remarks for refunds and appeals")
+	for i, subsidy := range subsidies {
+		author := remarkAuthors[(i+1)%len(remarkAuthors)]
+		remark := &models.Remark{
+			TargetID:   subsidy.ID,
+			TargetType: "subsidy",
+			AuthorID:   author.ID,
+			Content:    getSubsidyRemark(i, author.RealName),
+			IsInternal: i%2 == 0,
+		}
+		if err := tx.Create(remark).Error; err != nil {
+			log.Fatalf("Failed to create subsidy remark: %v", err)
+		}
+	}
+
+	log.Printf("Created remarks for refunds, appeals and subsidies")
 }
 
-func createOperationLogs(tx *gorm.DB, orders []*models.Order, refunds []*models.Refund, appeals []*models.Appeal, users map[string]*models.User) {
+func createOperationLogs(tx *gorm.DB, orders []*models.Order, refunds []*models.Refund, appeals []*models.Appeal, subsidies []*models.Subsidy, users map[string]*models.User) {
 	actions := []models.OperationAction{
 		models.ActionCreateRefund,
 		models.ActionApproveRefund,
@@ -517,6 +546,88 @@ func createOperationLogs(tx *gorm.DB, orders []*models.Order, refunds []*models.
 		}
 		if err := tx.Create(logEntry).Error; err != nil {
 			log.Printf("Warning: Failed to create order log: %v", err)
+		}
+	}
+
+	for i, subsidy := range subsidies {
+		operator := users["ops_manager"]
+
+		createLog := &models.OperationLog{
+			Action:        models.ActionCreateSubsidy,
+			TargetID:      subsidy.ID,
+			TargetType:    "subsidy",
+			OperatorID:    operator.ID,
+			OperatorName:  operator.RealName,
+			OperatorRole:  operator.Role,
+			OldValue:      `null`,
+			NewValue:      `{"status":"pending","amount":` + fmt.Sprintf("%.2f", subsidy.Amount) + `}`,
+			ChangedFields: []string{"status", "amount"},
+			IPAddress:     fmt.Sprintf("10.0.1.%d", 100+i),
+			UserAgent:     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+			Remark:        "创建补贴申请",
+		}
+		if err := tx.Create(createLog).Error; err != nil {
+			log.Printf("Warning: Failed to create subsidy create log: %v", err)
+		}
+
+		if subsidy.Status == models.SubsidyStatusApproved || subsidy.Status == models.SubsidyStatusPaid {
+			reviewLog := &models.OperationLog{
+				Action:        models.ActionApproveSubsidy,
+				TargetID:      subsidy.ID,
+				TargetType:    "subsidy",
+				OperatorID:    operator.ID,
+				OperatorName:  operator.RealName,
+				OperatorRole:  operator.Role,
+				OldValue:      `{"status":"pending"}`,
+				NewValue:      `{"status":"approved"}`,
+				ChangedFields: []string{"status"},
+				IPAddress:     fmt.Sprintf("10.0.1.%d", 110+i),
+				UserAgent:     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+				Remark:        "审核通过",
+			}
+			if err := tx.Create(reviewLog).Error; err != nil {
+				log.Printf("Warning: Failed to create subsidy review log: %v", err)
+			}
+		}
+
+		if subsidy.Status == models.SubsidyStatusRejected {
+			rejectLog := &models.OperationLog{
+				Action:        models.ActionRejectSubsidy,
+				TargetID:      subsidy.ID,
+				TargetType:    "subsidy",
+				OperatorID:    operator.ID,
+				OperatorName:  operator.RealName,
+				OperatorRole:  operator.Role,
+				OldValue:      `{"status":"pending"}`,
+				NewValue:      `{"status":"rejected"}`,
+				ChangedFields: []string{"status"},
+				IPAddress:     fmt.Sprintf("10.0.1.%d", 120+i),
+				UserAgent:     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+				Remark:        "补贴驳回",
+			}
+			if err := tx.Create(rejectLog).Error; err != nil {
+				log.Printf("Warning: Failed to create subsidy reject log: %v", err)
+			}
+		}
+
+		if subsidy.Status == models.SubsidyStatusPaid {
+			payLog := &models.OperationLog{
+				Action:        models.ActionPaySubsidy,
+				TargetID:      subsidy.ID,
+				TargetType:    "subsidy",
+				OperatorID:    operator.ID,
+				OperatorName:  operator.RealName,
+				OperatorRole:  operator.Role,
+				OldValue:      `{"status":"approved"}`,
+				NewValue:      `{"status":"paid","payment_method":"` + subsidy.PaymentMethod + `"}`,
+				ChangedFields: []string{"status", "payment_method"},
+				IPAddress:     fmt.Sprintf("10.0.1.%d", 130+i),
+				UserAgent:     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+				Remark:        "标记已付款",
+			}
+			if err := tx.Create(payLog).Error; err != nil {
+				log.Printf("Warning: Failed to create subsidy pay log: %v", err)
+			}
 		}
 	}
 
@@ -668,6 +779,16 @@ func getAppealRemark(i int, author string) string {
 		author + "：内部备注：此申诉涉及金额较大，建议运营经理终审。",
 		author + "：已与双方电话沟通，初步达成和解意向。",
 		author + "：内部备注：该骑手本月已有3次申诉，需关注其服务质量。",
+	}
+	return remarks[i%len(remarks)]
+}
+
+func getSubsidyRemark(i int, author string) string {
+	remarks := []string{
+		author + "：补贴金额已与财务确认，可以走支付流程。",
+		author + "：内部备注：该补贴关联的申诉已通过，请尽快完成审批。",
+		author + "：商家已确认收款账号，预计T+1到账。",
+		author + "：内部备注：此补贴金额较小，建议走快速审批通道。",
 	}
 	return remarks[i%len(remarks)]
 }

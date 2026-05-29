@@ -22,7 +22,17 @@ func NewRefundService() *RefundService {
 
 func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequest) (*models.Refund, error) {
 	orderID, _ := uuid.Parse(req.OrderID)
-	userID := utils.GetCurrentUser(c).UserID
+	user := utils.GetCurrentUser(c)
+
+	if user.Role == models.RoleUser {
+		var order models.Order
+		if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return nil, errors.New("order not found")
+		}
+		if order.UserID != user.UserID {
+			return nil, errors.New("you can only create refunds for your own orders")
+		}
+	}
 
 	var order models.Order
 	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
@@ -40,23 +50,18 @@ func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequ
 	}
 
 	refund := &models.Refund{
-		RefundNo:       utils.GenerateRefundNo(),
-		OrderID:        orderID,
-		UserID:         userID,
-		Status:         models.RefundStatusPending,
-		Reason:         req.Reason,
-		Amount:         req.Amount,
-		Description:    req.Description,
-		EvidenceImages: req.EvidenceImages,
+		RefundNo:             utils.GenerateRefundNo(),
+		OrderID:              orderID,
+		UserID:               user.UserID,
+		Status:               models.RefundStatusPending,
+		Reason:               req.Reason,
+		Amount:               req.Amount,
+		Description:          req.Description,
+		EvidenceImages:       req.EvidenceImages,
+		OriginalOrderStatus:  order.Status,
 	}
 
-	if req.Amount >= order.DeliveryFee {
-		refund.DeliveryFeeRefund = order.DeliveryFee
-		refund.GoodsValueRefund = req.Amount - order.DeliveryFee
-	} else {
-		refund.DeliveryFeeRefund = req.Amount
-		refund.GoodsValueRefund = 0
-	}
+	recalcRefundSplit(refund, &order)
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(refund).Error; err != nil {
@@ -79,21 +84,40 @@ func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequ
 	return refund, nil
 }
 
-func (s *RefundService) GetRefundByID(id uuid.UUID) (*models.Refund, error) {
+func (s *RefundService) GetRefundByID(c *fiber.Ctx, id uuid.UUID) (*models.Refund, error) {
 	var refund models.Refund
 	if err := database.DB.Preload("Order").Preload("User").Preload("Reviewer").
 		Preload("Processor").Preload("Remarks.Author").Preload("Appeals").
 		Where("id = ?", id).First(&refund).Error; err != nil {
 		return nil, err
 	}
+
+	if err := checkRefundAccess(c, &refund); err != nil {
+		return nil, err
+	}
+
 	return &refund, nil
 }
 
-func (s *RefundService) QueryRefunds(query *schemas.RefundQuery) ([]models.Refund, int64, error) {
+func (s *RefundService) QueryRefunds(c *fiber.Ctx, query *schemas.RefundQuery) ([]models.Refund, int64, error) {
 	var refunds []models.Refund
 	var total int64
 
+	user := utils.GetCurrentUser(c)
 	db := database.DB.Model(&models.Refund{}).Preload("Order").Preload("User").Preload("Reviewer")
+
+	if !user.Role.IsStaff() {
+		switch user.Role {
+		case models.RoleUser:
+			db = db.Where("refunds.user_id = ?", user.UserID)
+		case models.RoleRunner:
+			db = db.Joins("JOIN orders ON orders.id = refunds.order_id").
+				Where("orders.runner_id = ?", user.UserID)
+		case models.RoleMerchant:
+			db = db.Joins("JOIN orders ON orders.id = refunds.order_id").
+				Where("orders.merchant_id = ?", user.UserID)
+		}
+	}
 
 	if query.OrderNo != "" {
 		db = db.Joins("JOIN orders ON orders.id = refunds.order_id").
@@ -133,23 +157,38 @@ func (s *RefundService) UpdateRefund(c *fiber.Ctx, id uuid.UUID, req *schemas.Up
 		return nil, errors.New("refund not found")
 	}
 
+	user := utils.GetCurrentUser(c)
+	if !user.Role.IsStaff() && refund.UserID != user.UserID {
+		return nil, errors.New("you can only update your own refunds")
+	}
+
 	oldRefund := refund
 
 	if refund.Status != models.RefundStatusPending && refund.Status != models.RefundStatusReviewing {
 		return nil, errors.New("refund cannot be updated in current status")
 	}
 
+	amountChanged := false
 	if req.Reason != nil {
 		refund.Reason = *req.Reason
 	}
 	if req.Amount != nil {
 		refund.Amount = *req.Amount
+		amountChanged = true
 	}
 	if req.Description != nil {
 		refund.Description = *req.Description
 	}
 	if req.EvidenceImages != nil {
 		refund.EvidenceImages = *req.EvidenceImages
+	}
+
+	if amountChanged {
+		var order models.Order
+		if err := database.DB.Where("id = ?", refund.OrderID).First(&order).Error; err != nil {
+			return nil, errors.New("associated order not found")
+		}
+		recalcRefundSplit(&refund, &order)
 	}
 
 	if err := database.DB.Save(&refund).Error; err != nil {
@@ -196,7 +235,11 @@ func (s *RefundService) ReviewRefund(c *fiber.Ctx, id uuid.UUID, req *schemas.Re
 			var order models.Order
 			if err := tx.Where("id = ?", refund.OrderID).First(&order).Error; err == nil {
 				if order.Status == models.OrderStatusRefunded {
-					if err := tx.Model(&order).Update("status", models.OrderStatusCompleted).Error; err != nil {
+					restoreStatus := refund.OriginalOrderStatus
+					if restoreStatus == "" {
+						restoreStatus = models.OrderStatusCompleted
+					}
+					if err := tx.Model(&order).Update("status", restoreStatus).Error; err != nil {
 						return err
 					}
 				}
@@ -226,6 +269,15 @@ func (s *RefundService) ReviewRefund(c *fiber.Ctx, id uuid.UUID, req *schemas.Re
 }
 
 func (s *RefundService) AddRemark(c *fiber.Ctx, refundID uuid.UUID, req *schemas.AddRemarkRequest) (*models.Remark, error) {
+	var refund models.Refund
+	if err := database.DB.Where("id = ?", refundID).First(&refund).Error; err != nil {
+		return nil, errors.New("refund not found")
+	}
+
+	if err := checkRefundAccess(c, &refund); err != nil {
+		return nil, err
+	}
+
 	user := utils.GetCurrentUser(c)
 
 	remark := &models.Remark{
@@ -248,8 +300,8 @@ func (s *RefundService) AddRemark(c *fiber.Ctx, refundID uuid.UUID, req *schemas
 	return remark, nil
 }
 
-func (s *RefundService) GetRefundDetail(id uuid.UUID) (*schemas.RefundDetailResponse, error) {
-	refund, err := s.GetRefundByID(id)
+func (s *RefundService) GetRefundDetail(c *fiber.Ctx, id uuid.UUID) (*schemas.RefundDetailResponse, error) {
+	refund, err := s.GetRefundByID(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +318,48 @@ func (s *RefundService) GetRefundDetail(id uuid.UUID) (*schemas.RefundDetailResp
 		Refund: refund,
 		Logs:   logs,
 	}, nil
+}
+
+func checkRefundAccess(c *fiber.Ctx, refund *models.Refund) error {
+	user := utils.GetCurrentUser(c)
+	if user == nil {
+		return errors.New("user not authenticated")
+	}
+	if user.Role.IsStaff() {
+		return nil
+	}
+	switch user.Role {
+	case models.RoleUser:
+		if refund.UserID != user.UserID {
+			return errors.New("access denied")
+		}
+	case models.RoleRunner, models.RoleMerchant:
+		var order models.Order
+		if err := database.DB.Where("id = ?", refund.OrderID).First(&order).Error; err != nil {
+			return errors.New("access denied")
+		}
+		if (user.Role == models.RoleRunner && order.RunnerID != nil && *order.RunnerID != user.UserID) ||
+			(user.Role == models.RoleMerchant && order.MerchantID != user.UserID) {
+			return errors.New("access denied")
+		}
+	}
+	return nil
+}
+
+func recalcRefundSplit(refund *models.Refund, order *models.Order) {
+	var deliveryFeeRefund float64
+	var goodsValueRefund float64
+
+	if refund.Amount >= order.DeliveryFee {
+		deliveryFeeRefund = order.DeliveryFee
+		goodsValueRefund = refund.Amount - order.DeliveryFee
+	} else {
+		deliveryFeeRefund = refund.Amount
+		goodsValueRefund = 0
+	}
+
+	refund.DeliveryFeeRefund = deliveryFeeRefund
+	refund.GoodsValueRefund = goodsValueRefund
 }
 
 func (s *RefundService) enqueueRefundNotification(refund *models.Refund) {

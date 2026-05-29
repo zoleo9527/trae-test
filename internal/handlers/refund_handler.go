@@ -47,9 +47,9 @@ func (h *RefundHandler) GetRefund(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid refund ID")
 	}
 
-	refund, err := h.refundService.GetRefundByID(id)
+	refund, err := h.refundService.GetRefundByID(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Refund not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, refund)
@@ -62,9 +62,9 @@ func (h *RefundHandler) GetRefundDetail(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid refund ID")
 	}
 
-	detail, err := h.refundService.GetRefundDetail(id)
+	detail, err := h.refundService.GetRefundDetail(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Refund not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, detail)
@@ -76,7 +76,7 @@ func (h *RefundHandler) ListRefunds(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid query parameters")
 	}
 
-	refunds, total, err := h.refundService.QueryRefunds(&query)
+	refunds, total, err := h.refundService.QueryRefunds(c, &query)
 	if err != nil {
 		return utils.Error(c, 3002, err.Error())
 	}

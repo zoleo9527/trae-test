@@ -54,21 +54,38 @@ func (s *OrderService) CreateOrder(c *fiber.Ctx, req *schemas.CreateOrderRequest
 	return order, nil
 }
 
-func (s *OrderService) GetOrderByID(id uuid.UUID) (*models.Order, error) {
+func (s *OrderService) GetOrderByID(c *fiber.Ctx, id uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	if err := database.DB.Preload("User").Preload("Runner").Preload("Merchant").
 		Preload("Refunds").Preload("Appeals").Preload("Subsidies").
 		Where("id = ?", id).First(&order).Error; err != nil {
 		return nil, err
 	}
+
+	if err := checkOrderAccess(c, &order); err != nil {
+		return nil, err
+	}
+
 	return &order, nil
 }
 
-func (s *OrderService) QueryOrders(query *schemas.OrderQuery) ([]models.Order, int64, error) {
+func (s *OrderService) QueryOrders(c *fiber.Ctx, query *schemas.OrderQuery) ([]models.Order, int64, error) {
 	var orders []models.Order
 	var total int64
 
+	user := utils.GetCurrentUser(c)
 	db := database.DB.Model(&models.Order{}).Preload("User").Preload("Runner").Preload("Merchant")
+
+	if !user.Role.IsStaff() {
+		switch user.Role {
+		case models.RoleUser:
+			db = db.Where("user_id = ?", user.UserID)
+		case models.RoleRunner:
+			db = db.Where("runner_id = ?", user.UserID)
+		case models.RoleMerchant:
+			db = db.Where("merchant_id = ?", user.UserID)
+		}
+	}
 
 	if query.OrderNo != "" {
 		db = db.Where("order_no LIKE ?", "%"+query.OrderNo+"%")
@@ -183,4 +200,29 @@ func (s *OrderService) UpdateOrderStatus(c *fiber.Ctx, orderID uuid.UUID, req *s
 
 	utils.LogOperation(c, models.ActionUpdateOrder, orderID, "order", &oldOrder, &order, req.Remark)
 	return &order, nil
+}
+
+func checkOrderAccess(c *fiber.Ctx, order *models.Order) error {
+	user := utils.GetCurrentUser(c)
+	if user == nil {
+		return errors.New("user not authenticated")
+	}
+	if user.Role.IsStaff() {
+		return nil
+	}
+	switch user.Role {
+	case models.RoleUser:
+		if order.UserID != user.UserID {
+			return errors.New("access denied")
+		}
+	case models.RoleRunner:
+		if order.RunnerID == nil || *order.RunnerID != user.UserID {
+			return errors.New("access denied")
+		}
+	case models.RoleMerchant:
+		if order.MerchantID != user.UserID {
+			return errors.New("access denied")
+		}
+	}
+	return nil
 }

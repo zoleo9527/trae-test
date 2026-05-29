@@ -47,9 +47,9 @@ func (h *OrderHandler) GetOrder(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid order ID")
 	}
 
-	order, err := h.orderService.GetOrderByID(id)
+	order, err := h.orderService.GetOrderByID(c, id)
 	if err != nil {
-		return utils.NotFound(c, "Order not found")
+		return utils.NotFound(c, err.Error())
 	}
 
 	return utils.Success(c, order)
@@ -61,7 +61,7 @@ func (h *OrderHandler) ListOrders(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid query parameters")
 	}
 
-	orders, total, err := h.orderService.QueryOrders(&query)
+	orders, total, err := h.orderService.QueryOrders(c, &query)
 	if err != nil {
 		return utils.Error(c, 2002, err.Error())
 	}

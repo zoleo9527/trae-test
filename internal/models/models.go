@@ -19,6 +19,14 @@ const (
 	RoleMerchant     Role = "merchant"
 )
 
+func (r Role) IsStaff() bool {
+	switch r {
+	case RoleAdmin, RoleOpsManager, RoleDispatcher, RoleCustomerService:
+		return true
+	}
+	return false
+}
+
 type OrderStatus string
 
 const (
@@ -86,6 +94,8 @@ const (
 	ActionRejectAppeal    OperationAction = "reject_appeal"
 	ActionCreateSubsidy   OperationAction = "create_subsidy"
 	ActionApproveSubsidy  OperationAction = "approve_subsidy"
+	ActionRejectSubsidy   OperationAction = "reject_subsidy"
+	ActionPaySubsidy      OperationAction = "pay_subsidy"
 	ActionAddRemark       OperationAction = "add_remark"
 	ActionAssignOrder     OperationAction = "assign_order"
 	ActionUpdateOrder     OperationAction = "update_order"
@@ -158,6 +168,7 @@ type Refund struct {
 	Description    string        `gorm:"size:1000;not null" json:"description"`
 	EvidenceImages []string      `gorm:"type:text[]" json:"evidence_images"`
 	RejectReason   string        `gorm:"size:500" json:"reject_reason"`
+	OriginalOrderStatus OrderStatus `gorm:"size:30" json:"original_order_status"`
 	ReviewedBy     *uuid.UUID    `gorm:"type:uuid;index" json:"reviewed_by"`
 	ReviewedAt     *time.Time    `json:"reviewed_at"`
 	ProcessedBy    *uuid.UUID    `gorm:"type:uuid;index" json:"processed_by"`

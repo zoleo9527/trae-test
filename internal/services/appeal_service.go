@@ -21,12 +21,27 @@ func NewAppealService() *AppealService {
 
 func (s *AppealService) CreateAppeal(c *fiber.Ctx, req *schemas.CreateAppealRequest) (*models.Appeal, error) {
 	orderID, _ := uuid.Parse(req.OrderID)
-	appealerID := utils.GetCurrentUser(c).UserID
 	appealer := utils.GetCurrentUser(c)
 
 	var order models.Order
 	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
 		return nil, errors.New("order not found")
+	}
+
+	if !appealer.Role.IsStaff() {
+		related := false
+		if order.UserID == appealer.UserID {
+			related = true
+		}
+		if order.RunnerID != nil && *order.RunnerID == appealer.UserID {
+			related = true
+		}
+		if order.MerchantID == appealer.UserID {
+			related = true
+		}
+		if !related {
+			return nil, errors.New("you can only appeal orders you are involved in")
+		}
 	}
 
 	var refundID *uuid.UUID
@@ -39,7 +54,7 @@ func (s *AppealService) CreateAppeal(c *fiber.Ctx, req *schemas.CreateAppealRequ
 		AppealNo:     utils.GenerateAppealNo(),
 		OrderID:      orderID,
 		RefundID:     refundID,
-		AppealerID:   appealerID,
+		AppealerID:   appealer.UserID,
 		AppealerType: string(appealer.Role),
 		Status:       models.AppealStatusPending,
 		Title:        req.Title,
@@ -56,21 +71,31 @@ func (s *AppealService) CreateAppeal(c *fiber.Ctx, req *schemas.CreateAppealRequ
 	return appeal, nil
 }
 
-func (s *AppealService) GetAppealByID(id uuid.UUID) (*models.Appeal, error) {
+func (s *AppealService) GetAppealByID(c *fiber.Ctx, id uuid.UUID) (*models.Appeal, error) {
 	var appeal models.Appeal
 	if err := database.DB.Preload("Order").Preload("Refund").Preload("Appealer").
 		Preload("Handler").Preload("Remarks.Author").
 		Where("id = ?", id).First(&appeal).Error; err != nil {
 		return nil, err
 	}
+
+	if err := checkAppealAccess(c, &appeal); err != nil {
+		return nil, err
+	}
+
 	return &appeal, nil
 }
 
-func (s *AppealService) QueryAppeals(query *schemas.AppealQuery) ([]models.Appeal, int64, error) {
+func (s *AppealService) QueryAppeals(c *fiber.Ctx, query *schemas.AppealQuery) ([]models.Appeal, int64, error) {
 	var appeals []models.Appeal
 	var total int64
 
+	user := utils.GetCurrentUser(c)
 	db := database.DB.Model(&models.Appeal{}).Preload("Order").Preload("Appealer").Preload("Handler")
+
+	if !user.Role.IsStaff() {
+		db = db.Where("appeals.appealer_id = ?", user.UserID)
+	}
 
 	if query.OrderNo != "" {
 		db = db.Joins("JOIN orders ON orders.id = appeals.order_id").
@@ -145,6 +170,15 @@ func (s *AppealService) HandleAppeal(c *fiber.Ctx, id uuid.UUID, req *schemas.Ha
 }
 
 func (s *AppealService) AddRemark(c *fiber.Ctx, appealID uuid.UUID, req *schemas.AddRemarkRequest) (*models.Remark, error) {
+	var appeal models.Appeal
+	if err := database.DB.Where("id = ?", appealID).First(&appeal).Error; err != nil {
+		return nil, errors.New("appeal not found")
+	}
+
+	if err := checkAppealAccess(c, &appeal); err != nil {
+		return nil, err
+	}
+
 	user := utils.GetCurrentUser(c)
 
 	remark := &models.Remark{
@@ -167,8 +201,8 @@ func (s *AppealService) AddRemark(c *fiber.Ctx, appealID uuid.UUID, req *schemas
 	return remark, nil
 }
 
-func (s *AppealService) GetAppealDetail(id uuid.UUID) (map[string]interface{}, error) {
-	appeal, err := s.GetAppealByID(id)
+func (s *AppealService) GetAppealDetail(c *fiber.Ctx, id uuid.UUID) (map[string]interface{}, error) {
+	appeal, err := s.GetAppealByID(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +219,20 @@ func (s *AppealService) GetAppealDetail(id uuid.UUID) (map[string]interface{}, e
 		"appeal":        appeal,
 		"operation_logs": logs,
 	}, nil
+}
+
+func checkAppealAccess(c *fiber.Ctx, appeal *models.Appeal) error {
+	user := utils.GetCurrentUser(c)
+	if user == nil {
+		return errors.New("user not authenticated")
+	}
+	if user.Role.IsStaff() {
+		return nil
+	}
+	if appeal.AppealerID != user.UserID {
+		return errors.New("access denied")
+	}
+	return nil
 }
 
 func (s *AppealService) enqueueAppealNotification(appeal *models.Appeal) {

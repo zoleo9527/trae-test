@@ -27,7 +27,7 @@ func (h *LogHandler) ListLogs(c *fiber.Ctx) error {
 		return utils.ValidationError(c, "Invalid query parameters")
 	}
 
-	logs, total, err := h.logService.QueryLogs(&query)
+	logs, total, err := h.logService.QueryLogs(c, &query)
 	if err != nil {
 		return utils.Error(c, 6001, err.Error())
 	}

@@ -62,21 +62,31 @@ func (s *SubsidyService) CreateSubsidy(c *fiber.Ctx, req *schemas.CreateSubsidyR
 	return subsidy, nil
 }
 
-func (s *SubsidyService) GetSubsidyByID(id uuid.UUID) (*models.Subsidy, error) {
+func (s *SubsidyService) GetSubsidyByID(c *fiber.Ctx, id uuid.UUID) (*models.Subsidy, error) {
 	var subsidy models.Subsidy
 	if err := database.DB.Preload("Order").Preload("Refund").Preload("Appeal").
 		Preload("Payee").Preload("Approver").Preload("Remarks.Author").
 		Where("id = ?", id).First(&subsidy).Error; err != nil {
 		return nil, err
 	}
+
+	if err := checkSubsidyAccess(c, &subsidy); err != nil {
+		return nil, err
+	}
+
 	return &subsidy, nil
 }
 
-func (s *SubsidyService) QuerySubsidies(query *schemas.SubsidyQuery) ([]models.Subsidy, int64, error) {
+func (s *SubsidyService) QuerySubsidies(c *fiber.Ctx, query *schemas.SubsidyQuery) ([]models.Subsidy, int64, error) {
 	var subsidies []models.Subsidy
 	var total int64
 
+	user := utils.GetCurrentUser(c)
 	db := database.DB.Model(&models.Subsidy{}).Preload("Order").Preload("Payee").Preload("Approver")
+
+	if !user.Role.IsStaff() {
+		db = db.Where("subsidies.payee_id = ?", user.UserID)
+	}
 
 	if query.OrderNo != "" {
 		db = db.Joins("JOIN orders ON orders.id = subsidies.order_id").
@@ -132,7 +142,14 @@ func (s *SubsidyService) ReviewSubsidy(c *fiber.Ctx, id uuid.UUID, req *schemas.
 		return nil, err
 	}
 
-	utils.LogOperation(c, models.ActionApproveSubsidy, id, "subsidy", &oldSubsidy, &subsidy, req.Remark)
+	var action models.OperationAction
+	if req.Status == models.SubsidyStatusApproved {
+		action = models.ActionApproveSubsidy
+	} else {
+		action = models.ActionRejectSubsidy
+	}
+
+	utils.LogOperation(c, action, id, "subsidy", &oldSubsidy, &subsidy, req.Remark)
 	s.enqueueSubsidyResultNotification(subsidy)
 	return &subsidy, nil
 }
@@ -159,12 +176,21 @@ func (s *SubsidyService) MarkPaid(c *fiber.Ctx, id uuid.UUID, req *schemas.MarkP
 		return nil, err
 	}
 
-	utils.LogOperation(c, models.ActionApproveSubsidy, id, "subsidy", &oldSubsidy, &subsidy, "标记已付款")
+	utils.LogOperation(c, models.ActionPaySubsidy, id, "subsidy", &oldSubsidy, &subsidy, "标记已付款")
 	s.enqueueSubsidyPaymentNotification(subsidy)
 	return &subsidy, nil
 }
 
 func (s *SubsidyService) AddRemark(c *fiber.Ctx, subsidyID uuid.UUID, req *schemas.AddRemarkRequest) (*models.Remark, error) {
+	var subsidy models.Subsidy
+	if err := database.DB.Where("id = ?", subsidyID).First(&subsidy).Error; err != nil {
+		return nil, errors.New("subsidy not found")
+	}
+
+	if err := checkSubsidyAccess(c, &subsidy); err != nil {
+		return nil, err
+	}
+
 	user := utils.GetCurrentUser(c)
 
 	remark := &models.Remark{
@@ -187,8 +213,8 @@ func (s *SubsidyService) AddRemark(c *fiber.Ctx, subsidyID uuid.UUID, req *schem
 	return remark, nil
 }
 
-func (s *SubsidyService) GetSubsidyDetail(id uuid.UUID) (map[string]interface{}, error) {
-	subsidy, err := s.GetSubsidyByID(id)
+func (s *SubsidyService) GetSubsidyDetail(c *fiber.Ctx, id uuid.UUID) (map[string]interface{}, error) {
+	subsidy, err := s.GetSubsidyByID(c, id)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +231,20 @@ func (s *SubsidyService) GetSubsidyDetail(id uuid.UUID) (map[string]interface{},
 		"subsidy":       subsidy,
 		"operation_logs": logs,
 	}, nil
+}
+
+func checkSubsidyAccess(c *fiber.Ctx, subsidy *models.Subsidy) error {
+	user := utils.GetCurrentUser(c)
+	if user == nil {
+		return errors.New("user not authenticated")
+	}
+	if user.Role.IsStaff() {
+		return nil
+	}
+	if subsidy.PayeeID != user.UserID {
+		return errors.New("access denied")
+	}
+	return nil
 }
 
 func (s *SubsidyService) enqueueSubsidyNotification(subsidy *models.Subsidy) {

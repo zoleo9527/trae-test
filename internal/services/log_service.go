@@ -4,7 +4,9 @@ import (
 	"runner-platform/internal/database"
 	"runner-platform/internal/models"
 	"runner-platform/internal/schemas"
+	"runner-platform/internal/utils"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -14,11 +16,16 @@ func NewLogService() *LogService {
 	return &LogService{}
 }
 
-func (s *LogService) QueryLogs(query *schemas.OperationLogQuery) ([]models.OperationLog, int64, error) {
+func (s *LogService) QueryLogs(c *fiber.Ctx, query *schemas.OperationLogQuery) ([]models.OperationLog, int64, error) {
 	var logs []models.OperationLog
 	var total int64
 
+	user := utils.GetCurrentUser(c)
 	db := database.DB.Model(&models.OperationLog{}).Preload("Operator")
+
+	if !user.Role.IsStaff() {
+		db = db.Where("operator_id = ?", user.UserID)
+	}
 
 	if query.TargetID != "" {
 		targetID, _ := uuid.Parse(query.TargetID)
@@ -53,10 +60,16 @@ func (s *LogService) QueryLogs(query *schemas.OperationLogQuery) ([]models.Opera
 	return logs, total, nil
 }
 
-func (s *LogService) GetLogsByTarget(targetID uuid.UUID, targetType string) ([]models.OperationLog, error) {
+func (s *LogService) GetLogsByTarget(c *fiber.Ctx, targetID uuid.UUID, targetType string) ([]models.OperationLog, error) {
+	user := utils.GetCurrentUser(c)
+	db := database.DB.Where("target_id = ? AND target_type = ?", targetID, targetType)
+
+	if !user.Role.IsStaff() {
+		db = db.Where("operator_id = ?", user.UserID)
+	}
+
 	var logs []models.OperationLog
-	if err := database.DB.Where("target_id = ? AND target_type = ?", targetID, targetType).
-		Preload("Operator").
+	if err := db.Preload("Operator").
 		Order("created_at DESC").
 		Find(&logs).Error; err != nil {
 		return nil, err
@@ -80,7 +93,6 @@ func (s *LogService) GetDashboardStats() (map[string]interface{}, error) {
 
 	database.DB.Model(&models.Subsidy{}).Where("status = ?", models.SubsidyStatusPending).Count(&pendingSubsidies)
 
-	today := "now()"
 	database.DB.Model(&models.OperationLog{}).Where("created_at >= CURRENT_DATE").Count(&todayOperations)
 
 	stats := map[string]interface{}{
@@ -88,7 +100,6 @@ func (s *LogService) GetDashboardStats() (map[string]interface{}, error) {
 		"pending_appeals":   pendingAppeals,
 		"pending_subsidies": pendingSubsidies,
 		"today_operations":  todayOperations,
-		"_today":            today,
 	}
 
 	return stats, nil
