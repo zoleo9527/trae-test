@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { CheckinRecord } from '../../entities/checkin-record.entity';
 import { Credential } from '../../entities/credential.entity';
 import { Person } from '../../entities/person.entity';
@@ -133,40 +133,31 @@ export class CheckinService {
       return CheckinStatus.NORMAL;
     }
 
-    const checkinHour = checkinTime.getHours();
-    const checkinMinute = checkinTime.getMinutes();
-    const checkinMinutesOfDay = checkinHour * 60 + checkinMinute;
-
     const WORK_START_MINUTES = 8 * 60 + 30;
     const WORK_END_MINUTES = 18 * 60;
     const OVERTIME_THRESHOLD_MINUTES = 20 * 60;
     const LATE_GRACE_MINUTES = 15;
     const EARLY_LEAVE_GRACE_MINUTES = 15;
 
+    const checkinMinutesOfDay = checkinTime.getHours() * 60 + checkinTime.getMinutes();
+
     const todayStart = new Date(checkinTime);
     todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(checkinTime);
-    todayEnd.setHours(23, 59, 59, 999);
 
-    const todayRecords = await this.checkinRepository.find({
-      where: {
-        projectId,
-        personId,
-        checkinTime: Between(todayStart, todayEnd),
-      },
-      order: { checkinTime: 'ASC' },
-    });
+    const priorRecords = await this.checkinRepository
+      .createQueryBuilder('checkin')
+      .where('checkin.projectId = :projectId', { projectId })
+      .andWhere('checkin.personId = :personId', { personId })
+      .andWhere('checkin.checkinTime >= :todayStart', { todayStart })
+      .andWhere('checkin.checkinTime < :currentTime', { currentTime: checkinTime })
+      .orderBy('checkin.checkinTime', 'ASC')
+      .getMany();
 
-    const hasEntry = todayRecords.some((r) => r.type === CheckinType.ENTRY);
-    const hasExit = todayRecords.some((r) => r.type === CheckinType.EXIT);
-    const lastRecord = todayRecords.length > 0 ? todayRecords[todayRecords.length - 1] : null;
+    const priorEntryCount = priorRecords.filter((r) => r.type === CheckinType.ENTRY).length;
+    const priorExitCount = priorRecords.filter((r) => r.type === CheckinType.EXIT).length;
 
     if (type === CheckinType.ENTRY) {
-      if (hasExit && !hasEntry) {
-        return CheckinStatus.ABNORMAL;
-      }
-
-      if (hasEntry) {
+      if (priorEntryCount > priorExitCount) {
         return CheckinStatus.ABNORMAL;
       }
 
@@ -176,15 +167,7 @@ export class CheckinService {
 
       return CheckinStatus.NORMAL;
     } else if (type === CheckinType.EXIT) {
-      if (!hasEntry) {
-        return CheckinStatus.ABNORMAL;
-      }
-
-      if (hasExit) {
-        return CheckinStatus.ABNORMAL;
-      }
-
-      if (lastRecord && lastRecord.type !== CheckinType.ENTRY) {
+      if (priorEntryCount <= priorExitCount) {
         return CheckinStatus.ABNORMAL;
       }
 
