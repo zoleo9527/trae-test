@@ -70,6 +70,10 @@ export default function Orders() {
     }
   };
 
+  const refreshAll = async () => {
+    await Promise.all([fetchOrders(), fetchPlots(), fetchPendingOrderPlotIds()]);
+  };
+
   useEffect(() => {
     fetchOrders();
   }, [activeTab]);
@@ -96,9 +100,7 @@ export default function Orders() {
       message.success('排单创建成功');
       setModalOpen(false);
       form.resetFields();
-      fetchOrders();
-      fetchPlots();
-      fetchPendingOrderPlotIds();
+      refreshAll();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -121,7 +123,7 @@ export default function Orders() {
     try {
       await api.put(`/orders/${id}/confirm`);
       message.success('已确认');
-      fetchOrders();
+      refreshAll();
     } catch (err) {
       console.error(err);
       message.error('操作失败');
@@ -132,7 +134,7 @@ export default function Orders() {
     try {
       await api.put(`/orders/${id}/start`);
       message.success('已开始起苗');
-      fetchOrders();
+      refreshAll();
     } catch (err) {
       console.error(err);
       message.error('操作失败');
@@ -143,8 +145,7 @@ export default function Orders() {
     try {
       await api.put(`/orders/${id}/complete`);
       message.success('起苗完成');
-      fetchOrders();
-      fetchPlots();
+      refreshAll();
     } catch (err) {
       console.error(err);
       message.error('操作失败');
@@ -193,7 +194,7 @@ export default function Orders() {
       message.success('异常上报成功');
       setExceptionModalOpen(false);
       exceptionForm.resetFields();
-      fetchOrders();
+      refreshAll();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -305,7 +306,7 @@ export default function Orders() {
           items={statusTabs}
           style={{ marginBottom: 0 }}
         />
-        <Button type="primary" onClick={() => setModalOpen(true)}>新建排单</Button>
+        <Button type="primary" onClick={() => { fetchPlots(); fetchPendingOrderPlotIds(); setModalOpen(true); }}>新建排单</Button>
       </div>
 
       <Table
