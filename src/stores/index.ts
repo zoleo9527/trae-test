@@ -583,7 +583,15 @@ export const useOrderStore = defineStore('order', () => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return { success: false, message: '订单不存在' }
 
-    if (operator.storeId && order.storeId !== operator.storeId && operator.role === RoleEnum.STORE_MANAGER) {
+    if (operator.role === RoleEnum.WAREHOUSE) {
+      return { success: false, message: '仓管无权限取消订单' }
+    }
+
+    if (operator.role === RoleEnum.PLANNER && !order.isAbnormal) {
+      return { success: false, message: '企划专员只能取消异常订单，普通订单请联系门店店长处理' }
+    }
+
+    if (operator.role === RoleEnum.STORE_MANAGER && operator.storeId && order.storeId !== operator.storeId) {
       return { success: false, message: '无权取消其他门店的订单' }
     }
 
@@ -675,6 +683,97 @@ export const useOrderStore = defineStore('order', () => {
     return issues
   }
 
+  const createIssue = (type: string, title: string, description: string, operator: User) => {
+    if (operator.role !== RoleEnum.STORE_MANAGER) {
+      return { success: false, message: '只有店长可以上报巡店问题' }
+    }
+
+    const newIssue: InspectionIssue = {
+      id: `II${Date.now()}`,
+      storeId: operator.storeId || 'S001',
+      storeName: '文创旗舰店',
+      type: type as any,
+      title,
+      description,
+      status: 'pending',
+      reporterId: operator.id,
+      reporterName: operator.name,
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+
+    inspectionIssues.value.unshift(newIssue)
+    return { success: true, issue: newIssue }
+  }
+
+  const acceptIssue = (issueId: string, operator: User) => {
+    const issue = inspectionIssues.value.find(i => i.id === issueId)
+    if (!issue) return { success: false, message: '问题不存在' }
+
+    if (issue.status !== 'pending') {
+      return { success: false, message: '只有待处理状态的问题可以接单' }
+    }
+
+    if (operator.role === RoleEnum.STORE_MANAGER && operator.storeId && issue.storeId !== operator.storeId) {
+      return { success: false, message: '只能处理本门店的巡店问题' }
+    }
+
+    issue.status = 'processing'
+    issue.handlerId = operator.id
+    issue.handlerName = operator.name
+    issue.acceptTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+
+    return { success: true }
+  }
+
+  const resolveIssue = (issueId: string, remark: string, operator: User) => {
+    const issue = inspectionIssues.value.find(i => i.id === issueId)
+    if (!issue) return { success: false, message: '问题不存在' }
+
+    if (issue.status !== 'processing') {
+      return { success: false, message: '只有处理中状态的问题可以标记解决' }
+    }
+
+    if (issue.handlerId !== operator.id) {
+      return { success: false, message: '只有接单处理人可以标记问题解决' }
+    }
+
+    issue.status = 'resolved'
+    issue.remark = remark
+    issue.resolveTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+
+    return { success: true }
+  }
+
+  const closeIssue = (issueId: string, operator: User) => {
+    const issue = inspectionIssues.value.find(i => i.id === issueId)
+    if (!issue) return { success: false, message: '问题不存在' }
+
+    if (issue.status !== 'resolved') {
+      return { success: false, message: '只有已解决状态的问题可以关闭' }
+    }
+
+    if (operator.role === RoleEnum.STORE_MANAGER && operator.storeId && issue.storeId !== operator.storeId) {
+      return { success: false, message: '只能关闭本门店的巡店问题' }
+    }
+
+    if (operator.role === RoleEnum.STORE_MANAGER && issue.reporterId !== operator.id && issue.storeId !== operator.storeId) {
+      return { success: false, message: '只有上报人或该门店店长可以关闭问题' }
+    }
+
+    if (issue.reporterId !== operator.id && 
+        !(operator.role === RoleEnum.STORE_MANAGER && issue.storeId === operator.storeId) &&
+        operator.role !== RoleEnum.PLANNER) {
+      return { success: false, message: '只有上报人、门店店长或企划专员可以关闭问题' }
+    }
+
+    issue.status = 'closed'
+    issue.closerId = operator.id
+    issue.closerName = operator.name
+    issue.closeTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+
+    return { success: true }
+  }
+
   return {
     orders,
     inspectionIssues,
@@ -693,7 +792,11 @@ export const useOrderStore = defineStore('order', () => {
     markAbnormal,
     resolveAbnormal,
     getIssuesByStore,
-    getMyPendingIssues
+    getMyPendingIssues,
+    createIssue,
+    acceptIssue,
+    resolveIssue,
+    closeIssue
   }
 })
 

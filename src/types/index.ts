@@ -174,8 +174,11 @@ export interface InspectionIssue {
   handlerId?: string
   handlerName?: string
   createTime: string
+  acceptTime?: string
   resolveTime?: string
   closeTime?: string
+  closerId?: string
+  closerName?: string
   remark?: string
 }
 

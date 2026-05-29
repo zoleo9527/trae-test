@@ -448,6 +448,8 @@ const canCancel = computed(() => {
   const user = authStore.currentUser
   if (!order.value || !user) return false
   if (!['pending', 'confirmed'].includes(order.value.status)) return false
+  if (user.role === UserRole.WAREHOUSE) return false
+  if (user.role === UserRole.PLANNER && !order.value.isAbnormal) return false
   if (user.role === UserRole.STORE_MANAGER && order.value.storeId !== user.storeId) return false
   return true
 })
