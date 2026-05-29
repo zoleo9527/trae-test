@@ -31,7 +31,7 @@ const createDeposit = async (params) => {
 };
 exports.createDeposit = createDeposit;
 const settleDeposit = async (params) => {
-    const { depositId, refundAmount, deductAmount, deductReason, paymentMethod, transactionId, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { depositId, refundAmount, deductAmount, paymentMethod, transactionId, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const oldDeposit = await tx.deposit.findUnique({
             where: { id: depositId },
@@ -63,10 +63,8 @@ const settleDeposit = async (params) => {
                 status,
                 refundAmount,
                 deductAmount,
-                deductReason,
                 paymentMethod,
                 transactionId,
-                settledAt: new Date(),
                 handledBy: operatorId,
             },
             include: {

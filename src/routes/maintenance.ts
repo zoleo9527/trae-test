@@ -31,11 +31,11 @@ router.get('/summary', requirePermission('maintenance:read'), async (req: Authen
 
 router.get('/', requirePermission('maintenance:read'), async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { instrumentId, damageClaimId, isCompleted, page, pageSize } = req.query
+    const { instrumentId, damageClaimId, status, page, pageSize } = req.query
     const result = await getMaintenanceList(
       instrumentId as string,
       damageClaimId as string,
-      isCompleted === 'true' ? true : isCompleted === 'false' ? false : undefined,
+      status as string,
       Number(page) || 1,
       Number(pageSize) || 20
     )

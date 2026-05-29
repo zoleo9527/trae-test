@@ -41,7 +41,6 @@ interface SettleDepositParams {
   depositId: string
   refundAmount: number
   deductAmount: number
-  deductReason?: string
   paymentMethod?: string
   transactionId?: string
   operatorId: string
@@ -55,7 +54,6 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     depositId,
     refundAmount,
     deductAmount,
-    deductReason,
     paymentMethod,
     transactionId,
     operatorId,
@@ -98,10 +96,8 @@ export const settleDeposit = async (params: SettleDepositParams) => {
         status,
         refundAmount,
         deductAmount,
-        deductReason,
         paymentMethod,
         transactionId,
-        settledAt: new Date(),
         handledBy: operatorId,
       },
       include: {

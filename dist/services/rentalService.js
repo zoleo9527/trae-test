@@ -12,7 +12,7 @@ const auditService_1 = require("./auditService");
 const noteService_1 = require("./noteService");
 const jsonUtils_1 = require("../lib/jsonUtils");
 const createRental = async (params) => {
-    const { instrumentId, customerName, customerPhone, customerIdCard, customerAddress, startDate, expectedEndDate, dailyRate, depositAmount, checkoutNotes, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { instrumentId, customerName, customerPhone, customerIdCard, customerAddress, startDate, expectedEndDate, dailyRate, depositAmount, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const instrument = await tx.instrument.findUnique({
             where: { id: instrumentId },
@@ -50,7 +50,6 @@ const createRental = async (params) => {
                 expectedEndDate,
                 dailyRate,
                 depositAmount,
-                checkoutNotes,
                 createdBy: operatorId,
             },
             include: {
@@ -93,7 +92,7 @@ const createRental = async (params) => {
 };
 exports.createRental = createRental;
 const returnRental = async (params) => {
-    const { rentalId, actualEndDate, checkinNotes, hasDamage, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { rentalId, actualEndDate, hasDamage, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const oldRental = await tx.rental.findUnique({
             where: { id: rentalId },
@@ -112,7 +111,6 @@ const returnRental = async (params) => {
             data: {
                 status: enums_1.RentalStatus.RETURNED,
                 actualEndDate: returnDate,
-                checkinNotes,
                 handledBy: operatorId,
             },
             include: {

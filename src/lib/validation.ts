@@ -15,13 +15,12 @@ export const createRentalSchema = z.object({
   expectedEndDate: z.coerce.date(),
   dailyRate: z.coerce.number().min(0, '日租金不能为负'),
   depositAmount: z.coerce.number().min(0, '押金不能为负'),
-  checkoutNotes: z.string().optional(),
+  isSchoolCooperation: z.boolean().default(false),
+  schoolContractNo: z.string().optional(),
 })
 
 export const returnRentalSchema = z.object({
   actualEndDate: z.coerce.date().optional(),
-  checkinNotes: z.string().optional(),
-  hasDamage: z.boolean().default(false),
 })
 
 export const createDamageClaimSchema = z.object({
@@ -31,8 +30,7 @@ export const createDamageClaimSchema = z.object({
   description: z.string().min(1, '损坏描述不能为空'),
   estimatedCost: z.coerce.number().min(0, '预估费用不能为负'),
   evidenceUrls: z.array(z.string()).default([]),
-  liabilityParty: z.string().optional(),
-  liabilityReason: z.string().optional(),
+  finalCost: z.coerce.number().min(0, '最终赔偿金额不能为负').optional(),
 })
 
 export const disputeDamageClaimSchema = z.object({
@@ -47,14 +45,11 @@ export const rejectDisputeSchema = z.object({
 export const resolveDisputeSchema = z.object({
   resolvedReason: z.string().min(1, '申诉通过原因不能为空'),
   finalCost: z.coerce.number().min(0, '最终赔偿金额不能为负'),
-  liabilityParty: z.string().optional(),
-  liabilityReason: z.string().optional(),
 })
 
 export const settleDepositSchema = z.object({
   refundAmount: z.coerce.number().min(0, '退款金额不能为负'),
   deductAmount: z.coerce.number().min(0, '扣款金额不能为负'),
-  deductReason: z.string().optional(),
   paymentMethod: z.string().optional(),
   transactionId: z.string().optional(),
 })
@@ -62,18 +57,16 @@ export const settleDepositSchema = z.object({
 export const createMaintenanceSchema = z.object({
   instrumentId: z.string().min(1, '乐器ID不能为空'),
   damageClaimId: z.string().optional(),
-  type: z.string().min(1, '维修类型不能为空'),
   description: z.string().min(1, '维修描述不能为空'),
   partsCost: z.coerce.number().min(0, '配件费不能为负').default(0),
   laborCost: z.coerce.number().min(0, '人工费不能为负').default(0),
-  startedAt: z.coerce.date().optional(),
+  startDate: z.coerce.date().optional(),
 })
 
 export const completeMaintenanceSchema = z.object({
   partsCost: z.coerce.number().min(0, '配件费不能为负'),
   laborCost: z.coerce.number().min(0, '人工费不能为负'),
-  technicianNotes: z.string().optional(),
-  completedAt: z.coerce.date().optional(),
+  completeDate: z.coerce.date().optional(),
 })
 
 export const addNoteSchema = z.object({

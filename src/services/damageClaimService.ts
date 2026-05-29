@@ -13,8 +13,6 @@ interface CreateDamageClaimParams {
   description: string
   estimatedCost: number
   evidenceUrls: string[]
-  liabilityParty?: string
-  liabilityReason?: string
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -29,8 +27,6 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
     description,
     estimatedCost,
     evidenceUrls,
-    liabilityParty,
-    liabilityReason,
     operatorId,
     operatorName,
     operatorRole,
@@ -58,9 +54,6 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
         description,
         estimatedCost,
         evidenceUrls: toEvidenceUrlsString(evidenceUrls),
-        liabilityParty,
-        liabilityReason,
-        reportedAt: new Date(),
         createdBy: operatorId,
       },
       include: {
@@ -129,15 +122,13 @@ export const disputeDamageClaim = async (params: DisputeDamageClaimParams) => {
       where: { id: claimId },
       data: {
         status: DamageClaimStatus.DISPUTED,
-        customerDispute: true,
         disputeReason,
-        disputedAt: new Date(),
       },
     })
 
     const changes = compareObjects(
-      { status: oldClaim.status, customerDispute: oldClaim.customerDispute },
-      { status: updatedClaim.status, customerDispute: updatedClaim.customerDispute }
+      { status: oldClaim.status },
+      { status: updatedClaim.status }
     )
 
     const response = {
@@ -205,7 +196,6 @@ export const rejectDispute = async (params: RejectDisputeParams) => {
         status: DamageClaimStatus.REJECTED,
         rejectReason,
         finalCost,
-        closedAt: new Date(),
         handledBy: operatorId,
       },
       include: {
@@ -247,8 +237,6 @@ interface ResolveDisputeParams {
   claimId: string
   resolvedReason: string
   finalCost: number
-  liabilityParty?: string
-  liabilityReason?: string
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -260,8 +248,6 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
     claimId,
     resolvedReason,
     finalCost,
-    liabilityParty,
-    liabilityReason,
     operatorId,
     operatorName,
     operatorRole,
@@ -287,9 +273,6 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
         status: DamageClaimStatus.RESOLVED,
         resolvedReason,
         finalCost,
-        liabilityParty,
-        liabilityReason,
-        closedAt: new Date(),
         handledBy: operatorId,
       },
       include: {
@@ -301,12 +284,10 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
       {
         status: oldClaim.status,
         finalCost: oldClaim.finalCost,
-        liabilityParty: oldClaim.liabilityParty,
       },
       {
         status: updatedClaim.status,
         finalCost,
-        liabilityParty,
       }
     )
 
@@ -412,7 +393,6 @@ export const closeDamageClaim = async (
       where: { id: claimId },
       data: {
         status: DamageClaimStatus.CLOSED,
-        closedAt: new Date(),
       },
     })
 

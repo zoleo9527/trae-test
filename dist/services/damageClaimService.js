@@ -12,7 +12,7 @@ const auditService_1 = require("./auditService");
 const noteService_1 = require("./noteService");
 const jsonUtils_1 = require("../lib/jsonUtils");
 const createDamageClaim = async (params) => {
-    const { rentalId, instrumentId, severity, description, estimatedCost, evidenceUrls, liabilityParty, liabilityReason, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { rentalId, instrumentId, severity, description, estimatedCost, evidenceUrls, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const rental = await tx.rental.findUnique({
             where: { id: rentalId },
@@ -31,9 +31,6 @@ const createDamageClaim = async (params) => {
                 description,
                 estimatedCost,
                 evidenceUrls: (0, jsonUtils_1.toEvidenceUrlsString)(evidenceUrls),
-                liabilityParty,
-                liabilityReason,
-                reportedAt: new Date(),
                 createdBy: operatorId,
             },
             include: {
@@ -79,12 +76,10 @@ const disputeDamageClaim = async (params) => {
             where: { id: claimId },
             data: {
                 status: enums_1.DamageClaimStatus.DISPUTED,
-                customerDispute: true,
                 disputeReason,
-                disputedAt: new Date(),
             },
         });
-        const changes = (0, utils_1.compareObjects)({ status: oldClaim.status, customerDispute: oldClaim.customerDispute }, { status: updatedClaim.status, customerDispute: updatedClaim.customerDispute });
+        const changes = (0, utils_1.compareObjects)({ status: oldClaim.status }, { status: updatedClaim.status });
         const response = {
             success: true,
             data: updatedClaim,
@@ -126,7 +121,6 @@ const rejectDispute = async (params) => {
                 status: enums_1.DamageClaimStatus.REJECTED,
                 rejectReason,
                 finalCost,
-                closedAt: new Date(),
                 handledBy: operatorId,
             },
             include: {
@@ -158,7 +152,7 @@ const rejectDispute = async (params) => {
 };
 exports.rejectDispute = rejectDispute;
 const resolveDispute = async (params) => {
-    const { claimId, resolvedReason, finalCost, liabilityParty, liabilityReason, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { claimId, resolvedReason, finalCost, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const oldClaim = await tx.damageClaim.findUnique({
             where: { id: claimId },
@@ -175,9 +169,6 @@ const resolveDispute = async (params) => {
                 status: enums_1.DamageClaimStatus.RESOLVED,
                 resolvedReason,
                 finalCost,
-                liabilityParty,
-                liabilityReason,
-                closedAt: new Date(),
                 handledBy: operatorId,
             },
             include: {
@@ -187,11 +178,9 @@ const resolveDispute = async (params) => {
         const changes = (0, utils_1.compareObjects)({
             status: oldClaim.status,
             finalCost: oldClaim.finalCost,
-            liabilityParty: oldClaim.liabilityParty,
         }, {
             status: updatedClaim.status,
             finalCost,
-            liabilityParty,
         });
         const response = {
             success: true,
@@ -272,7 +261,6 @@ const closeDamageClaim = async (claimId, operatorId, operatorName, operatorRole,
             where: { id: claimId },
             data: {
                 status: enums_1.DamageClaimStatus.CLOSED,
-                closedAt: new Date(),
             },
         });
         const response = {

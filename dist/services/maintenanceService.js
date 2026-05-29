@@ -11,7 +11,7 @@ const errorHandler_1 = require("../middleware/errorHandler");
 const auditService_1 = require("./auditService");
 const noteService_1 = require("./noteService");
 const createMaintenance = async (params) => {
-    const { instrumentId, damageClaimId, type, description, partsCost = 0, laborCost = 0, startedAt, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { instrumentId, damageClaimId, description, partsCost = 0, laborCost = 0, startDate, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const instrument = await tx.instrument.findUnique({
             where: { id: instrumentId },
@@ -26,12 +26,12 @@ const createMaintenance = async (params) => {
                 maintenanceNo,
                 instrumentId,
                 damageClaimId,
-                type,
                 description,
                 partsCost,
                 laborCost,
                 totalCost,
-                startedAt: startedAt || new Date(),
+                status: 'IN_PROGRESS',
+                startDate: startDate || new Date(),
                 createdBy: operatorId,
             },
             include: {
@@ -54,7 +54,7 @@ const createMaintenance = async (params) => {
             entityType: enums_1.EntityType.MAINTENANCE,
             entityId: maintenance.id,
             newValue: maintenance,
-            remark: `维修单创建，单号${maintenanceNo}，类型${type}，预估费用${totalCost}元`,
+            remark: `维修单创建，单号${maintenanceNo}，预估费用${totalCost}元`,
             operatorId,
             operatorName,
             operatorRole,
@@ -66,7 +66,7 @@ const createMaintenance = async (params) => {
 };
 exports.createMaintenance = createMaintenance;
 const completeMaintenance = async (params) => {
-    const { maintenanceId, partsCost, laborCost, technicianNotes, completedAt, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { maintenanceId, partsCost, laborCost, completeDate, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const oldMaintenance = await tx.maintenance.findUnique({
             where: { id: maintenanceId },
@@ -75,7 +75,7 @@ const completeMaintenance = async (params) => {
         if (!oldMaintenance) {
             throw new errorHandler_1.BusinessError('维修单不存在', 404, 404);
         }
-        if (oldMaintenance.isCompleted) {
+        if (oldMaintenance.status === 'COMPLETED') {
             throw new errorHandler_1.BusinessError('该维修单已完成，不可重复操作', 400, 400);
         }
         const totalCost = Number((partsCost + laborCost).toFixed(2));
@@ -85,9 +85,8 @@ const completeMaintenance = async (params) => {
                 partsCost,
                 laborCost,
                 totalCost,
-                technicianNotes,
-                isCompleted: true,
-                completedAt: completedAt || new Date(),
+                status: 'COMPLETED',
+                completeDate: completeDate || new Date(),
                 handledBy: operatorId,
             },
             include: {
@@ -118,12 +117,12 @@ const completeMaintenance = async (params) => {
             partsCost: oldMaintenance.partsCost,
             laborCost: oldMaintenance.laborCost,
             totalCost: oldMaintenance.totalCost,
-            isCompleted: oldMaintenance.isCompleted,
+            status: oldMaintenance.status,
         }, {
             partsCost,
             laborCost,
             totalCost,
-            isCompleted: true,
+            status: 'COMPLETED',
         });
         const response = {
             success: true,
@@ -148,14 +147,14 @@ const completeMaintenance = async (params) => {
     });
 };
 exports.completeMaintenance = completeMaintenance;
-const getMaintenanceList = async (instrumentId, damageClaimId, isCompleted, page = 1, pageSize = 20) => {
+const getMaintenanceList = async (instrumentId, damageClaimId, status, page = 1, pageSize = 20) => {
     const where = {};
     if (instrumentId)
         where.instrumentId = instrumentId;
     if (damageClaimId)
         where.damageClaimId = damageClaimId;
-    if (typeof isCompleted === 'boolean')
-        where.isCompleted = isCompleted;
+    if (status)
+        where.status = status;
     const [total, items] = await Promise.all([
         prisma_1.default.maintenance.count({ where }),
         prisma_1.default.maintenance.findMany({
@@ -204,13 +203,13 @@ const getMaintenanceDetail = async (id) => {
 };
 exports.getMaintenanceDetail = getMaintenanceDetail;
 const getMaintenanceCostSummary = async (startDate, endDate) => {
-    const where = { isCompleted: true };
+    const where = { status: 'COMPLETED' };
     if (startDate)
-        where.completedAt = { gte: startDate };
+        where.completeDate = { gte: startDate };
     if (endDate) {
-        if (!where.completedAt)
-            where.completedAt = {};
-        where.completedAt.lte = endDate;
+        if (!where.completeDate)
+            where.completeDate = {};
+        where.completeDate.lte = endDate;
     }
     const maintenances = await prisma_1.default.maintenance.findMany({
         where,

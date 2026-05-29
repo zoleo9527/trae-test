@@ -9,11 +9,10 @@ import { toJsonString, fromJsonString } from '../lib/jsonUtils'
 interface CreateMaintenanceParams {
   instrumentId: string
   damageClaimId?: string
-  type: string
   description: string
   partsCost?: number
   laborCost?: number
-  startedAt?: Date
+  startDate?: Date
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -24,11 +23,10 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
   const {
     instrumentId,
     damageClaimId,
-    type,
     description,
     partsCost = 0,
     laborCost = 0,
-    startedAt,
+    startDate,
     operatorId,
     operatorName,
     operatorRole,
@@ -52,12 +50,12 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
         maintenanceNo,
         instrumentId,
         damageClaimId,
-        type,
         description,
         partsCost,
         laborCost,
         totalCost,
-        startedAt: startedAt || new Date(),
+        status: 'IN_PROGRESS',
+        startDate: startDate || new Date(),
         createdBy: operatorId,
       },
       include: {
@@ -83,7 +81,7 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
       entityType: EntityType.MAINTENANCE,
       entityId: maintenance.id,
       newValue: maintenance,
-      remark: `维修单创建，单号${maintenanceNo}，类型${type}，预估费用${totalCost}元`,
+      remark: `维修单创建，单号${maintenanceNo}，预估费用${totalCost}元`,
       operatorId,
       operatorName,
       operatorRole,
@@ -99,8 +97,7 @@ interface CompleteMaintenanceParams {
   maintenanceId: string
   partsCost: number
   laborCost: number
-  technicianNotes?: string
-  completedAt?: Date
+  completeDate?: Date
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -112,8 +109,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
     maintenanceId,
     partsCost,
     laborCost,
-    technicianNotes,
-    completedAt,
+    completeDate,
     operatorId,
     operatorName,
     operatorRole,
@@ -130,7 +126,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
       throw new BusinessError('维修单不存在', 404, 404)
     }
 
-    if (oldMaintenance.isCompleted) {
+    if (oldMaintenance.status === 'COMPLETED') {
       throw new BusinessError('该维修单已完成，不可重复操作', 400, 400)
     }
 
@@ -142,9 +138,8 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
         partsCost,
         laborCost,
         totalCost,
-        technicianNotes,
-        isCompleted: true,
-        completedAt: completedAt || new Date(),
+        status: 'COMPLETED',
+        completeDate: completeDate || new Date(),
         handledBy: operatorId,
       },
       include: {
@@ -178,13 +173,13 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
         partsCost: oldMaintenance.partsCost,
         laborCost: oldMaintenance.laborCost,
         totalCost: oldMaintenance.totalCost,
-        isCompleted: oldMaintenance.isCompleted,
+        status: oldMaintenance.status,
       },
       {
         partsCost,
         laborCost,
         totalCost,
-        isCompleted: true,
+        status: 'COMPLETED',
       }
     )
 
@@ -216,7 +211,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
 export const getMaintenanceList = async (
   instrumentId?: string,
   damageClaimId?: string,
-  isCompleted?: boolean,
+  status?: string,
   page = 1,
   pageSize = 20
 ) => {
@@ -224,7 +219,7 @@ export const getMaintenanceList = async (
 
   if (instrumentId) where.instrumentId = instrumentId
   if (damageClaimId) where.damageClaimId = damageClaimId
-  if (typeof isCompleted === 'boolean') where.isCompleted = isCompleted
+  if (status) where.status = status
 
   const [total, items] = await Promise.all([
     prisma.maintenance.count({ where }),
@@ -286,12 +281,12 @@ export const getMaintenanceCostSummary = async (
   startDate?: Date,
   endDate?: Date
 ) => {
-  const where: Record<string, unknown> = { isCompleted: true }
+  const where: Record<string, unknown> = { status: 'COMPLETED' }
 
-  if (startDate) where.completedAt = { gte: startDate }
+  if (startDate) where.completeDate = { gte: startDate }
   if (endDate) {
-    if (!where.completedAt) where.completedAt = {}
-    ;(where.completedAt as any).lte = endDate
+    if (!where.completeDate) where.completeDate = {}
+    ;(where.completeDate as any).lte = endDate
   }
 
   const maintenances = await prisma.maintenance.findMany({

@@ -20,8 +20,8 @@ router.get('/summary', (0, auth_1.requirePermission)('maintenance:read'), async 
 });
 router.get('/', (0, auth_1.requirePermission)('maintenance:read'), async (req, res, next) => {
     try {
-        const { instrumentId, damageClaimId, isCompleted, page, pageSize } = req.query;
-        const result = await (0, maintenanceService_1.getMaintenanceList)(instrumentId, damageClaimId, isCompleted === 'true' ? true : isCompleted === 'false' ? false : undefined, Number(page) || 1, Number(pageSize) || 20);
+        const { instrumentId, damageClaimId, status, page, pageSize } = req.query;
+        const result = await (0, maintenanceService_1.getMaintenanceList)(instrumentId, damageClaimId, status, Number(page) || 1, Number(pageSize) || 20);
         res.json({ success: true, data: result });
     }
     catch (error) {

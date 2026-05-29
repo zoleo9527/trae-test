@@ -17,7 +17,6 @@ interface CreateRentalParams {
   expectedEndDate: Date
   dailyRate: number
   depositAmount: number
-  checkoutNotes?: string
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -27,7 +26,6 @@ interface CreateRentalParams {
 interface ReturnRentalParams {
   rentalId: string
   actualEndDate?: Date
-  checkinNotes?: string
   hasDamage: boolean
   operatorId: string
   operatorName: string
@@ -46,7 +44,6 @@ export const createRental = async (params: CreateRentalParams) => {
     expectedEndDate,
     dailyRate,
     depositAmount,
-    checkoutNotes,
     operatorId,
     operatorName,
     operatorRole,
@@ -97,7 +94,6 @@ export const createRental = async (params: CreateRentalParams) => {
         expectedEndDate,
         dailyRate,
         depositAmount,
-        checkoutNotes,
         createdBy: operatorId,
       },
       include: {
@@ -148,7 +144,6 @@ export const returnRental = async (params: ReturnRentalParams) => {
   const {
     rentalId,
     actualEndDate,
-    checkinNotes,
     hasDamage,
     operatorId,
     operatorName,
@@ -182,7 +177,6 @@ export const returnRental = async (params: ReturnRentalParams) => {
       data: {
         status: RentalStatus.RETURNED,
         actualEndDate: returnDate,
-        checkinNotes,
         handledBy: operatorId,
       },
       include: {
