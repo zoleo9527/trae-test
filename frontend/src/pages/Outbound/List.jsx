@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Table, Tag, Button, Input, Select, Space, Modal, Form, message, Spin } from 'antd'
 import { PlusOutlined, EyeOutlined, CheckOutlined, RollbackOutlined, WindowsOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { outboundAPI } from '../../utils/api'
 import { openNewWindow } from '../../utils/electron'
 
@@ -10,6 +10,7 @@ const { Option } = Select
 
 function OutboundList() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState([])
   const [filterStatus, setFilterStatus] = useState('')
@@ -17,6 +18,14 @@ function OutboundList() {
   const [returnModalVisible, setReturnModalVisible] = useState(false)
   const [returningId, setReturningId] = useState(null)
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const statusParam = params.get('status')
+    if (statusParam) {
+      setFilterStatus(statusParam)
+    }
+  }, [location.search])
 
   const statusMap = {
     pending: { label: '待对账', color: 'warning' },

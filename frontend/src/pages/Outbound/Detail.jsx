@@ -20,6 +20,13 @@ function OutboundDetail() {
     review: { label: '需回查', color: 'processing' }
   }
 
+  const workOrderStatusMap = {
+    pending: { label: '待处理', color: 'warning' },
+    approved: { label: '已通过', color: 'success' },
+    rejected: { label: '已驳回', color: 'error' },
+    review: { label: '需回查', color: 'processing' }
+  }
+
   const loadData = async () => {
     setLoading(true)
     try {
@@ -232,8 +239,8 @@ function OutboundDetail() {
               <Descriptions.Item label="车牌号">{relatedWorkOrder.carNumber}</Descriptions.Item>
               <Descriptions.Item label="工单金额">¥{relatedWorkOrder.totalAmount}</Descriptions.Item>
               <Descriptions.Item label="工单状态">
-                <Tag color={statusMap[relatedWorkOrder.status]?.color || 'default'}>
-                  {statusMap[relatedWorkOrder.status]?.label || relatedWorkOrder.status}
+                <Tag color={workOrderStatusMap[relatedWorkOrder.status]?.color || 'default'}>
+                  {workOrderStatusMap[relatedWorkOrder.status]?.label || relatedWorkOrder.status}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
