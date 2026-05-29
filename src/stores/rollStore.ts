@@ -34,6 +34,8 @@ export interface ActionRecord {
   operator_role: string
   detail: string
   created_at: string
+  roll_number?: string
+  customer_name?: string
 }
 
 export interface QcRecord {
@@ -116,6 +118,12 @@ export interface RollDetail extends FilmRoll {
   compensation_records: CompensationRecord[]
 }
 
+export interface CalendarDay {
+  date: string
+  action_count: number
+  roll_ids: string[]
+}
+
 interface RollFilters {
   status: string
   search: string
@@ -127,10 +135,21 @@ interface RollState {
   loading: boolean
   filters: RollFilters
   fetchRolls: () => Promise<void>
-  fetchRollDetail: (id: string) => Promise<void>
+  fetchRollDetail: (id: string) => Promise<RollDetail | null>
   createRoll: (data: Partial<FilmRoll>) => Promise<boolean>
   updateRoll: (id: string, data: Partial<FilmRoll>) => Promise<boolean>
   setFilter: (filters: Partial<RollFilters>) => void
+  fetchRecentActions: (limit?: number) => Promise<ActionRecord[]>
+  fetchCalendarData: (month: string) => Promise<CalendarDay[]>
+  fetchDailyActions: (date: string) => Promise<ActionRecord[]>
+  startDevelop: (rollId: string, operatorId: string, operatorRole: string) => Promise<boolean>
+  submitQc: (rollId: string, data: { result: string; issue_desc: string; impact_scope: string; operator_id: string }) => Promise<boolean>
+  submitReworkDecision: (rollId: string, qcId: string, data: { decision: string; reason: string; decided_by: string }) => Promise<boolean>
+  executeRework: (rollId: string, decisionId: string, data: { action_detail: string; result: string; operator_id: string }) => Promise<boolean>
+  submitRecheck: (rollId: string, executionId: string, data: { result: string; note: string; checked_by: string }) => Promise<boolean>
+  requestConfirm: (rollId: string, data: { delivery_desc: string; operator_id: string }) => Promise<boolean>
+  submitConfirmResult: (rollId: string, requestId: string, data: { result: string; feedback: string; operator_id: string }) => Promise<boolean>
+  submitCompensation: (rollId: string, confirmResultId: string, data: { amount: number; method: string; reason: string; approved_by: string }) => Promise<boolean>
 }
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -170,8 +189,10 @@ export const useRollStore = create<RollState>((set, get) => ({
     try {
       const data = await apiFetch<RollDetail>(`/api/rolls/${id}`)
       set({ currentRoll: data })
+      return data
     } catch (e) {
       console.error('获取胶卷详情失败:', e)
+      return null
     } finally {
       set({ loading: false })
     }
@@ -207,5 +228,152 @@ export const useRollStore = create<RollState>((set, get) => ({
 
   setFilter: (filters) => {
     set((state) => ({ filters: { ...state.filters, ...filters } }))
+  },
+
+  fetchRecentActions: async (limit = 20) => {
+    try {
+      return await apiFetch<ActionRecord[]>(`/api/actions?limit=${limit}`)
+    } catch (e) {
+      console.error('获取最近动作失败:', e)
+      return []
+    }
+  },
+
+  fetchCalendarData: async (month: string) => {
+    try {
+      return await apiFetch<CalendarDay[]>(`/api/actions/calendar?month=${month}`)
+    } catch (e) {
+      console.error('获取日历数据失败:', e)
+      return []
+    }
+  },
+
+  fetchDailyActions: async (date: string) => {
+    try {
+      return await apiFetch<ActionRecord[]>(`/api/actions/daily/${date}`)
+    } catch (e) {
+      console.error('获取当日动作失败:', e)
+      return []
+    }
+  },
+
+  startDevelop: async (rollId, operatorId, operatorRole) => {
+    try {
+      await apiFetch(`/api/actions/develop`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, operator_id: operatorId, operator_role: operatorRole }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('开始冲扫失败:', e)
+      return false
+    }
+  },
+
+  submitQc: async (rollId, data) => {
+    try {
+      await apiFetch(`/api/qc/submit`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('提交质检失败:', e)
+      return false
+    }
+  },
+
+  submitReworkDecision: async (rollId, qcId, data) => {
+    try {
+      await apiFetch(`/api/qc/rework-decision`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, qc_id: qcId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('提交返工决策失败:', e)
+      return false
+    }
+  },
+
+  executeRework: async (rollId, decisionId, data) => {
+    try {
+      await apiFetch(`/api/qc/rework-execute`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, decision_id: decisionId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('执行返工失败:', e)
+      return false
+    }
+  },
+
+  submitRecheck: async (rollId, executionId, data) => {
+    try {
+      await apiFetch(`/api/qc/recheck`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, execution_id: executionId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('提交复检失败:', e)
+      return false
+    }
+  },
+
+  requestConfirm: async (rollId, data) => {
+    try {
+      await apiFetch(`/api/confirm/request`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('发起确认失败:', e)
+      return false
+    }
+  },
+
+  submitConfirmResult: async (rollId, requestId, data) => {
+    try {
+      await apiFetch(`/api/confirm/result`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, request_id: requestId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('提交确认结果失败:', e)
+      return false
+    }
+  },
+
+  submitCompensation: async (rollId, confirmResultId, data) => {
+    try {
+      await apiFetch(`/api/confirm/compensate`, {
+        method: 'POST',
+        body: JSON.stringify({ roll_id: rollId, confirm_result_id: confirmResultId, ...data }),
+      })
+      await get().fetchRollDetail(rollId)
+      await get().fetchRolls()
+      return true
+    } catch (e) {
+      console.error('提交赔付失败:', e)
+      return false
+    }
   },
 }))

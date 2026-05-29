@@ -7,12 +7,12 @@ import cors from 'cors'
 import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
-import filmRoutes from './routes/films.js'
-import logRoutes from './routes/logs.js'
-import reworkRoutes from './routes/reworks.js'
-import confirmationRoutes from './routes/confirmations.js'
-import userRoutes from './routes/users.js'
-import dashboardRoutes from './routes/dashboard.js'
+import rollRoutes from './routes/rolls.js'
+import actionRoutes from './routes/actions.js'
+import qcRoutes from './routes/qc.js'
+import confirmRoutes from './routes/confirm.js'
+import { initDatabase } from './db.js'
+import { seedDatabase } from './seed.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -25,12 +25,13 @@ app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
-app.use('/api/films', filmRoutes)
-app.use('/api/logs', logRoutes)
-app.use('/api/reworks', reworkRoutes)
-app.use('/api/confirmations', confirmationRoutes)
-app.use('/api/users', userRoutes)
-app.use('/api/dashboard', dashboardRoutes)
+initDatabase()
+seedDatabase()
+
+app.use('/api/rolls', rollRoutes)
+app.use('/api/actions', actionRoutes)
+app.use('/api/qc', qcRoutes)
+app.use('/api/confirm', confirmRoutes)
 
 app.use(
   '/api/health',

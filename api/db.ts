@@ -28,86 +28,129 @@ export function initDatabase(): Database.Database {
   db.pragma('foreign_keys = ON')
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('店主', '冲印师', '客服')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS film_rolls (
       id TEXT PRIMARY KEY,
-      roll_no TEXT NOT NULL UNIQUE,
-      brand TEXT NOT NULL,
-      model TEXT NOT NULL,
-      format TEXT NOT NULL CHECK(format IN ('135', '120', '4x5', '其他')),
+      roll_number TEXT NOT NULL UNIQUE,
       customer_name TEXT NOT NULL,
-      customer_contact TEXT NOT NULL,
-      process_type TEXT NOT NULL CHECK(process_type IN ('C-41', 'E-6', 'BW', 'ECN-2')),
-      scan_resolution TEXT NOT NULL CHECK(scan_resolution IN ('标准', '高清', '超清')),
-      status TEXT NOT NULL DEFAULT '待冲印' CHECK(status IN ('待冲印','冲印中','待扫描','扫描中','待质检','已质检','待交付','已交付')),
-      assigned_processor TEXT,
+      customer_contact TEXT NOT NULL DEFAULT '',
+      film_type TEXT NOT NULL,
+      scan_spec TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'registered' CHECK(status IN (
+        'registered', 'developing', 'qc_pending', 'qc_passed', 'qc_failed',
+        'reworking', 'recheck', 'confirming', 'compensating', 'completed'
+      )),
+      registered_at TEXT NOT NULL,
+      due_date TEXT,
+      assignee_id TEXT,
+      notes TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS action_logs (
+    CREATE TABLE IF NOT EXISTS actions (
       id TEXT PRIMARY KEY,
-      film_id TEXT NOT NULL REFERENCES film_rolls(id),
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
       action_type TEXT NOT NULL,
-      operator TEXT NOT NULL,
-      operator_role TEXT NOT NULL CHECK(operator_role IN ('店主', '冲印师', '客服')),
+      operator_id TEXT NOT NULL,
+      operator_role TEXT NOT NULL CHECK(operator_role IN ('owner', 'developer', 'cs')),
       detail TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_action_logs_film_id ON action_logs(film_id);
-    CREATE INDEX IF NOT EXISTS idx_action_logs_created_at ON action_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_actions_roll_id ON actions(roll_id);
+    CREATE INDEX IF NOT EXISTS idx_actions_created_at ON actions(created_at);
 
-    CREATE TABLE IF NOT EXISTS rework_orders (
+    CREATE TABLE IF NOT EXISTS qc_records (
       id TEXT PRIMARY KEY,
-      film_id TEXT NOT NULL REFERENCES film_rolls(id),
-      issue_type TEXT NOT NULL CHECK(issue_type IN ('混号', '划痕', '色偏', '漏冲', '扫描瑕疵', '其他')),
-      description TEXT NOT NULL DEFAULT '',
-      photo_urls TEXT NOT NULL DEFAULT '[]',
-      status TEXT NOT NULL DEFAULT '待处理' CHECK(status IN ('待处理','店主已审批','处理中','待复核','已闭环')),
-      decided_by TEXT,
-      decision TEXT CHECK(decision IN ('返工', '赔付')),
-      assigned_to TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      resolved_at TEXT
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_rework_orders_film_id ON rework_orders(film_id);
-    CREATE INDEX IF NOT EXISTS idx_rework_orders_status ON rework_orders(status);
-
-    CREATE TABLE IF NOT EXISTS rework_logs (
-      id TEXT PRIMARY KEY,
-      rework_id TEXT NOT NULL REFERENCES rework_orders(id),
-      action TEXT NOT NULL,
-      operator TEXT NOT NULL,
-      operator_role TEXT NOT NULL CHECK(operator_role IN ('店主', '冲印师', '客服')),
-      detail TEXT NOT NULL DEFAULT '',
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      result TEXT NOT NULL CHECK(result IN ('pass', 'fail')),
+      issue_desc TEXT NOT NULL DEFAULT '',
+      impact_scope TEXT NOT NULL DEFAULT '',
+      operator_id TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_rework_logs_rework_id ON rework_logs(rework_id);
-
-    CREATE TABLE IF NOT EXISTS customer_confirmations (
+    CREATE TABLE IF NOT EXISTS rework_decisions (
       id TEXT PRIMARY KEY,
-      film_id TEXT NOT NULL REFERENCES film_rolls(id),
-      delivery_version TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT '待确认' CHECK(status IN ('待确认','已确认','不满意','需返工','需赔付')),
-      customer_feedback TEXT,
-      compensation_amount REAL,
-      compensation_reason TEXT,
-      confirmed_at TEXT,
+      qc_id TEXT NOT NULL REFERENCES qc_records(id) ON DELETE CASCADE,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      decision TEXT NOT NULL CHECK(decision IN ('rework', 'compensate', 'pass')),
+      reason TEXT NOT NULL DEFAULT '',
+      decided_by TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_customer_confirmations_film_id ON customer_confirmations(film_id);
-    CREATE INDEX IF NOT EXISTS idx_customer_confirmations_status ON customer_confirmations(status);
+    CREATE TABLE IF NOT EXISTS rework_executions (
+      id TEXT PRIMARY KEY,
+      decision_id TEXT NOT NULL REFERENCES rework_decisions(id) ON DELETE CASCADE,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      action_detail TEXT NOT NULL DEFAULT '',
+      result TEXT NOT NULL CHECK(result IN ('completed', 'failed')),
+      operator_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS recheck_records (
+      id TEXT PRIMARY KEY,
+      execution_id TEXT NOT NULL REFERENCES rework_executions(id) ON DELETE CASCADE,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      result TEXT NOT NULL CHECK(result IN ('pass', 'fail')),
+      note TEXT NOT NULL DEFAULT '',
+      checked_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS confirm_requests (
+      id TEXT PRIMARY KEY,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      delivery_desc TEXT NOT NULL DEFAULT '',
+      operator_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS confirm_results (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL REFERENCES confirm_requests(id) ON DELETE CASCADE,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      result TEXT NOT NULL CHECK(result IN ('satisfied', 'dissatisfied', 'compensation')),
+      feedback TEXT NOT NULL DEFAULT '',
+      operator_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS compensation_records (
+      id TEXT PRIMARY KEY,
+      confirm_result_id TEXT NOT NULL REFERENCES confirm_results(id) ON DELETE CASCADE,
+      roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      method TEXT NOT NULL CHECK(method IN ('refund', 'discount', 'credit', 'other')),
+      reason TEXT NOT NULL DEFAULT '',
+      approved_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `)
 
   return db
+}
+
+export function clearDatabase(): void {
+  if (!db) return
+  
+  const tables = [
+    'compensation_records',
+    'confirm_results',
+    'confirm_requests',
+    'recheck_records',
+    'rework_executions',
+    'rework_decisions',
+    'qc_records',
+    'actions',
+    'film_rolls'
+  ]
+
+  db.exec('PRAGMA foreign_keys = OFF')
+  tables.forEach(table => {
+    db?.exec(`DELETE FROM ${table}`)
+  })
+  db.exec('PRAGMA foreign_keys = ON')
 }

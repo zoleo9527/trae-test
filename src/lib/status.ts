@@ -38,7 +38,12 @@ export const ACTION_TYPE_LABEL: Record<string, string> = {
   confirm_request: '发起确认',
   confirm_pass: '客户确认',
   confirm_fail: '客户拒绝',
+  confirm_ok: '客户确认完成',
+  confirm_compensate: '客户申请赔付',
   compensate: '赔付处理',
+  compensate_approve: '赔付审批通过',
+  compensate_reject: '赔付审批拒绝',
+  complete: '完成交付',
 }
 
 export const ACTION_COLOR: Record<string, string> = {
@@ -53,7 +58,12 @@ export const ACTION_COLOR: Record<string, string> = {
   confirm_request: 'bg-cyan-400',
   confirm_pass: 'bg-green-500',
   confirm_fail: 'bg-red-600',
+  confirm_ok: 'bg-green-500',
+  confirm_compensate: 'bg-rose-400',
   compensate: 'bg-rose-500',
+  compensate_approve: 'bg-rose-600',
+  compensate_reject: 'bg-gray-500',
+  complete: 'bg-green-600',
 }
 
 export const ROLE_LABEL: Record<string, string> = {
