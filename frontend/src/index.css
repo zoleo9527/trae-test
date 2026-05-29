@@ -1,0 +1,88 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+.app-layout {
+  height: 100vh;
+}
+
+.logo {
+  height: 32px;
+  margin: 16px;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.site-layout {
+  background: #f0f2f5;
+}
+
+.site-layout-background {
+  padding: 24px;
+  min-height: 360px;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.dashboard-card {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.status-pending {
+  color: #faad14;
+}
+
+.status-approved {
+  color: #52c41a;
+}
+
+.status-rejected {
+  color: #ff4d4f;
+}
+
+.status-review {
+  color: #1890ff;
+}
+
+.print-content {
+  padding: 20px;
+  font-size: 14px;
+}
+
+.print-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #333;
+  padding: 8px;
+  text-align: left;
+}
