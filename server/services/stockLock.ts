@@ -10,6 +10,7 @@ import {
 } from '../types/dto';
 import {
   StockLockStatus,
+  InquiryStatus,
   OperationType,
   STOCK_LOCK_STATUS_FLOW,
   STOCK_LOCK_TRANSITION_PERMISSIONS,
@@ -64,6 +65,13 @@ export async function createStockLock(
 
   if (inquiry.stockLock) {
     throw new BusinessError(ErrorCodes.DUPLICATE_ERROR, '该询价单已创建锁库单');
+  }
+
+  if (inquiry.status !== InquiryStatus.CONFIRMED) {
+    throw new BusinessError(
+      ErrorCodes.INVALID_STATE_TRANSITION,
+      `询价单状态必须为 [已确认] 才能创建锁库单，当前状态: [${inquiry.status}]`
+    );
   }
 
   const idempotencyKey = dto.idempotencyKey || (req as unknown as Record<string, unknown>).idempotencyKey as string;

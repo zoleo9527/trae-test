@@ -10,6 +10,7 @@ import {
 } from '../types/dto';
 import {
   RefundStatus,
+  ReturnStatus,
   OperationType,
   REFUND_STATUS_FLOW,
   REFUND_TRANSITION_PERMISSIONS,
@@ -65,6 +66,13 @@ export async function createRefundOrder(
 
   if (returnOrder.refundOrder) {
     throw new BusinessError(ErrorCodes.DUPLICATE_ERROR, '该退货单已创建退款单');
+  }
+
+  if (returnOrder.status !== ReturnStatus.APPROVED) {
+    throw new BusinessError(
+      ErrorCodes.INVALID_STATE_TRANSITION,
+      `退货单必须完成鉴定通过才能创建退款单，当前状态: [${returnOrder.status}]`
+    );
   }
 
   const idempotencyKey = dto.idempotencyKey || (req as unknown as Record<string, unknown>).idempotencyKey as string;

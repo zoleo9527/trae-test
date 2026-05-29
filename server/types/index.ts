@@ -160,13 +160,13 @@ export const RETURN_TRANSITION_PERMISSIONS: Record<string, Role[]> = {
 export const REFUND_TRANSITION_PERMISSIONS: Record<string, Role[]> = {
   'PENDING_REVIEW->REVIEWING': [Role.SALES],
   'PENDING_REVIEW->REJECTED':  [Role.SALES],
-  'REVIEWING->APPROVED':       [Role.SALES],
+  'REVIEWING->APPROVED':       [Role.STORE_OWNER],
   'REVIEWING->REJECTED':       [Role.SALES],
   'APPROVED->PAID':            [Role.SALES],
   'APPROVED->FAILED':          [Role.SALES],
   'PAID->COMPLETED':           [Role.SALES],
   'FAILED->PAID':              [Role.SALES],
-  'FAILED->REJECTED':          [Role.SALES],
+  'FAILED->REJECTED':          [Role.STORE_OWNER, Role.SALES],
 };
 
 // ==========================================

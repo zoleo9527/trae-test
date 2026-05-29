@@ -11,6 +11,7 @@ import {
 } from '../types/dto';
 import {
   ReturnStatus,
+  StockLockStatus,
   OperationType,
   RETURN_STATUS_FLOW,
   RETURN_TRANSITION_PERMISSIONS,
@@ -57,7 +58,7 @@ export async function createReturnOrder(
 ): Promise<any> {
   const inquiry = await prisma.inquiry.findUnique({
     where: { id: dto.inquiryId },
-    include: { returnOrder: true },
+    include: { returnOrder: true, stockLock: true },
   });
 
   if (!inquiry) {
@@ -66,6 +67,17 @@ export async function createReturnOrder(
 
   if (inquiry.returnOrder) {
     throw new BusinessError(ErrorCodes.DUPLICATE_ERROR, '该询价单已创建退货单');
+  }
+
+  if (!inquiry.stockLock) {
+    throw new BusinessError(ErrorCodes.NOT_FOUND, '该询价单尚未创建锁库单');
+  }
+
+  if (inquiry.stockLock.status !== StockLockStatus.SOLD) {
+    throw new BusinessError(
+      ErrorCodes.INVALID_STATE_TRANSITION,
+      `锁库单必须完成出库才能创建退货单，当前状态: [${inquiry.stockLock.status}]`
+    );
   }
 
   const idempotencyKey = dto.idempotencyKey || (req as unknown as Record<string, unknown>).idempotencyKey as string;

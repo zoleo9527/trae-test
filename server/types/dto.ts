@@ -25,7 +25,10 @@ export const QueryFilterSchema = z.object({
   }),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  hasException: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
+  hasException: z.union([z.string(), z.boolean()]).optional().transform(v => {
+    if (typeof v === 'boolean') return v;
+    return v?.toLowerCase() === 'true';
+  }),
 });
 
 export type QueryFilterDto = z.infer<typeof QueryFilterSchema>;
@@ -264,10 +267,16 @@ export type RemarkAddDto = z.infer<typeof RemarkAddSchema>;
 export const ExportSchema = z.object({
   format: z.enum(['xlsx', 'csv']).default('xlsx'),
   type: z.enum(['inquiry', 'stockLock', 'returnOrder', 'refundOrder']),
-  status: z.array(z.string()).optional(),
+  status: z.union([z.string(), z.array(z.string())]).optional().transform(v => {
+    if (Array.isArray(v)) return v;
+    return v ? [v] : undefined;
+  }),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  hasException: z.boolean().optional(),
+  hasException: z.union([z.string(), z.boolean()]).optional().transform(v => {
+    if (typeof v === 'boolean') return v;
+    return v?.toLowerCase() === 'true';
+  }),
   keyword: z.string().optional(),
 });
 
