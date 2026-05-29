@@ -1,0 +1,388 @@
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+import Database from 'better-sqlite3'
+import Store from 'electron-store'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+
+let mainWindow: BrowserWindow | null = null
+let db: Database.Database | null = null
+const store = new Store()
+
+function getDbPath() {
+  const userDataPath = app.getPath('userData')
+  return path.join(userDataPath, 'laundry.db')
+}
+
+function initDatabase() {
+  db = new Database(getDbPath())
+  db.pragma('journal_mode = WAL')
+  
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('factory', 'inspector', 'store')),
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_no TEXT UNIQUE NOT NULL,
+      store_id INTEGER NOT NULL,
+      store_name TEXT NOT NULL,
+      total_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      received_by INTEGER,
+      FOREIGN KEY (store_id) REFERENCES users(id),
+      FOREIGN KEY (received_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS clothes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clothes_no TEXT UNIQUE NOT NULL,
+      batch_id INTEGER,
+      customer_name TEXT,
+      customer_phone TEXT,
+      category TEXT NOT NULL,
+      brand TEXT,
+      color TEXT,
+      size TEXT,
+      price REAL,
+      services TEXT,
+      status TEXT DEFAULT 'received',
+      has_damage INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS damage_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clothes_id INTEGER NOT NULL,
+      damage_type TEXT NOT NULL,
+      description TEXT,
+      severity TEXT CHECK(severity IN ('minor', 'major', 'critical')),
+      evidence_photos TEXT,
+      reported_by INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',
+      dispute_note TEXT,
+      resolved_by INTEGER,
+      resolved_at DATETIME,
+      compensation_amount REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (clothes_id) REFERENCES clothes(id),
+      FOREIGN KEY (reported_by) REFERENCES users(id),
+      FOREIGN KEY (resolved_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS operation_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clothes_id INTEGER,
+      batch_id INTEGER,
+      operation TEXT NOT NULL,
+      operator_id INTEGER NOT NULL,
+      operator_name TEXT NOT NULL,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (clothes_id) REFERENCES clothes(id),
+      FOREIGN KEY (batch_id) REFERENCES batches(id),
+      FOREIGN KEY (operator_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS cache_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cache_key TEXT UNIQUE NOT NULL,
+      cache_data TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME
+    );
+  `)
+
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }
+  if (userCount.count === 0) {
+    const insertUser = db.prepare(`
+      INSERT INTO users (username, password, role, name) VALUES (?, ?, ?, ?)
+    `)
+    insertUser.run('factory', '123456', 'factory', '张厂长')
+    insertUser.run('inspector', '123456', 'inspector', '李质检')
+    insertUser.run('store', '123456', 'store', '门店小王')
+
+    const insertBatch = db.prepare(`
+      INSERT INTO batches (batch_no, store_id, store_name, total_count, status) VALUES (?, ?, ?, ?, ?)
+    `)
+    const batch1Id = insertBatch.run('B20240115001', 3, '朝阳门店', 12, 'processing').lastInsertRowid
+    const batch2Id = insertBatch.run('B20240115002', 3, '海淀门店', 8, 'pending').lastInsertRowid
+    const batch3Id = insertBatch.run('B20240114001', 3, '朝阳门店', 15, 'pending').lastInsertRowid
+
+    const insertClothes = db.prepare(`
+      INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services, status, has_damage)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    
+    const clothesData = [
+      ['C202401150001', batch1Id, '张三', '13800138001', '西装', 'Armani', '黑色', 'L', 128, '精洗+熨烫', 'sorted', 0],
+      ['C202401150002', batch1Id, '李四', '13800138002', '羽绒服', 'Moncler', '白色', 'M', 88, '干洗', 'sorted', 0],
+      ['C202401150003', batch1Id, '王五', '13800138003', '羊毛大衣', 'MaxMara', '驼色', 'S', 158, '精洗', 'damage_reported', 1],
+      ['C202401150004', batch1Id, '赵六', '13800138004', '衬衫', 'Brooks', '白色', '42', 35, '水洗+熨烫', 'washing', 0],
+      ['C202401150005', batch1Id, '钱七', '13800138005', 'T恤', 'Uniqlo', '灰色', 'L', 20, '水洗', 'sorted', 0],
+      ['C202401150006', batch1Id, '孙八', '13800138006', '牛仔裤', 'Levis', '蓝色', '32', 45, '水洗', 'damage_reported', 1],
+      ['C202401150007', batch1Id, '周九', '13800138007', '毛衣', 'Gucci', '红色', 'M', 68, '干洗', 'sorted', 0],
+      ['C202401150008', batch1Id, '吴十', '13800138008', '外套', 'Burberry', '卡其色', 'M', 98, '精洗', 'sorting', 0],
+      ['C202401150009', batch1Id, '郑十一', '13800138009', '裙子', 'Dior', '黑色', 'S', 78, '干洗+熨烫', 'received', 0],
+      ['C202401150010', batch1Id, '王十二', '13800138010', '西装', 'Boss', '深蓝', 'L', 128, '精洗+熨烫', 'received', 0],
+      ['C202401150011', batch2Id, '冯十三', '13800138011', '羽绒服', 'Canada', '黑色', 'XL', 98, '干洗', 'received', 0],
+      ['C202401150012', batch2Id, '陈十四', '13800138012', '衬衫', '雅戈尔', '白色', '41', 35, '水洗+熨烫', 'received', 0],
+      ['C202401150013', batch2Id, '褚十五', '13800138013', '羊毛大衣', 'MaxMara', '灰色', 'M', 158, '精洗', 'received', 0],
+      ['C202401150014', batch2Id, '卫十六', '13800138014', 'T恤', 'Nike', '白色', 'XL', 25, '水洗', 'received', 0],
+      ['C202401150015', batch2Id, '蒋十七', '13800138015', '裤子', 'Adidas', '黑色', 'L', 35, '水洗', 'received', 0],
+      ['C202401150016', batch2Id, '沈十八', '13800138016', '外套', 'Zara', '黑色', 'M', 58, '水洗', 'received', 0],
+      ['C202401150017', batch2Id, '韩十九', '13800138017', '毛衣', 'H&M', '蓝色', 'L', 45, '干洗', 'received', 0],
+      ['C202401150018', batch2Id, '杨二十', '13800138018', '西装', 'G2000', '黑色', '40', 88, '精洗+熨烫', 'received', 0],
+    ]
+    
+    clothesData.forEach(c => insertClothes.run(...c))
+
+    const insertDamage = db.prepare(`
+      INSERT INTO damage_records (clothes_id, damage_type, description, severity, evidence_photos, reported_by, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    insertDamage.run(3, '衣物破损', '袖口处有2cm左右的撕裂，客户取衣时未注意到', 'major', '', 2, 'pending')
+    insertDamage.run(6, '污渍严重', '牛仔裤臀部有大片油渍，无法判断来源', 'critical', '', 2, 'pending')
+    insertDamage.run(11, '褪色', '羽绒服领口处有明显褪色痕迹', 'minor', '', 2, 'confirmed')
+    insertDamage.run(13, '配件缺失', '大衣腰带丢失', 'major', '', 2, 'rejected')
+
+    const insertLog = db.prepare(`
+      INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name, note)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    insertLog.run(3, '上报污损', 2, '李质检', '袖口处有2cm左右的撕裂')
+    insertLog.run(6, '上报污损', 2, '李质检', '牛仔裤臀部有大片油渍')
+    insertLog.run(4, '状态变更为: washing', 2, '李质检', '')
+    insertLog.run(1, '状态变更为: sorted', 2, '李质检', '')
+    insertLog.run(2, '状态变更为: sorted', 2, '李质检', '')
+  }
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 700,
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.mjs'),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+  }
+}
+
+app.whenReady().then(() => {
+  initDatabase()
+  createWindow()
+})
+
+app.on('window-all-closed', () => {
+  if (db) db.close()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})
+
+ipcMain.handle('db:login', (_, username: string, password: string) => {
+  const user = db?.prepare('SELECT id, username, role, name FROM users WHERE username = ? AND password = ?').get(username, password)
+  return user || null
+})
+
+ipcMain.handle('db:getUsers', () => {
+  return db?.prepare('SELECT id, username, role, name FROM users').all()
+})
+
+ipcMain.handle('db:createBatch', (_, data: { batch_no: string; store_id: number; store_name: string }) => {
+  const result = db?.prepare('INSERT INTO batches (batch_no, store_id, store_name) VALUES (?, ?, ?)').run(data.batch_no, data.store_id, data.store_name)
+  return result?.lastInsertRowid
+})
+
+ipcMain.handle('db:getBatches', () => {
+  return db?.prepare('SELECT * FROM batches ORDER BY received_at DESC').all()
+})
+
+ipcMain.handle('db:getBatchById', (_, id: number) => {
+  return db?.prepare('SELECT * FROM batches WHERE id = ?').get(id)
+})
+
+ipcMain.handle('db:addClothes', (_, data: any) => {
+  const result = db?.prepare(`
+    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.clothes_no, data.batch_id, data.customer_name, data.customer_phone,
+    data.category, data.brand, data.color, data.size, data.price, data.services
+  )
+  return result?.lastInsertRowid
+})
+
+ipcMain.handle('db:batchAddClothes', (_, clothesList: any[]) => {
+  const stmt = db?.prepare(`
+    INSERT INTO clothes (clothes_no, batch_id, customer_name, customer_phone, category, brand, color, size, price, services)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const transaction = db?.transaction((list: any[]) => {
+    for (const c of list) {
+      stmt?.run(c.clothes_no, c.batch_id, c.customer_name, c.customer_phone,
+        c.category, c.brand, c.color, c.size, c.price, c.services)
+    }
+  })
+  transaction?.(clothesList)
+  return clothesList.length
+})
+
+ipcMain.handle('db:getClothesByBatch', (_, batchId: number) => {
+  return db?.prepare('SELECT * FROM clothes WHERE batch_id = ? ORDER BY created_at DESC').all(batchId)
+})
+
+ipcMain.handle('db:getClothesById', (_, id: number) => {
+  return db?.prepare('SELECT * FROM clothes WHERE id = ?').get(id)
+})
+
+ipcMain.handle('db:searchClothes', (_, keyword: string) => {
+  return db?.prepare(`
+    SELECT c.*, b.batch_no, b.store_name 
+    FROM clothes c 
+    LEFT JOIN batches b ON c.batch_id = b.id
+    WHERE c.clothes_no LIKE ? OR c.customer_name LIKE ? OR c.customer_phone LIKE ?
+    ORDER BY c.created_at DESC
+    LIMIT 100
+  `).all(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`)
+})
+
+ipcMain.handle('db:updateClothesStatus', (_, id: number, status: string, operatorId: number, operatorName: string) => {
+  db?.prepare('UPDATE clothes SET status = ? WHERE id = ?').run(status, id)
+  db?.prepare(`
+    INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name)
+    VALUES (?, ?, ?, ?)
+  `).run(id, `状态变更为: ${status}`, operatorId, operatorName)
+  return true
+})
+
+ipcMain.handle('db:reportDamage', (_, data: any) => {
+  const result = db?.prepare(`
+    INSERT INTO damage_records (clothes_id, damage_type, description, severity, evidence_photos, reported_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(data.clothes_id, data.damage_type, data.description, data.severity, data.evidence_photos, data.reported_by)
+  
+  db?.prepare('UPDATE clothes SET has_damage = 1, status = ? WHERE id = ?').run('damage_reported', data.clothes_id)
+  
+  db?.prepare(`
+    INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name, note)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(data.clothes_id, '上报污损', data.reported_by, data.reported_by_name, data.description)
+  
+  return result?.lastInsertRowid
+})
+
+ipcMain.handle('db:getDamageRecords', (_, status?: string) => {
+  if (status) {
+    return db?.prepare(`
+      SELECT dr.*, c.clothes_no, c.category, c.customer_name, u.name as reporter_name
+      FROM damage_records dr
+      LEFT JOIN clothes c ON dr.clothes_id = c.id
+      LEFT JOIN users u ON dr.reported_by = u.id
+      WHERE dr.status = ?
+      ORDER BY dr.created_at DESC
+    `).all(status)
+  }
+  return db?.prepare(`
+    SELECT dr.*, c.clothes_no, c.category, c.customer_name, u.name as reporter_name
+    FROM damage_records dr
+    LEFT JOIN clothes c ON dr.clothes_id = c.id
+    LEFT JOIN users u ON dr.reported_by = u.id
+    ORDER BY dr.created_at DESC
+  `).all()
+})
+
+ipcMain.handle('db:resolveDamage', (_, data: any) => {
+  db?.prepare(`
+    UPDATE damage_records 
+    SET status = ?, dispute_note = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP, compensation_amount = ?
+    WHERE id = ?
+  `).run(data.status, data.dispute_note, data.resolved_by, data.compensation_amount, data.id)
+  
+  if (data.status === 'confirmed') {
+    db?.prepare('UPDATE clothes SET status = ? WHERE id = (SELECT clothes_id FROM damage_records WHERE id = ?)').run('washing', data.id)
+  } else if (data.status === 'rejected') {
+    db?.prepare('UPDATE clothes SET status = ? WHERE id = (SELECT clothes_id FROM damage_records WHERE id = ?)').run('return_to_store', data.id)
+  }
+  
+  return true
+})
+
+ipcMain.handle('db:getOperationLogs', (_, clothesId?: number, batchId?: number) => {
+  let sql = 'SELECT * FROM operation_logs WHERE 1=1'
+  const params: any[] = []
+  if (clothesId) {
+    sql += ' AND clothes_id = ?'
+    params.push(clothesId)
+  }
+  if (batchId) {
+    sql += ' AND batch_id = ?'
+    params.push(batchId)
+  }
+  sql += ' ORDER BY created_at DESC LIMIT 200'
+  return db?.prepare(sql).all(...params)
+})
+
+ipcMain.handle('db:saveCache', (_, key: string, data: string) => {
+  db?.prepare(`
+    INSERT OR REPLACE INTO cache_records (cache_key, cache_data, expires_at)
+    VALUES (?, ?, DATETIME('now', '+7 days'))
+  `).run(key, data)
+  return true
+})
+
+ipcMain.handle('db:getCache', (_, key: string) => {
+  const result = db?.prepare('SELECT cache_data FROM cache_records WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)').get(key) as any
+  return result?.cache_data || null
+})
+
+ipcMain.handle('db:clearCache', (_, key: string) => {
+  db?.prepare('DELETE FROM cache_records WHERE cache_key = ?').run(key)
+  return true
+})
+
+ipcMain.handle('app:selectDirectory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory']
+  })
+  return result.canceled ? null : result.filePaths[0]
+})
+
+ipcMain.handle('app:selectFile', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openFile'],
+    filters: [{ name: 'Excel文件', extensions: ['xlsx', 'xls'] }]
+  })
+  return result.canceled ? null : result.filePaths[0]
+})
+
+ipcMain.handle('app:showMessageBox', async (_, options: any) => {
+  return dialog.showMessageBox(mainWindow!, options)
+})
