@@ -143,9 +143,9 @@ interface RollState {
   fetchCalendarData: (month: string) => Promise<CalendarDay[]>
   fetchDailyActions: (date: string) => Promise<ActionRecord[]>
   startDevelop: (rollId: string, operatorId: string, operatorRole: string) => Promise<boolean>
-  submitQc: (rollId: string, data: { result: string; issue_desc: string; impact_scope: string; operator_id: string }) => Promise<boolean>
-  submitReworkDecision: (rollId: string, qcId: string, data: { decision: string; reason: string; decided_by: string }) => Promise<boolean>
-  executeRework: (rollId: string, decisionId: string, data: { action_detail: string; result: string; operator_id: string }) => Promise<boolean>
+  submitQc: (rollId: string, data: { result: string; issue_desc: string; impact_scope: string; operator_id: string; operator_role?: string }) => Promise<boolean>
+  submitReworkDecision: (rollId: string, qcId: string, data: { decision: string; reason: string; decided_by: string; operator_role?: string }) => Promise<boolean>
+  executeRework: (rollId: string, decisionId: string, data: { action_detail: string; result: string; operator_id: string; operator_role?: string }) => Promise<boolean>
   submitRecheck: (rollId: string, executionId: string, data: { result: string; note: string; checked_by: string; operator_role?: string }) => Promise<boolean>
   requestConfirm: (rollId: string, data: { delivery_desc: string; operator_id: string }) => Promise<boolean>
   submitConfirmResult: (rollId: string, requestId: string, data: { result: string; feedback: string; operator_id: string }) => Promise<boolean>

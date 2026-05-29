@@ -82,6 +82,7 @@ export default function RollDetail() {
       issue_desc: qcForm.issue_desc,
       impact_scope: qcForm.impact_scope,
       operator_id: currentUser.id,
+      operator_role: currentUser.role,
     })
     if (success) {
       setShowQcForm(false)
@@ -99,6 +100,7 @@ export default function RollDetail() {
         decision: decisionForm.decision,
         reason: decisionForm.reason,
         decided_by: currentUser.id,
+        operator_role: currentUser.role,
       }
     )
     if (success) {
@@ -117,6 +119,7 @@ export default function RollDetail() {
         action_detail: reworkForm.action_detail,
         result: reworkForm.result,
         operator_id: currentUser.id,
+        operator_role: currentUser.role,
       }
     )
     if (success) {
@@ -214,7 +217,7 @@ export default function RollDetail() {
       decision: { qc_failed: ['owner'] },
       rework: { reworking: ['developer'] },
       recheck: { recheck: ['developer', 'owner'] },
-      confirm_request: { qc_passed: ['cs'], recheck: ['cs'] },
+      confirm_request: { qc_passed: ['cs'] },
       confirm_result: { confirming: ['cs'] },
       compensate: { compensating: ['owner'] },
     }

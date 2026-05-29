@@ -7,7 +7,7 @@ const router = Router()
 router.post('/submit', (req: Request, res: Response): void => {
   try {
     const db = getDb()
-    const { roll_id, result, issue_desc, impact_scope, operator_id } = req.body
+    const { roll_id, result, issue_desc, impact_scope, operator_id, operator_role } = req.body
 
     if (!roll_id || !result || !operator_id) {
       res.status(400).json({ success: false, error: '缺少必填字段' })
@@ -27,8 +27,8 @@ router.post('/submit', (req: Request, res: Response): void => {
       const detail = result === 'pass' ? '质检通过' : `质检未通过: ${issue_desc || '有问题'}`
       db.prepare(`
         INSERT INTO actions (id, roll_id, action_type, operator_id, operator_role, detail, created_at)
-        VALUES (?, ?, ?, ?, 'owner', ?, ?)
-      `).run(uuidv4(), roll_id, actionType, operator_id, detail, now)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(uuidv4(), roll_id, actionType, operator_id, operator_role || 'owner', detail, now)
 
       const newStatus = result === 'pass' ? 'qc_passed' : 'qc_failed'
       db.prepare('UPDATE film_rolls SET status = ? WHERE id = ?').run(newStatus, roll_id)
@@ -46,7 +46,7 @@ router.post('/submit', (req: Request, res: Response): void => {
 router.post('/rework-decision', (req: Request, res: Response): void => {
   try {
     const db = getDb()
-    const { qc_id, roll_id, decision, reason, decided_by } = req.body
+    const { qc_id, roll_id, decision, reason, decided_by, operator_role } = req.body
 
     if (!qc_id || !roll_id || !decision || !decided_by) {
       res.status(400).json({ success: false, error: '缺少必填字段' })
@@ -62,11 +62,12 @@ router.post('/rework-decision', (req: Request, res: Response): void => {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(id, qc_id, roll_id, decision, reason || '', decided_by, now)
 
-      const detail = decision === 'rework' ? '店主决定返工重新冲扫' : decision === 'compensate' ? '店主决定进行赔付处理' : '店主决定通过质检'
+      const roleLabel = operator_role === 'developer' ? '冲印师' : operator_role === 'cs' ? '客服' : '店主'
+      const detail = decision === 'rework' ? `${roleLabel}决定返工重新冲扫` : decision === 'compensate' ? `${roleLabel}决定进行赔付处理` : `${roleLabel}决定通过质检`
       db.prepare(`
         INSERT INTO actions (id, roll_id, action_type, operator_id, operator_role, detail, created_at)
-        VALUES (?, ?, 'rework_decide', ?, 'owner', ?, ?)
-      `).run(uuidv4(), roll_id, decided_by, detail, now)
+        VALUES (?, ?, 'rework_decide', ?, ?, ?, ?)
+      `).run(uuidv4(), roll_id, decided_by, operator_role || 'owner', detail, now)
 
       if (decision === 'rework') {
         db.prepare('UPDATE film_rolls SET status = ? WHERE id = ?').run('reworking', roll_id)
@@ -89,7 +90,7 @@ router.post('/rework-decision', (req: Request, res: Response): void => {
 router.post('/rework-execute', (req: Request, res: Response): void => {
   try {
     const db = getDb()
-    const { decision_id, roll_id, action_detail, result, operator_id } = req.body
+    const { decision_id, roll_id, action_detail, result, operator_id, operator_role } = req.body
 
     if (!decision_id || !roll_id || !result || !operator_id) {
       res.status(400).json({ success: false, error: '缺少必填字段' })
@@ -108,8 +109,8 @@ router.post('/rework-execute', (req: Request, res: Response): void => {
       const detail = result === 'completed' ? '返工完成' : '返工失败'
       db.prepare(`
         INSERT INTO actions (id, roll_id, action_type, operator_id, operator_role, detail, created_at)
-        VALUES (?, ?, 'rework_execute', ?, 'developer', ?, ?)
-      `).run(uuidv4(), roll_id, operator_id, `${detail}: ${action_detail || ''}`, now)
+        VALUES (?, ?, 'rework_execute', ?, ?, ?, ?)
+      `).run(uuidv4(), roll_id, operator_id, operator_role || 'developer', `${detail}: ${action_detail || ''}`, now)
 
       db.prepare('UPDATE film_rolls SET status = ? WHERE id = ?').run('recheck', roll_id)
 
