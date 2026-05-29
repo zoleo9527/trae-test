@@ -58,7 +58,7 @@
           </template>
           <el-steps direction="vertical" :active="currentStep" finish-status="success">
             <el-step v-for="(step, index) in workflowSteps" :key="index" :title="step.title" :description="step.description">
-              <template #icon v-if="step.status">
+              <template #icon>
                 <el-tag size="small" :type="step.type">{{ step.statusText }}</el-tag>
               </template>
             </el-step>
@@ -370,7 +370,7 @@ const currentStep = computed(() => {
   const steps = workflowSteps.value
   for (let i = 0; i < steps.length; i++) {
     if (steps[i].statusText === '进行中') {
-      return i + 1
+      return i
     }
   }
   return steps.length

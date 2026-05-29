@@ -158,12 +158,13 @@ def analyze_order(order_id, expected_status, scenario_name):
     for i, step in enumerate(steps):
         marker = ' 🔴' if i == active_idx else ''
         status_icon = '✅' if step['type'] == 'success' else '🟡' if step['type'] == 'warning' else '⚪'
-        print(f'  {status_icon} Step {i+1}: {step["title"]:10s} | {step["statusText"]:4s} | {step["type"]:7s}{marker}')
+        print(f'  {status_icon} Step {i}: {step["title"]:10s} | {step["statusText"]:4s} | {step["type"]:7s}{marker}')
         if step['operator']:
             from_s = f"  ← {step['from_status']}" if step['from_status'] else '  ← 创建'
             print(f'       {from_s} | {step["operator"]} | {step["remark"]}')
 
-    print(f'\n  currentStep(高亮索引): {active_idx + 1}')
+    print(f'\n  currentStep(el-steps active, 0-based): {active_idx}')
+    print(f'  el-steps行为: step 0..{active_idx-1} = finish(success), step {active_idx} = process, step {active_idx+1}..end = wait')
 
     all_ok = True
     for i, step in enumerate(steps):
