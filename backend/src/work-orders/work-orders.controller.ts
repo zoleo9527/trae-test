@@ -19,8 +19,8 @@ export class WorkOrdersController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.workOrdersService.findOne(id);
+  async findOne(@Param('id') id: string, @Request() req: any) {
+    return this.workOrdersService.findOne(id, req.user);
   }
 
   @Post()

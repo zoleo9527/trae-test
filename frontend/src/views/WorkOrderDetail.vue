@@ -193,14 +193,46 @@
           </div>
         </div>
 
-        <div class="info-card" v-if="workOrder.negotiationSummary">
-          <h3 class="card-title">协商摘要</h3>
-          <p class="summary-text">{{ workOrder.negotiationSummary }}</p>
+        <div class="info-card" v-if="workOrder.negotiationSummary || canEditNegotiationSummary">
+          <h3 class="card-title">
+            协商摘要
+            <button
+              v-if="!editingNegotiation && canEditNegotiationSummary"
+              @click="editingNegotiation = true; editForm.negotiationSummary = workOrder.negotiationSummary || ''"
+              class="btn-text small"
+            >
+              编辑
+            </button>
+          </h3>
+          <template v-if="editingNegotiation">
+            <textarea v-model="editForm.negotiationSummary" class="form-control" rows="4"></textarea>
+            <div class="form-actions">
+              <button @click="editingNegotiation = false" class="btn-text">取消</button>
+              <button @click="saveNegotiationSummary" class="btn-primary">保存</button>
+            </div>
+          </template>
+          <p v-else class="summary-text">{{ workOrder.negotiationSummary || '暂无协商摘要' }}</p>
         </div>
 
-        <div class="info-card" v-if="workOrder.reviewConclusion">
-          <h3 class="card-title">复核结论</h3>
-          <p class="summary-text">{{ workOrder.reviewConclusion }}</p>
+        <div class="info-card" v-if="workOrder.reviewConclusion || canEditReviewConclusion">
+          <h3 class="card-title">
+            复核结论
+            <button
+              v-if="!editingReview && canEditReviewConclusion"
+              @click="editingReview = true; editForm.reviewConclusion = workOrder.reviewConclusion || ''"
+              class="btn-text small"
+            >
+              编辑
+            </button>
+          </h3>
+          <template v-if="editingReview">
+            <textarea v-model="editForm.reviewConclusion" class="form-control" rows="4"></textarea>
+            <div class="form-actions">
+              <button @click="editingReview = false" class="btn-text">取消</button>
+              <button @click="saveReviewConclusion" class="btn-primary">保存</button>
+            </div>
+          </template>
+          <p v-else class="summary-text">{{ workOrder.reviewConclusion || '暂无复核结论' }}</p>
         </div>
       </div>
 
@@ -303,6 +335,8 @@ const workOrdersStore = useWorkOrdersStore();
 
 const workOrder = computed(() => workOrdersStore.currentWorkOrder);
 const showCompensationForm = ref(false);
+const editingNegotiation = ref(false);
+const editingReview = ref(false);
 
 const compensationForm = ref({
   type: 'partial_refund',
@@ -314,6 +348,11 @@ const newNote = ref({
   content: '',
   type: 'internal',
   isPrivate: false,
+});
+
+const editForm = ref({
+  negotiationSummary: '',
+  reviewConclusion: '',
 });
 
 const canNegotiate = computed(() => {
@@ -352,6 +391,20 @@ const canCreateCompensation = computed(() => {
   );
 });
 
+const canEditNegotiationSummary = computed(() => {
+  return (
+    authStore.userRole === 'customer_service' &&
+    (workOrder.value?.status === 'negotiating' || workOrder.value?.status === 'pending')
+  );
+});
+
+const canEditReviewConclusion = computed(() => {
+  return (
+    authStore.userRole === 'owner' &&
+    (workOrder.value?.status === 'reviewing' || workOrder.value?.status === 'approved' || workOrder.value?.status === 'completed')
+  );
+});
+
 async function updateStatus(status: string) {
   try {
     await workOrdersStore.updateWorkOrder(route.params.id as string, { status });
@@ -382,6 +435,30 @@ async function addNote() {
     await loadData();
   } catch (e) {
     console.error('添加备注失败', e);
+  }
+}
+
+async function saveNegotiationSummary() {
+  try {
+    await workOrdersStore.updateWorkOrder(route.params.id as string, {
+      negotiationSummary: editForm.value.negotiationSummary,
+    });
+    editingNegotiation.value = false;
+    await loadData();
+  } catch (e) {
+    console.error('保存协商摘要失败', e);
+  }
+}
+
+async function saveReviewConclusion() {
+  try {
+    await workOrdersStore.updateWorkOrder(route.params.id as string, {
+      reviewConclusion: editForm.value.reviewConclusion,
+    });
+    editingReview.value = false;
+    await loadData();
+  } catch (e) {
+    console.error('保存复核结论失败', e);
   }
 }
 
@@ -494,6 +571,11 @@ onMounted(() => {
 
 .btn-text:hover {
   color: #1d1d1f;
+}
+
+.btn-text.small {
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .detail-content {

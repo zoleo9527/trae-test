@@ -7,15 +7,26 @@ import * as uuid from 'uuid';
 export class WorkOrdersService {
   constructor(private db: DbService) {}
 
-  private enrichWorkOrder(workOrder: any): any {
+  private enrichWorkOrder(workOrder: any, user?: any): any {
     if (!workOrder) return null;
+
+    let notes = this.db.find('notes', { workOrderId: workOrder.id });
+    if (user?.role !== 'owner') {
+      notes = notes.filter((n: any) => !n.isPrivate);
+    }
+
+    const stripUser = (u: any) => {
+      if (!u) return undefined;
+      const { password, ...safeUser } = u;
+      return safeUser;
+    };
 
     return {
       ...workOrder,
       filmRoll: workOrder.filmRollId ? this.db.findById('filmRolls', workOrder.filmRollId) : undefined,
-      assignee: workOrder.assigneeId ? this.db.findById('users', workOrder.assigneeId) : undefined,
+      assignee: workOrder.assigneeId ? stripUser(this.db.findById('users', workOrder.assigneeId)) : undefined,
       statusLogs: this.db.find('statusLogs', { workOrderId: workOrder.id }),
-      notes: this.db.find('notes', { workOrderId: workOrder.id }),
+      notes,
       compensation: this.db.findOne('compensations', { workOrderId: workOrder.id }),
     };
   }
@@ -57,15 +68,15 @@ export class WorkOrdersService {
 
     return list
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .map((wo) => this.enrichWorkOrder(wo));
+      .map((wo) => this.enrichWorkOrder(wo, user));
   }
 
-  async findOne(id: string): Promise<any> {
+  async findOne(id: string, user?: any): Promise<any> {
     const workOrder = this.db.findById('workOrders', id);
     if (!workOrder) {
       throw new NotFoundException('工单不存在');
     }
-    return this.enrichWorkOrder(workOrder);
+    return this.enrichWorkOrder(workOrder, user);
   }
 
   async create(createDto: CreateWorkOrderDto, operator: any): Promise<any> {
@@ -81,26 +92,75 @@ export class WorkOrdersService {
 
     await this.addStatusLog(workOrder.id, null, 'pending', '工单创建', operator);
 
-    return this.findOne(workOrder.id);
+    return this.findOne(workOrder.id, operator);
   }
 
   async update(id: string, updateDto: UpdateWorkOrderDto, operator: any): Promise<any> {
-    const workOrder = await this.findOne(id);
+    const workOrder = await this.findOne(id, operator);
 
     if (updateDto.status && updateDto.status !== workOrder.status) {
       await this.addStatusLog(id, workOrder.status, updateDto.status, updateDto.remark, operator);
 
-      const updates: any = { status: updateDto.status };
+      const statusUpdates: any = { status: updateDto.status };
 
       if (updateDto.status === 'completed' || updateDto.status === 'closed') {
-        updates.closedAt = new Date().toISOString();
+        statusUpdates.closedAt = new Date().toISOString();
       }
 
       if (updateDto.status === 'approved') {
-        updates.ownerReviewedAt = new Date().toISOString();
+        statusUpdates.ownerReviewedAt = new Date().toISOString();
+
+        const compensation = this.db.findOne('compensations', { workOrderId: id });
+        if (compensation) {
+          await this.db.update('compensations', compensation.id, {
+            approvedAt: new Date().toISOString(),
+            approvedBy: operator?.name,
+            approvedByRole: operator?.role,
+            ownerReview: updateDto.reviewConclusion || compensation.ownerReview,
+            status: 'approved',
+          });
+
+          await this.db.update('workOrders', id, {
+            reviewConclusion: updateDto.reviewConclusion || workOrder.reviewConclusion,
+          });
+
+          await this.db.create('notes', {
+            id: uuid.v4(),
+            workOrderId: id,
+            content: `赔付方案已批准，金额 ¥${compensation.amount}。${updateDto.reviewConclusion ? '复核意见：' + updateDto.reviewConclusion : ''}`,
+            type: 'review',
+            isPrivate: false,
+            creatorId: operator?.id,
+            creatorName: operator?.name,
+            creatorRole: operator?.role,
+          });
+        }
       }
 
-      await this.db.update('workOrders', id, updates);
+      if (updateDto.status === 'closed') {
+        const compensation = this.db.findOne('compensations', { workOrderId: id });
+        if (compensation) {
+          await this.db.update('compensations', compensation.id, {
+            rejectedAt: new Date().toISOString(),
+            rejectedBy: operator?.name,
+            rejectReason: updateDto.remark || '',
+            status: 'rejected',
+          });
+
+          await this.db.create('notes', {
+            id: uuid.v4(),
+            workOrderId: id,
+            content: `赔付申请被拒绝。${updateDto.remark ? '原因：' + updateDto.remark : ''}`,
+            type: 'review',
+            isPrivate: false,
+            creatorId: operator?.id,
+            creatorName: operator?.name,
+            creatorRole: operator?.role,
+          });
+        }
+      }
+
+      await this.db.update('workOrders', id, statusUpdates);
     }
 
     const updates: any = {};
@@ -108,13 +168,13 @@ export class WorkOrdersService {
     if (updateDto.title) updates.title = updateDto.title;
     if (updateDto.description) updates.description = updateDto.description;
     if (updateDto.negotiationSummary) updates.negotiationSummary = updateDto.negotiationSummary;
-    if (updateDto.reviewConclusion) updates.reviewConclusion = updateDto.reviewConclusion;
+    if (updateDto.reviewConclusion && updateDto.status !== 'approved') updates.reviewConclusion = updateDto.reviewConclusion;
 
     if (Object.keys(updates).length > 0) {
       await this.db.update('workOrders', id, updates);
     }
 
-    return this.findOne(id);
+    return this.findOne(id, operator);
   }
 
   async batchUpdate(batchDto: BatchUpdateDto, operator: any): Promise<{ success: number; failed: number }> {

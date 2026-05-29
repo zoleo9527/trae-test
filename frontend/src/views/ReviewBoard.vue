@@ -118,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useWorkOrdersStore } from '@/stores/workOrders';
@@ -256,6 +256,13 @@ async function loadData() {
     myOnly: filters.value.myOnly ? 'true' : undefined,
   });
 }
+
+watch(
+  () => ({ ...filters.value }),
+  () => {
+    loadData();
+  },
+);
 
 onMounted(() => {
   loadData();
