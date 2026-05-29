@@ -46,7 +46,17 @@ func (s *AppealService) CreateAppeal(c *fiber.Ctx, req *schemas.CreateAppealRequ
 
 	var refundID *uuid.UUID
 	if req.RefundID != nil {
-		rid, _ := uuid.Parse(*req.RefundID)
+		rid, err := uuid.Parse(*req.RefundID)
+		if err != nil {
+			return nil, errors.New("invalid refund id")
+		}
+		var refund models.Refund
+		if err := database.DB.Where("id = ?", rid).First(&refund).Error; err != nil {
+			return nil, errors.New("refund not found")
+		}
+		if refund.OrderID != orderID {
+			return nil, errors.New("refund does not belong to this order")
+		}
 		refundID = &rid
 	}
 

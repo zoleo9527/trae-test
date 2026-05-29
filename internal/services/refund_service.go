@@ -24,19 +24,25 @@ func (s *RefundService) CreateRefund(c *fiber.Ctx, req *schemas.CreateRefundRequ
 	orderID, _ := uuid.Parse(req.OrderID)
 	user := utils.GetCurrentUser(c)
 
-	if user.Role == models.RoleUser {
-		var order models.Order
-		if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
-			return nil, errors.New("order not found")
-		}
-		if order.UserID != user.UserID {
-			return nil, errors.New("you can only create refunds for your own orders")
-		}
-	}
-
 	var order models.Order
 	if err := database.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
 		return nil, errors.New("order not found")
+	}
+
+	if !user.Role.IsStaff() {
+		related := false
+		if user.Role == models.RoleUser && order.UserID == user.UserID {
+			related = true
+		}
+		if user.Role == models.RoleRunner && order.RunnerID != nil && *order.RunnerID == user.UserID {
+			related = true
+		}
+		if user.Role == models.RoleMerchant && order.MerchantID == user.UserID {
+			related = true
+		}
+		if !related {
+			return nil, errors.New("you can only create refunds for orders you are involved in")
+		}
 	}
 
 	if order.Status == models.OrderStatusRefunded {
@@ -338,9 +344,15 @@ func checkRefundAccess(c *fiber.Ctx, refund *models.Refund) error {
 		if err := database.DB.Where("id = ?", refund.OrderID).First(&order).Error; err != nil {
 			return errors.New("access denied")
 		}
-		if (user.Role == models.RoleRunner && order.RunnerID != nil && *order.RunnerID != user.UserID) ||
-			(user.Role == models.RoleMerchant && order.MerchantID != user.UserID) {
-			return errors.New("access denied")
+		if user.Role == models.RoleRunner {
+			if order.RunnerID == nil || *order.RunnerID != user.UserID {
+				return errors.New("access denied")
+			}
+		}
+		if user.Role == models.RoleMerchant {
+			if order.MerchantID != user.UserID {
+				return errors.New("access denied")
+			}
 		}
 	}
 	return nil
