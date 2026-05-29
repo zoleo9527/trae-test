@@ -147,11 +147,13 @@ def init_mock_data():
             balance=round(random.uniform(1000, 10000), 2)
         )
 
-    order_statuses = [OrderStatus.PENDING, OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.ABNORMAL]
     for i in range(50):
         merchant = random.choice(list(merchants_db.values()))
         order_id = f"o{i+1:04d}"
-        status = random.choice(order_statuses)
+        if i < 20:
+            status = OrderStatus.ABNORMAL
+        else:
+            status = random.choice([OrderStatus.PENDING, OrderStatus.COMPLETED, OrderStatus.CANCELLED])
         created_at = datetime.now() - timedelta(days=random.randint(0, 7), hours=random.randint(0, 23))
         expected_delivery_time = created_at + timedelta(minutes=45)
         
@@ -171,7 +173,7 @@ def init_mock_data():
             created_at=created_at,
             expected_delivery_time=expected_delivery_time,
             is_abnormal=(status == OrderStatus.ABNORMAL),
-            abnormal_reason="配送超时" if status == OrderStatus.ABNORMAL else None,
+            abnormal_reason=random.choice(["配送超时", "商品损坏", "错送漏送"]) if status == OrderStatus.ABNORMAL else None,
             abnormal_time=created_at + timedelta(minutes=60) if status == OrderStatus.ABNORMAL else None
         )
         order.total_amount = round(order.goods_amount + order.delivery_fee, 2)
@@ -238,7 +240,7 @@ def init_mock_data():
             is_settled=random.choice([True, False])
         )
 
-    for i, merchant in enumerate(list(merchants_db.values())[:3]):
+    for i, merchant in enumerate(list(merchants_db.values())):
         settlement_id = f"set{i+1:04d}"
         period_start = datetime.now() - timedelta(days=7)
         period_end = datetime.now()
@@ -415,20 +417,60 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
             new_value=f"¥{request.subsidy_amount}"
         )
         
-        for settlement in settlements_db.values():
-            if settlement.merchant_id == appeal.merchant_id:
-                settlement.total_subsidy += request.subsidy_amount
-                settlement.net_amount += request.subsidy_amount
-                add_operation_log(
-                    order_id=appeal.order_id,
-                    action="update_settlement",
-                    operator=request.processor,
-                    operator_role="运营专员",
-                    description=f"更新商家结算汇总: 增加补贴 ¥{request.subsidy_amount}",
-                    old_value=None,
-                    new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}"
-                )
+        settlement = None
+        for s in settlements_db.values():
+            if s.merchant_id == appeal.merchant_id:
+                settlement = s
                 break
+        
+        if settlement is None:
+            settlement_id = f"set{len(settlements_db)+1:04d}"
+            period_start = datetime.now() - timedelta(days=7)
+            period_end = datetime.now()
+            merchant_orders = [o for o in orders_db.values() if o.merchant_id == appeal.merchant_id]
+            
+            settlement = Settlement(
+                id=settlement_id,
+                merchant_id=appeal.merchant_id,
+                merchant_name=appeal.merchant_name,
+                period_start=period_start,
+                period_end=period_end,
+                total_orders=len(merchant_orders),
+                total_goods_amount=sum(o.goods_amount for o in merchant_orders),
+                total_delivery_fee=sum(o.delivery_fee for o in merchant_orders),
+                total_subsidy=0,
+                total_deduction=0,
+                net_amount=0,
+                status="pending",
+                created_at=period_end
+            )
+            settlement.net_amount = round(settlement.total_goods_amount - settlement.total_delivery_fee, 2)
+            settlements_db[settlement_id] = settlement
+            
+            add_operation_log(
+                order_id=appeal.order_id,
+                appeal_id=appeal_id,
+                action="create_settlement",
+                operator=request.processor,
+                operator_role="运营专员",
+                description=f"自动创建商家结算单: {appeal.merchant_name}",
+                old_value=None,
+                new_value=f"结算单 {settlement_id}"
+            )
+        
+        settlement.total_subsidy += request.subsidy_amount
+        settlement.net_amount += request.subsidy_amount
+        
+        add_operation_log(
+            order_id=appeal.order_id,
+            appeal_id=appeal_id,
+            action="update_settlement",
+            operator=request.processor,
+            operator_role="运营专员",
+            description=f"更新商家结算汇总: 增加补贴 ¥{request.subsidy_amount}",
+            old_value=None,
+            new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}"
+        )
     
     return appeal
 
