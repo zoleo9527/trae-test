@@ -95,7 +95,6 @@ model HarvestRecord {
   creator      User            @relation("harvest_creator", fields: [creatorId], references: [id])
   assignee     User?           @relation("harvest_assignee", fields: [assigneeId], references: [id])
   loadings     LoadingRecord[]
-  audits       AuditLog[]      @relation("harvest_audits")
 
   @@map("harvest_records")
 }
@@ -117,7 +116,6 @@ model LoadingRecord {
 
   harvest  HarvestRecord  @relation(fields: [harvestId], references: [id])
   visits   CustomerVisit[]
-  audits   AuditLog[]     @relation("loading_audits")
 
   @@map("loading_records")
 }
@@ -144,7 +142,6 @@ model MaintenanceRecord {
   plot     Plot           @relation(fields: [plotId], references: [id])
   batch    SeedlingBatch? @relation(fields: [batchId], references: [id])
   worker   User           @relation(fields: [workerId], references: [id])
-  audits   AuditLog[]     @relation("maintenance_audits")
 
   @@map("maintenance_records")
 }
@@ -171,7 +168,6 @@ model DiseaseReport {
   plot     Plot           @relation(fields: [plotId], references: [id])
   batch    SeedlingBatch? @relation(fields: [batchId], references: [id])
   reporter User           @relation(fields: [reporterId], references: [id])
-  audits   AuditLog[]     @relation("disease_audits")
 
   @@map("disease_reports")
 }
@@ -198,7 +194,6 @@ model CustomerVisit {
   loading      LoadingRecord?      @relation(fields: [loadingId], references: [id])
   sales        User                @relation(fields: [salesId], references: [id])
   negotiations ReseedNegotiation[]
-  audits       AuditLog[]          @relation("visit_audits")
 
   @@map("customer_visits")
 }
@@ -228,7 +223,6 @@ model ReseedNegotiation {
   creator          User                       @relation("negotiation_creator", fields: [creatorId], references: [id])
   currentHandler   User?                      @relation("negotiation_handler", fields: [currentHandlerId], references: [id])
   statusHistory    NegotiationStatusHistory[]
-  audits           AuditLog[]                 @relation("negotiation_audits")
 
   @@map("reseed_negotiations")
 }
@@ -284,12 +278,6 @@ model AuditLog {
   createdAt     DateTime @default(now())
 
   user                User?               @relation("audit_user", fields: [userId], references: [id])
-  harvestAudit        HarvestRecord?      @relation("harvest_audits", fields: [entityId], references: [id])
-  loadingAudit        LoadingRecord?      @relation("loading_audits", fields: [entityId], references: [id])
-  maintenanceAudit    MaintenanceRecord?  @relation("maintenance_audits", fields: [entityId], references: [id])
-  diseaseAudit        DiseaseReport?      @relation("disease_audits", fields: [entityId], references: [id])
-  visitAudit          CustomerVisit?      @relation("visit_audits", fields: [entityId], references: [id])
-  negotiationAudit    ReseedNegotiation?  @relation("negotiation_audits", fields: [entityId], references: [id])
 
   @@index([entityType, entityId])
   @@index([userId, createdAt])

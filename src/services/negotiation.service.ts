@@ -1,9 +1,9 @@
-import prisma from '../lib/prisma';
-import logger from '../lib/logger';
-import { createAuditLog, trackChanges } from '../middleware/audit.middleware';
-import todoService from './todo.service';
-import { NegotiationStatus, AuditAction, TodoType, Role, NEGOTIATION_STATUS, AUDIT_ACTION, TODO_TYPE, ROLE } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import logger from '../lib/logger';
+import prisma from '../lib/prisma';
+import { createAuditLog, trackChanges } from '../middleware/audit.middleware';
+import { AUDIT_ACTION, NEGOTIATION_STATUS, NegotiationStatus, Role, ROLE, TODO_TYPE } from '../types';
+import todoService from './todo.service';
 
 export interface CreateNegotiationRequest {
   idempotencyKey: string;
@@ -166,12 +166,59 @@ export class NegotiationService {
   async updateStatus(data: UpdateNegotiationStatusRequest) {
     const { negotiationId, userId, newStatus, changeReason } = data;
 
-    const negotiation = await prisma.reseedNegotiation.findUnique({
-      where: { id: negotiationId },
-    });
+    const [negotiation, user] = await Promise.all([
+      prisma.reseedNegotiation.findUnique({
+        where: { id: negotiationId },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true, name: true },
+      }),
+    ]);
 
     if (!negotiation) {
       throw new Error('协商记录不存在');
+    }
+
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+
+    const userRole = user.role as Role;
+
+    const canPerformAction = () => {
+      switch (newStatus) {
+        case NEGOTIATION_STATUS.APPROVED:
+        case NEGOTIATION_STATUS.REJECTED:
+        case NEGOTIATION_STATUS.REWORK_REQUIRED:
+          return userRole === ROLE.BASE_MANAGER;
+        case NEGOTIATION_STATUS.IMPLEMENTING:
+        case NEGOTIATION_STATUS.COMPLETED:
+          return (
+            userRole === ROLE.MAINTENANCE_WORKER &&
+            negotiation.currentHandlerId === userId
+          );
+        case NEGOTIATION_STATUS.CUSTOMER_CONFIRMED:
+          return (
+            userRole === ROLE.SALES_COORDINATOR &&
+            negotiation.creatorId === userId
+          );
+        case NEGOTIATION_STATUS.MANAGER_REVIEW:
+          return negotiation.creatorId === userId;
+        case NEGOTIATION_STATUS.DRAFT:
+          return negotiation.creatorId === userId;
+        case NEGOTIATION_STATUS.SUBMITTED:
+          return negotiation.creatorId === userId;
+        default:
+          return false;
+      }
+    };
+
+    if (!canPerformAction()) {
+      logger.warn(
+        `用户 ${user.name}(${userRole}) 尝试越权操作协商 ${negotiationId} 状态变更为 ${newStatus}`
+      );
+      throw new Error('权限不足，无法执行此操作');
     }
 
     const oldStatus = negotiation.status as NegotiationStatus;
@@ -319,8 +366,8 @@ export class NegotiationService {
     return updated;
   }
 
-  async getNegotiationDetail(negotiationId: string) {
-    return prisma.reseedNegotiation.findUnique({
+  async getNegotiationDetail(negotiationId: string, userId: string, role: Role) {
+    const negotiation = await prisma.reseedNegotiation.findUnique({
       where: { id: negotiationId },
       include: {
         creator: { select: { id: true, name: true, role: true } },
@@ -344,13 +391,36 @@ export class NegotiationService {
           orderBy: { createdAt: 'desc' },
           include: { changedBy: { select: { id: true, name: true, role: true } } },
         },
-        audits: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          include: { user: { select: { id: true, name: true, role: true } } },
-        },
       },
     });
+
+    if (!negotiation) {
+      return null;
+    }
+
+    if (role === ROLE.MAINTENANCE_WORKER && negotiation.currentHandlerId !== userId) {
+      logger.warn(`养护员 ${userId} 尝试越权查看协商 ${negotiationId}`);
+      throw new Error('权限不足，无法查看此协商记录');
+    }
+    if (role === ROLE.SALES_COORDINATOR && negotiation.creatorId !== userId) {
+      logger.warn(`销售 ${userId} 尝试越权查看协商 ${negotiationId}`);
+      throw new Error('权限不足，无法查看此协商记录');
+    }
+
+    const audits = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'ReseedNegotiation',
+        entityId: negotiationId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { user: { select: { id: true, name: true, role: true } } },
+    });
+
+    return {
+      ...negotiation,
+      audits,
+    };
   }
 
   async getNegotiationList(options?: {

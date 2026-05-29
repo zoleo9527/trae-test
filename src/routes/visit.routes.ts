@@ -82,8 +82,14 @@ router.get(
   requireRole([ROLE.BASE_MANAGER, ROLE.SALES_COORDINATOR]),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {
+      if (!req.user) throw new Error('用户未认证');
+
       const { id } = req.params;
-      const result = await visitService.getVisitDetail(id);
+      const result = await visitService.getVisitDetail(
+        id,
+        req.user.userId,
+        req.user.role
+      );
 
       if (!result) {
         return res.status(404).json({
@@ -97,7 +103,7 @@ router.get(
         data: result,
       });
     } catch (error) {
-      res.status(500).json({
+      res.status(error instanceof Error && error.message.includes('权限不足') ? 403 : 500).json({
         success: false,
         error: error instanceof Error ? error.message : '查询失败',
       });
@@ -108,6 +114,8 @@ router.get(
 router.patch(
   '/:id/followup',
   requireRole([ROLE.SALES_COORDINATOR]),
+  requireIdempotency,
+  checkIdempotency,
   validate(markFollowedUpSchema),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {

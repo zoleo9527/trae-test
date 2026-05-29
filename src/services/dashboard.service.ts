@@ -30,7 +30,7 @@ export class DashboardService {
       this.getNeedFollowUpNegotiations(userId, role),
       this.getUnresolvedDiseases(userId, role),
       this.getNeedFollowUpVisits(userId, role),
-      this.getRecentActivities(),
+      this.getRecentActivities(userId, role),
       this.getOverallStats(),
     ]);
 
@@ -208,8 +208,21 @@ export class DashboardService {
     });
   }
 
-  private async getRecentActivities() {
+  private async getRecentActivities(userId: string, role: Role) {
+    const where: Record<string, unknown> = {};
+
+    if (role === ROLE.MAINTENANCE_WORKER) {
+      where.entityType = {
+        in: ['MaintenanceRecord', 'DiseaseReport', 'HarvestRecord', 'TodoItem'],
+      };
+    } else if (role === ROLE.SALES_COORDINATOR) {
+      where.entityType = {
+        in: ['CustomerVisit', 'ReseedNegotiation', 'TodoItem'],
+      };
+    }
+
     return prisma.auditLog.findMany({
+      where,
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {

@@ -220,8 +220,8 @@ export class VisitService {
     };
   }
 
-  async getVisitDetail(visitId: string) {
-    return prisma.customerVisit.findUnique({
+  async getVisitDetail(visitId: string, userId: string, role: Role) {
+    const visit = await prisma.customerVisit.findUnique({
       where: { id: visitId },
       include: {
         sales: { select: { id: true, name: true, role: true } },
@@ -246,13 +246,32 @@ export class VisitService {
             },
           },
         },
-        audits: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-          include: { user: { select: { id: true, name: true, role: true } } },
-        },
       },
     });
+
+    if (!visit) {
+      return null;
+    }
+
+    if (role === ROLE.SALES_COORDINATOR && visit.salesId !== userId) {
+      logger.warn(`销售 ${userId} 尝试越权查看回访 ${visitId}`);
+      throw new Error('权限不足，无法查看此回访记录');
+    }
+
+    const audits = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'CustomerVisit',
+        entityId: visitId,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { user: { select: { id: true, name: true, role: true } } },
+    });
+
+    return {
+      ...visit,
+      audits,
+    };
   }
 
   async getNeedFollowUpVisits(userId: string, role: Role) {

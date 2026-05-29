@@ -1,17 +1,17 @@
-import { Router, Response } from 'express';
-import maintenanceService from '../services/maintenance.service';
-import { authenticate, requireRole } from '../middleware/auth.middleware';
-import { requireIdempotency, checkIdempotency } from '../middleware/idempotency.middleware';
-import { validate } from '../middleware/validation.middleware';
-import {
-  createMaintenanceSchema,
-  reviewMaintenanceSchema,
-  createDiseaseReportSchema,
-  resolveDiseaseSchema,
-  paginationSchema,
-} from '../validations';
-import { AuthenticatedRequest, ApiResponse, Role, MaintenanceType, DiseaseSeverity, ROLE, MAINTENANCE_TYPE, DISEASE_SEVERITY } from '../types';
+import { Response, Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { authenticate, requireRole } from '../middleware/auth.middleware';
+import { checkIdempotency, requireIdempotency } from '../middleware/idempotency.middleware';
+import { validate } from '../middleware/validation.middleware';
+import maintenanceService from '../services/maintenance.service';
+import { ApiResponse, AuthenticatedRequest, DiseaseSeverity, MaintenanceType, ROLE } from '../types';
+import {
+  createDiseaseReportSchema,
+  createMaintenanceSchema,
+  paginationSchema,
+  resolveDiseaseSchema,
+  reviewMaintenanceSchema,
+} from '../validations';
 
 const router = Router();
 
@@ -85,6 +85,8 @@ router.get(
 router.patch(
   '/:id/review',
   requireRole([ROLE.BASE_MANAGER]),
+  requireIdempotency,
+  checkIdempotency,
   validate(reviewMaintenanceSchema),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {
@@ -182,6 +184,8 @@ router.get(
 router.patch(
   '/disease/:id/resolve',
   requireRole([ROLE.BASE_MANAGER]),
+  requireIdempotency,
+  checkIdempotency,
   validate(resolveDiseaseSchema),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {

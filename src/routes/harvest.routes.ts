@@ -79,6 +79,8 @@ router.get(
 router.patch(
   '/:id/status',
   requireRole([ROLE.BASE_MANAGER, ROLE.MAINTENANCE_WORKER]),
+  requireIdempotency,
+  checkIdempotency,
   validate(updateHarvestStatusSchema),
   async (req: AuthenticatedRequest, res: Response<ApiResponse>) => {
     try {
