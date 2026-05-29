@@ -617,11 +617,23 @@ ipcMain.handle('db:signReturnOrderItem', (_, data: {
   const item = db?.prepare('SELECT * FROM return_order_items WHERE id = ?').get(data.item_id) as any
   if (!item) throw new Error('回单项不存在')
   
+  const orderItem = db?.prepare('SELECT return_order_id FROM return_order_items WHERE id = ?').get(data.item_id) as any
+  const order = db?.prepare('SELECT batch_id FROM return_orders WHERE id = ?').get(orderItem.return_order_id) as any
+  
   db?.prepare(`
     UPDATE return_order_items 
     SET status = 'signed', signed_at = CURRENT_TIMESTAMP, signed_by = ?, damage_found = ?, damage_note = ?
     WHERE id = ?
   `).run(data.signed_by, data.damage_found || 0, data.damage_note || '', data.item_id)
+  
+  if (data.damage_found && data.damage_note) {
+    db?.prepare(`
+      INSERT INTO damage_records (clothes_id, damage_type, description, severity, evidence_photos, reported_by, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(data.clothes_id, '签收发现新污损', data.damage_note, 'major', '', data.signed_by, 'pending')
+    
+    db?.prepare('UPDATE clothes SET has_damage = 1 WHERE id = ?').run(data.clothes_id)
+  }
   
   db?.prepare(`
     UPDATE clothes 
@@ -629,37 +641,43 @@ ipcMain.handle('db:signReturnOrderItem', (_, data: {
     WHERE id = ?
   `).run(data.clothes_id)
   
-  const orderItem = db?.prepare('SELECT return_order_id FROM return_order_items WHERE id = ?').get(data.item_id) as any
-  const order = db?.prepare(`
+  const orderWithCount = db?.prepare(`
     SELECT ro.*, (SELECT COUNT(*) FROM return_order_items WHERE return_order_id = ro.id AND status = 'signed') as signed_count
     FROM return_orders ro WHERE ro.id = ?
   `).get(orderItem.return_order_id) as any
   
   db?.prepare(`
     UPDATE return_orders SET signed_count = ? WHERE id = ?
-  `).run(order.signed_count, orderItem.return_order_id)
+  `).run(orderWithCount.signed_count, orderItem.return_order_id)
   
-  if (order.signed_count >= order.total_count) {
+  if (orderWithCount.signed_count >= orderWithCount.total_count) {
     db?.prepare(`
       UPDATE return_orders 
       SET status = 'completed', signed_at = CURRENT_TIMESTAMP, signed_by = ?
       WHERE id = ?
     `).run(data.signed_by, orderItem.return_order_id)
     
-    db?.prepare(`
-      UPDATE batches 
-      SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
-      WHERE id = (SELECT batch_id FROM return_orders WHERE id = ?)
-    `).run(data.signed_by, orderItem.return_order_id)
+    const remaining = db?.prepare(`
+      SELECT COUNT(*) as count FROM clothes 
+      WHERE batch_id = ? AND status NOT IN ('returned', 'return_to_store')
+    `).get(order.batch_id) as any
+    
+    if (!remaining || remaining.count === 0) {
+      db?.prepare(`
+        UPDATE batches 
+        SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
+        WHERE id = ?
+      `).run(data.signed_by, order.batch_id)
+    }
   }
   
   db?.prepare(`
     INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name, note)
-    VALUES (?, (SELECT batch_id FROM return_orders WHERE id = ?), ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?)
   `).run(
     data.clothes_id, 
-    orderItem.return_order_id,
-    data.damage_found ? '门店签收（发现新污损）' : '门店签收确认',
+    order.batch_id,
+    data.damage_found ? '门店签收（发现新污损，已上报）' : '门店签收确认',
     data.signed_by,
     data.signed_by_name,
     data.damage_note || ''
@@ -673,6 +691,7 @@ ipcMain.handle('db:batchSignReturnOrder', (_, data: {
   signed_by: number;
   signed_by_name: string;
 }) => {
+  const order = db?.prepare('SELECT batch_id FROM return_orders WHERE id = ?').get(data.order_id) as any
   const items = db?.prepare('SELECT * FROM return_order_items WHERE return_order_id = ? AND status = ?').all(data.order_id, 'pending') as any[]
   
   const transaction = db?.transaction(() => {
@@ -691,10 +710,10 @@ ipcMain.handle('db:batchSignReturnOrder', (_, data: {
       
       db?.prepare(`
         INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
-        VALUES (?, (SELECT batch_id FROM return_orders WHERE id = ?), ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
       `).run(
         item.clothes_id, 
-        data.order_id,
+        order.batch_id,
         '门店批量签收确认',
         data.signed_by,
         data.signed_by_name
@@ -707,11 +726,18 @@ ipcMain.handle('db:batchSignReturnOrder', (_, data: {
       WHERE id = ?
     `).run(data.signed_by, data.order_id)
     
-    db?.prepare(`
-      UPDATE batches 
-      SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
-      WHERE id = (SELECT batch_id FROM return_orders WHERE id = ?)
-    `).run(data.signed_by, data.order_id)
+    const remaining = db?.prepare(`
+      SELECT COUNT(*) as count FROM clothes 
+      WHERE batch_id = ? AND status NOT IN ('returned', 'return_to_store')
+    `).get(order.batch_id) as any
+    
+    if (!remaining || remaining.count === 0) {
+      db?.prepare(`
+        UPDATE batches 
+        SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
+        WHERE id = ?
+      `).run(data.signed_by, order.batch_id)
+    }
   })
   
   transaction?.()
