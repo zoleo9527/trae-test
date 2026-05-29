@@ -20,6 +20,7 @@ const statusTabs = [
 export default function Loading() {
   const [loadingList, setLoadingList] = useState([]);
   const [completedOrders, setCompletedOrders] = useState([]);
+  const [existingLoadingOrderIds, setExistingLoadingOrderIds] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('全部');
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -39,6 +40,12 @@ export default function Loading() {
       if (activeTab !== '全部') params.status = activeTab;
       const res = await api.get('/loading', { params });
       setLoadingList(res.data);
+      const occupiedIds = new Set(
+        res.data
+          .filter(item => item.status !== '已复核' && item.status !== '异常')
+          .map(item => item.order_id)
+      );
+      setExistingLoadingOrderIds(occupiedIds);
     } catch (err) {
       console.error(err);
       message.error('获取装车记录失败');
@@ -67,7 +74,7 @@ export default function Loading() {
     try {
       const values = await createForm.validateFields();
       setConfirmLoading(true);
-      const selectedOrder = completedOrders.find(o => o.id === values.order_id);
+      const selectedOrder = availableCompletedOrders.find(o => o.id === values.order_id);
       await api.post('/loading', {
         order_id: values.order_id,
         checker_id: user?.id,
@@ -97,7 +104,7 @@ export default function Loading() {
   };
 
   const handleOrderChange = (orderId) => {
-    const selectedOrder = completedOrders.find(o => o.id === orderId);
+    const selectedOrder = availableCompletedOrders.find(o => o.id === orderId);
     createForm.setFieldsValue({ planned_qty: selectedOrder?.requested_count || 0 });
   };
 
@@ -157,6 +164,10 @@ export default function Loading() {
   const filteredList = activeTab === '全部'
     ? loadingList
     : loadingList.filter(item => item.status === activeTab);
+
+  const availableCompletedOrders = completedOrders.filter(
+    o => !existingLoadingOrderIds.has(o.id)
+  );
 
   const columns = [
     {
@@ -296,7 +307,7 @@ export default function Loading() {
         <Form form={createForm} layout="vertical">
           <Form.Item name="order_id" label="关联排单" rules={[{ required: true, message: '请选择关联排单' }]}>
             <Select placeholder="请选择已完成排单" onChange={handleOrderChange}>
-              {completedOrders.map(o => (
+              {availableCompletedOrders.map(o => (
                 <Select.Option key={o.id} value={o.id}>
                   {o.order_no} - {o.seedling_type} x{o.requested_count}
                 </Select.Option>

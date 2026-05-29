@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Drawer, Descriptions, Form, Input, Button, Popconfirm, message, Space, Typography, Divider } from 'antd';
 import StatusTag from './StatusTag';
 import AuditTimeline from './AuditTimeline';
@@ -11,22 +11,25 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [currentRecord, setCurrentRecord] = useState(null);
 
   useEffect(() => {
     if (open && record) {
+      setCurrentRecord(record);
       form.resetFields();
       if (record.resolution) {
         form.setFieldsValue({ resolution: record.resolution });
       }
-      fetchAuditLogs();
+      fetchAuditLogs(record.id);
     }
   }, [open, record]);
 
-  const fetchAuditLogs = async () => {
-    if (!record) return;
+  const fetchAuditLogs = async (id) => {
+    const targetId = id || currentRecord?.id;
+    if (!targetId) return;
     try {
       const res = await api.get('/audit-logs', {
-        params: { target_type: 'exception_record', target_id: record.id },
+        params: { target_type: 'exception_record', target_id: targetId },
       });
       setAuditLogs(res.data || []);
     } catch {
@@ -34,7 +37,22 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
     }
   };
 
-  if (!record) return null;
+  const refreshRecord = useCallback(async () => {
+    if (!currentRecord) return;
+    try {
+      const res = await api.get(`/exceptions/${currentRecord.id}`);
+      setCurrentRecord(res.data);
+      form.resetFields();
+      if (res.data.resolution) {
+        form.setFieldsValue({ resolution: res.data.resolution });
+      }
+      fetchAuditLogs(res.data.id);
+    } catch {
+      message.error('刷新异常信息失败');
+    }
+  }, [currentRecord]);
+
+  if (!currentRecord) return null;
 
   const handleStart = async () => {
     try {
@@ -45,10 +63,11 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
     setSubmitting(true);
     try {
       const resolution = form.getFieldValue('resolution');
-      await api.put(`/exceptions/${record.id}/handle`, null, {
+      await api.put(`/exceptions/${currentRecord.id}/handle`, null, {
         params: { resolution },
       });
       message.success('已开始处理');
+      await refreshRecord();
       onRefresh?.();
     } catch {
       message.error('操作失败');
@@ -66,10 +85,11 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
     setSubmitting(true);
     try {
       const resolution = form.getFieldValue('resolution');
-      await api.put(`/exceptions/${record.id}/close`, null, {
+      await api.put(`/exceptions/${currentRecord.id}/close`, null, {
         params: { resolution },
       });
       message.success('异常已关闭');
+      await refreshRecord();
       onRefresh?.();
     } catch {
       message.error('操作失败');
@@ -78,28 +98,28 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
     }
   };
 
-  const status = record.status;
+  const status = currentRecord.status;
 
   return (
     <Drawer open={open} onClose={onClose} width={640} title="异常处理">
       <Descriptions column={1} bordered size="small" style={{ marginBottom: 24 }}>
-        <Descriptions.Item label="异常类型">{record.exception_type}</Descriptions.Item>
+        <Descriptions.Item label="异常类型">{currentRecord.exception_type}</Descriptions.Item>
         <Descriptions.Item label="严重程度">
-          <StatusTag status={record.severity} type="severity" />
+          <StatusTag status={currentRecord.severity} type="severity" />
         </Descriptions.Item>
-        <Descriptions.Item label="来源">{record.source_type} #{record.source_id}</Descriptions.Item>
+        <Descriptions.Item label="来源">{currentRecord.source_type} #{currentRecord.source_id}</Descriptions.Item>
         <Descriptions.Item label="状态">
-          <StatusTag status={record.status} type="exception" />
+          <StatusTag status={currentRecord.status} type="exception" />
         </Descriptions.Item>
-        <Descriptions.Item label="描述">{record.description}</Descriptions.Item>
-        {record.handler && (
-          <Descriptions.Item label="处理人">{record.handler.display_name}</Descriptions.Item>
+        <Descriptions.Item label="描述">{currentRecord.description}</Descriptions.Item>
+        {currentRecord.handler && (
+          <Descriptions.Item label="处理人">{currentRecord.handler.display_name}</Descriptions.Item>
         )}
-        {record.handled_at && (
-          <Descriptions.Item label="处理时间">{record.handled_at}</Descriptions.Item>
+        {currentRecord.handled_at && (
+          <Descriptions.Item label="处理时间">{currentRecord.handled_at}</Descriptions.Item>
         )}
-        {record.closed_at && (
-          <Descriptions.Item label="关闭时间">{record.closed_at}</Descriptions.Item>
+        {currentRecord.closed_at && (
+          <Descriptions.Item label="关闭时间">{currentRecord.closed_at}</Descriptions.Item>
         )}
       </Descriptions>
 
@@ -131,10 +151,10 @@ export default function ExceptionDrawer({ open, onClose, record, onRefresh }) {
         {status === '已关闭' && (
           <Space direction="vertical" style={{ width: '100%' }}>
             <Text type="success" strong>✓ 异常已关闭</Text>
-            {record.resolution && (
+            {currentRecord.resolution && (
               <div>
                 <Text strong>处理结果：</Text>
-                <Text>{record.resolution}</Text>
+                <Text>{currentRecord.resolution}</Text>
               </div>
             )}
           </Space>

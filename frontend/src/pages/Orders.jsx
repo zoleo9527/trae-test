@@ -81,6 +81,7 @@ export default function Orders() {
       setModalOpen(false);
       form.resetFields();
       fetchOrders();
+      fetchPlots();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -126,6 +127,7 @@ export default function Orders() {
       await api.put(`/orders/${id}/complete`);
       message.success('起苗完成');
       fetchOrders();
+      fetchPlots();
     } catch (err) {
       console.error(err);
       message.error('操作失败');
@@ -142,6 +144,8 @@ export default function Orders() {
       message.error('获取异常信息失败');
     }
   };
+
+  const availablePlots = plots.filter(p => p.status !== '已起苗' && p.available_count > 0);
 
   const handlePlotChange = (plotId) => {
     const selectedPlot = plots.find(p => p.id === plotId);
@@ -304,7 +308,7 @@ export default function Orders() {
         <Form form={form} layout="vertical">
           <Form.Item name="plot_id" label="地块选择" rules={[{ required: true, message: '请选择地块' }]}>
             <Select placeholder="请选择地块" onChange={handlePlotChange}>
-              {plots.map(p => (
+              {availablePlots.map(p => (
                 <Select.Option key={p.id} value={p.id}>{p.plot_code} - {p.seedling_type}（可用{p.available_count}棵）</Select.Option>
               ))}
             </Select>
