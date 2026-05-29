@@ -31,7 +31,7 @@ router.get('/:id', getRefundOrderController);
 router.get('/inquiry/:inquiryId', getRefundOrderByInquiryController);
 router.get('/return/:returnOrderId', getRefundOrderByReturnController);
 router.put('/:id', requirePermission(OperationType.UPDATE), validate(RefundOrderUpdateSchema), updateRefundOrderController);
-router.patch('/:id/status', requirePermission(OperationType.APPROVE), validate(StatusUpdateSchema), updateRefundOrderStatusController);
+router.patch('/:id/status', validate(StatusUpdateSchema), updateRefundOrderStatusController);
 router.post('/:id/remarks', requirePermission(OperationType.ADD_REMARK), validate(RemarkAddSchema), addRefundOrderRemarkController);
 
 export default router;

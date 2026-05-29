@@ -29,7 +29,7 @@ router.post('/', requirePermission(OperationType.LOCK), idempotency, validate(St
 router.get('/:id', getStockLockController);
 router.get('/inquiry/:inquiryId', getStockLockByInquiryController);
 router.put('/:id', requirePermission(OperationType.LOCK), validate(StockLockUpdateSchema), updateStockLockController);
-router.patch('/:id/status', requirePermission(OperationType.LOCK), validate(StatusUpdateSchema), updateStockLockStatusController);
+router.patch('/:id/status', validate(StatusUpdateSchema), updateStockLockStatusController);
 router.post('/:id/remarks', requirePermission(OperationType.ADD_REMARK), validate(RemarkAddSchema), addStockLockRemarkController);
 
 export default router;

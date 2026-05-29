@@ -354,10 +354,10 @@ const DOC_TYPE_CONFIG = {
     statusEnum: [],
     columns: [
       { key: 'operationType', label: '操作类型', width: '120px', format: v => OperationTypeLabel[v] || v },
-      { key: 'operator', label: '操作人', width: '100px', format: v => v?.realName || '-' },
+      { key: 'operatorName', label: '操作人', width: '100px' },
       { key: 'inquiry', label: '询价单', width: '140px', format: v => v?.inquiryNo || '-' },
-      { key: 'oldStatus', label: '原状态', width: '100px', format: v => v ? InquiryStatusLabel[v] || v : '-' },
-      { key: 'newStatus', label: '新状态', width: '100px', format: v => v ? InquiryStatusLabel[v] || v : '-' },
+      { key: 'oldStatus', label: '原状态', width: '100px', format: v => v ? getStatusLabel(v) : '-' },
+      { key: 'newStatus', label: '新状态', width: '100px', format: v => v ? getStatusLabel(v) : '-' },
       { key: 'ipAddress', label: 'IP地址', width: '120px' },
       { key: 'userAgent', label: '客户端', width: '180px', format: v => (v || '').substring(0, 30) + ((v || '').length > 30 ? '...' : '') },
       { key: 'createdAt', label: '操作时间', width: '160px', format: formatDate },
@@ -810,10 +810,10 @@ function renderDetail(data) {
       <div class="evidence-list">
         ${data.evidences.map(ev => `
           <div class="evidence-item">
-            <div class="evidence-icon">${getEvidenceIcon(ev.type)}</div>
+            <div class="evidence-icon">${getEvidenceIcon(ev.evidenceType)}</div>
             <div>
-              <div>${ev.fileName || EvidenceTypeLabel[ev.type] || ev.type}</div>
-              ${ev.remark ? `<div class="evidence-remark">${ev.remark}</div>` : ''}
+              <div>${ev.fileName || EvidenceTypeLabel[ev.evidenceType] || ev.evidenceType}</div>
+              ${ev.description ? `<div class="evidence-remark">${ev.description}</div>` : ''}
             </div>
           </div>
         `).join('')}
