@@ -114,6 +114,8 @@ func (c *CustomerController) Delete(ctx *fiber.Ctx) error {
 }
 
 func (c *CustomerController) List(ctx *fiber.Ctx) error {
+	user := util.GetUserFromContext(ctx)
+
 	var filter dto.CustomerFilter
 	if err := ctx.BodyParser(&filter); err != nil {
 		filter.Page = 1
@@ -127,7 +129,7 @@ func (c *CustomerController) List(ctx *fiber.Ctx) error {
 		filter.PageSize = 20
 	}
 
-	customers, total, err := c.customerService.List(&filter)
+	customers, total, err := c.customerService.List(user, &filter)
 	if err != nil {
 		return util.Error(ctx, fiber.StatusInternalServerError, string(apperrors.ErrCodeInternal), "获取客户列表失败", err.Error())
 	}

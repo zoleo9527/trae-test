@@ -1,8 +1,6 @@
 package service
 
 import (
-	"time"
-
 	"autoparts/internal/config"
 	"autoparts/internal/dto"
 	"autoparts/internal/model"
@@ -91,8 +89,16 @@ func (s *EnquiryService) Update(user *model.User, id uint, req *dto.UpdateEnquir
 		return nil, err
 	}
 
-	if enquiry.Status != model.EnquiryStatusDraft && enquiry.Status != model.EnquiryStatusPending {
-		return nil, apperrors.NewStateConflictError("询价单状态不允许修改")
+	if req.Status != nil {
+		newStatus := model.EnquiryStatus(*req.Status)
+		if !s.isValidStatusTransition(enquiry.Status, newStatus) {
+			return nil, apperrors.NewStateConflictError("无效的状态转换: " + string(enquiry.Status) + " -> " + string(newStatus))
+		}
+	}
+
+	canEditItems := enquiry.Status == model.EnquiryStatusDraft || enquiry.Status == model.EnquiryStatusPending
+	if req.Items != nil && len(req.Items) > 0 && !canEditItems {
+		return nil, apperrors.NewStateConflictError("询价单状态不允许修改明细")
 	}
 
 	tx := config.DB.Begin()
@@ -376,6 +382,56 @@ func (s *EnquiryService) GetChainTrace(enquiryID uint) (*dto.EnquiryDetailRespon
 			Status:      lock.Status,
 			TotalAmount: lock.TotalAmount,
 			CreatedAt:   lock.CreatedAt,
+		}
+	}
+
+	enquiryIDs := []uint{enquiryID}
+	quoteIDs := make([]uint, len(enquiry.Quotes))
+	for i, q := range enquiry.Quotes {
+		quoteIDs[i] = q.ID
+	}
+	lockIDs := make([]uint, len(enquiry.LockOrders))
+	for i, l := range enquiry.LockOrders {
+		lockIDs[i] = l.ID
+	}
+
+	var allAuditLogs []model.AuditLog
+	query := config.DB.Model(&model.AuditLog{}).Preload("User")
+
+	if len(enquiryIDs) > 0 {
+		query = query.Or("module = ? AND record_id IN ?", "enquiry", enquiryIDs)
+	}
+	if len(quoteIDs) > 0 {
+		query = query.Or("module = ? AND record_id IN ?", "quote", quoteIDs)
+	}
+	if len(lockIDs) > 0 {
+		query = query.Or("module = ? AND record_id IN ?", "lock", lockIDs)
+	}
+
+	if err := query.Order("created_at DESC").Find(&allAuditLogs).Error; err != nil {
+		return nil, err
+	}
+
+	resp.AuditLogs = make([]dto.AuditLogResponse, len(allAuditLogs))
+	for i, log := range allAuditLogs {
+		userName := log.UserName
+		if log.User != nil {
+			userName = log.User.Name
+		}
+		resp.AuditLogs[i] = dto.AuditLogResponse{
+			ID:        log.ID,
+			Action:    log.Action,
+			Module:    log.Module,
+			RecordID:  log.RecordID,
+			RecordNo:  log.RecordNo,
+			FieldName: log.FieldName,
+			OldValue:  log.OldValue,
+			NewValue:  log.NewValue,
+			UserID:    log.UserID,
+			UserName:  userName,
+			IPAddress: log.IPAddress,
+			Remark:    log.Remark,
+			CreatedAt: log.CreatedAt,
 		}
 	}
 

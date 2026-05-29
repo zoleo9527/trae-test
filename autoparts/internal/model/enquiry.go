@@ -18,13 +18,15 @@ const (
 
 type Customer struct {
 	BaseModel
-	Name       string `gorm:"size:100;not null" json:"name"`
-	Phone      string `gorm:"size:20;index" json:"phone"`
+	Name         string `gorm:"size:100;not null" json:"name"`
+	Phone        string `gorm:"size:20;index" json:"phone"`
 	LicensePlate string `gorm:"size:20;index" json:"license_plate"`
-	CarModel   string `gorm:"size:50" json:"car_model"`
-	IsCredit   bool   `gorm:"default:false" json:"is_credit"`
-	CreditDays int    `gorm:"default:0" json:"credit_days"`
-	Remark     string `gorm:"type:text" json:"remark"`
+	CarModel     string `gorm:"size:50" json:"car_model"`
+	IsCredit     bool   `gorm:"default:false" json:"is_credit"`
+	CreditDays   int    `gorm:"default:0" json:"credit_days"`
+	CreatedByID  uint   `gorm:"index;not null" json:"created_by_id"`
+	CreatedBy    *User  `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+	Remark       string `gorm:"type:text" json:"remark"`
 }
 
 type Enquiry struct {

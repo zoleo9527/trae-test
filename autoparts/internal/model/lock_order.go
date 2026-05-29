@@ -50,21 +50,22 @@ type LockOrder struct {
 
 type LockItem struct {
 	BaseModel
-	LockOrderID uint         `gorm:"index;not null" json:"lock_order_id"`
-	QuoteItemID uint         `gorm:"index" json:"quote_item_id"`
-	PartID      uint         `gorm:"index;not null" json:"part_id"`
-	Part        *Part        `gorm:"foreignKey:PartID" json:"part,omitempty"`
-	PartNumber  string       `gorm:"size:50" json:"part_number"`
-	PartName    string       `gorm:"size:100;not null" json:"part_name"`
-	Brand       string       `gorm:"size:50" json:"brand"`
-	Quantity    int          `gorm:"not null" json:"quantity"`
-	LockedQty   int          `gorm:"not null" json:"locked_qty"`
-	PickedQty   int          `gorm:"default:0" json:"picked_qty"`
-	ReturnedQty int          `gorm:"default:0" json:"returned_qty"`
-	UnitPrice   float64      `gorm:"type:decimal(10,2);not null" json:"unit_price"`
-	Amount      float64      `gorm:"type:decimal(10,2);not null" json:"amount"`
-	Location    string       `gorm:"size:50" json:"location"`
+	LockOrderID  uint         `gorm:"index;not null" json:"lock_order_id"`
+	QuoteItemID  uint         `gorm:"index" json:"quote_item_id"`
+	PartID       uint         `gorm:"index;not null" json:"part_id"`
+	Part         *Part        `gorm:"foreignKey:PartID" json:"part,omitempty"`
+	PartNumber   string       `gorm:"size:50" json:"part_number"`
+	PartName     string       `gorm:"size:100;not null" json:"part_name"`
+	Brand        string       `gorm:"size:50" json:"brand"`
+	Quantity     int          `gorm:"not null" json:"quantity"`
+	LockedQty    int          `gorm:"not null" json:"locked_qty"`
+	PickedQty    int          `gorm:"default:0" json:"picked_qty"`
+	ReturnQty    int          `gorm:"default:0" json:"return_qty"`
+	ReturnedQty  int          `gorm:"default:0" json:"returned_qty"`
+	UnitPrice    float64      `gorm:"type:decimal(10,2);not null" json:"unit_price"`
+	Amount       float64      `gorm:"type:decimal(10,2);not null" json:"amount"`
+	Location     string       `gorm:"size:50" json:"location"`
 	ReturnStatus ReturnStatus `gorm:"size:20;default:'none'" json:"return_status"`
 	ReturnReason string       `gorm:"size:500" json:"return_reason"`
-	Remark      string       `gorm:"size:200" json:"remark"`
+	Remark       string       `gorm:"size:200" json:"remark"`
 }

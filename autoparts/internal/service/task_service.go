@@ -233,11 +233,16 @@ func (s *TaskService) exportLock(task *model.AsyncTask) error {
 	var filter dto.LockOrderFilter
 	json.Unmarshal([]byte(task.Params), &filter)
 
+	var user model.User
+	if err := config.DB.First(&user, task.CreatedByID).Error; err != nil {
+		return err
+	}
+
 	lockService := NewLockService()
 	filter.Page = 1
 	filter.PageSize = 10000
 
-	lockOrders, _, err := lockService.List(&filter)
+	lockOrders, _, err := lockService.List(&user, &filter)
 	if err != nil {
 		return err
 	}

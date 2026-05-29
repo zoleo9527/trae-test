@@ -94,6 +94,7 @@ type LockItemResponse struct {
 	Quantity     int                `json:"quantity"`
 	LockedQty    int                `json:"locked_qty"`
 	PickedQty    int                `json:"picked_qty"`
+	ReturnQty    int                `json:"return_qty"`
 	ReturnedQty  int                `json:"returned_qty"`
 	UnitPrice    float64            `json:"unit_price"`
 	Amount       float64            `json:"amount"`

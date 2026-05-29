@@ -47,11 +47,11 @@ func main() {
 	db.Where("name IN ?", []string{"张三-信用客户", "李四-现金客户", "王五-高风险账期", "赵六-高端客户", "孙七-退货大户"}).Find(&customers)
 	if len(customers) == 0 {
 		customers = []model.Customer{
-			{Name: "张三-信用客户", Phone: "13900000001", LicensePlate: "京A12345", CarModel: "大众帕萨特 2019", IsCredit: true, CreditDays: 30, Remark: "老客户，信用良好"},
-			{Name: "李四-现金客户", Phone: "13900000002", LicensePlate: "京B67890", CarModel: "丰田凯美瑞 2020", IsCredit: false, Remark: "只收现金"},
-			{Name: "王五-高风险账期", Phone: "13900000003", LicensePlate: "京C11111", CarModel: "本田雅阁 2018", IsCredit: true, CreditDays: 60, Remark: "账期经常逾期，注意风险"},
-			{Name: "赵六-高端客户", Phone: "13900000004", LicensePlate: "京D22222", CarModel: "奔驰E300L 2021", IsCredit: true, CreditDays: 15, Remark: "高端车，配件要正厂"},
-			{Name: "孙七-退货大户", Phone: "13900000005", LicensePlate: "京E33333", CarModel: "宝马5系 2020", IsCredit: true, CreditDays: 30, Remark: "经常退货，注意核对型号"},
+			{Name: "张三-信用客户", Phone: "13900000001", LicensePlate: "京A12345", CarModel: "大众帕萨特 2019", IsCredit: true, CreditDays: 30, CreatedByID: salesUser.ID, Remark: "老客户，信用良好"},
+			{Name: "李四-现金客户", Phone: "13900000002", LicensePlate: "京B67890", CarModel: "丰田凯美瑞 2020", IsCredit: false, CreatedByID: salesUser.ID, Remark: "只收现金"},
+			{Name: "王五-高风险账期", Phone: "13900000003", LicensePlate: "京C11111", CarModel: "本田雅阁 2018", IsCredit: true, CreditDays: 60, CreatedByID: salesUser.ID, Remark: "账期经常逾期，注意风险"},
+			{Name: "赵六-高端客户", Phone: "13900000004", LicensePlate: "京D22222", CarModel: "奔驰E300L 2021", IsCredit: true, CreditDays: 15, CreatedByID: salesUser.ID, Remark: "高端车，配件要正厂"},
+			{Name: "孙七-退货大户", Phone: "13900000005", LicensePlate: "京E33333", CarModel: "宝马5系 2020", IsCredit: true, CreditDays: 30, CreatedByID: salesUser.ID, Remark: "经常退货，注意核对型号"},
 		}
 		for i := range customers {
 			db.Create(&customers[i])

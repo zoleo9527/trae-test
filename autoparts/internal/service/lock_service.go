@@ -226,7 +226,21 @@ func (s *LockService) Pick(user *model.User, id uint, req *dto.PickLockRequest, 
 			if err := tx.First(&part, item.PartID).Error; err == nil {
 				part.StockQty -= pickQty
 				part.LockedQty -= pickQty
-				tx.Save(&part)
+				if part.StockQty < 0 {
+					part.StockQty = 0
+				}
+				if part.LockedQty < 0 {
+					part.LockedQty = 0
+				}
+				if err := tx.Save(&part).Error; err != nil {
+					tx.Rollback()
+					return nil, apperrors.NewInternalError("更新库存失败", err)
+				}
+			}
+
+			if err := tx.Save(&lockOrder.Items[i]).Error; err != nil {
+				tx.Rollback()
+				return nil, apperrors.NewInternalError("更新锁库明细失败", err)
 			}
 		}
 
@@ -285,6 +299,12 @@ func (s *LockService) RequestReturn(user *model.User, id uint, req *dto.ReturnRe
 
 			lockOrder.Items[i].ReturnStatus = model.ReturnStatusPending
 			lockOrder.Items[i].ReturnReason = retReq.Reason
+			lockOrder.Items[i].ReturnQty = retReq.Quantity
+
+			if err := tx.Save(&lockOrder.Items[i]).Error; err != nil {
+				tx.Rollback()
+				return nil, apperrors.NewInternalError("更新锁库明细退货状态失败", err)
+			}
 		}
 	}
 
@@ -339,17 +359,22 @@ func (s *LockService) ReviewReturn(user *model.User, lockOrderID uint, itemID ui
 	targetItem.ReturnStatus = req.Status
 
 	if req.Status == model.ReturnStatusApproved {
-		returnedQty := targetItem.PickedQty - targetItem.ReturnedQty
-		targetItem.ReturnedQty = targetItem.PickedQty
+		returnQty := targetItem.ReturnQty
+		targetItem.ReturnedQty += returnQty
 
 		var part model.Part
 		if err := tx.First(&part, targetItem.PartID).Error; err == nil {
-			part.StockQty += returnedQty
-			tx.Save(&part)
+			part.StockQty += returnQty
+			if err := tx.Save(&part).Error; err != nil {
+				tx.Rollback()
+				return nil, apperrors.NewInternalError("回写库存失败", err)
+			}
 		}
 	}
 
-	targetItem.Remark += "\n审核: " + req.Reason
+	if req.Reason != "" {
+		targetItem.Remark += "\n审核: " + req.Reason
+	}
 
 	if err := tx.Save(targetItem).Error; err != nil {
 		tx.Rollback()
@@ -388,7 +413,7 @@ func (s *LockService) ReviewReturn(user *model.User, lockOrderID uint, itemID ui
 	return targetItem, nil
 }
 
-func (s *LockService) List(filter *dto.LockOrderFilter) ([]model.LockOrder, int64, error) {
+func (s *LockService) List(user *model.User, filter *dto.LockOrderFilter) ([]model.LockOrder, int64, error) {
 	var lockOrders []model.LockOrder
 	var total int64
 
@@ -417,6 +442,10 @@ func (s *LockService) List(filter *dto.LockOrderFilter) ([]model.LockOrder, int6
 	}
 	if filter.CreatedEnd != nil {
 		query = query.Where("created_at <= ?", *filter.CreatedEnd)
+	}
+
+	if user.Role == model.RoleWarehouse {
+		query = query.Where("created_by_id = ?", user.ID)
 	}
 
 	query.Count(&total)

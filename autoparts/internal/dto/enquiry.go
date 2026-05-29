@@ -79,4 +79,5 @@ type EnquiryDetailResponse struct {
 	EnquiryResponse
 	Quotes     []QuoteSummaryResponse `json:"quotes"`
 	LockOrders []LockOrderSummaryResponse `json:"lock_orders"`
+	AuditLogs  []AuditLogResponse      `json:"audit_logs"`
 }

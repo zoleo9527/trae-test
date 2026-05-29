@@ -181,6 +181,8 @@ func (c *LockController) ReviewReturn(ctx *fiber.Ctx) error {
 }
 
 func (c *LockController) List(ctx *fiber.Ctx) error {
+	user := util.GetUserFromContext(ctx)
+
 	var filter dto.LockOrderFilter
 	if err := ctx.BodyParser(&filter); err != nil {
 		filter.Page = 1
@@ -194,7 +196,7 @@ func (c *LockController) List(ctx *fiber.Ctx) error {
 		filter.PageSize = 20
 	}
 
-	lockOrders, total, err := c.lockService.List(&filter)
+	lockOrders, total, err := c.lockService.List(user, &filter)
 	if err != nil {
 		return util.Error(ctx, fiber.StatusInternalServerError, string(apperrors.ErrCodeInternal), "获取锁库单列表失败", err.Error())
 	}

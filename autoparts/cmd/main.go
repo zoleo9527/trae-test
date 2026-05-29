@@ -146,15 +146,18 @@ func seedData(db *gorm.DB) {
 		{Username: "warehouse1", Password: hashedPassword, Name: "库管老李", Phone: "13800000003", Role: model.RoleWarehouse, IsActive: true},
 	}
 
-	for _, user := range users {
-		db.Create(&user)
+	for i := range users {
+		db.Create(&users[i])
 	}
 
+	var salesUser model.User
+	db.Where("username = ?", "sales1").First(&salesUser)
+
 	customers := []model.Customer{
-		{Name: "张三", Phone: "13900000001", LicensePlate: "京A12345", CarModel: "大众帕萨特", IsCredit: true, CreditDays: 30},
-		{Name: "李四", Phone: "13900000002", LicensePlate: "京B67890", CarModel: "丰田凯美瑞", IsCredit: false},
-		{Name: "王五", Phone: "13900000003", LicensePlate: "京C11111", CarModel: "本田雅阁", IsCredit: true, CreditDays: 15},
-		{Name: "赵六", Phone: "13900000004", LicensePlate: "京D22222", CarModel: "奔驰E300", IsCredit: true, CreditDays: 60},
+		{Name: "张三", Phone: "13900000001", LicensePlate: "京A12345", CarModel: "大众帕萨特", IsCredit: true, CreditDays: 30, CreatedByID: salesUser.ID},
+		{Name: "李四", Phone: "13900000002", LicensePlate: "京B67890", CarModel: "丰田凯美瑞", IsCredit: false, CreatedByID: salesUser.ID},
+		{Name: "王五", Phone: "13900000003", LicensePlate: "京C11111", CarModel: "本田雅阁", IsCredit: true, CreditDays: 15, CreatedByID: salesUser.ID},
+		{Name: "赵六", Phone: "13900000004", LicensePlate: "京D22222", CarModel: "奔驰E300", IsCredit: true, CreditDays: 60, CreatedByID: salesUser.ID},
 	}
 
 	for _, customer := range customers {

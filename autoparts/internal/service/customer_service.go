@@ -25,6 +25,7 @@ func (s *CustomerService) Create(user *model.User, req *dto.CreateCustomerReques
 		CarModel:     req.CarModel,
 		IsCredit:     req.IsCredit,
 		CreditDays:   req.CreditDays,
+		CreatedByID:  user.ID,
 		Remark:       req.Remark,
 	}
 
@@ -97,7 +98,7 @@ func (s *CustomerService) Delete(user *model.User, id uint, ip string) error {
 	return nil
 }
 
-func (s *CustomerService) List(filter *dto.CustomerFilter) ([]model.Customer, int64, error) {
+func (s *CustomerService) List(user *model.User, filter *dto.CustomerFilter) ([]model.Customer, int64, error) {
 	var customers []model.Customer
 	var total int64
 
@@ -114,6 +115,10 @@ func (s *CustomerService) List(filter *dto.CustomerFilter) ([]model.Customer, in
 	}
 	if filter.IsCredit != nil {
 		query = query.Where("is_credit = ?", *filter.IsCredit)
+	}
+
+	if user.Role == model.RoleSales {
+		query = query.Where("created_by_id = ?", user.ID)
 	}
 
 	query.Count(&total)
