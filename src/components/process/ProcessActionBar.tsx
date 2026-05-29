@@ -20,17 +20,13 @@ const allSteps: Array<{
   { key: 'complete', label: '处理完成', icon: CheckCircle, description: '所有流程已完成' },
 ];
 
-interface ProcessActionBarProps {
-  allowedSteps?: ProcessStep[];
-}
-
-export function ProcessActionBar({ allowedSteps }: ProcessActionBarProps) {
+export function ProcessActionBar() {
   const navigate = useNavigate();
-  const { processState, order, setCurrentStep } = useProcessStore();
+  const { processState, order, allowedSteps, goToNextStep, setCurrentStep } = useProcessStore();
 
   if (!processState || !order) return null;
 
-  const steps = allowedSteps ? allSteps.filter(s => allowedSteps.includes(s.key)) : allSteps;
+  const steps = allSteps.filter(s => allowedSteps.includes(s.key));
   const currentIndex = steps.findIndex(s => s.key === processState.currentStep);
 
   const handlePrevStep = () => {
@@ -40,9 +36,7 @@ export function ProcessActionBar({ allowedSteps }: ProcessActionBarProps) {
   };
 
   const handleNextStep = () => {
-    if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1].key);
-    }
+    goToNextStep();
   };
 
   const handleBackToList = () => {

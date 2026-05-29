@@ -45,6 +45,7 @@ export function OrderProcessPage() {
     isLoading,
     loadOrderData,
     clearProcessState,
+    allowedSteps,
   } = useProcessStore();
 
   const [notFound, setNotFound] = useState(false);
@@ -73,13 +74,13 @@ export function OrderProcessPage() {
         trainings: trainingsData,
         timeline: timelineData,
         rider: riderData || undefined,
-      });
+      }, userRole!);
     }
 
     return () => {
       clearProcessState();
     };
-  }, [orderId, loadOrderData, clearProcessState]);
+  }, [orderId, loadOrderData, clearProcessState, userRole]);
 
   if (notFound) {
     return (
@@ -110,18 +111,6 @@ export function OrderProcessPage() {
     );
   }
 
-  const allowedStepsForRole: Record<UserRole, ProcessStep[]> = {
-    manager: ['review', 'appeal', 'subsidy', 'assessment', 'training', 'complete'],
-    dispatcher: ['review', 'appeal', 'subsidy', 'assessment', 'training', 'complete'],
-    customer_service: ['review', 'appeal', 'complete'],
-  };
-
-  const allowedSteps = userRole ? allowedStepsForRole[userRole] : allowedStepsForRole.manager;
-
-  const safeCurrentStep = allowedSteps.includes(processState.currentStep)
-    ? processState.currentStep
-    : allowedSteps[0];
-
   const stepTitles: Record<ProcessStep, string> = {
     review: '订单详情审核',
     appeal: '申诉处理',
@@ -131,7 +120,7 @@ export function OrderProcessPage() {
     complete: '处理完成',
   };
 
-  if (safeCurrentStep === 'complete') {
+  if (processState.currentStep === 'complete') {
     return (
       <div className="animate-fade-in">
         <div className="flex-1 overflow-y-auto p-6">
@@ -204,7 +193,7 @@ export function OrderProcessPage() {
     );
   }
 
-  const CurrentStepComponent = stepComponents[safeCurrentStep as Exclude<ProcessStep, 'complete'>];
+  const CurrentStepComponent = stepComponents[processState.currentStep as Exclude<ProcessStep, 'complete'>];
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -218,7 +207,7 @@ export function OrderProcessPage() {
             返回订单列表
           </button>
           <div className="text-sm text-gray-500">
-            当前步骤：<span className="text-primary-700 font-medium">{stepTitles[safeCurrentStep]}</span>
+            当前步骤：<span className="text-primary-700 font-medium">{stepTitles[processState.currentStep]}</span>
           </div>
         </div>
 
@@ -226,7 +215,7 @@ export function OrderProcessPage() {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">{stepTitles[safeCurrentStep]}</CardTitle>
+                <CardTitle className="text-lg">{stepTitles[processState.currentStep]}</CardTitle>
               </CardHeader>
               <CardContent>
                 <CurrentStepComponent />
@@ -332,7 +321,7 @@ export function OrderProcessPage() {
         </div>
       </div>
 
-      <ProcessActionBar allowedSteps={allowedSteps} />
+      <ProcessActionBar />
     </div>
   );
 }
