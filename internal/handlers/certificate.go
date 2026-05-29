@@ -151,6 +151,7 @@ func (h *CertificateHandler) Approve(c *fiber.Ctx) error {
 	oldCert := cert
 	now := time.Now()
 	cert.Status = models.StatusApproved
+	cert.Resubmitted = false
 	cert.ApprovedByID = &userID
 	cert.ApprovedAt = &now
 
@@ -207,6 +208,42 @@ func (h *CertificateHandler) Reject(c *fiber.Ctx) error {
 		&oldCert,
 		&cert,
 		"Rejected certificate: "+cert.Name+", Reason: "+req.Reason,
+		c.IP(),
+		c.Get("User-Agent"),
+	)
+
+	return c.JSON(cert)
+}
+
+func (h *CertificateHandler) Submit(c *fiber.Ctx) error {
+	userID := middleware.GetCurrentUserID(c)
+	id, _ := strconv.Atoi(c.Params("id"))
+
+	var cert models.Certificate
+	if err := database.DB.First(&cert, id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Certificate not found"})
+	}
+
+	oldCert := cert
+	cert.Status = models.StatusReviewing
+
+	if oldCert.Status == models.StatusRejected {
+		cert.Resubmitted = true
+	}
+
+	if err := database.DB.Save(&cert).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	h.auditService.Log(
+		userID,
+		models.ActionSubmit,
+		models.ResourceCertificate,
+		cert.ID,
+		&cert.ProjectID,
+		&oldCert,
+		&cert,
+		"Submitted certificate for review: "+cert.Name,
 		c.IP(),
 		c.Get("User-Agent"),
 	)

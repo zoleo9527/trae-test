@@ -35,6 +35,7 @@ type TeardownReview struct {
 	Project        Project        `gorm:"foreignKey:ProjectID" json:"project,omitempty"`
 	Title          string         `gorm:"size:200;not null" json:"title"`
 	Status         Status         `gorm:"size:20;default:pending" json:"status"`
+	Resubmitted    bool           `gorm:"default:false" json:"resubmitted"`
 	StartTime      *time.Time     `json:"start_time"`
 	EndTime        *time.Time     `json:"end_time"`
 	ActualEndTime  *time.Time     `json:"actual_end_time"`

@@ -80,7 +80,7 @@ func (s *AsyncJobService) processCertificateBatchApprove(job *models.AsyncJob) e
 	userID := job.OperatorID
 
 	var certs []models.Certificate
-	if err := database.DB.Where("id IN ? AND status = ?", ids, models.StatusPending).Find(&certs).Error; err != nil {
+	if err := database.DB.Where("id IN ? AND status IN ?", ids, []string{string(models.StatusPending), string(models.StatusReviewing)}).Find(&certs).Error; err != nil {
 		return err
 	}
 
@@ -89,6 +89,7 @@ func (s *AsyncJobService) processCertificateBatchApprove(job *models.AsyncJob) e
 	for _, cert := range certs {
 		oldCert := cert
 		cert.Status = models.StatusApproved
+		cert.Resubmitted = false
 		cert.ApprovedByID = &userID
 		cert.ApprovedAt = &now
 
@@ -112,9 +113,10 @@ func (s *AsyncJobService) processCertificateBatchApprove(job *models.AsyncJob) e
 	}
 
 	result := tx.Model(&models.Certificate{}).
-		Where("id IN ? AND status = ?", ids, models.StatusPending).
+		Where("id IN ? AND status IN ?", ids, []string{string(models.StatusPending), string(models.StatusReviewing)}).
 		Updates(map[string]interface{}{
 			"status":         models.StatusApproved,
+			"resubmitted":    false,
 			"approved_by_id": userID,
 			"approved_at":    now,
 		})

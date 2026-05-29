@@ -88,6 +88,7 @@ func main() {
 	certificates.Get("/", certificateHandler.List)
 	certificates.Post("/", certificateHandler.Create)
 	certificates.Get("/:id", certificateHandler.Get)
+	certificates.Post("/:id/submit", certificateHandler.Submit)
 	certificates.Post("/batch-approve", middleware.RequireRole(models.RoleSupervisor), certificateHandler.BatchApprove)
 	certificates.Post("/:id/approve", middleware.RequireRole(models.RoleSupervisor), certificateHandler.Approve)
 	certificates.Post("/:id/reject", middleware.RequireRole(models.RoleSupervisor), certificateHandler.Reject)

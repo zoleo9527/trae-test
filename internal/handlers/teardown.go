@@ -209,6 +209,10 @@ func (h *TeardownHandler) Submit(c *fiber.Ctx) error {
 	oldTeardown := teardown
 	teardown.Status = models.StatusReviewing
 
+	if oldTeardown.Status == models.StatusRejected {
+		teardown.Resubmitted = true
+	}
+
 	if err := database.DB.Save(&teardown).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -241,6 +245,7 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 	oldTeardown := teardown
 	now := time.Now()
 	teardown.Status = models.StatusApproved
+	teardown.Resubmitted = false
 	teardown.ActualEndTime = &now
 	teardown.ApprovedByID = &userID
 	teardown.ApprovedAt = &now
@@ -257,7 +262,11 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 	if project.Phase == models.PhaseTeardown || project.Phase == models.PhaseReview {
 		var pendingCount int64
 		database.DB.Model(&models.TeardownReview{}).
-			Where("project_id = ? AND status IN ?", project.ID, []string{string(models.StatusPending), string(models.StatusReviewing)}).
+			Where("project_id = ? AND status IN ?", project.ID, []string{
+				string(models.StatusPending),
+				string(models.StatusReviewing),
+				string(models.StatusRejected),
+			}).
 			Count(&pendingCount)
 		if pendingCount == 0 {
 			job, err := h.asyncJobService.CreateJob("teardown_complete", map[string]interface{}{

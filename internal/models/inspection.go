@@ -32,6 +32,7 @@ type Inspection struct {
 	Type         InspectionType `gorm:"size:30;not null" json:"type"`
 	Title        string         `gorm:"size:200;not null" json:"title"`
 	Status       Status         `gorm:"size:20;default:pending" json:"status"`
+	Resubmitted  bool           `gorm:"default:false" json:"resubmitted"`
 	InspectorID  *uint          `gorm:"index" json:"inspector_id"`
 	Inspector    *User          `gorm:"foreignKey:InspectorID" json:"inspector,omitempty"`
 	SupervisorID *uint          `gorm:"index" json:"supervisor_id"`

@@ -166,42 +166,42 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 		Limit(10).
 		Find(&pendingTeardowns)
 
-	database.DB.Where("status = ?", models.StatusRejected).
+	database.DB.Where("status = ? AND resubmitted = ?", models.StatusRejected, false).
 		Preload("Project").
 		Preload("Owner").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&rejectedCerts)
 
-	database.DB.Where("status = ?", models.StatusRejected).
+	database.DB.Where("status = ? AND resubmitted = ?", models.StatusRejected, false).
 		Preload("Project").
 		Preload("Inspector").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&rejectedInspections)
 
-	database.DB.Where("status = ?", models.StatusRejected).
+	database.DB.Where("status = ? AND resubmitted = ?", models.StatusRejected, false).
 		Preload("Project").
 		Preload("Operator").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&rejectedTeardowns)
 
-	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
+	database.DB.Where("status IN ? AND resubmitted = ?", []string{string(models.StatusPending), string(models.StatusReviewing)}, true).
 		Preload("Project").
 		Preload("Owner").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&reviewNeededCerts)
 
-	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
+	database.DB.Where("status IN ? AND resubmitted = ?", []string{string(models.StatusPending), string(models.StatusReviewing)}, true).
 		Preload("Project").
 		Preload("Inspector").
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&reviewNeededInspections)
 
-	database.DB.Where("status = ? AND reject_reason IS NOT NULL AND reject_reason != ''", models.StatusPending).
+	database.DB.Where("status IN ? AND resubmitted = ?", []string{string(models.StatusPending), string(models.StatusReviewing)}, true).
 		Preload("Project").
 		Preload("Operator").
 		Order("updated_at DESC").

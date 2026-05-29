@@ -199,6 +199,10 @@ func (h *InspectionHandler) Submit(c *fiber.Ctx) error {
 	inspection.OverallPassed = &req.OverallPassed
 	inspection.Remarks = req.Remarks
 
+	if oldInspection.Status == models.StatusRejected {
+		inspection.Resubmitted = true
+	}
+
 	tx := database.DB.Begin()
 
 	if err := tx.Save(&inspection).Error; err != nil {
@@ -248,6 +252,7 @@ func (h *InspectionHandler) Approve(c *fiber.Ctx) error {
 	oldInspection := inspection
 	now := time.Now()
 	inspection.Status = models.StatusApproved
+	inspection.Resubmitted = false
 	inspection.EndTime = &now
 	inspection.ApprovedByID = &userID
 	inspection.ApprovedAt = &now
@@ -264,7 +269,11 @@ func (h *InspectionHandler) Approve(c *fiber.Ctx) error {
 	if project.Phase == models.PhaseInspection {
 		var pendingCount int64
 		database.DB.Model(&models.Inspection{}).
-			Where("project_id = ? AND status IN ?", project.ID, []string{string(models.StatusPending), string(models.StatusReviewing)}).
+			Where("project_id = ? AND status IN ?", project.ID, []string{
+				string(models.StatusPending),
+				string(models.StatusReviewing),
+				string(models.StatusRejected),
+			}).
 			Count(&pendingCount)
 		if pendingCount == 0 {
 			job, err := h.asyncJobService.CreateJob("inspection_to_teardown", map[string]interface{}{

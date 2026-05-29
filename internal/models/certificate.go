@@ -22,6 +22,7 @@ type Certificate struct {
 	Type        CertificateType `gorm:"size:30;not null" json:"type"`
 	Code        string          `gorm:"size:100" json:"code"`
 	Status      Status          `gorm:"size:20;default:pending" json:"status"`
+	Resubmitted bool            `gorm:"default:false" json:"resubmitted"`
 	OwnerID     uint            `gorm:"index" json:"owner_id"`
 	Owner       User            `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	Issuer      string          `gorm:"size:200" json:"issuer"`
