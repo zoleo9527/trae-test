@@ -83,7 +83,14 @@ export default function Loading() {
     } catch (err) {
       if (err.response) {
         console.error(err);
-        message.error('创建装车记录失败');
+        const detail = err.response?.data?.detail;
+        if (detail === '排单状态必须是已完成') {
+          message.error('排单状态必须是已完成');
+        } else if (detail === '已有未完成的装车记录') {
+          message.error('已有未完成的装车记录');
+        } else {
+          message.error(detail || '创建装车记录失败');
+        }
       }
     }
     setConfirmLoading(false);
@@ -107,12 +114,12 @@ export default function Loading() {
   const handleFillSubmit = async () => {
     try {
       const values = await fillForm.validateFields();
-      await api.put(`/loading/${currentRecord.id}`, {
+      await api.put(`/loading/${currentRecord.id}/fill`, {
         actual_qty: values.actual_qty,
         vehicle_no: values.vehicle_no,
         driver_name: values.driver_name,
       });
-      message.success('已填写实装数量');
+      message.success('已填写实装数量，状态已更新为装车中');
       setFillModalOpen(false);
       fillForm.resetFields();
       fetchLoadingList();
@@ -138,9 +145,7 @@ export default function Loading() {
 
   const handleViewException = async (record) => {
     try {
-      const res = await api.get('/exceptions', {
-        params: { source_type: '装车', source_id: record.id },
-      });
+      const res = await api.get(`/exceptions/by-source?source_type=装车&source_id=${record.id}`);
       setCurrentException(res.data?.[0] || null);
       setExceptionDrawerOpen(true);
     } catch (err) {
@@ -218,12 +223,7 @@ export default function Loading() {
       render: (_, record) => (
         <Space>
           {record.status === '待装车' && (
-            <>
-              <Button type="link" size="small" onClick={() => handleOpenFill(record)}>填写实装</Button>
-              <Button type="link" size="small" onClick={() => handleVerify(record.id)} disabled={!record.actual_qty}>
-                复核确认
-              </Button>
-            </>
+            <Button type="link" size="small" onClick={() => handleOpenFill(record)}>填写实装</Button>
           )}
           {record.status === '装车中' && (
             <Button type="link" size="small" onClick={() => handleVerify(record.id)}>复核确认</Button>

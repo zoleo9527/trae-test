@@ -145,6 +145,18 @@ class ExceptionRecordCreate(BaseModel):
     handler_id: Optional[int] = None
 
 
+class ExceptionReport(BaseModel):
+    exception_type: str
+    severity: str
+    description: str
+
+
+class LoadingFillUpdate(BaseModel):
+    actual_qty: int
+    vehicle_no: Optional[str] = None
+    driver_name: Optional[str] = None
+
+
 class ExceptionRecordUpdate(BaseModel):
     exception_type: Optional[str] = None
     severity: Optional[str] = None

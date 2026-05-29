@@ -27,6 +27,8 @@ export default function Orders() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [exceptionDrawerOpen, setExceptionDrawerOpen] = useState(false);
   const [currentException, setCurrentException] = useState(null);
+  const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
+  const [exceptionForm] = Form.useForm();
   const [form] = Form.useForm();
   const { user } = useAuth();
 
@@ -82,7 +84,16 @@ export default function Orders() {
     } catch (err) {
       if (err.response) {
         console.error(err);
-        message.error('创建排单失败');
+        const errorMsg = err.response.data?.detail || err.response.data?.message || '';
+        if (errorMsg.includes('地块已起苗')) {
+          message.error('地块已起苗');
+        } else if (errorMsg.includes('可用数量不足')) {
+          message.error('可用数量不足');
+        } else if (errorMsg.includes('已有未完成的排单')) {
+          message.error('已有未完成的排单');
+        } else {
+          message.error('创建排单失败');
+        }
       }
     }
     setConfirmLoading(false);
@@ -101,7 +112,7 @@ export default function Orders() {
 
   const handleStart = async (id) => {
     try {
-      await api.put(`/orders/${id}`, { status: '起苗中' });
+      await api.put(`/orders/${id}/start`);
       message.success('已开始起苗');
       fetchOrders();
     } catch (err) {
@@ -123,9 +134,7 @@ export default function Orders() {
 
   const handleViewException = async (order) => {
     try {
-      const res = await api.get('/exceptions', {
-        params: { source_type: '起苗', source_id: order.id },
-      });
+      const res = await api.get(`/exceptions/by-source?source_type=起苗&source_id=${order.id}`);
       setCurrentException(res.data?.[0] || null);
       setExceptionDrawerOpen(true);
     } catch (err) {
@@ -137,6 +146,38 @@ export default function Orders() {
   const handlePlotChange = (plotId) => {
     const selectedPlot = plots.find(p => p.id === plotId);
     form.setFieldsValue({ seedling_type: selectedPlot?.seedling_type || '' });
+  };
+
+  const handleOpenExceptionReport = (orderId) => {
+    exceptionForm.setFieldsValue({
+      order_id: orderId,
+      exception_type: undefined,
+      severity: undefined,
+      description: '',
+    });
+    setExceptionModalOpen(true);
+  };
+
+  const handleSubmitException = async () => {
+    try {
+      const values = await exceptionForm.validateFields();
+      setConfirmLoading(true);
+      await api.post(`/orders/${values.order_id}/report-exception`, {
+        exception_type: values.exception_type,
+        severity: values.severity,
+        description: values.description,
+      });
+      message.success('异常上报成功');
+      setExceptionModalOpen(false);
+      exceptionForm.resetFields();
+      fetchOrders();
+    } catch (err) {
+      if (err.response) {
+        console.error(err);
+        message.error('异常上报失败');
+      }
+    }
+    setConfirmLoading(false);
   };
 
   const filteredOrders = activeTab === '全部'
@@ -196,10 +237,16 @@ export default function Orders() {
             <Button type="link" size="small" onClick={() => handleConfirm(record.id)}>确认</Button>
           )}
           {record.status === '已确认' && (
-            <Button type="link" size="small" onClick={() => handleStart(record.id)}>开始起苗</Button>
+            <>
+              <Button type="link" size="small" onClick={() => handleStart(record.id)}>开始起苗</Button>
+              <Button type="link" size="small" danger onClick={() => handleOpenExceptionReport(record.id)}>上报异常</Button>
+            </>
           )}
           {record.status === '起苗中' && (
-            <Button type="link" size="small" onClick={() => handleComplete(record.id)}>完成起苗</Button>
+            <>
+              <Button type="link" size="small" onClick={() => handleComplete(record.id)}>完成起苗</Button>
+              <Button type="link" size="small" danger onClick={() => handleOpenExceptionReport(record.id)}>上报异常</Button>
+            </>
           )}
           {record.status === '异常' && (
             <Button type="link" size="small" danger onClick={() => handleViewException(record)}>查看异常</Button>
@@ -278,6 +325,37 @@ export default function Orders() {
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="异常上报"
+        open={exceptionModalOpen}
+        onOk={handleSubmitException}
+        onCancel={() => { setExceptionModalOpen(false); exceptionForm.resetFields(); }}
+        confirmLoading={confirmLoading}
+      >
+        <Form form={exceptionForm} layout="vertical">
+          <Form.Item name="order_id" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item name="exception_type" label="异常类型" rules={[{ required: true, message: '请选择异常类型' }]}>
+            <Select placeholder="请选择异常类型">
+              <Select.Option value="病害">病害</Select.Option>
+              <Select.Option value="质量问题">质量问题</Select.Option>
+              <Select.Option value="其他">其他</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="severity" label="严重程度" rules={[{ required: true, message: '请选择严重程度' }]}>
+            <Select placeholder="请选择严重程度">
+              <Select.Option value="一般">一般</Select.Option>
+              <Select.Option value="严重">严重</Select.Option>
+              <Select.Option value="紧急">紧急</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="description" label="异常描述" rules={[{ required: true, message: '请输入异常描述' }]}>
+            <Input.TextArea rows={4} placeholder="请详细描述异常情况" />
           </Form.Item>
         </Form>
       </Modal>

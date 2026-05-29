@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models import LoadingCheck, LiftingOrder, User, ExceptionRecord, AuditLog
-from schemas import LoadingCheckCreate, LoadingCheckUpdate, LoadingCheckResponse
+from schemas import LoadingCheckCreate, LoadingCheckUpdate, LoadingCheckResponse, LoadingFillUpdate
 
 router = APIRouter(prefix="/api/loading", tags=["loading"])
 
@@ -35,6 +35,14 @@ def create_loading(data: LoadingCheckCreate, db: Session = Depends(get_db)):
     order = db.query(LiftingOrder).filter(LiftingOrder.id == data.order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="排单不存在")
+    if order.status != "已完成":
+        raise HTTPException(status_code=400, detail="排单状态必须是已完成")
+    existing = db.query(LoadingCheck).filter(
+        LoadingCheck.order_id == data.order_id,
+        LoadingCheck.status.notin_(["已复核", "异常"])
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="该排单已有未完成的装车记录")
     loading = LoadingCheck(
         order_id=data.order_id,
         checker_id=data.checker_id,
@@ -69,11 +77,33 @@ def update_loading(loading_id: int, data: LoadingCheckUpdate, db: Session = Depe
     return loading
 
 
+@router.put("/{loading_id}/fill", response_model=LoadingCheckResponse)
+def fill_actual_qty(loading_id: int, data: LoadingFillUpdate, user_id: int = Query(...), db: Session = Depends(get_db)):
+    loading = db.query(LoadingCheck).filter(LoadingCheck.id == loading_id).first()
+    if not loading:
+        raise HTTPException(status_code=404, detail="装车记录不存在")
+    if loading.status != "待装车":
+        raise HTTPException(status_code=400, detail="状态必须是待装车")
+    loading.actual_qty = data.actual_qty
+    loading.vehicle_no = data.vehicle_no
+    loading.driver_name = data.driver_name
+    loading.status = "装车中"
+    write_audit_log(
+        db, user_id, "填写实装数量", "loading_check", loading.id,
+        f"填写实装数量 {data.actual_qty}，车牌号 {data.vehicle_no}，司机 {data.driver_name}，状态更新为装车中"
+    )
+    db.commit()
+    db.refresh(loading)
+    return loading
+
+
 @router.put("/{loading_id}/verify", response_model=LoadingCheckResponse)
 def verify_loading(loading_id: int, user_id: int = Query(...), db: Session = Depends(get_db)):
     loading = db.query(LoadingCheck).filter(LoadingCheck.id == loading_id).first()
     if not loading:
         raise HTTPException(status_code=404, detail="装车记录不存在")
+    if loading.status != "装车中":
+        raise HTTPException(status_code=400, detail="状态必须是装车中")
     if loading.actual_qty is None:
         raise HTTPException(status_code=400, detail="请先填写实际数量")
     loading.status = "已复核"

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
@@ -25,6 +26,7 @@ def list_exceptions(
     status: str = Query(None),
     severity: str = Query(None),
     source_type: str = Query(None),
+    source_id: Optional[int] = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(ExceptionRecord)
@@ -34,6 +36,21 @@ def list_exceptions(
         query = query.filter(ExceptionRecord.severity == severity)
     if source_type:
         query = query.filter(ExceptionRecord.source_type == source_type)
+    if source_id is not None:
+        query = query.filter(ExceptionRecord.source_id == source_id)
+    return query.all()
+
+
+@router.get("/by-source", response_model=list[ExceptionRecordResponse])
+def get_by_source(
+    source_type: str = Query(...),
+    source_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    query = db.query(ExceptionRecord).filter(
+        ExceptionRecord.source_type == source_type,
+        ExceptionRecord.source_id == source_id
+    ).order_by(ExceptionRecord.created_at.desc())
     return query.all()
 
 
