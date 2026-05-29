@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  username        String    @unique
+  name            String
+  passwordHash    String
+  role            String
+  phone           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isActive        Boolean   @default(true)
+
+  createdHarvests          HarvestRecord[]              @relation("harvest_creator")
+  assignedHarvests         HarvestRecord[]              @relation("harvest_assignee")
+  maintenances             MaintenanceRecord[]
+  diseaseReports           DiseaseReport[]
+  customerVisits           CustomerVisit[]
+  createdNegotiations      ReseedNegotiation[]          @relation("negotiation_creator")
+  handledNegotiations      ReseedNegotiation[]          @relation("negotiation_handler")
+  negotiationStatusChanges NegotiationStatusHistory[]   @relation("status_changer")
+  audits                   AuditLog[]                   @relation("audit_user")
+  assignedTodos            TodoItem[]                   @relation("todo_assignee")
+  createdTodos             TodoItem[]                   @relation("todo_creator")
+
+  @@map("users")
+}
+
+model Plot {
+  id          String    @id @default(uuid())
+  plotNo      String    @unique
+  location    String
+  area        Float
+  soilType    String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isActive    Boolean   @default(true)
+
+  batches              SeedlingBatch[]
+  harvests             HarvestRecord[]
+  maintenances         MaintenanceRecord[]
+  diseaseReports       DiseaseReport[]
+
+  @@map("plots")
+}
+
+model SeedlingBatch {
+  id            String    @id @default(uuid())
+  plotId        String
+  species       String
+  quantity      Int
+  plantingDate  DateTime
+  expectedSize  String?
+  status        String    @default("GROWING")
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  plot         Plot                @relation(fields: [plotId], references: [id])
+  harvests     HarvestRecord[]
+  maintenances MaintenanceRecord[]
+  diseases     DiseaseReport[]
+
+  @@map("seedling_batches")
+}
+
+model HarvestRecord {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  plotId         String
+  batchId        String?
+  creatorId      String
+  assigneeId     String?
+  scheduledDate  DateTime
+  actualDate     DateTime?
+  targetQuantity Int
+  actualQuantity Int?
+  qualityGrade   String?
+  status         String   @default("PENDING")
+  rejectionReason String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  plot         Plot            @relation(fields: [plotId], references: [id])
+  batch        SeedlingBatch?  @relation(fields: [batchId], references: [id])
+  creator      User            @relation("harvest_creator", fields: [creatorId], references: [id])
+  assignee     User?           @relation("harvest_assignee", fields: [assigneeId], references: [id])
+  loadings     LoadingRecord[]
+  audits       AuditLog[]      @relation("harvest_audits")
+
+  @@map("harvest_records")
+}
+
+model LoadingRecord {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  harvestId      String
+  loadingDate    DateTime
+  vehicleNo      String
+  driverName     String?
+  quantity       Int
+  checkedBy      String?
+  customerName   String
+  orderNo        String?
+  discrepancyNote String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  harvest  HarvestRecord  @relation(fields: [harvestId], references: [id])
+  visits   CustomerVisit[]
+  audits   AuditLog[]     @relation("loading_audits")
+
+  @@map("loading_records")
+}
+
+model MaintenanceRecord {
+  id              String   @id @default(uuid())
+  idempotencyKey  String   @unique
+  plotId          String
+  batchId         String?
+  workerId        String
+  maintenanceDate DateTime
+  type            String
+  durationMinutes Int
+  weather         String?
+  dosage          String?
+  notes           String?
+  needsReview     Boolean  @default(false)
+  reviewNote      String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  plot     Plot           @relation(fields: [plotId], references: [id])
+  batch    SeedlingBatch? @relation(fields: [batchId], references: [id])
+  worker   User           @relation(fields: [workerId], references: [id])
+  audits   AuditLog[]     @relation("maintenance_audits")
+
+  @@map("maintenance_records")
+}
+
+model DiseaseReport {
+  id              String   @id @default(uuid())
+  idempotencyKey  String   @unique
+  plotId          String
+  batchId         String?
+  reporterId      String
+  discoveredDate  DateTime
+  symptoms        String
+  severity        String
+  affectedArea    Float?
+  suspectedCause  String?
+  initialAction   String?
+  isResolved      Boolean  @default(false)
+  resolutionNote  String?
+  resolvedAt      DateTime?
+  followUpDate    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  plot     Plot           @relation(fields: [plotId], references: [id])
+  batch    SeedlingBatch? @relation(fields: [batchId], references: [id])
+  reporter User           @relation(fields: [reporterId], references: [id])
+  audits   AuditLog[]     @relation("disease_audits")
+
+  @@map("disease_reports")
+}
+
+model CustomerVisit {
+  id              String   @id @default(uuid())
+  idempotencyKey  String   @unique
+  loadingId       String?
+  salesId         String
+  customerName    String
+  customerPhone   String
+  visitDate       DateTime
+  visitType       String
+  result          String
+  feedback        String
+  hasComplaint    Boolean  @default(false)
+  complaintDetail String?
+  followUpDate    DateTime?
+  followUpNote    String?
+  isFollowedUp    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  loading      LoadingRecord?      @relation(fields: [loadingId], references: [id])
+  sales        User                @relation(fields: [salesId], references: [id])
+  negotiations ReseedNegotiation[]
+  audits       AuditLog[]          @relation("visit_audits")
+
+  @@map("customer_visits")
+}
+
+model ReseedNegotiation {
+  id                 String   @id @default(uuid())
+  idempotencyKey     String   @unique
+  visitId            String
+  creatorId          String
+  currentHandlerId   String?
+  customerName       String
+  customerComplaint  String
+  proposedReseedQty  Int
+  proposedReseedDate DateTime?
+  actualReseedQty    Int?
+  actualReseedDate   DateTime?
+  status             String   @default("DRAFT")
+  rejectionReason    String?
+  reworkNote         String?
+  managerNote        String?
+  customerConfirmed  Boolean  @default(false)
+  confirmationNote   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  visit            CustomerVisit              @relation(fields: [visitId], references: [id])
+  creator          User                       @relation("negotiation_creator", fields: [creatorId], references: [id])
+  currentHandler   User?                      @relation("negotiation_handler", fields: [currentHandlerId], references: [id])
+  statusHistory    NegotiationStatusHistory[]
+  audits           AuditLog[]                 @relation("negotiation_audits")
+
+  @@map("reseed_negotiations")
+}
+
+model NegotiationStatusHistory {
+  id             String   @id @default(uuid())
+  negotiationId  String
+  fromStatus     String?
+  toStatus       String
+  changedById    String
+  changeReason   String?
+  createdAt      DateTime @default(now())
+
+  negotiation  ReseedNegotiation  @relation(fields: [negotiationId], references: [id])
+  changedBy    User               @relation("status_changer", fields: [changedById], references: [id])
+
+  @@map("negotiation_status_history")
+}
+
+model TodoItem {
+  id            String   @id @default(uuid())
+  type          String
+  title         String
+  description   String?
+  referenceId   String
+  referenceType String
+  assigneeId    String
+  creatorId     String
+  dueDate       DateTime?
+  priority      Int      @default(1)
+  isCompleted   Boolean  @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignee  User  @relation("todo_assignee", fields: [assigneeId], references: [id])
+  creator   User  @relation("todo_creator", fields: [creatorId], references: [id])
+
+  @@map("todo_items")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  userId        String
+  action        String
+  entityType    String
+  entityId      String
+  previousValue String?
+  newValue      String?
+  changeSummary String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  user                User?               @relation("audit_user", fields: [userId], references: [id])
+  harvestAudit        HarvestRecord?      @relation("harvest_audits", fields: [entityId], references: [id])
+  loadingAudit        LoadingRecord?      @relation("loading_audits", fields: [entityId], references: [id])
+  maintenanceAudit    MaintenanceRecord?  @relation("maintenance_audits", fields: [entityId], references: [id])
+  diseaseAudit        DiseaseReport?      @relation("disease_audits", fields: [entityId], references: [id])
+  visitAudit          CustomerVisit?      @relation("visit_audits", fields: [entityId], references: [id])
+  negotiationAudit    ReseedNegotiation?  @relation("negotiation_audits", fields: [entityId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model IdempotencyRecord {
+  id              String   @id @default(uuid())
+  idempotencyKey  String   @unique
+  userId          String
+  endpoint        String
+  requestBody     String?
+  responseBody    String?
+  statusCode      Int
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
+
+  @@index([idempotencyKey, userId])
+  @@map("idempotency_records")
+}
