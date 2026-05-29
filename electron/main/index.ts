@@ -21,6 +21,17 @@ function initDatabase() {
   db = new Database(getDbPath())
   db.pragma('journal_mode = WAL')
   
+  const addColumnIfNotExists = (table: string, column: string, definition: string) => {
+    try {
+      const stmt = db?.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+      stmt?.run()
+    } catch (e: any) {
+      if (!e.message.includes('duplicate column name')) {
+        console.log(`Migration for ${table}.${column} skipped:`, e.message)
+      }
+    }
+  }
+  
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,6 +158,25 @@ function initDatabase() {
       expires_at DATETIME
     );
   `)
+
+  addColumnIfNotExists('batches', 'returned_at', 'DATETIME')
+  addColumnIfNotExists('batches', 'returned_by', 'INTEGER')
+  addColumnIfNotExists('batches', 'return_signature', 'TEXT')
+  addColumnIfNotExists('clothes', 'washing_finished_at', 'DATETIME')
+  addColumnIfNotExists('clothes', 'returned_at', 'DATETIME')
+  addColumnIfNotExists('return_orders', 'signed_count', 'INTEGER DEFAULT 0')
+  addColumnIfNotExists('return_orders', 'sent_at', 'DATETIME')
+  addColumnIfNotExists('return_orders', 'sent_by', 'INTEGER')
+  addColumnIfNotExists('return_orders', 'signed_at', 'DATETIME')
+  addColumnIfNotExists('return_orders', 'signed_by', 'INTEGER')
+  addColumnIfNotExists('return_orders', 'signature', 'TEXT')
+  addColumnIfNotExists('return_orders', 'remark', 'TEXT')
+  addColumnIfNotExists('return_order_items', 'damage_found', 'INTEGER DEFAULT 0')
+  addColumnIfNotExists('return_order_items', 'damage_note', 'TEXT')
+  addColumnIfNotExists('return_order_items', 'signed_at', 'DATETIME')
+  addColumnIfNotExists('return_order_items', 'signed_by', 'INTEGER')
+  addColumnIfNotExists('operation_logs', 'batch_id', 'INTEGER')
+  addColumnIfNotExists('operation_logs', 'note', 'TEXT')
 
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }
   if (userCount.count === 0) {
@@ -494,7 +524,8 @@ ipcMain.handle('db:clearCache', (_, key: string) => {
 
 ipcMain.handle('db:getReturnOrders', (_, storeId?: number) => {
   let sql = `
-    SELECT ro.*, b.batch_no, b.total_count as batch_total
+    SELECT ro.*, b.batch_no, b.total_count as batch_total, b.status as batch_status,
+      (SELECT COUNT(*) FROM return_order_items roi WHERE roi.return_order_id = ro.id AND roi.status = 'signed') as actual_signed_count
     FROM return_orders ro
     LEFT JOIN batches b ON ro.batch_id = b.id
   `
@@ -509,7 +540,8 @@ ipcMain.handle('db:getReturnOrders', (_, storeId?: number) => {
 
 ipcMain.handle('db:getReturnOrderById', (_, id: number) => {
   const order = db?.prepare(`
-    SELECT ro.*, b.batch_no, b.total_count as batch_total
+    SELECT ro.*, b.batch_no, b.total_count as batch_total, b.status as batch_status,
+      (SELECT COUNT(*) FROM return_order_items roi WHERE roi.return_order_id = ro.id AND roi.status = 'signed') as actual_signed_count
     FROM return_orders ro
     LEFT JOIN batches b ON ro.batch_id = b.id
     WHERE ro.id = ?
@@ -562,7 +594,14 @@ ipcMain.handle('db:createReturnOrder', (_, data: { batch_id: number; store_id: n
     `).run(c.id, data.batch_id, '加入回单，待门店签收', data.sent_by || 1, data.sent_by_name || '系统')
   })
   
-  db?.prepare('UPDATE batches SET status = ? WHERE id = ?').run('returning', data.batch_id)
+  const remainingCount = db?.prepare(`
+    SELECT COUNT(*) as count FROM clothes 
+    WHERE batch_id = ? AND status NOT IN ('returning', 'returned', 'return_to_store')
+  `).get(data.batch_id) as any
+  
+  if (!remainingCount || remainingCount.count === 0) {
+    db?.prepare('UPDATE batches SET status = ? WHERE id = ?').run('returning', data.batch_id)
+  }
   
   return orderId
 })
@@ -596,6 +635,10 @@ ipcMain.handle('db:signReturnOrderItem', (_, data: {
     FROM return_orders ro WHERE ro.id = ?
   `).get(orderItem.return_order_id) as any
   
+  db?.prepare(`
+    UPDATE return_orders SET signed_count = ? WHERE id = ?
+  `).run(order.signed_count, orderItem.return_order_id)
+  
   if (order.signed_count >= order.total_count) {
     db?.prepare(`
       UPDATE return_orders 
@@ -608,10 +651,6 @@ ipcMain.handle('db:signReturnOrderItem', (_, data: {
       SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
       WHERE id = (SELECT batch_id FROM return_orders WHERE id = ?)
     `).run(data.signed_by, orderItem.return_order_id)
-  } else {
-    db?.prepare(`
-      UPDATE return_orders SET signed_count = ? WHERE id = ?
-    `).run(order.signed_count, orderItem.return_order_id)
   }
   
   db?.prepare(`

@@ -35,12 +35,25 @@ export default function ReturnOrders({ user }: ReturnOrdersProps) {
     
     if (user.role !== 'store') {
       const batchesData = await window.electronAPI.getBatches()
-      setBatches(batchesData?.filter((b: Batch) => 
-        b.status === 'processing' || b.status === 'returning'
-      ) || [])
-      
       const clothesData = await window.electronAPI.getClothesForReturn()
       setPendingClothes(clothesData || [])
+      
+      const batchesWithReturnable: Batch[] = []
+      const returnableByBatch = new Map<number, number>()
+      
+      clothesData?.forEach((c: Clothes) => {
+        if (c.batch_id) {
+          returnableByBatch.set(c.batch_id, (returnableByBatch.get(c.batch_id) || 0) + 1)
+        }
+      })
+      
+      batchesData?.forEach((b: Batch) => {
+        if (returnableByBatch.has(b.id) && b.status !== 'completed') {
+          batchesWithReturnable.push(b)
+        }
+      })
+      
+      setBatches(batchesWithReturnable)
     }
   }
 
@@ -126,9 +139,8 @@ export default function ReturnOrders({ user }: ReturnOrdersProps) {
     { title: '总件数', dataIndex: 'total_count', key: 'total_count' },
     { 
       title: '已签收', 
-      dataIndex: 'signed_count', 
-      key: 'signed_count',
-      render: (v: number, record: ReturnOrder) => `${v} / ${record.total_count}`
+      key: 'signed_progress',
+      render: (_: any, record: any) => `${record.actual_signed_count || record.signed_count || 0} / ${record.total_count}`
     },
     { 
       title: '状态', 
@@ -285,13 +297,14 @@ export default function ReturnOrders({ user }: ReturnOrdersProps) {
         onCancel={() => setDetailVisible(false)}
         width={900}
         footer={[
-          currentOrder?.status === 'sent' && user.role === 'store' && currentOrder.signed_count < currentOrder.total_count && (
+          currentOrder?.status === 'sent' && user.role === 'store' && 
+          ((currentOrder as any).actual_signed_count || currentOrder.signed_count || 0) < currentOrder.total_count && (
             <Button 
               key="batch" 
               type="primary" 
               onClick={handleBatchSign}
             >
-              一键签收全部 ({currentOrder.total_count - currentOrder.signed_count} 件)
+              一键签收全部 ({currentOrder.total_count - ((currentOrder as any).actual_signed_count || currentOrder.signed_count || 0)} 件)
             </Button>
           ),
           <Button key="close" onClick={() => setDetailVisible(false)}>关闭</Button>
@@ -309,7 +322,9 @@ export default function ReturnOrders({ user }: ReturnOrdersProps) {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="总件数">{currentOrder.total_count}</Descriptions.Item>
-              <Descriptions.Item label="已签收">{currentOrder.signed_count}</Descriptions.Item>
+              <Descriptions.Item label="已签收">
+                {(currentOrder as any).actual_signed_count || currentOrder.signed_count || 0}
+              </Descriptions.Item>
               <Descriptions.Item label="发出时间">
                 {currentOrder.sent_at ? dayjs(currentOrder.sent_at).format('YYYY-MM-DD HH:mm:ss') : '-'}
               </Descriptions.Item>
@@ -368,11 +383,22 @@ export default function ReturnOrders({ user }: ReturnOrdersProps) {
               showSearch
               optionFilterProp="children"
             >
-              {batches.map(b => (
-                <Select.Option key={b.id} value={b.id}>
-                  {b.batch_no} - {b.store_name} ({b.total_count}件)
-                </Select.Option>
-              ))}
+              {batches.map(b => {
+                const returnableCount = pendingClothes.filter(c => c.batch_id === b.id).length
+                const statusMap: any = {
+                  pending: '待处理',
+                  processing: '处理中',
+                  returning: '返回中',
+                  completed: '已完成'
+                }
+                return (
+                  <Select.Option key={b.id} value={b.id}>
+                    {b.batch_no} - {b.store_name} 
+                    <Tag color="blue" style={{ marginLeft: 8 }}>{statusMap[b.status] || b.status}</Tag>
+                    <span style={{ color: '#52c41a', marginLeft: 8 }}>可返回 {returnableCount} 件</span>
+                  </Select.Option>
+                )
+              })}
             </Select>
           </Form.Item>
           <Form.Item>
