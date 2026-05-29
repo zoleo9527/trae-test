@@ -7,6 +7,8 @@ import (
 	"exhibition-system/internal/handlers"
 	"exhibition-system/internal/middleware"
 	"exhibition-system/internal/models"
+	"exhibition-system/internal/services"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -118,6 +120,42 @@ func main() {
 	audit := api.Group("/audit", middleware.AuthRequired(), middleware.RequireRole(models.RoleManager))
 	audit.Get("/", auditHandler.List)
 	audit.Get("/:id", auditHandler.Get)
+
+	jobs := api.Group("/jobs", middleware.AuthRequired(), middleware.RequireRole(models.RoleManager))
+	jobs.Get("/", func(c *fiber.Ctx) error {
+		page, _ := strconv.Atoi(c.Query("page", "1"))
+		pageSize, _ := strconv.Atoi(c.Query("page_size", "20"))
+		status := c.Query("status")
+
+		var jobs []models.AsyncJob
+		var total int64
+
+		query := database.DB.Model(&models.AsyncJob{}).Preload("Operator")
+		if status != "" {
+			query = query.Where("status = ?", status)
+		}
+		query.Count(&total)
+
+		offset := (page - 1) * pageSize
+		err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&jobs).Error
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.JSON(fiber.Map{
+			"data":  jobs,
+			"total": total,
+			"page":  page,
+			"size":  pageSize,
+		})
+	})
+	jobs.Post("/process", func(c *fiber.Ctx) error {
+		asyncJobService := services.NewAsyncJobService()
+		if err := asyncJobService.ProcessPendingJobs(); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"message": "Pending jobs processed"})
+	})
 
 	log.Printf("Server starting on %s:%s", config.AppConfig.Server.Host, config.AppConfig.Server.Port)
 	log.Printf("API Documentation: http://%s:%s/api/health", config.AppConfig.Server.Host, config.AppConfig.Server.Port)

@@ -6,6 +6,7 @@ import (
 	"exhibition-system/internal/models"
 	"exhibition-system/internal/services"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -54,6 +55,37 @@ func (h *ProjectHandler) Create(c *fiber.Ctx) error {
 		Phase:       models.PhasePlanning,
 		Status:      models.StatusPending,
 		CreatorID:   userID,
+	}
+
+	if req.SetupStart != nil {
+		if t, err := time.Parse(time.RFC3339, *req.SetupStart); err == nil {
+			project.SetupStartDate = &t
+		}
+	}
+	if req.SetupEnd != nil {
+		if t, err := time.Parse(time.RFC3339, *req.SetupEnd); err == nil {
+			project.SetupEndDate = &t
+		}
+	}
+	if req.OpenDate != nil {
+		if t, err := time.Parse(time.RFC3339, *req.OpenDate); err == nil {
+			project.OpenDate = &t
+		}
+	}
+	if req.CloseDate != nil {
+		if t, err := time.Parse(time.RFC3339, *req.CloseDate); err == nil {
+			project.CloseDate = &t
+		}
+	}
+	if req.TeardownStart != nil {
+		if t, err := time.Parse(time.RFC3339, *req.TeardownStart); err == nil {
+			project.TeardownStart = &t
+		}
+	}
+	if req.TeardownEnd != nil {
+		if t, err := time.Parse(time.RFC3339, *req.TeardownEnd); err == nil {
+			project.TeardownEnd = &t
+		}
 	}
 
 	if len(req.AssignedUsers) > 0 {
@@ -162,6 +194,49 @@ func (h *ProjectHandler) Update(c *fiber.Ctx) error {
 	project.Location = req.Location
 	project.BoothNumber = req.BoothNumber
 	project.Priority = req.Priority
+
+	if req.SetupStart != nil {
+		if t, err := time.Parse(time.RFC3339, *req.SetupStart); err == nil {
+			project.SetupStartDate = &t
+		}
+	} else {
+		project.SetupStartDate = nil
+	}
+	if req.SetupEnd != nil {
+		if t, err := time.Parse(time.RFC3339, *req.SetupEnd); err == nil {
+			project.SetupEndDate = &t
+		}
+	} else {
+		project.SetupEndDate = nil
+	}
+	if req.OpenDate != nil {
+		if t, err := time.Parse(time.RFC3339, *req.OpenDate); err == nil {
+			project.OpenDate = &t
+		}
+	} else {
+		project.OpenDate = nil
+	}
+	if req.CloseDate != nil {
+		if t, err := time.Parse(time.RFC3339, *req.CloseDate); err == nil {
+			project.CloseDate = &t
+		}
+	} else {
+		project.CloseDate = nil
+	}
+	if req.TeardownStart != nil {
+		if t, err := time.Parse(time.RFC3339, *req.TeardownStart); err == nil {
+			project.TeardownStart = &t
+		}
+	} else {
+		project.TeardownStart = nil
+	}
+	if req.TeardownEnd != nil {
+		if t, err := time.Parse(time.RFC3339, *req.TeardownEnd); err == nil {
+			project.TeardownEnd = &t
+		}
+	} else {
+		project.TeardownEnd = nil
+	}
 
 	if err := database.DB.Save(&project).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

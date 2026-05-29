@@ -5,6 +5,7 @@ import (
 	"exhibition-system/internal/middleware"
 	"exhibition-system/internal/models"
 	"exhibition-system/internal/services"
+	"log"
 	"strconv"
 	"time"
 
@@ -12,12 +13,14 @@ import (
 )
 
 type TeardownHandler struct {
-	auditService *services.AuditService
+	auditService    *services.AuditService
+	asyncJobService *services.AsyncJobService
 }
 
 func NewTeardownHandler() *TeardownHandler {
 	return &TeardownHandler{
-		auditService: services.NewAuditService(),
+		auditService:    services.NewAuditService(),
+		asyncJobService: services.NewAsyncJobService(),
 	}
 }
 
@@ -242,7 +245,10 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 	teardown.ApprovedByID = &userID
 	teardown.ApprovedAt = &now
 
-	if err := database.DB.Save(&teardown).Error; err != nil {
+	tx := database.DB.Begin()
+
+	if err := tx.Save(&teardown).Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -254,10 +260,42 @@ func (h *TeardownHandler) Approve(c *fiber.Ctx) error {
 			Where("project_id = ? AND status IN ?", project.ID, []string{string(models.StatusPending), string(models.StatusReviewing)}).
 			Count(&pendingCount)
 		if pendingCount == 0 {
-			project.Phase = models.PhaseCompleted
-			database.DB.Save(&project)
+			job, err := h.asyncJobService.CreateJob("teardown_complete", map[string]interface{}{
+				"project_id":         project.ID,
+				"teardown_review_id": teardown.ID,
+			}, userID)
+			if err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create completion job: " + err.Error()})
+			}
+
+			h.auditService.Log(
+				userID,
+				models.ActionApprove,
+				models.ResourceTeardown,
+				teardown.ID,
+				&teardown.ProjectID,
+				&oldTeardown,
+				&teardown,
+				"Approved teardown review, triggering project completion job_id="+strconv.FormatUint(uint64(job.ID), 10),
+				c.IP(),
+				c.Get("User-Agent"),
+			)
+
+			tx.Commit()
+
+			go func() {
+				if err := h.asyncJobService.ProcessJob(job); err != nil {
+					log.Printf("Async job %d failed: %v", job.ID, err)
+				}
+			}()
+
+			database.DB.Preload("Issues").Preload("Issues.Responsible").First(&teardown, id)
+			return c.JSON(teardown)
 		}
 	}
+
+	tx.Commit()
 
 	h.auditService.Log(
 		userID,

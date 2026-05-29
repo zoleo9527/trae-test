@@ -5,6 +5,7 @@ import (
 	"exhibition-system/internal/middleware"
 	"exhibition-system/internal/models"
 	"exhibition-system/internal/services"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -12,12 +13,14 @@ import (
 )
 
 type CertificateHandler struct {
-	auditService *services.AuditService
+	auditService   *services.AuditService
+	asyncJobService *services.AsyncJobService
 }
 
 func NewCertificateHandler() *CertificateHandler {
 	return &CertificateHandler{
-		auditService: services.NewAuditService(),
+		auditService:   services.NewAuditService(),
+		asyncJobService: services.NewAsyncJobService(),
 	}
 }
 
@@ -220,36 +223,56 @@ func (h *CertificateHandler) BatchApprove(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	now := time.Now()
-	result := database.DB.Model(&models.Certificate{}).
-		Where("id IN ?", req.IDs).
-		Updates(map[string]interface{}{
-			"status":        models.StatusApproved,
-			"approved_by_id": userID,
-			"approved_at":   now,
-		})
-
-	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": result.Error.Error()})
+	if len(req.IDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No certificate IDs provided"})
 	}
 
-	for _, id := range req.IDs {
-		h.auditService.Log(
-			userID,
-			models.ActionApprove,
-			models.ResourceCertificate,
-			id,
-			nil,
-			nil,
-			nil,
-			"Batch approved certificate",
-			c.IP(),
-			c.Get("User-Agent"),
-		)
+	idsInterface := make([]interface{}, len(req.IDs))
+	for i, id := range req.IDs {
+		idsInterface[i] = id
+	}
+
+	job, err := h.asyncJobService.CreateJob("certificate_batch_approve", map[string]interface{}{
+		"ids": req.IDs,
+	}, userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create async job: " + err.Error()})
+	}
+
+	h.auditService.Log(
+		userID,
+		models.ActionApprove,
+		models.ResourceCertificate,
+		0,
+		nil,
+		nil,
+		nil,
+		fmt.Sprintf("Initiated batch approve for %d certificates, job_id: %d", len(req.IDs), job.ID),
+		c.IP(),
+		c.Get("User-Agent"),
+	)
+
+	if err := h.asyncJobService.ProcessJob(job); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Batch approve job failed",
+			"job_id":  job.ID,
+			"details": err.Error(),
+		})
+	}
+
+	processedCount := 0
+	if job.Result != nil {
+		if count, ok := job.Result["processed_count"]; ok {
+			if countInt, ok := count.(int); ok {
+				processedCount = countInt
+			}
+		}
 	}
 
 	return c.JSON(fiber.Map{
-		"message": "Batch approved successfully",
-		"count":   result.RowsAffected,
+		"message":         "Batch approved successfully",
+		"job_id":          job.ID,
+		"processed_count": processedCount,
+		"total_requested": len(req.IDs),
 	})
 }

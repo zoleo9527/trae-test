@@ -5,6 +5,7 @@ import (
 	"exhibition-system/internal/middleware"
 	"exhibition-system/internal/models"
 	"exhibition-system/internal/services"
+	"log"
 	"strconv"
 	"time"
 
@@ -12,16 +13,19 @@ import (
 )
 
 type InspectionHandler struct {
-	auditService *services.AuditService
+	auditService    *services.AuditService
+	asyncJobService *services.AsyncJobService
 }
 
 func NewInspectionHandler() *InspectionHandler {
 	return &InspectionHandler{
-		auditService: services.NewAuditService(),
+		auditService:    services.NewAuditService(),
+		asyncJobService: services.NewAsyncJobService(),
 	}
 }
 
 type InspectionItemRequest struct {
+	ID          uint     `json:"id"`
 	Name        string   `json:"name" validate:"required"`
 	Description string   `json:"description"`
 	Standard    string   `json:"standard"`
@@ -203,9 +207,9 @@ func (h *InspectionHandler) Submit(c *fiber.Ctx) error {
 	}
 
 	for _, itemReq := range req.Items {
-		if itemReq.Passed != nil {
+		if itemReq.ID > 0 && itemReq.Passed != nil {
 			tx.Model(&models.InspectionItem{}).
-				Where("id = ?", itemReq.Name).
+				Where("id = ? AND inspection_id = ?", itemReq.ID, inspection.ID).
 				Updates(map[string]interface{}{
 					"passed":  itemReq.Passed,
 					"remarks": itemReq.Remarks,
@@ -248,7 +252,10 @@ func (h *InspectionHandler) Approve(c *fiber.Ctx) error {
 	inspection.ApprovedByID = &userID
 	inspection.ApprovedAt = &now
 
-	if err := database.DB.Save(&inspection).Error; err != nil {
+	tx := database.DB.Begin()
+
+	if err := tx.Save(&inspection).Error; err != nil {
+		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -260,10 +267,41 @@ func (h *InspectionHandler) Approve(c *fiber.Ctx) error {
 			Where("project_id = ? AND status IN ?", project.ID, []string{string(models.StatusPending), string(models.StatusReviewing)}).
 			Count(&pendingCount)
 		if pendingCount == 0 {
-			project.Phase = models.PhaseExhibition
-			database.DB.Save(&project)
+			job, err := h.asyncJobService.CreateJob("inspection_to_teardown", map[string]interface{}{
+				"project_id": project.ID,
+			}, userID)
+			if err != nil {
+				tx.Rollback()
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create transition job: " + err.Error()})
+			}
+
+			h.auditService.Log(
+				userID,
+				models.ActionApprove,
+				models.ResourceInspection,
+				inspection.ID,
+				&inspection.ProjectID,
+				&oldInspection,
+				&inspection,
+				"Approved inspection, triggering teardown transition job_id="+strconv.FormatUint(uint64(job.ID), 10),
+				c.IP(),
+				c.Get("User-Agent"),
+			)
+
+			tx.Commit()
+
+			go func() {
+				if err := h.asyncJobService.ProcessJob(job); err != nil {
+					log.Printf("Async job %d failed: %v", job.ID, err)
+				}
+			}()
+
+			database.DB.Preload("Items").First(&inspection, id)
+			return c.JSON(inspection)
 		}
 	}
+
+	tx.Commit()
 
 	h.auditService.Log(
 		userID,

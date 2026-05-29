@@ -20,6 +20,7 @@ type DashboardStats struct {
 	InspectionStats  InspectionStats  `json:"inspections"`
 	TeardownStats    TeardownStats    `json:"teardowns"`
 	TaskStats        TaskStats        `json:"tasks"`
+	JobStats         JobStats         `json:"jobs"`
 }
 
 type ProjectStats struct {
@@ -41,22 +42,23 @@ type MaterialStats struct {
 	Draft    int64 `json:"draft"`
 	Pending  int64 `json:"pending"`
 	Approved int64 `json:"approved"`
+	Rejected int64 `json:"rejected"`
 }
 
 type InspectionStats struct {
-	Total    int64 `json:"total"`
-	Pending  int64 `json:"pending"`
+	Total     int64 `json:"total"`
+	Pending   int64 `json:"pending"`
 	Reviewing int64 `json:"reviewing"`
-	Approved int64 `json:"approved"`
-	Rejected int64 `json:"rejected"`
+	Approved  int64 `json:"approved"`
+	Rejected  int64 `json:"rejected"`
 }
 
 type TeardownStats struct {
-	Total    int64 `json:"total"`
-	Pending  int64 `json:"pending"`
+	Total     int64 `json:"total"`
+	Pending   int64 `json:"pending"`
 	Reviewing int64 `json:"reviewing"`
-	Approved int64 `json:"approved"`
-	Rejected int64 `json:"rejected"`
+	Approved  int64 `json:"approved"`
+	Rejected  int64 `json:"rejected"`
 }
 
 type TaskStats struct {
@@ -66,6 +68,14 @@ type TaskStats struct {
 	Done     int64 `json:"done"`
 	Blocked  int64 `json:"blocked"`
 	Rejected int64 `json:"rejected"`
+}
+
+type JobStats struct {
+	Total    int64 `json:"total"`
+	Pending  int64 `json:"pending"`
+	Running  int64 `json:"running"`
+	Completed int64 `json:"completed"`
+	Failed   int64 `json:"failed"`
 }
 
 func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
@@ -90,6 +100,7 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	database.DB.Model(&models.Material{}).Where("status = ?", models.MaterialStatusDraft).Count(&stats.MaterialStats.Draft)
 	database.DB.Model(&models.Material{}).Where("status = ?", models.MaterialStatusPending).Count(&stats.MaterialStats.Pending)
 	database.DB.Model(&models.Material{}).Where("status = ?", models.MaterialStatusApproved).Count(&stats.MaterialStats.Approved)
+	database.DB.Model(&models.Material{}).Where("status = ?", models.MaterialStatusRejected).Count(&stats.MaterialStats.Rejected)
 
 	database.DB.Model(&models.Inspection{}).Count(&stats.InspectionStats.Total)
 	database.DB.Model(&models.Inspection{}).Where("status = ?", models.StatusPending).Count(&stats.InspectionStats.Pending)
@@ -110,6 +121,12 @@ func (h *DashboardHandler) GetStats(c *fiber.Ctx) error {
 	database.DB.Model(&models.Task{}).Where("status = ?", models.TaskStatusBlocked).Count(&stats.TaskStats.Blocked)
 	database.DB.Model(&models.Task{}).Where("status = ?", models.TaskStatusRejected).Count(&stats.TaskStats.Rejected)
 
+	database.DB.Model(&models.AsyncJob{}).Count(&stats.JobStats.Total)
+	database.DB.Model(&models.AsyncJob{}).Where("status = ?", "pending").Count(&stats.JobStats.Pending)
+	database.DB.Model(&models.AsyncJob{}).Where("status = ?", "running").Count(&stats.JobStats.Running)
+	database.DB.Model(&models.AsyncJob{}).Where("status = ?", "completed").Count(&stats.JobStats.Completed)
+	database.DB.Model(&models.AsyncJob{}).Where("status = ?", "failed").Count(&stats.JobStats.Failed)
+
 	return c.JSON(stats)
 }
 
@@ -117,6 +134,12 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 	var pendingCerts []models.Certificate
 	var pendingInspections []models.Inspection
 	var pendingTeardowns []models.TeardownReview
+
+	var rejectedCerts []models.Certificate
+	var rejectedInspections []models.Inspection
+	var rejectedTeardowns []models.TeardownReview
+
+	var reviewNeededCerts []models.Certificate
 
 	database.DB.Where("status = ?", models.StatusPending).
 		Preload("Project").
@@ -139,10 +162,48 @@ func (h *DashboardHandler) GetPendingItems(c *fiber.Ctx) error {
 		Limit(10).
 		Find(&pendingTeardowns)
 
+	database.DB.Where("status = ?", models.StatusRejected).
+		Preload("Project").
+		Preload("Owner").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&rejectedCerts)
+
+	database.DB.Where("status = ?", models.StatusRejected).
+		Preload("Project").
+		Preload("Inspector").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&rejectedInspections)
+
+	database.DB.Where("status = ?", models.StatusRejected).
+		Preload("Project").
+		Preload("Operator").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&rejectedTeardowns)
+
+	database.DB.Where("status = ? AND updated_at > created_at", models.StatusPending).
+		Preload("Project").
+		Preload("Owner").
+		Order("updated_at DESC").
+		Limit(10).
+		Find(&reviewNeededCerts)
+
 	return c.JSON(fiber.Map{
-		"certificates": pendingCerts,
-		"inspections":  pendingInspections,
-		"teardowns":    pendingTeardowns,
+		"pending": fiber.Map{
+			"certificates": pendingCerts,
+			"inspections":  pendingInspections,
+			"teardowns":    pendingTeardowns,
+		},
+		"rejected": fiber.Map{
+			"certificates": rejectedCerts,
+			"inspections":  rejectedInspections,
+			"teardowns":    rejectedTeardowns,
+		},
+		"review_needed": fiber.Map{
+			"certificates": reviewNeededCerts,
+		},
 	})
 }
 
