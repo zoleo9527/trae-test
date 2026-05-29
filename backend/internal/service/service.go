@@ -547,6 +547,46 @@ func (s *Service) UpdateReplenishmentOrderStatus(id, status string, operatorID, 
 	s.auditLog("replenishment_order", id, "status_change", oldStatus, status, operatorID, operatorName,
 		fmt.Sprintf("补货单状态从 %s 变更为 %s", oldStatus, status))
 	if status == "received" {
+		items, err := s.repo.ListReplenishmentItems(id)
+		if err != nil {
+			log.Printf("failed to load replenishment items: %v", err)
+			return nil
+		}
+		for _, item := range items {
+			qty := item.ReceivedQty
+			if qty <= 0 {
+				qty = item.ApprovedQty
+			}
+			if qty <= 0 {
+				qty = item.RequestedQty
+			}
+			oldInv, _ := s.repo.GetInventory(old.StoreID, item.ProductID)
+			oldQty := 0
+			oldSys := 0
+			if oldInv != nil {
+				oldQty = oldInv.Quantity
+				oldSys = oldInv.SystemQty
+			}
+			newQty := oldQty + qty
+			newSys := oldSys + qty
+			now := time.Now()
+			inv := &model.InventoryRecord{
+				StoreID:       old.StoreID,
+				ProductID:     item.ProductID,
+				Quantity:        newQty,
+				SystemQty:       newSys,
+				LastCheckedAt: &now,
+			}
+			if err := s.repo.UpsertInventory(inv); err != nil {
+				log.Printf("failed to update inventory: %v", err)
+				continue
+			}
+			s.auditLog("inventory", inv.ID, "update",
+				map[string]int{"quantity": oldQty, "system_quantity": oldSys},
+				map[string]int{"quantity": newQty, "system_quantity": newSys},
+				operatorID, operatorName,
+				fmt.Sprintf("补货收货 %s %d件，库存 %d→%d", item.ProductName, qty, oldQty, newQty))
+		}
 		s.worker.EnqueueInventorySyncCheck(old.StoreID)
 	}
 	return nil
@@ -601,6 +641,72 @@ func (s *Service) UpdateTransferOrderStatus(id, status string, operatorID, opera
 	s.auditLog("transfer_order", id, "status_change", oldStatus, status, operatorID, operatorName,
 		fmt.Sprintf("调拨单状态从 %s 变更为 %s", oldStatus, status))
 	if status == "received" {
+		items, err := s.repo.ListTransferItems(id)
+		if err != nil {
+			log.Printf("failed to load transfer items: %v", err)
+			return nil
+		}
+		for _, item := range items {
+			qty := item.Quantity
+			fromStore := old.FromStoreID
+			toStore := old.ToStoreID
+
+			oldInvFrom, _ := s.repo.GetInventory(fromStore, item.ProductID)
+			oldQtyFrom := 0
+			oldSysFrom := 0
+			if oldInvFrom != nil {
+				oldQtyFrom = oldInvFrom.Quantity
+				oldSysFrom = oldInvFrom.SystemQty
+			}
+			newQtyFrom := oldQtyFrom - qty
+			newSysFrom := oldSysFrom - qty
+			if newQtyFrom < 0 {
+				newQtyFrom = 0
+			}
+			now := time.Now()
+			invFrom := &model.InventoryRecord{
+				StoreID:       fromStore,
+				ProductID:     item.ProductID,
+				Quantity:        newQtyFrom,
+				SystemQty:       newSysFrom,
+				LastCheckedAt: &now,
+			}
+			if err := s.repo.UpsertInventory(invFrom); err != nil {
+				log.Printf("failed to update from-store inventory: %v", err)
+				continue
+			}
+			s.auditLog("inventory", invFrom.ID, "update",
+				map[string]int{"quantity": oldQtyFrom, "system_quantity": oldSysFrom},
+				map[string]int{"quantity": newQtyFrom, "system_quantity": newSysFrom},
+				operatorID, operatorName,
+				fmt.Sprintf("调拨出库 %s %d件，库存 %d→%d", item.ProductName, qty, oldQtyFrom, newQtyFrom))
+
+			oldInvTo, _ := s.repo.GetInventory(toStore, item.ProductID)
+			oldQtyTo := 0
+			oldSysTo := 0
+			if oldInvTo != nil {
+				oldQtyTo = oldInvTo.Quantity
+				oldSysTo = oldInvTo.SystemQty
+			}
+			newQtyTo := oldQtyTo + qty
+			newSysTo := oldSysTo + qty
+			invTo := &model.InventoryRecord{
+				StoreID:       toStore,
+				ProductID:     item.ProductID,
+				Quantity:        newQtyTo,
+				SystemQty:       newSysTo,
+				LastCheckedAt: &now,
+			}
+			if err := s.repo.UpsertInventory(invTo); err != nil {
+				log.Printf("failed to update to-store inventory: %v", err)
+				continue
+			}
+			s.auditLog("inventory", invTo.ID, "update",
+				map[string]int{"quantity": oldQtyTo, "system_quantity": oldSysTo},
+				map[string]int{"quantity": newQtyTo, "system_quantity": newSysTo},
+				operatorID, operatorName,
+				fmt.Sprintf("调拨入库 %s %d件，库存 %d→%d", item.ProductName, qty, oldQtyTo, newQtyTo))
+		}
 		s.worker.EnqueueInventorySyncCheck(old.ToStoreID)
 		s.worker.EnqueueInventorySyncCheck(old.FromStoreID)
 	}
@@ -635,13 +741,50 @@ func (s *Service) CreateMemberRedemption(req model.CreateRedemptionRequest, oper
 }
 
 func (s *Service) FulfillMemberRedemption(id, status string, operatorID, operatorName string) error {
+	mr, err := s.repo.GetMemberRedemptionByID(id)
+	if err != nil {
+		return fmt.Errorf("redemption not found")
+	}
+	oldStatus := mr.Status
 	if err := s.repo.FulfillMemberRedemption(id, operatorID, status); err != nil {
 		return err
 	}
-	s.auditLog("member_redemption", id, "status_change", "pending", status, operatorID, operatorName,
-		fmt.Sprintf("会员兑换状态变更为 %s", status))
+	s.auditLog("member_redemption", id, "status_change", oldStatus, status, operatorID, operatorName,
+		fmt.Sprintf("会员兑换状态从 %s 变更为 %s", oldStatus, status))
 	if status == "fulfilled" {
-		s.worker.EnqueueInventorySyncCheck("")
+		qty := mr.Quantity
+		storeID := mr.StoreID
+		productID := mr.ProductID
+		oldInv, _ := s.repo.GetInventory(storeID, productID)
+		oldQty := 0
+		oldSys := 0
+		if oldInv != nil {
+			oldQty = oldInv.Quantity
+			oldSys = oldInv.SystemQty
+		}
+		newQty := oldQty - qty
+		newSys := oldSys - qty
+		if newQty < 0 {
+			newQty = 0
+		}
+		now := time.Now()
+		inv := &model.InventoryRecord{
+			StoreID:       storeID,
+			ProductID:     productID,
+			Quantity:        newQty,
+			SystemQty:       newSys,
+			LastCheckedAt: &now,
+		}
+		if err := s.repo.UpsertInventory(inv); err != nil {
+			log.Printf("failed to update inventory: %v", err)
+		} else {
+			s.auditLog("inventory", inv.ID, "update",
+				map[string]int{"quantity": oldQty, "system_quantity": oldSys},
+				map[string]int{"quantity": newQty, "system_quantity": newSys},
+				operatorID, operatorName,
+				fmt.Sprintf("会员兑换履约 %s %d件，库存 %d→%d", mr.ProductName, qty, oldQty, newQty))
+		}
+		s.worker.EnqueueInventorySyncCheck(storeID)
 	}
 	return nil
 }

@@ -31,7 +31,7 @@ func main() {
 	}
 
 	repo := repository.NewRepo(db)
-	asyncWorker := worker.NewAsyncWorker()
+	asyncWorker := worker.NewAsyncWorker(repo)
 	asyncWorker.Start()
 	defer asyncWorker.Stop()
 

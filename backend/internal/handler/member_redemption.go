@@ -29,6 +29,9 @@ func (h *RedemptionHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
+	if effectiveStoreID := middleware.GetEffectiveStoreID(c); effectiveStoreID != "" {
+		req.StoreID = effectiveStoreID
+	}
 	if req.MemberPhone == "" || req.ProductID == "" || req.StoreID == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "member_phone, product_id and store_id required"})
 	}

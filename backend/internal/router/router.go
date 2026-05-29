@@ -29,8 +29,8 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 
 	api.Get("/stores", storeH.List)
 
-	api.Get("/inspections", inspH.List)
-	api.Post("/inspections", inspH.Create)
+	api.Get("/inspections", middleware.InjectStoreID(), inspH.List)
+	api.Post("/inspections", middleware.InjectStoreID(), inspH.Create)
 	api.Get("/inspections/:id", inspH.Get)
 	api.Put("/inspections/:id", inspH.Update)
 	api.Get("/inspections/:id/items", inspH.ListItems)
@@ -39,7 +39,7 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 	api.Get("/inspections/:id/items/:itemId/photos", inspH.ListPhotos)
 	api.Post("/inspections/:id/items/:itemId/photos", inspH.UploadPhoto)
 
-	api.Get("/rectifications", rectH.List)
+	api.Get("/rectifications", middleware.InjectStoreID(), rectH.List)
 	api.Post("/rectifications", rectH.Create)
 	api.Get("/rectifications/:id", rectH.Get)
 	api.Put("/rectifications/:id", rectH.Update)
@@ -48,28 +48,28 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 	api.Get("/rectifications/:id/comments", rectH.ListComments)
 	api.Post("/rectifications/:id/comments", rectH.CreateComment)
 
-	api.Get("/products", productH.List)
-	api.Post("/products", productH.Create, middleware.RequireRole("admin", "planning_specialist"))
+	api.Get("/products", middleware.InjectStoreID(), productH.List)
+	api.Post("/products", middleware.RequireRole("admin", "planning_specialist"), productH.Create)
 	api.Get("/products/:id", productH.Get)
-	api.Put("/products/:id", productH.Update, middleware.RequireRole("admin", "planning_specialist"))
+	api.Put("/products/:id", middleware.RequireRole("admin", "planning_specialist"), productH.Update)
 
-	api.Get("/inventory", inventoryH.List)
-	api.Post("/inventory/adjust", inventoryH.Adjust, middleware.RequireRole("admin", "warehouse_manager"))
+	api.Get("/inventory", middleware.InjectStoreID(), inventoryH.List)
+	api.Post("/inventory/adjust", middleware.RequireRole("admin", "warehouse_manager"), inventoryH.Adjust)
 
-	api.Get("/replenishments", replenH.List)
-	api.Post("/replenishments", replenH.Create)
+	api.Get("/replenishments", middleware.InjectStoreID(), replenH.List)
+	api.Post("/replenishments", middleware.InjectStoreID(), replenH.Create)
 	api.Get("/replenishments/:id", replenH.Get)
 	api.Put("/replenishments/:id/status", replenH.UpdateStatus)
 	api.Get("/replenishments/:id/items", replenH.ListItems)
 
-	api.Get("/transfers", transferH.List)
+	api.Get("/transfers", middleware.InjectStoreID(), transferH.List)
 	api.Post("/transfers", transferH.Create)
 	api.Put("/transfers/:id/status", transferH.UpdateStatus)
 	api.Get("/transfers/:id/items", transferH.ListItems)
 
-	api.Get("/redemptions", redemptionH.List)
-	api.Post("/redemptions", redemptionH.Create)
-	api.Put("/redemptions/:id/fulfill", redemptionH.Fulfill, middleware.RequireRole("admin", "store_manager"))
+	api.Get("/redemptions", middleware.InjectStoreID(), redemptionH.List)
+	api.Post("/redemptions", middleware.InjectStoreID(), redemptionH.Create)
+	api.Put("/redemptions/:id/fulfill", middleware.RequireRole("admin", "store_manager"), redemptionH.Fulfill)
 
 	api.Get("/audit-logs", auditH.List)
 }

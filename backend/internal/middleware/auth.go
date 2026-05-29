@@ -83,15 +83,42 @@ func GetFilter(c *fiber.Ctx) model.ListFilter {
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
+	storeID := c.Query("store_id", "")
+	if injected, ok := c.Locals("effective_store_id").(string); ok && injected != "" {
+		storeID = injected
+	}
 	return model.ListFilter{
 		Page:     page,
 		PageSize: pageSize,
-		StoreID:  c.Query("store_id", ""),
+		StoreID:  storeID,
 		Status:   c.Query("status", ""),
 		Search:   c.Query("search", ""),
 		SortBy:   c.Query("sort_by", "created_at"),
 		SortDir:  c.Query("sort_dir", "desc"),
 	}
+}
+
+func InjectStoreID() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("role").(string)
+		if role == "store_manager" {
+			if storeID, ok := c.Locals("store_id").(string); ok && storeID != "" {
+				c.Locals("effective_store_id", storeID)
+				storeFilter := c.Query("store_id")
+				if storeFilter != "" && storeFilter != storeID {
+					return c.Status(403).JSON(fiber.Map{"error": "store_id mismatch: can only access your own store"})
+				}
+			}
+		}
+		return c.Next()
+	}
+}
+
+func GetEffectiveStoreID(c *fiber.Ctx) string {
+	if injected, ok := c.Locals("effective_store_id").(string); ok && injected != "" {
+		return injected
+	}
+	return ""
 }
 
 func CORS(allowedOrigins string) fiber.Handler {

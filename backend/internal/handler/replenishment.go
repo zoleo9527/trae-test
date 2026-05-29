@@ -38,6 +38,9 @@ func (h *ReplenishmentHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
+	if effectiveStoreID := middleware.GetEffectiveStoreID(c); effectiveStoreID != "" {
+		req.StoreID = effectiveStoreID
+	}
 	if req.StoreID == "" || len(req.Items) == 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "store_id and items required"})
 	}

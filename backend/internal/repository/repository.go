@@ -730,6 +730,67 @@ func (r *Repo) FulfillMemberRedemption(id, fulfilledBy, status string) error {
 	return err
 }
 
+func (r *Repo) GetMemberRedemptionByID(id string) (*model.MemberRedemption, error) {
+	var mr model.MemberRedemption
+	q := `SELECT mr.*, p.name as product_name, s.name as store_name, u.display_name as fulfilled_by_name
+		FROM member_redemptions mr
+		JOIN products p ON p.id = mr.product_id
+		JOIN stores s ON s.id = mr.store_id
+		LEFT JOIN users u ON u.id = mr.fulfilled_by_id
+		WHERE mr.id = $1`
+	if err := r.db.Get(&mr, q, id); err != nil {
+		return nil, err
+	}
+	return &mr, nil
+}
+
+func (r *Repo) ListInventoryRecordsByStore(storeID string) ([]model.InventoryRecord, error) {
+	var records []model.InventoryRecord
+	var q string
+	var args []interface{}
+	if storeID == "" {
+		q = `SELECT ir.* FROM inventory_records ir ORDER BY ir.store_id, ir.product_id`
+	} else {
+		q = `SELECT ir.* FROM inventory_records ir WHERE ir.store_id = $1 ORDER BY ir.product_id`
+		args = append(args, storeID)
+	}
+	if err := r.db.Select(&records, q, args...); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (r *Repo) ListInventoryRecordsWithDiscrepancy(storeID string) ([]model.InventoryRecord, error) {
+	var records []model.InventoryRecord
+	var where []string
+	var args []interface{}
+	where = append(where, "ir.quantity != ir.system_quantity")
+	if storeID != "" {
+		where = append(where, fmt.Sprintf("ir.store_id = $%d", len(args)+1))
+		args = append(args, storeID)
+	}
+	whereClause := "WHERE " + strings.Join(where, " AND ")
+	q := `SELECT ir.* FROM inventory_records ir ` + whereClause + ` ORDER BY ir.store_id, ir.product_id`
+	if err := r.db.Select(&records, q, args...); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (r *Repo) ListOverdueRectifications() ([]model.Rectification, error) {
+	var rects []model.Rectification
+	q := `SELECT r.*, s.name as store_name, ua.display_name as assignee_name
+		FROM rectifications r
+		JOIN stores s ON s.id = r.store_id
+		LEFT JOIN users ua ON ua.id = r.assignee_id
+		WHERE r.due_date < NOW() AND r.status NOT IN ('closed', 'verified')
+		ORDER BY r.due_date ASC`
+	if err := r.db.Select(&rects, q); err != nil {
+		return nil, err
+	}
+	return rects, nil
+}
+
 func (r *Repo) CreateAuditLog(log *model.AuditLog) error {
 	q := `INSERT INTO audit_logs (entity_type, entity_id, action, old_value, new_value, operator_id, operator_name, note)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at`
