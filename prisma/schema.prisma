@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String
+  role      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdProjects Project[] @relation("ProjectCreator")
+  reconciliations Reconciliation[] @relation("ReconciliationCreator")
+  payments Payment[] @relation("PaymentCreator")
+  assignedDocuments Document[] @relation("DocumentAssignee")
+  auditLogs AuditLog[]
+  comments Comment[]
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  address   String?
+  bankName   String?
+  bankAccount String?
+  taxNumber  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects ProjectSupplier[]
+  reconciliations Reconciliation[]
+  materials MaterialItem[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  location    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String   @default("PLANNING")
+  budget      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  creatorId   String
+  creator     User     @relation("ProjectCreator", fields: [creatorId], references: [id])
+
+  suppliers   ProjectSupplier[]
+  materials   MaterialItem[]
+  reconciliations Reconciliation[]
+  documents   Document[]
+  payments    Payment[]
+}
+
+model ProjectSupplier {
+  id          String   @id @default(cuid())
+  projectId   String
+  supplierId  String
+  contractAmount Float @default(0)
+  scope       String?
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
+}
+
+model MaterialItem {
+  id          String   @id @default(cuid())
+  projectId   String
+  supplierId  String?
+  name        String
+  specification String?
+  quantity    Float
+  unitPrice   Float
+  version     String   @default("v1")
+  isConfirmed Boolean  @default(false)
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+
+  reconciliationItems ReconciliationItem[]
+}
+
+model Reconciliation {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  projectId   String
+  supplierId  String
+  title       String
+  description String?
+  status      String   @default("DRAFT")
+  totalAmount Float    @default(0)
+  confirmedAmount Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  creatorId   String
+  creator     User     @relation("ReconciliationCreator", fields: [creatorId], references: [id])
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  rejectReason String?
+  reviseNote  String?
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  items       ReconciliationItem[]
+  payments    Payment[]
+}
+
+model ReconciliationItem {
+  id          String   @id @default(cuid())
+  reconciliationId String
+  materialId  String?
+  description String?
+  quantity    Float
+  unitPrice   Float
+  amount      Float
+  remark      String?
+  createdAt   DateTime @default(now())
+
+  reconciliation Reconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  material    MaterialItem? @relation(fields: [materialId], references: [id])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  reconciliationId String?
+  projectId   String
+  title       String
+  description String?
+  amount      Float
+  status      String   @default("PENDING")
+  payMethod   String?
+  payDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  creatorId   String
+  creator     User     @relation("PaymentCreator", fields: [creatorId], references: [id])
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  rejectReason String?
+
+  reconciliation Reconciliation? @relation(fields: [reconciliationId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  projectId   String
+  type        String
+  title       String
+  description String?
+  status      String   @default("NOT_STARTED")
+  deadline    DateTime?
+  assigneeId  String?
+  assignee    User?     @relation("DocumentAssignee", fields: [assigneeId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  rejectReason String?
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String
+  fieldName   String?
+  oldValue    String?
+  newValue    String?
+  operatorId  String
+  operator    User     @relation(fields: [operatorId], references: [id])
+  createdAt   DateTime @default(now())
+  ip          String?
+  remark      String?
+
+  @@index([entityType, entityId])
+  @@index([operatorId])
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  entityType  String
+  entityId    String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  parentId    String?
+
+  @@index([entityType, entityId])
+}
+
+model IdempotencyKey {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  response    String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
