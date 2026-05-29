@@ -8,6 +8,7 @@ import BatchDetail from './pages/BatchDetail'
 import Sorting from './pages/Sorting'
 import DamageList from './pages/DamageList'
 import ClothesSearch from './pages/ClothesSearch'
+import ReturnOrders from './pages/ReturnOrders'
 import type { User } from './types'
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
                 <Route path="/batches/:id" element={<BatchDetail user={user} />} />
                 <Route path="/sorting" element={<Sorting user={user} />} />
                 <Route path="/damages" element={<DamageList user={user} />} />
+                <Route path="/returns" element={<ReturnOrders user={user} />} />
                 <Route path="/search" element={<ClothesSearch user={user} />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

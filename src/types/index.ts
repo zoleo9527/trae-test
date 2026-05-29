@@ -14,6 +14,9 @@ export interface Batch {
   status: string
   received_at: string
   received_by?: number
+  returned_at?: string
+  returned_by?: number
+  return_signature?: string
 }
 
 export interface Clothes {
@@ -30,6 +33,8 @@ export interface Clothes {
   services?: string
   status: string
   has_damage: number
+  washing_finished_at?: string
+  returned_at?: string
   created_at: string
   batch_no?: string
   store_name?: string
@@ -64,6 +69,54 @@ export interface OperationLog {
   operator_name: string
   note?: string
   created_at: string
+}
+
+export interface ReturnOrder {
+  id: number
+  return_no: string
+  batch_id: number
+  store_id: number
+  store_name: string
+  total_count: number
+  signed_count: number
+  status: string
+  sent_at?: string
+  sent_by?: number
+  signed_at?: string
+  signed_by?: number
+  signature?: string
+  remark?: string
+  created_at: string
+  batch_no?: string
+  batch_total?: number
+  items?: ReturnOrderItem[]
+}
+
+export interface ReturnOrderItem {
+  id: number
+  return_order_id: number
+  clothes_id: number
+  clothes_no: string
+  status: string
+  signed_at?: string
+  signed_by?: number
+  damage_found: number
+  damage_note?: string
+  created_at: string
+  customer_name?: string
+  category?: string
+  clothes_status?: string
+}
+
+export const RETURN_ORDER_STATUS = {
+  pending: '待发出',
+  sent: '已发出待签收',
+  completed: '已完成'
+}
+
+export const RETURN_ITEM_STATUS = {
+  pending: '待签收',
+  signed: '已签收'
 }
 
 export const CLOTHES_STATUS = {

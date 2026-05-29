@@ -40,8 +40,12 @@ function initDatabase() {
       status TEXT DEFAULT 'pending',
       received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       received_by INTEGER,
+      returned_at DATETIME,
+      returned_by INTEGER,
+      return_signature TEXT,
       FOREIGN KEY (store_id) REFERENCES users(id),
-      FOREIGN KEY (received_by) REFERENCES users(id)
+      FOREIGN KEY (received_by) REFERENCES users(id),
+      FOREIGN KEY (returned_by) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS clothes (
@@ -58,6 +62,8 @@ function initDatabase() {
       services TEXT,
       status TEXT DEFAULT 'received',
       has_damage INTEGER DEFAULT 0,
+      washing_finished_at DATETIME,
+      returned_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (batch_id) REFERENCES batches(id)
     );
@@ -95,6 +101,44 @@ function initDatabase() {
       FOREIGN KEY (operator_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS return_orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      return_no TEXT UNIQUE NOT NULL,
+      batch_id INTEGER NOT NULL,
+      store_id INTEGER NOT NULL,
+      store_name TEXT NOT NULL,
+      total_count INTEGER DEFAULT 0,
+      signed_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending',
+      sent_at DATETIME,
+      sent_by INTEGER,
+      signed_at DATETIME,
+      signed_by INTEGER,
+      signature TEXT,
+      remark TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES batches(id),
+      FOREIGN KEY (store_id) REFERENCES users(id),
+      FOREIGN KEY (sent_by) REFERENCES users(id),
+      FOREIGN KEY (signed_by) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS return_order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      return_order_id INTEGER NOT NULL,
+      clothes_id INTEGER NOT NULL,
+      clothes_no TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      signed_at DATETIME,
+      signed_by INTEGER,
+      damage_found INTEGER DEFAULT 0,
+      damage_note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (return_order_id) REFERENCES return_orders(id),
+      FOREIGN KEY (clothes_id) REFERENCES clothes(id),
+      FOREIGN KEY (signed_by) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS cache_records (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       cache_key TEXT UNIQUE NOT NULL,
@@ -126,27 +170,42 @@ function initDatabase() {
     `)
     
     const clothesData = [
-      ['C202401150001', batch1Id, '张三', '13800138001', '西装', 'Armani', '黑色', 'L', 128, '精洗+熨烫', 'sorted', 0],
-      ['C202401150002', batch1Id, '李四', '13800138002', '羽绒服', 'Moncler', '白色', 'M', 88, '干洗', 'sorted', 0],
+      ['C202401150001', batch1Id, '张三', '13800138001', '西装', 'Armani', '黑色', 'L', 128, '精洗+熨烫', 'washed', 0],
+      ['C202401150002', batch1Id, '李四', '13800138002', '羽绒服', 'Moncler', '白色', 'M', 88, '干洗', 'washed', 0],
       ['C202401150003', batch1Id, '王五', '13800138003', '羊毛大衣', 'MaxMara', '驼色', 'S', 158, '精洗', 'damage_reported', 1],
       ['C202401150004', batch1Id, '赵六', '13800138004', '衬衫', 'Brooks', '白色', '42', 35, '水洗+熨烫', 'washing', 0],
-      ['C202401150005', batch1Id, '钱七', '13800138005', 'T恤', 'Uniqlo', '灰色', 'L', 20, '水洗', 'sorted', 0],
+      ['C202401150005', batch1Id, '钱七', '13800138005', 'T恤', 'Uniqlo', '灰色', 'L', 20, '水洗', 'washed', 0],
       ['C202401150006', batch1Id, '孙八', '13800138006', '牛仔裤', 'Levis', '蓝色', '32', 45, '水洗', 'damage_reported', 1],
       ['C202401150007', batch1Id, '周九', '13800138007', '毛衣', 'Gucci', '红色', 'M', 68, '干洗', 'sorted', 0],
       ['C202401150008', batch1Id, '吴十', '13800138008', '外套', 'Burberry', '卡其色', 'M', 98, '精洗', 'sorting', 0],
       ['C202401150009', batch1Id, '郑十一', '13800138009', '裙子', 'Dior', '黑色', 'S', 78, '干洗+熨烫', 'received', 0],
       ['C202401150010', batch1Id, '王十二', '13800138010', '西装', 'Boss', '深蓝', 'L', 128, '精洗+熨烫', 'received', 0],
-      ['C202401150011', batch2Id, '冯十三', '13800138011', '羽绒服', 'Canada', '黑色', 'XL', 98, '干洗', 'received', 0],
-      ['C202401150012', batch2Id, '陈十四', '13800138012', '衬衫', '雅戈尔', '白色', '41', 35, '水洗+熨烫', 'received', 0],
-      ['C202401150013', batch2Id, '褚十五', '13800138013', '羊毛大衣', 'MaxMara', '灰色', 'M', 158, '精洗', 'received', 0],
-      ['C202401150014', batch2Id, '卫十六', '13800138014', 'T恤', 'Nike', '白色', 'XL', 25, '水洗', 'received', 0],
-      ['C202401150015', batch2Id, '蒋十七', '13800138015', '裤子', 'Adidas', '黑色', 'L', 35, '水洗', 'received', 0],
-      ['C202401150016', batch2Id, '沈十八', '13800138016', '外套', 'Zara', '黑色', 'M', 58, '水洗', 'received', 0],
-      ['C202401150017', batch2Id, '韩十九', '13800138017', '毛衣', 'H&M', '蓝色', 'L', 45, '干洗', 'received', 0],
-      ['C202401150018', batch2Id, '杨二十', '13800138018', '西装', 'G2000', '黑色', '40', 88, '精洗+熨烫', 'received', 0],
+      ['C202401150011', batch2Id, '冯十三', '13800138011', '羽绒服', 'Canada', '黑色', 'XL', 98, '干洗', 'return_to_store', 1],
+      ['C202401150012', batch2Id, '陈十四', '13800138012', '衬衫', '雅戈尔', '白色', '41', 35, '水洗+熨烫', 'washed', 0],
+      ['C202401150013', batch2Id, '褚十五', '13800138013', '羊毛大衣', 'MaxMara', '灰色', 'M', 158, '精洗', 'returned', 1],
+      ['C202401150014', batch2Id, '卫十六', '13800138014', 'T恤', 'Nike', '白色', 'XL', 25, '水洗', 'washed', 0],
+      ['C202401150015', batch2Id, '蒋十七', '13800138015', '裤子', 'Adidas', '黑色', 'L', 35, '水洗', 'washed', 0],
+      ['C202401150016', batch2Id, '沈十八', '13800138016', '外套', 'Zara', '黑色', 'M', 58, '水洗', 'washed', 0],
+      ['C202401150017', batch2Id, '韩十九', '13800138017', '毛衣', 'H&M', '蓝色', 'L', 45, '干洗', 'washed', 0],
+      ['C202401150018', batch2Id, '杨二十', '13800138018', '西装', 'G2000', '黑色', '40', 88, '精洗+熨烫', 'washed', 0],
     ]
     
     clothesData.forEach(c => insertClothes.run(...c))
+
+    const insertReturnOrder = db.prepare(`
+      INSERT INTO return_orders (return_no, batch_id, store_id, store_name, total_count, signed_count, status, sent_at, sent_by, signed_at, signed_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const returnOrder1Id = insertReturnOrder.run(
+      'R20240114001', batch3Id, 3, '朝阳门店', 3, 3, 'completed',
+      '2024-01-14 15:30:00', 1, '2024-01-14 16:00:00', 3
+    ).lastInsertRowid
+
+    const insertReturnItem = db.prepare(`
+      INSERT INTO return_order_items (return_order_id, clothes_id, clothes_no, status, signed_at, signed_by, damage_found, damage_note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    insertReturnItem.run(returnOrder1Id, 13, 'C202401150013', 'signed', '2024-01-14 16:00:00', 3, 1, '腰带丢失，已备注')
 
     const insertDamage = db.prepare(`
       INSERT INTO damage_records (clothes_id, damage_type, description, severity, evidence_photos, reported_by, status)
@@ -158,14 +217,21 @@ function initDatabase() {
     insertDamage.run(13, '配件缺失', '大衣腰带丢失', 'major', '', 2, 'rejected')
 
     const insertLog = db.prepare(`
-      INSERT INTO operation_logs (clothes_id, operation, operator_id, operator_name, note)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name, note)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-    insertLog.run(3, '上报污损', 2, '李质检', '袖口处有2cm左右的撕裂')
-    insertLog.run(6, '上报污损', 2, '李质检', '牛仔裤臀部有大片油渍')
-    insertLog.run(4, '状态变更为: washing', 2, '李质检', '')
-    insertLog.run(1, '状态变更为: sorted', 2, '李质检', '')
-    insertLog.run(2, '状态变更为: sorted', 2, '李质检', '')
+    insertLog.run(3, batch1Id, '上报污损', 2, '李质检', '袖口处有2cm左右的撕裂')
+    insertLog.run(6, batch1Id, '上报污损', 2, '李质检', '牛仔裤臀部有大片油渍')
+    insertLog.run(4, batch1Id, '状态变更为: washing', 2, '李质检', '')
+    insertLog.run(1, batch1Id, '状态变更为: sorted', 2, '李质检', '')
+    insertLog.run(2, batch1Id, '状态变更为: sorted', 2, '李质检', '')
+    insertLog.run(1, batch1Id, '状态变更为: washed', 2, '李质检', '')
+    insertLog.run(2, batch1Id, '状态变更为: washed', 2, '李质检', '')
+    insertLog.run(5, batch1Id, '状态变更为: sorted', 2, '李质检', '')
+    insertLog.run(5, batch1Id, '状态变更为: washed', 2, '李质检', '')
+    insertLog.run(13, batch2Id, '污损复判: 退回门店', 1, '张厂长', '腰带丢失，客户索赔')
+    insertLog.run(13, batch2Id, '加入回单，待门店签收', 1, '张厂长', '')
+    insertLog.run(13, batch2Id, '门店签收（发现新污损）', 3, '门店小王', '腰带确实丢失')
   }
 }
 
@@ -424,6 +490,210 @@ ipcMain.handle('db:getCache', (_, key: string) => {
 ipcMain.handle('db:clearCache', (_, key: string) => {
   db?.prepare('DELETE FROM cache_records WHERE cache_key = ?').run(key)
   return true
+})
+
+ipcMain.handle('db:getReturnOrders', (_, storeId?: number) => {
+  let sql = `
+    SELECT ro.*, b.batch_no, b.total_count as batch_total
+    FROM return_orders ro
+    LEFT JOIN batches b ON ro.batch_id = b.id
+  `
+  const params: any[] = []
+  if (storeId) {
+    sql += ' WHERE ro.store_id = ?'
+    params.push(storeId)
+  }
+  sql += ' ORDER BY ro.created_at DESC'
+  return db?.prepare(sql).all(...params)
+})
+
+ipcMain.handle('db:getReturnOrderById', (_, id: number) => {
+  const order = db?.prepare(`
+    SELECT ro.*, b.batch_no, b.total_count as batch_total
+    FROM return_orders ro
+    LEFT JOIN batches b ON ro.batch_id = b.id
+    WHERE ro.id = ?
+  `).get(id)
+  
+  const items = db?.prepare(`
+    SELECT roi.*, c.customer_name, c.category, c.status as clothes_status
+    FROM return_order_items roi
+    LEFT JOIN clothes c ON roi.clothes_id = c.id
+    WHERE roi.return_order_id = ?
+    ORDER BY roi.created_at
+  `).all(id)
+  
+  return order ? { ...(order as object), items } : null
+})
+
+ipcMain.handle('db:createReturnOrder', (_, data: { batch_id: number; store_id: number; store_name: string; sent_by?: number; sent_by_name?: string }) => {
+  const batch = db?.prepare('SELECT * FROM batches WHERE id = ?').get(data.batch_id) as any
+  if (!batch) throw new Error('批次不存在')
+  
+  const clothes = db?.prepare(`
+    SELECT * FROM clothes 
+    WHERE batch_id = ? AND status IN ('washed', 'return_to_store')
+  `).all(data.batch_id) as any[]
+  
+  if (!clothes || clothes.length === 0) {
+    throw new Error('该批次没有可返回的衣物')
+  }
+  
+  const returnNo = `R${Date.now()}`
+  
+  const result = db?.prepare(`
+    INSERT INTO return_orders (return_no, batch_id, store_id, store_name, total_count, status, sent_at, sent_by)
+    VALUES (?, ?, ?, ?, ?, 'sent', CURRENT_TIMESTAMP, ?)
+  `).run(returnNo, data.batch_id, data.store_id, data.store_name, clothes.length, data.sent_by || 1)
+  
+  const orderId = result?.lastInsertRowid
+  
+  const insertItem = db?.prepare(`
+    INSERT INTO return_order_items (return_order_id, clothes_id, clothes_no)
+    VALUES (?, ?, ?)
+  `)
+  
+  clothes.forEach((c: any) => {
+    insertItem?.run(orderId, c.id, c.clothes_no)
+    db?.prepare('UPDATE clothes SET status = ? WHERE id = ?').run('returning', c.id)
+    db?.prepare(`
+      INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(c.id, data.batch_id, '加入回单，待门店签收', data.sent_by || 1, data.sent_by_name || '系统')
+  })
+  
+  db?.prepare('UPDATE batches SET status = ? WHERE id = ?').run('returning', data.batch_id)
+  
+  return orderId
+})
+
+ipcMain.handle('db:signReturnOrderItem', (_, data: { 
+  item_id: number; 
+  clothes_id: number;
+  signed_by: number; 
+  signed_by_name: string;
+  damage_found?: number;
+  damage_note?: string;
+}) => {
+  const item = db?.prepare('SELECT * FROM return_order_items WHERE id = ?').get(data.item_id) as any
+  if (!item) throw new Error('回单项不存在')
+  
+  db?.prepare(`
+    UPDATE return_order_items 
+    SET status = 'signed', signed_at = CURRENT_TIMESTAMP, signed_by = ?, damage_found = ?, damage_note = ?
+    WHERE id = ?
+  `).run(data.signed_by, data.damage_found || 0, data.damage_note || '', data.item_id)
+  
+  db?.prepare(`
+    UPDATE clothes 
+    SET status = 'returned', returned_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(data.clothes_id)
+  
+  const orderItem = db?.prepare('SELECT return_order_id FROM return_order_items WHERE id = ?').get(data.item_id) as any
+  const order = db?.prepare(`
+    SELECT ro.*, (SELECT COUNT(*) FROM return_order_items WHERE return_order_id = ro.id AND status = 'signed') as signed_count
+    FROM return_orders ro WHERE ro.id = ?
+  `).get(orderItem.return_order_id) as any
+  
+  if (order.signed_count >= order.total_count) {
+    db?.prepare(`
+      UPDATE return_orders 
+      SET status = 'completed', signed_at = CURRENT_TIMESTAMP, signed_by = ?
+      WHERE id = ?
+    `).run(data.signed_by, orderItem.return_order_id)
+    
+    db?.prepare(`
+      UPDATE batches 
+      SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
+      WHERE id = (SELECT batch_id FROM return_orders WHERE id = ?)
+    `).run(data.signed_by, orderItem.return_order_id)
+  } else {
+    db?.prepare(`
+      UPDATE return_orders SET signed_count = ? WHERE id = ?
+    `).run(order.signed_count, orderItem.return_order_id)
+  }
+  
+  db?.prepare(`
+    INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name, note)
+    VALUES (?, (SELECT batch_id FROM return_orders WHERE id = ?), ?, ?, ?, ?)
+  `).run(
+    data.clothes_id, 
+    orderItem.return_order_id,
+    data.damage_found ? '门店签收（发现新污损）' : '门店签收确认',
+    data.signed_by,
+    data.signed_by_name,
+    data.damage_note || ''
+  )
+  
+  return true
+})
+
+ipcMain.handle('db:batchSignReturnOrder', (_, data: {
+  order_id: number;
+  signed_by: number;
+  signed_by_name: string;
+}) => {
+  const items = db?.prepare('SELECT * FROM return_order_items WHERE return_order_id = ? AND status = ?').all(data.order_id, 'pending') as any[]
+  
+  const transaction = db?.transaction(() => {
+    for (const item of items) {
+      db?.prepare(`
+        UPDATE return_order_items 
+        SET status = 'signed', signed_at = CURRENT_TIMESTAMP, signed_by = ?
+        WHERE id = ?
+      `).run(data.signed_by, item.id)
+      
+      db?.prepare(`
+        UPDATE clothes 
+        SET status = 'returned', returned_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(item.clothes_id)
+      
+      db?.prepare(`
+        INSERT INTO operation_logs (clothes_id, batch_id, operation, operator_id, operator_name)
+        VALUES (?, (SELECT batch_id FROM return_orders WHERE id = ?), ?, ?, ?)
+      `).run(
+        item.clothes_id, 
+        data.order_id,
+        '门店批量签收确认',
+        data.signed_by,
+        data.signed_by_name
+      )
+    }
+    
+    db?.prepare(`
+      UPDATE return_orders 
+      SET status = 'completed', signed_count = total_count, signed_at = CURRENT_TIMESTAMP, signed_by = ?
+      WHERE id = ?
+    `).run(data.signed_by, data.order_id)
+    
+    db?.prepare(`
+      UPDATE batches 
+      SET status = 'completed', returned_at = CURRENT_TIMESTAMP, returned_by = ?
+      WHERE id = (SELECT batch_id FROM return_orders WHERE id = ?)
+    `).run(data.signed_by, data.order_id)
+  })
+  
+  transaction?.()
+  
+  return items.length
+})
+
+ipcMain.handle('db:getClothesForReturn', (_, storeId?: number) => {
+  let sql = `
+    SELECT c.*, b.batch_no, b.store_name, b.id as batch_id
+    FROM clothes c
+    LEFT JOIN batches b ON c.batch_id = b.id
+    WHERE c.status IN ('washed', 'return_to_store')
+  `
+  const params: any[] = []
+  if (storeId) {
+    sql += ' AND b.store_id = ?'
+    params.push(storeId)
+  }
+  sql += ' ORDER BY c.created_at DESC'
+  return db?.prepare(sql).all(...params)
 })
 
 ipcMain.handle('app:selectDirectory', async () => {

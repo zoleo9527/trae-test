@@ -27,6 +27,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCache: (key: string) => ipcRenderer.invoke('db:getCache', key),
   clearCache: (key: string) => ipcRenderer.invoke('db:clearCache', key),
   
+  getReturnOrders: (storeId?: number) => ipcRenderer.invoke('db:getReturnOrders', storeId),
+  getReturnOrderById: (id: number) => ipcRenderer.invoke('db:getReturnOrderById', id),
+  createReturnOrder: (data: any) => ipcRenderer.invoke('db:createReturnOrder', data),
+  signReturnOrderItem: (data: any) => ipcRenderer.invoke('db:signReturnOrderItem', data),
+  batchSignReturnOrder: (data: any) => ipcRenderer.invoke('db:batchSignReturnOrder', data),
+  getClothesForReturn: (storeId?: number) => ipcRenderer.invoke('db:getClothesForReturn', storeId),
+  
   selectDirectory: () => ipcRenderer.invoke('app:selectDirectory'),
   selectFile: () => ipcRenderer.invoke('app:selectFile'),
   showMessageBox: (options: any) => ipcRenderer.invoke('app:showMessageBox', options)

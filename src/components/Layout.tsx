@@ -6,7 +6,8 @@ import {
   WarningOutlined,
   SearchOutlined,
   LogoutOutlined,
-  UserOutlined
+  UserOutlined,
+  FileSyncOutlined
 } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { User } from '../types'
@@ -44,6 +45,11 @@ export default function MainLayout({ user, onLogout, children }: MainLayoutProps
       key: '/damages',
       icon: <WarningOutlined />,
       label: '污损复判',
+    },
+    {
+      key: '/returns',
+      icon: <FileSyncOutlined />,
+      label: user.role === 'store' ? '门店回单' : '回单管理',
     },
     {
       key: '/search',

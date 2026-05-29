@@ -107,11 +107,13 @@ export default function Sorting({ user }: SortingProps) {
       }
     }
 
-    const newList = [clothes, ...scannedList]
-    setScannedList(newList)
-    setCurrentClothes(clothes)
-    setScanCode('')
-    saveCache(newList)
+    if (clothes) {
+      const newList = [clothes, ...scannedList]
+      setScannedList(newList)
+      setCurrentClothes(clothes)
+      setScanCode('')
+      saveCache(newList)
+    }
 
     setTimeout(() => inputRef.current?.focus(), 100)
   }
