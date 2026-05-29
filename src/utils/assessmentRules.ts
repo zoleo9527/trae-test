@@ -1,4 +1,5 @@
 import type { AssessmentType, ResponsibleParty } from '@/types';
+import { getResponsiblePartyLabel } from './labels';
 
 export interface AssessmentRule {
   type: AssessmentType;
@@ -70,7 +71,7 @@ export function calculateAssessment(
       scoreDeducted: 0,
       fineAmount: 0,
       requiresTraining: false,
-      reasoning: [`责任方为${getPartyLabel(responsibleParty)}，不对骑手进行考核`],
+      reasoning: [`责任方为${getResponsiblePartyLabel(responsibleParty)}，不对骑手进行考核`],
     };
   }
 
@@ -115,65 +116,10 @@ export function calculateAssessment(
   };
 }
 
-export function getAssessmentTypeLabel(type: AssessmentType): string {
-  const labels: Record<AssessmentType, string> = {
-    timeout: '配送超时',
-    complaint: '用户投诉',
-    violation: '违规操作',
-    service_issue: '服务问题',
-  };
-  return labels[type] || type;
-}
-
-export function getAssessmentStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    draft: '草稿',
-    pending_approval: '待审核',
-    approved: '已通过',
-    appealed: '已申诉',
-    rejected: '已驳回',
-  };
-  return labels[status] || status;
-}
-
-export function getAssessmentStatusColor(status: string): string {
-  const colors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-600',
-    pending_approval: 'bg-amber-100 text-amber-700',
-    approved: 'bg-green-100 text-green-700',
-    appealed: 'bg-blue-100 text-blue-700',
-    rejected: 'bg-red-100 text-red-700',
-  };
-  return colors[status] || 'bg-gray-100 text-gray-600';
-}
-
-export function getSeverityLabel(severity: string): string {
-  const labels: Record<string, string> = {
-    severe: '严重',
-    moderate: '中度',
-    minor: '轻微',
-  };
-  return labels[severity] || severity;
-}
-
-export function getResponsiblePartyLabel(party: string): string {
-  const labels: Record<string, string> = {
-    rider: '骑手',
-    merchant: '商家',
-    platform: '平台',
-    user: '用户',
-    unclear: '待判定',
-  };
-  return labels[party] || party;
-}
-
-function getPartyLabel(party: string): string {
-  const labels: Record<string, string> = {
-    rider: '骑手',
-    merchant: '商家',
-    platform: '平台',
-    user: '用户',
-    unclear: '待判定',
-  };
-  return labels[party] || party;
-}
+export {
+  getAssessmentTypeLabel,
+  getAssessmentStatusLabel,
+  getAssessmentStatusVariant as getAssessmentStatusColor,
+  getSeverityLabel,
+  getResponsiblePartyLabel,
+} from './labels';

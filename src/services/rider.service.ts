@@ -1,7 +1,8 @@
-import type { Rider, RiderStatus } from '@/types';
+import type { Rider, RiderStatus, TimelineEvent } from '@/types';
 import { mockRiders, getRidersByRegion } from '@/mock/riders';
-import { getRiderTotalScore, getRiderCurrentMonthScore } from './assessment.service';
-import { getRiderTrainingCount } from './training.service';
+import { getRiderTotalScore, getRiderCurrentMonthScore, getAssessmentsByRiderId } from './assessment.service';
+import { getRiderTrainingCount, getTrainingsByRiderId } from './training.service';
+import { getOrders } from './order.service';
 
 export function getAllRiders(): Rider[] {
   return mockRiders;
@@ -66,6 +67,45 @@ export function getRiderById(id: string) {
   return mockRiders.find(r => r.id === id);
 }
 
-export function buildRiderTimeline(riderId: string) {
-  return [];
+export function buildRiderTimeline(riderId: string): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+
+  const riderOrders = getOrders({ riderId });
+  const riderAssessments = getAssessmentsByRiderId(riderId);
+  const riderTrainings = getTrainingsByRiderId(riderId);
+
+  riderOrders.forEach(order => {
+    events.push({
+      id: `order-${order.id}`,
+      type: 'order',
+      timestamp: order.createdAt,
+      title: `订单 ${order.id}`,
+      description: `${order.merchantName} → ${order.userName}`,
+      data: { status: order.status, orderId: order.id },
+    });
+  });
+
+  riderAssessments.forEach(assessment => {
+    events.push({
+      id: `assessment-${assessment.id}`,
+      type: 'assessment',
+      timestamp: assessment.createdAt,
+      title: `考核：扣 ${assessment.scoreDeducted} 分`,
+      description: assessment.reason,
+      data: { status: assessment.status, assessmentId: assessment.id, scoreDeducted: assessment.scoreDeducted },
+    });
+  });
+
+  riderTrainings.forEach(training => {
+    events.push({
+      id: `training-${training.id}`,
+      type: 'training',
+      timestamp: training.createdAt,
+      title: training.title,
+      description: training.description,
+      data: { status: training.status, trainingId: training.id, score: training.score },
+    });
+  });
+
+  return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }

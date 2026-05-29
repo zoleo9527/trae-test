@@ -100,7 +100,7 @@ export const mockAppeals: Appeal[] = [
     orderId: 'order-D006',
     userId: 'u-006',
     userName: '王女士',
-    type: 'complaint',
+    type: 'rude',
     reason: '骑手态度差+配送撒漏',
     description: '用户反映骑手送错楼层，打电话态度不耐烦，而且奶茶撒漏了约1/4。用户要求重新配送或退款。已核实监控，骑手确实有撒漏痕迹。',
     evidenceUrls: [

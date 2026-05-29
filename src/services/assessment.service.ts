@@ -180,19 +180,22 @@ export function getPendingAssessments(): Assessment[] {
   return mockAssessments.filter(a => a.status === 'pending_approval' || a.status === 'draft');
 }
 
-export function getSeverityLabel(scoreDeducted: number): string {
-  if (scoreDeducted >= 10) return '严重';
-  if (scoreDeducted >= 5) return '中度';
-  return '轻微';
+export function getResponsibilityStats(riderId: string): Record<string, number> {
+  const riderAssessments = getAssessmentsByRider(riderId).filter(a => a.status === 'approved');
+  const stats: Record<string, number> = {
+    rider: 0,
+    merchant: 0,
+    platform: 0,
+    user: 0,
+    unclear: 0,
+  };
+  
+  riderAssessments.forEach(a => {
+    const party = a.responsibleParty || 'unclear';
+    stats[party] = (stats[party] || 0) + 1;
+  });
+  
+  return stats;
 }
 
-export function getResponsiblePartyLabel(party: string): string {
-  const labels: Record<string, string> = {
-    rider: '骑手',
-    merchant: '商家',
-    platform: '平台',
-    user: '用户',
-    unclear: '待判定',
-  };
-  return labels[party] || party;
-}
+export { getSeverityLabel, getResponsiblePartyLabel } from '@/utils/labels';

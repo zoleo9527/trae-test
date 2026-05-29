@@ -1,5 +1,5 @@
 import { calculateSubsidyAmount, getSubsidiesByOrder, getSubsidyById, mockSubsidies } from '@/mock/subsidies';
-import type { Subsidy, SubsidyStatus } from '@/types';
+import type { Subsidy, SubsidyStatus, SubsidyType } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export function getAllSubsidies(): Subsidy[] {
@@ -29,7 +29,7 @@ export function getSubsidyDetail(id: string): Subsidy | undefined {
 export function createSubsidy(data: {
   orderId: string;
   riderName: string;
-  type: string;
+  type: SubsidyType;
   reason: string;
   notes: string;
   amount?: number;
@@ -84,20 +84,4 @@ export function getPendingSubsidies(): Subsidy[] {
   return mockSubsidies.filter(s => s.status === 'pending');
 }
 
-export function getSubsidyStatusLabel(status: SubsidyStatus): string {
-  const labels: Record<SubsidyStatus, string> = {
-    pending: '待审核',
-    approved: '已通过',
-    rejected: '已驳回',
-  };
-  return labels[status] || status;
-}
-
-export function getSubsidyStatusVariant(status: SubsidyStatus): 'default' | 'success' | 'warning' | 'danger' {
-  const variants: Record<SubsidyStatus, 'default' | 'success' | 'warning' | 'danger'> = {
-    pending: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-  };
-  return variants[status];
-}
+export { getSubsidyStatusLabel, getSubsidyStatusVariant } from '@/utils/labels';

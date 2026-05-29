@@ -1,6 +1,7 @@
 import { getAppealById, getAppealsByOrder, mockAppeals } from '@/mock/appeals';
 import type { Appeal, AppealStatus, ResponsibleParty, UserRole } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+export { getAppealStatusLabel, getAppealStatusVariant } from '@/utils/labels';
 
 export function getAllAppeals(): Appeal[] {
   return mockAppeals.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -93,24 +94,4 @@ export function getAppealsByOrderId(orderId: string): Appeal[] {
 
 export function getPendingAppeals(): Appeal[] {
   return mockAppeals.filter(a => a.status === 'pending' || a.status === 'processing');
-}
-
-export function getAppealStatusLabel(status: AppealStatus): string {
-  const labels: Record<AppealStatus, string> = {
-    pending: '待处理',
-    processing: '处理中',
-    resolved: '已解决',
-    rejected: '已驳回',
-  };
-  return labels[status] || status;
-}
-
-export function getAppealStatusVariant(status: AppealStatus): 'default' | 'warning' | 'success' | 'danger' | 'info' {
-  const variants: Record<AppealStatus, 'default' | 'warning' | 'success' | 'danger' | 'info'> = {
-    pending: 'warning',
-    processing: 'info',
-    resolved: 'success',
-    rejected: 'danger',
-  };
-  return variants[status] || 'default';
 }

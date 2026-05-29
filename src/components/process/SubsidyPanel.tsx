@@ -6,24 +6,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Ca
 import { Button } from '@/components/common/Button';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tag } from '@/components/common/Tag';
-import type { SubsidyStatus } from '@/types';
+import type { SubsidyStatus, SubsidyType } from '@/types';
 import { createSubsidy, updateSubsidyStatus, calculateAmount } from '@/services/subsidy.service';
 import { calculateSubsidyAmount } from '@/mock/subsidies';
 import { getPartyLabel, getPartyColor } from '@/utils/responsibility';
 import { cn } from '@/lib/utils';
 
-const subsidyReasons = [
-  '商家出餐慢导致超时',
-  '路况拥堵导致配送延误',
-  '天气恶劣影响配送',
-  '用户地址难找',
-  '其他特殊情况',
+const subsidyReasons: { label: string; type: SubsidyType }[] = [
+  { label: '商家出餐慢导致超时', type: 'merchant_delay' },
+  { label: '路况拥堵导致配送延误', type: 'traffic' },
+  { label: '天气恶劣影响配送', type: 'weather' },
+  { label: '用户地址难找', type: 'address' },
+  { label: '其他特殊情况', type: 'other' },
 ];
 
 export function SubsidyPanel() {
   const { order, subsidies, selectedResponsibility, setSubsidyDecision, markStepComplete, goToNextStep } = useProcessStore();
   const { currentUser, userRole, refreshPendingCounts } = useAppStore();
-  const [selectedReason, setSelectedReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState<SubsidyType | ''>('');
   const [customAmount, setCustomAmount] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -39,7 +39,8 @@ export function SubsidyPanel() {
     );
   }
 
-  const suggestedAmount = selectedReason ? calculateSubsidyAmount(order.id, selectedReason) : 0;
+  const selectedReasonLabel = subsidyReasons.find(r => r.type === selectedReason)?.label || '';
+  const suggestedAmount = selectedReason ? calculateSubsidyAmount(order.id, selectedReasonLabel) : 0;
   const finalAmount = customAmount ?? suggestedAmount;
 
   const shouldOfferSubsidy = selectedResponsibility === 'merchant' || selectedResponsibility === 'platform';
@@ -80,7 +81,7 @@ export function SubsidyPanel() {
           orderId: order.id,
           riderName: order.riderName,
           type: selectedReason,
-          reason: selectedReason,
+          reason: selectedReasonLabel,
           notes: '',
           amount: finalAmount,
         });
@@ -227,16 +228,16 @@ export function SubsidyPanel() {
               <div className="flex flex-wrap gap-2">
                 {subsidyReasons.map(reason => (
                   <button
-                    key={reason}
-                    onClick={() => setSelectedReason(reason)}
+                    key={reason.type}
+                    onClick={() => setSelectedReason(reason.type)}
                     className={cn(
                       'px-3 py-1.5 rounded-md border text-sm transition-all',
-                      selectedReason === reason
+                      selectedReason === reason.type
                         ? 'bg-primary-700 text-white border-primary-700'
                         : 'border-gray-200 text-gray-600 hover:border-gray-300'
                     )}
                   >
-                    {reason}
+                    {reason.label}
                   </button>
                 ))}
               </div>
@@ -313,9 +314,9 @@ export function SubsidyPanel() {
               <span className="text-sm text-gray-600">补贴金额：</span>
               <span className="text-lg font-bold text-accent-green">¥{subsidy!.amount}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <User className="w-4 h-4" />
-              <span>处理人：{subsidy!.approvedBy}</span>
+            <div>
+              <span className="text-sm text-gray-600">处理人：</span>
+              <span className="text-sm text-gray-900">{subsidy!.approvedBy || '系统'}</span>
             </div>
           </CardContent>
         </Card>

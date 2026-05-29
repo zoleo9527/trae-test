@@ -1,17 +1,17 @@
-import { useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, User, MapPin, Phone, Calendar, AlertTriangle, TrendingDown } from 'lucide-react';
+import { Button } from '@/components/common/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tag } from '@/components/common/Tag';
-import { Button } from '@/components/common/Button';
-import { getRiderById } from '@/services/rider.service';
-import { getOrders } from '@/services/order.service';
-import { getAssessmentsByRiderId } from '@/services/assessment.service';
-import { getTrainingsByRiderId } from '@/services/training.service';
 import { VerticalTimeline } from '@/components/timeline/VerticalTimeline';
-import { buildRiderTimeline } from '@/services/rider.service';
-import { getAssessmentTypeLabel, getSeverityLabel } from '@/utils/assessmentRules';
+import { cn } from '@/lib/utils';
+import { getAssessmentsByRiderId, getResponsibilityStats } from '@/services/assessment.service';
+import { getOrders } from '@/services/order.service';
+import { buildRiderTimeline, getRiderById } from '@/services/rider.service';
+import { getTrainingsByRiderId } from '@/services/training.service';
+import { getAssessmentTypeLabel, getResponsiblePartyLabel, getSeverityLabel } from '@/utils/assessmentRules';
+import { AlertTriangle, ArrowLeft, Calendar, GraduationCap, MapPin, Phone, Scale, TrendingDown, User } from 'lucide-react';
+import { useMemo } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 export function RiderProfilePage() {
   const { riderId } = useParams<{ riderId: string }>();
@@ -22,6 +22,7 @@ export function RiderProfilePage() {
   const riderAssessments = useMemo(() => riderId ? getAssessmentsByRiderId(riderId) : [], [riderId]);
   const riderTrainings = useMemo(() => riderId ? getTrainingsByRiderId(riderId) : [], [riderId]);
   const timeline = useMemo(() => riderId ? buildRiderTimeline(riderId) : [], [riderId]);
+  const responsibilityStats = useMemo(() => riderId ? getResponsibilityStats(riderId) : {}, [riderId]);
 
   if (!rider) {
     return (
@@ -66,8 +67,7 @@ export function RiderProfilePage() {
     .filter(a => a.status === 'approved')
     .reduce((sum, a) => sum + a.scoreDeducted, 0);
 
-  const completedTrainings = riderTrainings.filter(t => t.status === 'completed').length;
-  const pendingTrainings = riderTrainings.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+  const totalResponsibility = Object.values(responsibilityStats).reduce((a, b) => (a as number) + (b as number), 0) as number;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -201,6 +201,42 @@ export function RiderProfilePage() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Scale className="w-4 h-4" />
+                责任归属统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(responsibilityStats).map(([party, count]) => (
+                  <div key={party} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{getResponsiblePartyLabel(party)}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full rounded-full',
+                            party === 'rider' ? 'bg-red-500' :
+                            party === 'merchant' ? 'bg-amber-500' :
+                            party === 'platform' ? 'bg-blue-500' :
+                            party === 'user' ? 'bg-green-500' : 'bg-gray-400'
+                          )}
+                          style={{ width: `${Math.min(((count as number) / Math.max(1, totalResponsibility)) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-900 w-8 text-right">{count as number} 次</span>
+                    </div>
+                  </div>
+                ))}
+                {totalResponsibility === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">暂无责任判定记录</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base">考核记录</CardTitle>
             </CardHeader>
             <CardContent>
@@ -208,28 +244,41 @@ export function RiderProfilePage() {
                 <p className="text-sm text-gray-400 text-center py-4">暂无考核记录</p>
               ) : (
                 <div className="space-y-3">
-                  {riderAssessments.map(assessment => (
-                    <div
-                      key={assessment.id}
-                      className="p-3 bg-red-50 rounded-lg"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-900">
-                          {getAssessmentTypeLabel(assessment.type)}
-                        </span>
-                        <span className="text-sm font-bold text-red-600">
-                          -{assessment.scoreDeducted} 分
-                        </span>
+                  {riderAssessments.map(assessment => {
+                    const linkedTraining = riderTrainings.find(t => t.assessmentId === assessment.id);
+                    return (
+                      <div
+                        key={assessment.id}
+                        className="p-3 bg-red-50 rounded-lg"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-900">
+                            {getAssessmentTypeLabel(assessment.type)}
+                          </span>
+                          <span className="text-sm font-bold text-red-600">
+                            -{assessment.scoreDeducted} 分
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Tag variant="warning" size="sm">{getSeverityLabel(assessment.severity)}</Tag>
+                          <span>{new Date(assessment.createdAt).toLocaleDateString('zh-CN')}</span>
+                          <span>责任：{getResponsiblePartyLabel(assessment.responsibleParty)}</span>
+                        </div>
+                        {linkedTraining && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                            <GraduationCap className="w-3 h-3" />
+                            <span>关联培训：{linkedTraining.title}</span>
+                            <Tag variant={linkedTraining.status === 'completed' ? 'success' : 'info'} size="sm">
+                              {linkedTraining.status === 'completed' ? '已完成' : '待学习'}
+                            </Tag>
+                          </div>
+                        )}
+                        {assessment.notes && (
+                          <p className="text-xs text-gray-600 mt-2">{assessment.notes}</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Tag variant="warning" size="sm">{getSeverityLabel(assessment.severity)}</Tag>
-                        <span>{new Date(assessment.createdAt).toLocaleDateString('zh-CN')}</span>
-                      </div>
-                      {assessment.notes && (
-                        <p className="text-xs text-gray-600 mt-2">{assessment.notes}</p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -280,8 +329,4 @@ export function RiderProfilePage() {
       </div>
     </div>
   );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(' ');
 }

@@ -49,7 +49,7 @@ export const mockRiders: Rider[] = [
     region: '朝阳区',
     zone: '朝阳C区',
     joinDate: '2024-01-10T00:00:00Z',
-    status: 'probation',
+    status: 'active',
     totalScore: 95,
     currentScore: 95,
     totalOrders: 342,

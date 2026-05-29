@@ -8,14 +8,15 @@ export interface User {
 }
 
 export type OrderStatus = 'pending' | 'picked_up' | 'delivered' | 'cancelled' | 'exception';
-export type AppealType = 'timeout' | 'refund' | 'settlement_error' | 'complaint' | 'other';
+export type AppealType = 'timeout' | 'wrong_item' | 'damage' | 'rude' | 'refund' | 'other';
 export type AppealStatus = 'pending' | 'processing' | 'resolved' | 'rejected';
+export type SubsidyType = 'merchant_delay' | 'weather' | 'traffic' | 'address' | 'other';
 export type SubsidyStatus = 'pending' | 'approved' | 'rejected';
 export type AssessmentType = 'timeout' | 'complaint' | 'violation' | 'service_issue';
 export type AssessmentStatus = 'draft' | 'pending_approval' | 'approved' | 'appealed' | 'rejected';
-export type TrainingType = 'mandatory' | 'remedial' | 'onboarding' | 'refresh';
-export type TrainingStatus = 'pending' | 'in_progress' | 'completed' | 'overdue';
-export type RiderStatus = 'active' | 'probation' | 'suspended' | 'inactive';
+export type TrainingType = 'mandatory' | 'remedial' | 'optional';
+export type TrainingStatus = 'pending' | 'in_progress' | 'completed' | 'expired';
+export type RiderStatus = 'active' | 'inactive' | 'suspended';
 export type ResponsibleParty = 'rider' | 'merchant' | 'platform' | 'user' | 'unclear';
 
 export interface OrderItem {
@@ -73,7 +74,7 @@ export interface Subsidy {
   id: string;
   orderId: string;
   riderName: string;
-  type: string;
+  type: SubsidyType;
   reason: string;
   notes: string;
   amount: number;

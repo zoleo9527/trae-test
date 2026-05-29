@@ -33,7 +33,7 @@ export function TrainingPanel() {
   const getStatusVariant = (status: TrainingStatus) => {
     switch (status) {
       case 'completed': return 'success';
-      case 'overdue': return 'danger';
+      case 'expired': return 'danger';
       case 'in_progress': return 'info';
       case 'pending': return 'warning';
       default: return 'default';

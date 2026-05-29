@@ -197,7 +197,7 @@ ${template.content}
 
   return {
     shouldTrigger: false,
-    trainingType: 'refresh',
+    trainingType: 'optional',
     reason: '未达到培训触发条件',
     title: '',
     content: '',
@@ -208,8 +208,7 @@ export function getTrainingTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     mandatory: '强制培训',
     remedial: '整改培训',
-    onboarding: '入职培训',
-    refresh: '常规培训',
+    optional: '常规培训',
   };
   return labels[type] || type;
 }
@@ -219,7 +218,7 @@ export function getTrainingStatusLabel(status: string): string {
     pending: '待学习',
     in_progress: '学习中',
     completed: '已完成',
-    overdue: '已逾期',
+    expired: '已过期',
   };
   return labels[status] || status;
 }
@@ -229,7 +228,7 @@ export function getTrainingStatusColor(status: string): string {
     pending: 'bg-amber-100 text-amber-700',
     in_progress: 'bg-blue-100 text-blue-700',
     completed: 'bg-green-100 text-green-700',
-    overdue: 'bg-red-100 text-red-700',
+    expired: 'bg-red-100 text-red-700',
   };
   return colors[status] || 'bg-gray-100 text-gray-600';
 }
