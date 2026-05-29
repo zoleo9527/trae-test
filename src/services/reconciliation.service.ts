@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { AuthUser, PaginatedResult, Role, ReconciliationStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
+import { AppError } from '../middleware/errorHandler';
 
 export interface CreateReconciliationDTO {
   projectId: string;
@@ -132,12 +133,12 @@ export class ReconciliationService {
 
   static async create(user: AuthUser, dto: CreateReconciliationDTO, ip?: string) {
     if (!this.canCreate(user)) {
-      throw new Error('无权创建对账单');
+      throw new AppError('无权创建对账单', 403);
     }
 
     const supplierIds = await this.getUserSupplierIds(user);
     if (supplierIds.length > 0 && !supplierIds.includes(dto.supplierId)) {
-      throw new Error('无权为该供应商创建对账单');
+      throw new AppError('无权为该供应商创建对账单', 403);
     }
 
     const code = await this.generateCode();
@@ -181,12 +182,12 @@ export class ReconciliationService {
 
   static async update(user: AuthUser, id: string, dto: UpdateReconciliationDTO, ip?: string) {
     if (!this.canCreate(user)) {
-      throw new Error('无权修改对账单');
+      throw new AppError('无权修改对账单', 403);
     }
 
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
     if (accessibleIds.length > 0 && !accessibleIds.includes(id)) {
-      throw new Error('无权修改此对账单');
+      throw new AppError('无权修改此对账单', 403);
     }
 
     const existing = await prisma.reconciliation.findUnique({
@@ -195,11 +196,11 @@ export class ReconciliationService {
     });
 
     if (!existing) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     if (existing.status !== ReconciliationStatus.DRAFT && existing.status !== ReconciliationStatus.REVISED) {
-      throw new Error('当前状态不允许修改');
+      throw new AppError('当前状态不允许修改', 400);
     }
 
     const oldData = {
@@ -247,20 +248,20 @@ export class ReconciliationService {
   }
 
   static async submit(user: AuthUser, id: string, ip?: string) {
-    if (!this.canSubmit(user)) throw new Error('无权提交对账单');
+    if (!this.canSubmit(user)) throw new AppError('无权提交对账单', 403);
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此对账单', 403);
 
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     if (existing.status !== ReconciliationStatus.DRAFT && existing.status !== ReconciliationStatus.REVISED) {
-      throw new Error('当前状态不允许提交');
+      throw new AppError('当前状态不允许提交', 400);
     }
 
     const reconciliation = await prisma.reconciliation.update({
@@ -288,20 +289,20 @@ export class ReconciliationService {
   }
 
   static async approve(user: AuthUser, id: string, confirmedAmount?: number, ip?: string) {
-    if (!this.canApprove(user)) throw new Error('无权审批对账单');
+    if (!this.canApprove(user)) throw new AppError('无权审批对账单', 403);
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此对账单', 403);
 
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     if (existing.status !== ReconciliationStatus.SUBMITTED && existing.status !== ReconciliationStatus.REVIEWING) {
-      throw new Error('当前状态不允许审批');
+      throw new AppError('当前状态不允许审批', 400);
     }
 
     const reconciliation = await prisma.reconciliation.update({
@@ -330,16 +331,16 @@ export class ReconciliationService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
-    if (!this.canReject(user)) throw new Error('无权驳回对账单');
+    if (!this.canReject(user)) throw new AppError('无权驳回对账单', 403);
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此对账单', 403);
 
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     const reconciliation = await prisma.reconciliation.update({
@@ -368,20 +369,20 @@ export class ReconciliationService {
   }
 
   static async requestRevise(user: AuthUser, id: string, note: string, ip?: string) {
-    if (!this.canRevise(user)) throw new Error('无权退回修改对账单');
+    if (!this.canRevise(user)) throw new AppError('无权退回修改对账单', 403);
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此对账单');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此对账单', 403);
 
     const existing = await prisma.reconciliation.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     if (existing.status !== ReconciliationStatus.SUBMITTED && existing.status !== ReconciliationStatus.REVIEWING) {
-      throw new Error('当前状态不允许退回修改');
+      throw new AppError('当前状态不允许退回修改', 400);
     }
 
     const reconciliation = await prisma.reconciliation.update({
@@ -410,7 +411,7 @@ export class ReconciliationService {
 
   static async getById(user: AuthUser, id: string) {
     const accessibleIds = await this.getAccessibleReconciliationIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此对账单');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权查看此对账单', 403);
 
     const selectFields = this.getSelectFieldsByRole(user.role);
     const reconciliation = await prisma.reconciliation.findUnique({
@@ -424,7 +425,7 @@ export class ReconciliationService {
     });
 
     if (!reconciliation) {
-      throw new Error('对账单不存在');
+      throw new AppError('对账单不存在', 404);
     }
 
     const [auditLogs, comments] = await Promise.all([

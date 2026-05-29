@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { AuthUser, PaginatedResult, Role, ProjectStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
+import { AppError } from '../middleware/errorHandler';
 
 export class ProjectService {
   private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
@@ -67,7 +68,7 @@ export class ProjectService {
     budget?: number;
   }, ip?: string) {
     if (!this.canEditProject(user)) {
-      throw new Error('无权创建项目');
+      throw new AppError('无权创建项目', 403);
     }
 
     const code = await this.generateCode();
@@ -106,12 +107,12 @@ export class ProjectService {
     budget?: number;
   }, ip?: string) {
     if (!this.canEditProject(user)) {
-      throw new Error('无权编辑项目');
+      throw new AppError('无权编辑项目', 403);
     }
 
     const accessibleIds = await this.getAccessibleProjectIds(user);
     if (accessibleIds.length > 0 && !accessibleIds.includes(id)) {
-      throw new Error('无权编辑此项目');
+      throw new AppError('无权编辑此项目', 403);
     }
 
     const existing = await prisma.project.findUnique({
@@ -119,7 +120,7 @@ export class ProjectService {
     });
 
     if (!existing) {
-      throw new Error('项目不存在');
+      throw new AppError('项目不存在', 404);
     }
 
     const oldData = {
@@ -145,11 +146,12 @@ export class ProjectService {
 
   static async getById(user: AuthUser, id: string) {
     const accessibleIds = await this.getAccessibleProjectIds(user);
-    const where: any = { id };
-    if (accessibleIds.length > 0) where.id = { in: accessibleIds };
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) {
+      throw new AppError('无权访问此项目', 403);
+    }
 
     const project = await prisma.project.findUnique({
-      where,
+      where: { id },
       include: {
         creator: { select: { id: true, name: true, role: true } },
         suppliers: {
@@ -288,12 +290,12 @@ export class ProjectService {
 
   static async addSupplier(user: AuthUser, projectId: string, supplierId: string, contractAmount?: number, scope?: string, ip?: string) {
     if (!this.canManageSuppliers(user)) {
-      throw new Error('无权管理项目供应商');
+      throw new AppError('无权管理项目供应商', 403);
     }
 
     const accessibleIds = await this.getAccessibleProjectIds(user);
     if (accessibleIds.length > 0 && !accessibleIds.includes(projectId)) {
-      throw new Error('无权管理此项目的供应商');
+      throw new AppError('无权管理此项目的供应商', 403);
     }
 
     const projectSupplier = await prisma.projectSupplier.create({
@@ -317,20 +319,74 @@ export class ProjectService {
   }
 
   static async getDashboardStats(user: AuthUser) {
+    const accessibleProjectIds = await this.getAccessibleProjectIds(user);
+    const projectIdFilter = accessibleProjectIds.length > 0
+      ? { projectId: { in: accessibleProjectIds } }
+      : {};
+
+    const userSupplierIds = await this.getUserSupplierIds(user);
+    const isSupplier = user.role === Role.SUPPLIER_CONTACT && userSupplierIds.length > 0;
+
+    const reconciliationFilter = isSupplier
+      ? { supplierId: { in: userSupplierIds } }
+      : projectIdFilter;
+
+    const reconciliationsForPayment = await prisma.reconciliation.findMany({
+      where: reconciliationFilter,
+      select: { id: true },
+    });
+    const reconciliationIdFilter = reconciliationsForPayment.length > 0
+      ? { reconciliationId: { in: reconciliationsForPayment.map(r => r.id) } }
+      : { reconciliationId: '__no_access__' };
+
     const [totalProjects, totalReconciliations, totalPayments, pendingApprovals] = await Promise.all([
-      prisma.project.count(),
-      prisma.reconciliation.count(),
-      prisma.payment.count(),
-      prisma.payment.count({ where: { status: 'PENDING' } }),
+      prisma.project.count({
+        where: accessibleProjectIds.length > 0
+          ? { id: { in: accessibleProjectIds } }
+          : {}
+      }),
+      prisma.reconciliation.count({ where: reconciliationFilter }),
+      prisma.payment.count({ where: reconciliationIdFilter }),
+      prisma.payment.count({ where: { status: 'PENDING', ...reconciliationIdFilter } }),
     ]);
 
     const recentActivities = await prisma.auditLog.findMany({
-      take: 10,
+      take: 50,
       orderBy: { createdAt: 'desc' },
       include: {
         operator: { select: { id: true, name: true, role: true } },
       },
     });
+
+    if (accessibleProjectIds.length > 0) {
+      const [paymentIds, documentIds, teardownIds] = await Promise.all([
+        prisma.payment.findMany({ where: reconciliationIdFilter, select: { id: true } }),
+        prisma.document.findMany({ where: projectIdFilter, select: { id: true } }),
+        prisma.teardownReview.findMany({ where: projectIdFilter, select: { id: true } }),
+      ]);
+
+      const reconcIdSet = new Set(reconciliationsForPayment.map(r => r.id));
+      const paymentIdSet = new Set(paymentIds.map(p => p.id));
+      const docIdSet = new Set(documentIds.map(d => d.id));
+      const teardownIdSet = new Set(teardownIds.map(t => t.id));
+
+      const filteredActivities = recentActivities.filter(activity => {
+        if (activity.entityType === 'Project' && accessibleProjectIds.includes(activity.entityId)) return true;
+        if (activity.entityType === 'Reconciliation' && reconcIdSet.has(activity.entityId)) return true;
+        if (activity.entityType === 'Payment' && paymentIdSet.has(activity.entityId)) return true;
+        if (activity.entityType === 'Document' && docIdSet.has(activity.entityId)) return true;
+        if (activity.entityType === 'TeardownReview' && teardownIdSet.has(activity.entityId)) return true;
+        return false;
+      });
+
+      return {
+        totalProjects,
+        totalReconciliations,
+        totalPayments,
+        pendingApprovals,
+        recentActivities: filteredActivities.slice(0, 10),
+      };
+    }
 
     return {
       totalProjects,

@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { AuthUser, PaginatedResult, Role, TeardownStatus, AuditAction, ProjectStatus } from '../types';
 import { AuditService } from './audit.service';
+import { AppError } from '../middleware/errorHandler';
 
 export class TeardownService {
   private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
@@ -92,7 +93,7 @@ export class TeardownService {
     endDate?: Date;
     assigneeId?: string;
   }, ip?: string) {
-    if (!this.canCreate(user)) throw new Error('无权创建撤场复盘');
+    if (!this.canCreate(user)) throw new AppError('无权创建撤场复盘', 403);
 
     const teardown = await prisma.teardownReview.create({
       data: {
@@ -128,16 +129,16 @@ export class TeardownService {
     lessonsLearned?: string;
     finalReport?: string;
   }, ip?: string) {
-    if (!this.canUpdate(user)) throw new Error('无权修改撤场复盘');
+    if (!this.canUpdate(user)) throw new AppError('无权修改撤场复盘', 403);
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此撤场复盘', 403);
 
     const existing = await prisma.teardownReview.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const oldData = {
@@ -166,16 +167,16 @@ export class TeardownService {
   }
 
   static async startProgress(user: AuthUser, id: string, ip?: string) {
-    if (!this.canStart(user)) throw new Error('无权开始撤场');
+    if (!this.canStart(user)) throw new AppError('无权开始撤场', 403);
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此撤场复盘', 403);
 
     const existing = await prisma.teardownReview.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const teardown = await prisma.teardownReview.update({
@@ -199,16 +200,16 @@ export class TeardownService {
   }
 
   static async markMaterialsReturned(user: AuthUser, id: string, ip?: string) {
-    if (!this.canMarkMaterialsReturned(user)) throw new Error('无权标记物料已归还');
+    if (!this.canMarkMaterialsReturned(user)) throw new AppError('无权标记物料已归还', 403);
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此撤场复盘', 403);
 
     const existing = await prisma.teardownReview.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const teardown = await prisma.teardownReview.update({
@@ -232,16 +233,16 @@ export class TeardownService {
   }
 
   static async markSiteCleared(user: AuthUser, id: string, ip?: string) {
-    if (!this.canMarkSiteCleared(user)) throw new Error('无权标记场地已清场');
+    if (!this.canMarkSiteCleared(user)) throw new AppError('无权标记场地已清场', 403);
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此撤场复盘', 403);
 
     const existing = await prisma.teardownReview.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const teardown = await prisma.teardownReview.update({
@@ -265,16 +266,16 @@ export class TeardownService {
   }
 
   static async complete(user: AuthUser, id: string, ip?: string) {
-    if (!this.canComplete(user)) throw new Error('无权完成撤场复盘');
+    if (!this.canComplete(user)) throw new AppError('无权完成撤场复盘', 403);
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此撤场复盘', 403);
 
     const existing = await prisma.teardownReview.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const teardown = await prisma.teardownReview.update({
@@ -308,7 +309,7 @@ export class TeardownService {
 
   static async getById(user: AuthUser, id: string) {
     const accessibleIds = await this.getAccessibleTeardownIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此撤场复盘');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权查看此撤场复盘', 403);
 
     const selectFields = this.getSelectFieldsByRole(user.role);
     const teardown = await prisma.teardownReview.findUnique({
@@ -317,7 +318,7 @@ export class TeardownService {
     });
 
     if (!teardown) {
-      throw new Error('撤场复盘不存在');
+      throw new AppError('撤场复盘不存在', 404);
     }
 
     const [auditLogs, comments] = await Promise.all([

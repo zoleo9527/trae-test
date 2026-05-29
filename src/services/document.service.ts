@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { AuthUser, PaginatedResult, Role, DocumentType, DocumentStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
+import { AppError } from '../middleware/errorHandler';
 
 export class DocumentService {
   private static async getUserSupplierIds(user: AuthUser): Promise<string[]> {
@@ -93,7 +94,7 @@ export class DocumentService {
     deadline?: Date;
     assigneeId?: string;
   }, ip?: string) {
-    if (!this.canCreate(user)) throw new Error('无权创建证件任务');
+    if (!this.canCreate(user)) throw new AppError('无权创建证件任务', 403);
 
     const document = await prisma.document.create({
       data: {
@@ -125,16 +126,16 @@ export class DocumentService {
     deadline?: Date;
     assigneeId?: string;
   }, ip?: string) {
-    if (!this.canCreate(user)) throw new Error('无权修改证件任务');
+    if (!this.canCreate(user)) throw new AppError('无权修改证件任务', 403);
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此证件任务', 403);
 
     const existing = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     const oldData = {
@@ -159,16 +160,16 @@ export class DocumentService {
   }
 
   static async startProgress(user: AuthUser, id: string, ip?: string) {
-    if (!this.canStart(user)) throw new Error('无权开始办理证件任务');
+    if (!this.canStart(user)) throw new AppError('无权开始办理证件任务', 403);
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此证件任务', 403);
 
     const existing = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     const document = await prisma.document.update({
@@ -192,16 +193,16 @@ export class DocumentService {
   }
 
   static async submit(user: AuthUser, id: string, ip?: string) {
-    if (!this.canSubmit(user)) throw new Error('无权提交证件任务');
+    if (!this.canSubmit(user)) throw new AppError('无权提交证件任务', 403);
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此证件任务', 403);
 
     const existing = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     const document = await prisma.document.update({
@@ -224,20 +225,20 @@ export class DocumentService {
   }
 
   static async approve(user: AuthUser, id: string, ip?: string) {
-    if (!this.canApprove(user)) throw new Error('无权审批证件任务');
+    if (!this.canApprove(user)) throw new AppError('无权审批证件任务', 403);
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此证件任务', 403);
 
     const existing = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     if (existing.status !== DocumentStatus.SUBMITTED) {
-      throw new Error('当前状态不允许审批');
+      throw new AppError('当前状态不允许审批', 400);
     }
 
     const document = await prisma.document.update({
@@ -260,16 +261,16 @@ export class DocumentService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
-    if (!this.canReject(user)) throw new Error('无权驳回证件任务');
+    if (!this.canReject(user)) throw new AppError('无权驳回证件任务', 403);
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此证件任务', 403);
 
     const existing = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     const document = await prisma.document.update({
@@ -293,7 +294,7 @@ export class DocumentService {
 
   static async getById(user: AuthUser, id: string) {
     const accessibleIds = await this.getAccessibleDocumentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此证件任务');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权查看此证件任务', 403);
 
     const selectFields = this.getSelectFieldsByRole(user.role);
     const document = await prisma.document.findUnique({
@@ -302,7 +303,7 @@ export class DocumentService {
     });
 
     if (!document) {
-      throw new Error('证件任务不存在');
+      throw new AppError('证件任务不存在', 404);
     }
 
     const [auditLogs, comments] = await Promise.all([

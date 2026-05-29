@@ -23,9 +23,9 @@ router.post('/', createReconciliation);
 router.get('/:id', getReconciliation);
 router.put('/:id', updateReconciliation);
 router.post('/:id/submit', submitReconciliation);
-router.post('/:id/approve', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.FINANCE, Role.ADMIN), approveReconciliation);
-router.post('/:id/reject', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.FINANCE, Role.ADMIN), rejectReconciliation);
-router.post('/:id/revise', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.FINANCE, Role.ADMIN), requestRevise);
+router.post('/:id/approve', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.ADMIN), approveReconciliation);
+router.post('/:id/reject', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.ADMIN), rejectReconciliation);
+router.post('/:id/revise', requireOneOfRoles(Role.PROJECT_COORDINATOR, Role.ADMIN), requestRevise);
 router.post('/:id/comments', addComment);
 router.get('/:id/audit-logs', getAuditLogs);
 

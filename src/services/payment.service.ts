@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { AuthUser, PaginatedResult, Role, PaymentStatus, ReconciliationStatus, AuditAction } from '../types';
 import { AuditService } from './audit.service';
+import { AppError } from '../middleware/errorHandler';
 
 export interface CreatePaymentDTO {
   reconciliationId?: string;
@@ -111,7 +112,7 @@ export class PaymentService {
   }
 
   static async create(user: AuthUser, dto: CreatePaymentDTO, ip?: string) {
-    if (!this.canCreate(user)) throw new Error('无权创建付款申请');
+    if (!this.canCreate(user)) throw new AppError('无权创建付款申请', 403);
 
     if (dto.reconciliationId) {
       const reconciliation = await prisma.reconciliation.findUnique({
@@ -119,11 +120,11 @@ export class PaymentService {
       });
 
       if (!reconciliation) {
-        throw new Error('对账单不存在');
+        throw new AppError('对账单不存在', 404);
       }
 
       if (reconciliation.status !== ReconciliationStatus.APPROVED) {
-        throw new Error('对账单未审批通过，无法创建付款申请');
+        throw new AppError('对账单未审批通过，无法创建付款申请', 400);
       }
     }
 
@@ -156,20 +157,20 @@ export class PaymentService {
   }
 
   static async approve(user: AuthUser, id: string, ip?: string) {
-    if (!this.canApprove(user)) throw new Error('无权审批付款申请');
+    if (!this.canApprove(user)) throw new AppError('无权审批付款申请', 403);
     const accessibleIds = await this.getAccessiblePaymentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此付款申请', 403);
 
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('付款申请不存在');
+      throw new AppError('付款申请不存在', 404);
     }
 
     if (existing.status !== PaymentStatus.PENDING) {
-      throw new Error('当前状态不允许审批');
+      throw new AppError('当前状态不允许审批', 400);
     }
 
     const payment = await prisma.payment.update({
@@ -196,20 +197,20 @@ export class PaymentService {
   }
 
   static async markPaid(user: AuthUser, id: string, payDate?: Date, ip?: string) {
-    if (!this.canMarkPaid(user)) throw new Error('无权标记付款完成');
+    if (!this.canMarkPaid(user)) throw new AppError('无权标记付款完成', 403);
     const accessibleIds = await this.getAccessiblePaymentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此付款申请', 403);
 
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('付款申请不存在');
+      throw new AppError('付款申请不存在', 404);
     }
 
     if (existing.status !== PaymentStatus.APPROVED) {
-      throw new Error('付款申请未审批通过');
+      throw new AppError('付款申请未审批通过', 400);
     }
 
     const payment = await prisma.payment.update({
@@ -262,16 +263,16 @@ export class PaymentService {
   }
 
   static async reject(user: AuthUser, id: string, reason: string, ip?: string) {
-    if (!this.canReject(user)) throw new Error('无权驳回付款申请');
+    if (!this.canReject(user)) throw new AppError('无权驳回付款申请', 403);
     const accessibleIds = await this.getAccessiblePaymentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权操作此付款申请');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权操作此付款申请', 403);
 
     const existing = await prisma.payment.findUnique({
       where: { id },
     });
 
     if (!existing) {
-      throw new Error('付款申请不存在');
+      throw new AppError('付款申请不存在', 404);
     }
 
     const payment = await prisma.payment.update({
@@ -300,7 +301,7 @@ export class PaymentService {
 
   static async getById(user: AuthUser, id: string) {
     const accessibleIds = await this.getAccessiblePaymentIds(user);
-    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new Error('无权查看此付款申请');
+    if (accessibleIds.length > 0 && !accessibleIds.includes(id)) throw new AppError('无权查看此付款申请', 403);
 
     const selectFields = this.getSelectFieldsByRole(user.role);
     const payment = await prisma.payment.findUnique({
@@ -309,7 +310,7 @@ export class PaymentService {
     });
 
     if (!payment) {
-      throw new Error('付款申请不存在');
+      throw new AppError('付款申请不存在', 404);
     }
 
     const [auditLogs, comments] = await Promise.all([
