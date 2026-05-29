@@ -306,9 +306,9 @@ func (s *EnquiryService) UpdateStatus(user *model.User, id uint, newStatus model
 func (s *EnquiryService) isValidStatusTransition(current, new model.EnquiryStatus) bool {
 	validTransitions := map[model.EnquiryStatus][]model.EnquiryStatus{
 		model.EnquiryStatusDraft:     {model.EnquiryStatusPending, model.EnquiryStatusCancelled},
-		model.EnquiryStatusPending:   {model.EnquiryStatusQuoted, model.EnquiryStatusConfirmed, model.EnquiryStatusCancelled},
-		model.EnquiryStatusQuoted:    {model.EnquiryStatusConfirmed, model.EnquiryStatusCancelled, model.EnquiryStatusLocked},
-		model.EnquiryStatusConfirmed: {model.EnquiryStatusLocked, model.EnquiryStatusCompleted, model.EnquiryStatusCancelled},
+		model.EnquiryStatusPending:   {model.EnquiryStatusQuoted, model.EnquiryStatusCancelled},
+		model.EnquiryStatusQuoted:    {model.EnquiryStatusConfirmed, model.EnquiryStatusCancelled},
+		model.EnquiryStatusConfirmed: {model.EnquiryStatusLocked, model.EnquiryStatusCancelled},
 		model.EnquiryStatusLocked:    {model.EnquiryStatusCompleted, model.EnquiryStatusCancelled},
 		model.EnquiryStatusCompleted: {},
 		model.EnquiryStatusCancelled: {},
@@ -395,17 +395,48 @@ func (s *EnquiryService) GetChainTrace(enquiryID uint) (*dto.EnquiryDetailRespon
 		lockIDs[i] = l.ID
 	}
 
+	var lockItemIDs []uint
+	if len(lockIDs) > 0 {
+		var lockItems []model.LockItem
+		config.DB.Where("lock_order_id IN ?", lockIDs).Select("id").Find(&lockItems)
+		lockItemIDs = make([]uint, len(lockItems))
+		for i, item := range lockItems {
+			lockItemIDs[i] = item.ID
+		}
+	}
+
 	var allAuditLogs []model.AuditLog
 	query := config.DB.Model(&model.AuditLog{}).Preload("User")
 
+	conditions := make([]string, 0)
+	params := make([]interface{}, 0)
+
 	if len(enquiryIDs) > 0 {
-		query = query.Or("module = ? AND record_id IN ?", "enquiry", enquiryIDs)
+		conditions = append(conditions, "(module = ? AND record_id IN ?)")
+		params = append(params, "enquiry", enquiryIDs)
 	}
 	if len(quoteIDs) > 0 {
-		query = query.Or("module = ? AND record_id IN ?", "quote", quoteIDs)
+		conditions = append(conditions, "(module = ? AND record_id IN ?)")
+		params = append(params, "quote", quoteIDs)
 	}
 	if len(lockIDs) > 0 {
-		query = query.Or("module = ? AND record_id IN ?", "lock", lockIDs)
+		conditions = append(conditions, "(module = ? AND record_id IN ?)")
+		params = append(params, "lock", lockIDs)
+	}
+	if len(lockItemIDs) > 0 {
+		conditions = append(conditions, "(module = ? AND record_id IN ?)")
+		params = append(params, "lock_item", lockItemIDs)
+	}
+
+	if len(conditions) > 0 {
+		whereClause := ""
+		for i, cond := range conditions {
+			if i > 0 {
+				whereClause += " OR "
+			}
+			whereClause += cond
+		}
+		query = query.Where(whereClause, params...)
 	}
 
 	if err := query.Order("created_at DESC").Find(&allAuditLogs).Error; err != nil {

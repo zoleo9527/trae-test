@@ -53,12 +53,15 @@ func main() {
 	auth.Get("/auth/profile", authController.GetProfile)
 	auth.Post("/auth/change-password", authController.ChangePassword)
 
-	customers := auth.Group("/customers")
-	customers.Post("", customerController.Create)
-	customers.Get("/:id", customerController.GetByID)
-	customers.Put("/:id", customerController.Update)
-	customers.Delete("/:id", customerController.Delete)
-	customers.Post("/list", customerController.List)
+	salesAndOwner := auth.Group("", middleware.RoleRequired(model.RoleAdmin, model.RoleOwner, model.RoleSales))
+	{
+		customers := salesAndOwner.Group("/customers")
+		customers.Post("", customerController.Create)
+		customers.Get("/:id", customerController.GetByID)
+		customers.Put("/:id", customerController.Update)
+		customers.Delete("/:id", customerController.Delete)
+		customers.Post("/list", customerController.List)
+	}
 
 	sales := auth.Group("", middleware.SalesRequired())
 	{
@@ -94,8 +97,6 @@ func main() {
 		locks.Post("/batch-release", lockController.BatchRelease)
 		locks.Post("/export", lockController.Export)
 	}
-
-	auth.Post("/locks/list", lockController.List)
 
 	tasks := auth.Group("/tasks")
 	tasks.Get("", taskController.List)
