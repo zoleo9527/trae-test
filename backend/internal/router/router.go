@@ -3,8 +3,16 @@ package router
 import (
 	"github.com/cultural-store/inspection-service/internal/handler"
 	"github.com/cultural-store/inspection-service/internal/middleware"
+	"github.com/cultural-store/inspection-service/internal/model"
 	"github.com/gofiber/fiber/v2"
 )
+
+type StoreFetcher interface {
+	GetReplenishmentOrderByID(id string) (*model.ReplenishmentOrder, error)
+	GetTransferOrderByID(id string) (*model.TransferOrder, error)
+	GetMemberRedemptionByID(id string) (*model.MemberRedemption, error)
+	GetRectificationByID(id string) (*model.Rectification, error)
+}
 
 func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 	authH *handler.AuthHandler,
@@ -17,6 +25,7 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 	transferH *handler.TransferHandler,
 	redemptionH *handler.RedemptionHandler,
 	auditH *handler.AuditLogHandler,
+	storeFetcher StoreFetcher,
 ) {
 	app.Use(middleware.CORS(allowedOrigins))
 	app.Use(middleware.RequestLogger())
@@ -41,12 +50,12 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 
 	api.Get("/rectifications", middleware.InjectStoreID(), rectH.List)
 	api.Post("/rectifications", rectH.Create)
-	api.Get("/rectifications/:id", rectH.Get)
-	api.Put("/rectifications/:id", rectH.Update)
-	api.Get("/rectifications/:id/photos", rectH.ListPhotos)
-	api.Post("/rectifications/:id/photos", rectH.UploadPhoto)
-	api.Get("/rectifications/:id/comments", rectH.ListComments)
-	api.Post("/rectifications/:id/comments", rectH.CreateComment)
+	api.Get("/rectifications/:id", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.Get)
+	api.Put("/rectifications/:id", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.Update)
+	api.Get("/rectifications/:id/photos", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.ListPhotos)
+	api.Post("/rectifications/:id/photos", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.UploadPhoto)
+	api.Get("/rectifications/:id/comments", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.ListComments)
+	api.Post("/rectifications/:id/comments", middleware.RequireRectificationStoreAccess(storeFetcher), rectH.CreateComment)
 
 	api.Get("/products", middleware.InjectStoreID(), productH.List)
 	api.Post("/products", middleware.RequireRole("admin", "planning_specialist"), productH.Create)
@@ -58,18 +67,20 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 
 	api.Get("/replenishments", middleware.InjectStoreID(), replenH.List)
 	api.Post("/replenishments", middleware.InjectStoreID(), replenH.Create)
-	api.Get("/replenishments/:id", replenH.Get)
-	api.Put("/replenishments/:id/status", replenH.UpdateStatus)
-	api.Get("/replenishments/:id/items", replenH.ListItems)
+	api.Get("/replenishments/:id", middleware.RequireReplenishmentStoreAccess(storeFetcher), replenH.Get)
+	api.Put("/replenishments/:id/status", middleware.RequireReplenishmentStoreAccess(storeFetcher), replenH.UpdateStatus)
+	api.Get("/replenishments/:id/items", middleware.RequireReplenishmentStoreAccess(storeFetcher), replenH.ListItems)
 
 	api.Get("/transfers", middleware.InjectStoreID(), transferH.List)
 	api.Post("/transfers", transferH.Create)
-	api.Put("/transfers/:id/status", transferH.UpdateStatus)
-	api.Get("/transfers/:id/items", transferH.ListItems)
+	api.Get("/transfers/:id", middleware.RequireTransferStoreAccess(storeFetcher), transferH.ListItems)
+	api.Put("/transfers/:id/status", middleware.RequireTransferStoreAccess(storeFetcher), transferH.UpdateStatus)
+	api.Get("/transfers/:id/items", middleware.RequireTransferStoreAccess(storeFetcher), transferH.ListItems)
 
 	api.Get("/redemptions", middleware.InjectStoreID(), redemptionH.List)
 	api.Post("/redemptions", middleware.InjectStoreID(), redemptionH.Create)
-	api.Put("/redemptions/:id/fulfill", middleware.RequireRole("admin", "store_manager"), redemptionH.Fulfill)
+	api.Get("/redemptions/:id", middleware.RequireRedemptionStoreAccess(storeFetcher), redemptionH.Fulfill)
+	api.Put("/redemptions/:id/fulfill", middleware.RequireRole("admin", "store_manager"), middleware.RequireRedemptionStoreAccess(storeFetcher), redemptionH.Fulfill)
 
 	api.Get("/audit-logs", auditH.List)
 }

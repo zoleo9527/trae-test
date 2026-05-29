@@ -37,6 +37,7 @@ func Seed(db *sqlx.DB) error {
 	users := []struct {
 		username, displayName, role, storeID string
 	}{
+		{"system", "系统自动同步", "admin", ""},
 		{"admin", "系统管理员", "admin", ""},
 		{"zhang_store", "张店长", "store_manager", store1ID},
 		{"li_store", "李店长", "store_manager", store2ID},

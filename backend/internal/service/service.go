@@ -541,12 +541,21 @@ func (s *Service) UpdateReplenishmentOrderStatus(id, status string, operatorID, 
 		return fmt.Errorf("order not found")
 	}
 	oldStatus := old.Status
+	if oldStatus == status {
+		return nil
+	}
+	finalStates := map[string]bool{"received": true, "cancelled": true}
+	isFinal := finalStates[status]
+	wasFinal := finalStates[oldStatus]
+	if wasFinal && status != oldStatus {
+		return fmt.Errorf("cannot change status from %s to %s: terminal state", oldStatus, status)
+	}
 	if err := s.repo.UpdateReplenishmentOrderStatus(id, status); err != nil {
 		return err
 	}
 	s.auditLog("replenishment_order", id, "status_change", oldStatus, status, operatorID, operatorName,
 		fmt.Sprintf("补货单状态从 %s 变更为 %s", oldStatus, status))
-	if status == "received" {
+	if status == "received" && !wasFinal && isFinal {
 		items, err := s.repo.ListReplenishmentItems(id)
 		if err != nil {
 			log.Printf("failed to load replenishment items: %v", err)
@@ -635,12 +644,21 @@ func (s *Service) UpdateTransferOrderStatus(id, status string, operatorID, opera
 		return fmt.Errorf("order not found")
 	}
 	oldStatus := old.Status
+	if oldStatus == status {
+		return nil
+	}
+	finalStates := map[string]bool{"received": true, "cancelled": true}
+	isFinal := finalStates[status]
+	wasFinal := finalStates[oldStatus]
+	if wasFinal && status != oldStatus {
+		return fmt.Errorf("cannot change status from %s to %s: terminal state", oldStatus, status)
+	}
 	if err := s.repo.UpdateTransferOrderStatus(id, status); err != nil {
 		return err
 	}
 	s.auditLog("transfer_order", id, "status_change", oldStatus, status, operatorID, operatorName,
 		fmt.Sprintf("调拨单状态从 %s 变更为 %s", oldStatus, status))
-	if status == "received" {
+	if status == "received" && !wasFinal && isFinal {
 		items, err := s.repo.ListTransferItems(id)
 		if err != nil {
 			log.Printf("failed to load transfer items: %v", err)
@@ -746,12 +764,21 @@ func (s *Service) FulfillMemberRedemption(id, status string, operatorID, operato
 		return fmt.Errorf("redemption not found")
 	}
 	oldStatus := mr.Status
+	if oldStatus == status {
+		return nil
+	}
+	finalStates := map[string]bool{"fulfilled": true, "cancelled": true}
+	isFinal := finalStates[status]
+	wasFinal := finalStates[oldStatus]
+	if wasFinal && status != oldStatus {
+		return fmt.Errorf("cannot change status from %s to %s: terminal state", oldStatus, status)
+	}
 	if err := s.repo.FulfillMemberRedemption(id, operatorID, status); err != nil {
 		return err
 	}
 	s.auditLog("member_redemption", id, "status_change", oldStatus, status, operatorID, operatorName,
 		fmt.Sprintf("会员兑换状态从 %s 变更为 %s", oldStatus, status))
-	if status == "fulfilled" {
+	if status == "fulfilled" && !wasFinal && isFinal {
 		qty := mr.Quantity
 		storeID := mr.StoreID
 		productID := mr.ProductID

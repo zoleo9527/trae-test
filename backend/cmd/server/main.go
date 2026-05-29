@@ -31,7 +31,19 @@ func main() {
 	}
 
 	repo := repository.NewRepo(db)
-	asyncWorker := worker.NewAsyncWorker(repo)
+
+	var systemUserID, systemUserName string
+	if u, err := repo.GetUserByUsername("system"); err == nil && u != nil {
+		systemUserID = u.ID
+		systemUserName = u.DisplayName
+		log.Printf("loaded system user: %s", systemUserID)
+	} else if u, err := repo.GetUserByUsername("admin"); err == nil && u != nil {
+		systemUserID = u.ID
+		systemUserName = u.DisplayName
+		log.Printf("fallback to admin user for system operations: %s", systemUserID)
+	}
+
+	asyncWorker := worker.NewAsyncWorker(repo, systemUserID, systemUserName)
 	asyncWorker.Start()
 	defer asyncWorker.Stop()
 
@@ -74,7 +86,7 @@ func main() {
 
 	router.Setup(app, cfg.JWTSecret, cfg.AllowedOrigins,
 		authH, storeH, inspH, rectH, productH, inventoryH,
-		replenH, transferH, redemptionH, auditH)
+		replenH, transferH, redemptionH, auditH, repo)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		if err := db.Ping(); err != nil {

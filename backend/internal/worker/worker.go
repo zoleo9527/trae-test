@@ -34,17 +34,21 @@ type Task struct {
 }
 
 type AsyncWorker struct {
-	tasks chan Task
-	quit  chan struct{}
-	wg    sync.WaitGroup
-	repo  Repo
+	tasks     chan Task
+	quit      chan struct{}
+	wg        sync.WaitGroup
+	repo      Repo
+	systemUserID   string
+	systemUserName string
 }
 
-func NewAsyncWorker(repo Repo) *AsyncWorker {
+func NewAsyncWorker(repo Repo, systemUserID, systemUserName string) *AsyncWorker {
 	return &AsyncWorker{
-		tasks: make(chan Task, 100),
-		quit:  make(chan struct{}),
-		repo:  repo,
+		tasks:          make(chan Task, 100),
+		quit:           make(chan struct{}),
+		repo:           repo,
+		systemUserID:   systemUserID,
+		systemUserName: systemUserName,
 	}
 }
 
@@ -163,8 +167,8 @@ func (w *AsyncWorker) processInventorySync(storeID string) {
 			Action:       "update",
 			OldValue:     oldJSON,
 			NewValue:     newJSON,
-			OperatorID:   "system",
-			OperatorName: "系统自动同步",
+			OperatorID:   w.systemUserID,
+			OperatorName: w.systemUserName,
 			Note:         formatDiffNote(diff, oldSys, oldQty),
 		}
 		if err := w.repo.CreateAuditLog(audit); err != nil {
@@ -208,8 +212,8 @@ func (w *AsyncWorker) processOverdueCheck() {
 			EntityType:   "rectification",
 			EntityID:     r.ID,
 			Action:       "status_change",
-			OperatorID:   "system",
-			OperatorName: "系统自动同步",
+			OperatorID:   w.systemUserID,
+			OperatorName: w.systemUserName,
 			Note:         note,
 		}
 		if err := w.repo.CreateAuditLog(audit); err != nil {
