@@ -127,6 +127,7 @@ func (s *LockService) Create(user *model.User, req *dto.CreateLockOrderRequest, 
 	}
 
 	s.auditService.Log(user, model.AuditActionLock, "lock", lockOrder.ID, lockOrder.LockNo, "", nil, items, ip, "锁定库存")
+	s.auditService.LogStatusChange(user, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(model.EnquiryStatusConfirmed), string(model.EnquiryStatusLocked), ip)
 
 	return s.GetByID(lockOrder.ID)
 }

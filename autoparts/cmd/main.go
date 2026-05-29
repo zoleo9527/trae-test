@@ -61,19 +61,21 @@ func main() {
 		customers.Put("/:id", customerController.Update)
 		customers.Delete("/:id", customerController.Delete)
 		customers.Post("/list", customerController.List)
+
+		enquiries := salesAndOwner.Group("/enquiries")
+		enquiries.Get("/:id", enquiryController.GetByID)
+		enquiries.Get("/:id/trace", enquiryController.GetChainTrace)
+		enquiries.Post("/list", enquiryController.List)
+		enquiries.Post("/export", enquiryController.Export)
 	}
 
-	sales := auth.Group("", middleware.SalesRequired())
+	sales := auth.Group("", middleware.RoleRequired(model.RoleAdmin, model.RoleSales))
 	{
 		enquiries := sales.Group("/enquiries")
 		enquiries.Post("", enquiryController.Create)
-		enquiries.Get("/:id", enquiryController.GetByID)
-		enquiries.Get("/:id/trace", enquiryController.GetChainTrace)
 		enquiries.Put("/:id", enquiryController.Update)
 		enquiries.Delete("/:id", enquiryController.Delete)
-		enquiries.Post("/list", enquiryController.List)
 		enquiries.Post("/:id/cancel", enquiryController.Cancel)
-		enquiries.Post("/export", enquiryController.Export)
 
 		quotes := sales.Group("/quotes")
 		quotes.Post("", quoteController.Create)
@@ -84,16 +86,21 @@ func main() {
 		quotes.Post("/export", quoteController.Export)
 	}
 
+	owner := auth.Group("", middleware.OwnerRequired())
+	{
+		locks := owner.Group("/locks")
+		locks.Get("/:id", lockController.GetByID)
+		locks.Post("/list", lockController.List)
+		locks.Post("/:lockOrderId/return/:itemId/review", lockController.ReviewReturn)
+	}
+
 	warehouse := auth.Group("", middleware.WarehouseRequired())
 	{
 		locks := warehouse.Group("/locks")
 		locks.Post("", lockController.Create)
-		locks.Get("/:id", lockController.GetByID)
 		locks.Post("/:id/release", lockController.Release)
 		locks.Post("/:id/pick", lockController.Pick)
 		locks.Post("/:id/return", lockController.RequestReturn)
-		locks.Post("/:lockOrderId/return/:itemId/review", lockController.ReviewReturn)
-		locks.Post("/list", lockController.List)
 		locks.Post("/batch-release", lockController.BatchRelease)
 		locks.Post("/export", lockController.Export)
 	}

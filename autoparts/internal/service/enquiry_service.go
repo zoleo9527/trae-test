@@ -89,11 +89,8 @@ func (s *EnquiryService) Update(user *model.User, id uint, req *dto.UpdateEnquir
 		return nil, err
 	}
 
-	if req.Status != nil {
-		newStatus := model.EnquiryStatus(*req.Status)
-		if !s.isValidStatusTransition(enquiry.Status, newStatus) {
-			return nil, apperrors.NewStateConflictError("无效的状态转换: " + string(enquiry.Status) + " -> " + string(newStatus))
-		}
+	if enquiry.Status != model.EnquiryStatusDraft && enquiry.Status != model.EnquiryStatusPending {
+		return nil, apperrors.NewStateConflictError("询价单状态不允许修改，状态只能由业务动作推进")
 	}
 
 	canEditItems := enquiry.Status == model.EnquiryStatusDraft || enquiry.Status == model.EnquiryStatusPending
@@ -114,11 +111,6 @@ func (s *EnquiryService) Update(user *model.User, id uint, req *dto.UpdateEnquir
 	}
 	if req.Remark != nil {
 		enquiry.Remark = *req.Remark
-	}
-	if req.Status != nil {
-		oldStatus := enquiry.Status
-		enquiry.Status = model.EnquiryStatus(*req.Status)
-		s.auditService.LogStatusChange(user, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(oldStatus), string(enquiry.Status), ip)
 	}
 
 	if err := tx.Save(enquiry).Error; err != nil {
@@ -287,8 +279,12 @@ func (s *EnquiryService) UpdateStatus(user *model.User, id uint, newStatus model
 		return nil, err
 	}
 
-	if !s.isValidStatusTransition(enquiry.Status, newStatus) {
-		return nil, apperrors.NewStateConflictError("无效的状态转换")
+	if newStatus != model.EnquiryStatusCancelled {
+		return nil, apperrors.NewStateConflictError("只能手工取消询价单，其他状态变更由业务动作自动推进")
+	}
+
+	if enquiry.Status == model.EnquiryStatusCompleted || enquiry.Status == model.EnquiryStatusCancelled {
+		return nil, apperrors.NewStateConflictError("当前状态不允许取消")
 	}
 
 	oldStatus := enquiry.Status
@@ -301,6 +297,30 @@ func (s *EnquiryService) UpdateStatus(user *model.User, id uint, newStatus model
 	s.auditService.LogStatusChange(user, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(oldStatus), string(newStatus), ip)
 
 	return enquiry, nil
+}
+
+func (s *EnquiryService) AdvanceStatusByBusiness(id uint, newStatus model.EnquiryStatus, operatorID uint, ip string) error {
+	enquiry, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if enquiry.Status == newStatus {
+		return nil
+	}
+
+	oldStatus := enquiry.Status
+	enquiry.Status = newStatus
+
+	if err := config.DB.Save(enquiry).Error; err != nil {
+		return apperrors.NewInternalError("推进询价单状态失败", err)
+	}
+
+	var operator model.User
+	config.DB.First(&operator, operatorID)
+	s.auditService.LogStatusChange(&operator, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(oldStatus), string(newStatus), ip)
+
+	return nil
 }
 
 func (s *EnquiryService) isValidStatusTransition(current, new model.EnquiryStatus) bool {

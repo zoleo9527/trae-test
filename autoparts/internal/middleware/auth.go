@@ -60,15 +60,15 @@ func RoleRequired(roles ...model.Role) fiber.Handler {
 }
 
 func SalesRequired() fiber.Handler {
-	return RoleRequired(model.RoleSales, model.RoleOwner)
+	return RoleRequired(model.RoleSales, model.RoleOwner, model.RoleAdmin)
 }
 
 func WarehouseRequired() fiber.Handler {
-	return RoleRequired(model.RoleWarehouse, model.RoleOwner)
+	return RoleRequired(model.RoleWarehouse, model.RoleAdmin)
 }
 
 func OwnerRequired() fiber.Handler {
-	return RoleRequired(model.RoleOwner)
+	return RoleRequired(model.RoleOwner, model.RoleAdmin)
 }
 
 func AdminRequired() fiber.Handler {

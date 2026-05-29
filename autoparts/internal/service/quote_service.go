@@ -117,6 +117,7 @@ func (s *QuoteService) Create(user *model.User, req *dto.CreateQuoteRequest, ip 
 	}
 
 	s.auditService.LogCreate(user, "quote", quote.ID, quote.QuoteNo, quote, ip)
+	s.auditService.LogStatusChange(user, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(model.EnquiryStatusPending), string(model.EnquiryStatusQuoted), ip)
 
 	return s.GetByID(quote.ID)
 }
@@ -179,6 +180,13 @@ func (s *QuoteService) Review(user *model.User, id uint, req *dto.ReviewQuoteReq
 	}
 
 	s.auditService.LogStatusChange(user, "quote", quote.ID, quote.QuoteNo, string(oldStatus), string(req.Status), ip)
+
+	if req.Status == model.QuoteStatusAccepted {
+		var enquiry model.Enquiry
+		if config.DB.First(&enquiry, quote.EnquiryID).Error == nil {
+			s.auditService.LogStatusChange(user, "enquiry", enquiry.ID, enquiry.EnquiryNo, string(model.EnquiryStatusQuoted), string(model.EnquiryStatusConfirmed), ip)
+		}
+	}
 
 	return quote, nil
 }

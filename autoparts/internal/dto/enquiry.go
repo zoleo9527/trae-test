@@ -27,7 +27,6 @@ type UpdateEnquiryRequest struct {
 	Priority *int                `json:"priority" validate:"omitempty,min=1,max=5"`
 	Items    []EnquiryItemRequest `json:"items" validate:"omitempty,min=1,dive"`
 	Remark   *string             `json:"remark"`
-	Status   *string             `json:"status"`
 }
 
 type EnquiryFilter struct {
