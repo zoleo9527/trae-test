@@ -12,6 +12,8 @@ type StoreFetcher interface {
 	GetTransferOrderByID(id string) (*model.TransferOrder, error)
 	GetMemberRedemptionByID(id string) (*model.MemberRedemption, error)
 	GetRectificationByID(id string) (*model.Rectification, error)
+	GetInspectionByID(id string) (*model.Inspection, error)
+	GetInspectionItemByID(id string) (*model.InspectionItem, error)
 }
 
 func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
@@ -40,13 +42,13 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 
 	api.Get("/inspections", middleware.InjectStoreID(), inspH.List)
 	api.Post("/inspections", middleware.InjectStoreID(), inspH.Create)
-	api.Get("/inspections/:id", inspH.Get)
-	api.Put("/inspections/:id", inspH.Update)
-	api.Get("/inspections/:id/items", inspH.ListItems)
-	api.Post("/inspections/:id/items", inspH.CreateItem)
-	api.Put("/inspections/:id/items/:itemId", inspH.UpdateItem)
-	api.Get("/inspections/:id/items/:itemId/photos", inspH.ListPhotos)
-	api.Post("/inspections/:id/items/:itemId/photos", inspH.UploadPhoto)
+	api.Get("/inspections/:id", middleware.RequireInspectionStoreAccess(storeFetcher), inspH.Get)
+	api.Put("/inspections/:id", middleware.RequireInspectionStoreAccess(storeFetcher), inspH.Update)
+	api.Get("/inspections/:id/items", middleware.RequireInspectionStoreAccess(storeFetcher), inspH.ListItems)
+	api.Post("/inspections/:id/items", middleware.RequireInspectionStoreAccess(storeFetcher), inspH.CreateItem)
+	api.Put("/inspections/:id/items/:itemId", middleware.RequireInspectionStoreAccess(storeFetcher), middleware.RequireInspectionItemStoreAccess(storeFetcher), inspH.UpdateItem)
+	api.Get("/inspections/:id/items/:itemId/photos", middleware.RequireInspectionStoreAccess(storeFetcher), middleware.RequireInspectionItemStoreAccess(storeFetcher), inspH.ListPhotos)
+	api.Post("/inspections/:id/items/:itemId/photos", middleware.RequireInspectionStoreAccess(storeFetcher), middleware.RequireInspectionItemStoreAccess(storeFetcher), inspH.UploadPhoto)
 
 	api.Get("/rectifications", middleware.InjectStoreID(), rectH.List)
 	api.Post("/rectifications", rectH.Create)

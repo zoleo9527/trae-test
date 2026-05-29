@@ -241,7 +241,7 @@ func (s *Service) GetRectification(id string) (*model.Rectification, error) {
 	return s.repo.GetRectificationByID(id)
 }
 
-func (s *Service) CreateRectification(req model.CreateRectificationRequest, operatorID, operatorName string) (*model.Rectification, error) {
+func (s *Service) CreateRectification(req model.CreateRectificationRequest, operatorID, operatorName, operatorRole, operatorStoreID string) (*model.Rectification, error) {
 	item, err := s.repo.GetInspectionItemByID(req.InspectionItemID)
 	if err != nil {
 		return nil, fmt.Errorf("inspection item not found")
@@ -249,6 +249,9 @@ func (s *Service) CreateRectification(req model.CreateRectificationRequest, oper
 	ins, err := s.repo.GetInspectionByID(item.InspectionID)
 	if err != nil {
 		return nil, fmt.Errorf("inspection not found")
+	}
+	if operatorRole == "store_manager" && operatorStoreID != "" && ins.StoreID != operatorStoreID {
+		return nil, fmt.Errorf("access denied: cannot create rectification for inspection item of another store")
 	}
 	rect := &model.Rectification{
 		InspectionItemID: req.InspectionItemID,
@@ -824,8 +827,8 @@ func (s *Service) FulfillMemberRedemption(id, status string, operatorID, operato
 	return nil
 }
 
-func (s *Service) ListAuditLogs(entityType, entityID string, f model.ListFilter) (*model.PaginatedResult, error) {
-	logs, total, err := s.repo.ListAuditLogs(entityType, entityID, f)
+func (s *Service) ListAuditLogs(entityType, entityID, operatorRole, operatorStoreID string, f model.ListFilter) (*model.PaginatedResult, error) {
+	logs, total, err := s.repo.ListAuditLogs(entityType, entityID, operatorRole, operatorStoreID, f)
 	if err != nil {
 		return nil, err
 	}

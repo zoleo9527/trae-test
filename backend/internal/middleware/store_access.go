@@ -10,6 +10,8 @@ type StoreFetcher interface {
 	GetTransferOrderByID(id string) (*model.TransferOrder, error)
 	GetMemberRedemptionByID(id string) (*model.MemberRedemption, error)
 	GetRectificationByID(id string) (*model.Rectification, error)
+	GetInspectionByID(id string) (*model.Inspection, error)
+	GetInspectionItemByID(id string) (*model.InspectionItem, error)
 }
 
 func RequireReplenishmentStoreAccess(fetcher StoreFetcher) fiber.Handler {
@@ -107,6 +109,60 @@ func RequireRectificationStoreAccess(fetcher StoreFetcher) fiber.Handler {
 		}
 		if rect.StoreID != userStoreID {
 			return c.Status(403).JSON(fiber.Map{"error": "access denied: this rectification belongs to another store"})
+		}
+		return c.Next()
+	}
+}
+
+func RequireInspectionStoreAccess(fetcher StoreFetcher) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("role").(string)
+		if role != "store_manager" {
+			return c.Next()
+		}
+		userStoreID, ok := c.Locals("store_id").(string)
+		if !ok || userStoreID == "" {
+			return c.Status(403).JSON(fiber.Map{"error": "no store assigned"})
+		}
+		inspID := c.Params("id")
+		if inspID == "" {
+			return c.Next()
+		}
+		insp, err := fetcher.GetInspectionByID(inspID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "inspection not found"})
+		}
+		if insp.StoreID != userStoreID {
+			return c.Status(403).JSON(fiber.Map{"error": "access denied: this inspection belongs to another store"})
+		}
+		return c.Next()
+	}
+}
+
+func RequireInspectionItemStoreAccess(fetcher StoreFetcher) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		role := c.Locals("role").(string)
+		if role != "store_manager" {
+			return c.Next()
+		}
+		userStoreID, ok := c.Locals("store_id").(string)
+		if !ok || userStoreID == "" {
+			return c.Status(403).JSON(fiber.Map{"error": "no store assigned"})
+		}
+		itemID := c.Params("itemId")
+		if itemID == "" {
+			return c.Next()
+		}
+		item, err := fetcher.GetInspectionItemByID(itemID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "inspection item not found"})
+		}
+		insp, err := fetcher.GetInspectionByID(item.InspectionID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "inspection not found"})
+		}
+		if insp.StoreID != userStoreID {
+			return c.Status(403).JSON(fiber.Map{"error": "access denied: this inspection item belongs to another store"})
 		}
 		return c.Next()
 	}

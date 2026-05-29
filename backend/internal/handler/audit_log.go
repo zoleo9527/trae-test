@@ -18,7 +18,9 @@ func (h *AuditLogHandler) List(c *fiber.Ctx) error {
 	entityType := c.Query("entity_type", "")
 	entityID := c.Query("entity_id", "")
 	f := middleware.GetFilter(c)
-	result, err := h.svc.ListAuditLogs(entityType, entityID, f)
+	operatorRole := c.Locals("role").(string)
+	operatorStoreID, _ := c.Locals("store_id").(string)
+	result, err := h.svc.ListAuditLogs(entityType, entityID, operatorRole, operatorStoreID, f)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}

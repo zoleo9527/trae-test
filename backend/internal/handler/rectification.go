@@ -43,7 +43,9 @@ func (h *RectificationHandler) Create(c *fiber.Ctx) error {
 	}
 	operatorID := c.Locals("user_id").(string)
 	operatorName := c.Locals("display_name").(string)
-	rect, err := h.svc.CreateRectification(req, operatorID, operatorName)
+	operatorRole := c.Locals("role").(string)
+	operatorStoreID, _ := c.Locals("store_id").(string)
+	rect, err := h.svc.CreateRectification(req, operatorID, operatorName, operatorRole, operatorStoreID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}

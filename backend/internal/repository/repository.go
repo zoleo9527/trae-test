@@ -799,7 +799,7 @@ func (r *Repo) CreateAuditLog(log *model.AuditLog) error {
 	).StructScan(log)
 }
 
-func (r *Repo) ListAuditLogs(entityType, entityID string, f model.ListFilter) ([]model.AuditLog, int, error) {
+func (r *Repo) ListAuditLogs(entityType, entityID, operatorRole, operatorStoreID string, f model.ListFilter) ([]model.AuditLog, int, error) {
 	var where []string
 	var args []interface{}
 	argN := 1
@@ -812,6 +812,24 @@ func (r *Repo) ListAuditLogs(entityType, entityID string, f model.ListFilter) ([
 		where = append(where, fmt.Sprintf("entity_id = $%d", argN))
 		args = append(args, entityID)
 		argN++
+	}
+	if operatorRole == "store_manager" && operatorStoreID != "" {
+		where = append(where, fmt.Sprintf(`entity_id IN (
+			SELECT id::text FROM inspections WHERE store_id = $%d
+			UNION ALL SELECT ii.id::text FROM inspection_items ii JOIN inspections i ON ii.inspection_id = i.id WHERE i.store_id = $%d
+			UNION ALL SELECT ip.id::text FROM inspection_photos ip JOIN inspection_items ii ON ip.inspection_item_id = ii.id JOIN inspections i ON ii.inspection_id = i.id WHERE i.store_id = $%d
+			UNION ALL SELECT id::text FROM rectifications WHERE store_id = $%d
+			UNION ALL SELECT id::text FROM replenishment_orders WHERE store_id = $%d
+			UNION ALL SELECT id::text FROM transfer_orders WHERE from_store_id = $%d OR to_store_id = $%d
+			UNION ALL SELECT id::text FROM member_redemptions WHERE store_id = $%d
+			UNION ALL SELECT id::text FROM inventory_records WHERE store_id = $%d
+			UNION ALL SELECT rp.id::text FROM rectification_photos rp JOIN rectifications r ON rp.rectification_id = r.id WHERE r.store_id = $%d
+			UNION ALL SELECT rc.id::text FROM rectification_comments rc JOIN rectifications r ON rc.rectification_id = r.id WHERE r.store_id = $%d
+		)`, argN, argN+1, argN+2, argN+3, argN+4, argN+5, argN+6, argN+7, argN+8, argN+9))
+		for i := 0; i < 10; i++ {
+			args = append(args, operatorStoreID)
+		}
+		argN += 10
 	}
 	whereClause := ""
 	if len(where) > 0 {
