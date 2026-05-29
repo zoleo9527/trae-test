@@ -61,8 +61,25 @@ const loadOptions = async () => {
   if (prefilledDiseaseId.value) {
     try {
       selectedDisease.value = await api.diseases.get(prefilledDiseaseId.value);
+
+      // 如果下拉列表中没有这个病害（刚创建的），手动添加
+      if (!diseases.value.find((d) => d.id === prefilledDiseaseId.value)) {
+        diseases.value.unshift(selectedDisease.value);
+      }
+
+      // 自动填入补植品种
       if (!form.replantVariety && selectedDisease.value.plot?.variety) {
         form.replantVariety = selectedDisease.value.plot.variety;
+      }
+
+      // 自动设置发起人为病害上报人
+      if (!form.initiatorId && selectedDisease.value.reporterId) {
+        form.initiatorId = selectedDisease.value.reporterId;
+      }
+
+      // 自动填入补植数量（建议值为影响数量）
+      if (!form.replantQuantity && selectedDisease.value.affectedQuantity) {
+        form.replantQuantity = selectedDisease.value.affectedQuantity;
       }
     } catch (e) {
       console.error("加载关联病害失败", e);

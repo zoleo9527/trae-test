@@ -2,8 +2,9 @@ import { IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-vali
 import { DiseaseSeverity, DiseaseStatus } from '../disease.entity';
 
 export class CreateDiseaseDto {
+  @IsOptional()
   @IsNumber()
-  inspectionId: number;
+  inspectionId?: number;
 
   @IsNumber()
   plotId: number;

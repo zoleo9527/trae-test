@@ -33,12 +33,12 @@ export class Disease {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne(() => Inspection, (inspection) => inspection.disease)
+  @OneToOne(() => Inspection, (inspection) => inspection.disease, { nullable: true })
   @JoinColumn({ name: 'inspection_id' })
-  inspection: Inspection;
+  inspection?: Inspection;
 
-  @Column({ name: 'inspection_id' })
-  inspectionId: number;
+  @Column({ name: 'inspection_id', nullable: true })
+  inspectionId?: number;
 
   @ManyToOne(() => Plot)
   @JoinColumn({ name: 'plot_id' })

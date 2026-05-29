@@ -27,6 +27,7 @@ const loading = ref(false);
 const plots = ref<Plot[]>([]);
 const users = ref<User[]>([]);
 const inspection = ref<Inspection | null>(null);
+const inspections = ref<Inspection[]>([]);
 
 const fromInspection = computed(() => !!route.query.inspectionId);
 const prefilledPlotId = computed(() =>
@@ -38,6 +39,13 @@ const prefilledInspectionId = computed(() =>
 const prefilledReporterId = computed(() =>
   route.query.inspectorId ? Number(route.query.inspectorId) : null,
 );
+
+// 可上报的巡查：已完成且无病害的
+const reportableInspections = computed(() => {
+  return inspections.value.filter(
+    (i) => i.status === "completed" && !i.hasDisease,
+  );
+});
 
 const formRef = ref();
 const form = reactive({
@@ -66,9 +74,10 @@ const commonDiseaseTypes = [
 ];
 
 const loadOptions = async () => {
-  [plots.value, users.value] = await Promise.all([
+  [plots.value, users.value, inspections.value] = await Promise.all([
     api.plots.list(),
     api.users.list(),
+    api.inspections.list(),
   ]);
 
   if (prefilledInspectionId.value) {
@@ -121,22 +130,39 @@ const handleSubmit = async () => {
   }
 };
 
-const handleStartNegotiation = () => {
+const handleStartNegotiation = async () => {
   if (!form.plotId || !form.reporterId || !form.type) {
-    ElMessage.warning("请先填写病害信息");
+    ElMessage.warning("请先填写完整病害信息");
     return;
   }
-  router.push({
-    path: "/negotiations/new",
-    query: {
-      diseaseId: "new",
-      plotId: String(form.plotId),
-      initiatorId: String(form.reporterId),
+
+  loading.value = true;
+  try {
+    const data = {
+      inspectionId: form.inspectionId || undefined,
+      plotId: form.plotId,
+      reporterId: form.reporterId,
       type: form.type,
       severity: form.severity,
-      affectedQuantity: String(form.affectedQuantity || 0),
-    },
-  });
+      description: form.description,
+      affectedQuantity: form.affectedQuantity || undefined,
+      reportedAt: form.reportedAt,
+    };
+
+    const disease = await api.diseases.create(data);
+    ElMessage.success("病害上报成功，正在跳转协商页...");
+
+    router.push({
+      path: "/negotiations/new",
+      query: {
+        diseaseId: String(disease.id),
+      },
+    });
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || "上报失败");
+  } finally {
+    loading.value = false;
+  }
 };
 
 onMounted(loadOptions);
@@ -186,16 +212,22 @@ onMounted(loadOptions);
             v-model="form.inspectionId"
             placeholder="可选：关联巡查记录"
             clearable
+            filterable
             style="width: 100%"
           >
             <el-option
-              v-for="ins in [inspection]"
-              v-if="ins"
+              v-for="ins in reportableInspections"
               :key="ins.id"
-              :label="`#${ins.id} ${ins.plot?.name} - ${ins.inspectionDate}`"
+              :label="`#${ins.id} ${ins.plot?.name || ''} - ${ins.inspectionDate} - ${ins.inspector?.name || ''}`"
               :value="ins.id"
             />
           </el-select>
+          <div
+            v-if="!reportableInspections.length"
+            style="font-size: 12px; color: #909399; margin-top: 4px"
+          >
+            暂无可关联的巡查（需要已完成且无病害的巡查记录）
+          </div>
         </el-form-item>
 
         <el-form-item label="地块" required>
