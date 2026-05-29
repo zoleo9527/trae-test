@@ -240,16 +240,19 @@ export class DashboardService {
         maintenanceIds,
         diseaseIds,
         harvestIds,
+        negotiationIds,
         todoIds,
       ] = await Promise.all([
         prisma.maintenanceRecord.findMany({ where: { workerId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
         prisma.diseaseReport.findMany({ where: { reporterId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
         prisma.harvestRecord.findMany({ where: { assigneeId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
+        prisma.reseedNegotiation.findMany({ where: { currentHandlerId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
         prisma.todoItem.findMany({ where: { assigneeId: userId }, select: { id: true } }).then(r => r.map(x => x.id)),
       ]);
       visibleEntityIds.MaintenanceRecord = maintenanceIds;
       visibleEntityIds.DiseaseReport = diseaseIds;
       visibleEntityIds.HarvestRecord = harvestIds;
+      visibleEntityIds.ReseedNegotiation = negotiationIds;
       visibleEntityIds.TodoItem = todoIds;
     } else if (role === ROLE.SALES_COORDINATOR) {
       const [

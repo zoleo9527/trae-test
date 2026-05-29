@@ -99,8 +99,8 @@ export class NegotiationService {
       throw new Error('协商记录不存在');
     }
 
-    if (negotiation.status !== NEGOTIATION_STATUS.DRAFT) {
-      throw new Error('只有草稿状态的协商才能提交');
+    if (negotiation.status !== NEGOTIATION_STATUS.DRAFT && negotiation.status !== NEGOTIATION_STATUS.REWORK_REQUIRED) {
+      throw new Error('只有草稿或待修改状态的协商才能提交');
     }
 
     if (negotiation.creatorId !== userId) {
@@ -127,7 +127,7 @@ export class NegotiationService {
 
       await this.recordStatusChange(
         negotiationId,
-        NEGOTIATION_STATUS.DRAFT,
+        negotiation.status as NegotiationStatus,
         NEGOTIATION_STATUS.MANAGER_REVIEW,
         userId,
         '提交审核'
@@ -154,7 +154,7 @@ export class NegotiationService {
       action: AUDIT_ACTION.SUBMIT,
       entityType: 'ReseedNegotiation',
       entityId: negotiationId,
-      previousValue: { status: NEGOTIATION_STATUS.DRAFT },
+      previousValue: { status: negotiation.status },
       newValue: { status: NEGOTIATION_STATUS.MANAGER_REVIEW },
       changeSummary: `提交补苗协商审核，客户: ${negotiation.customerName}`,
     });
