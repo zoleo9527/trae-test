@@ -5,7 +5,10 @@
         <button class="back-btn" @click="router.back()">← 返回</button>
         <div>
           <h1 class="page-title">{{ workOrder.orderNumber }}</h1>
-          <div class="status-badge" :style="{ background: STATUS_COLORS[workOrder.status] }">
+          <div
+            class="status-badge"
+            :style="{ background: STATUS_COLORS[workOrder.status] }"
+          >
             {{ STATUS_LABELS[workOrder.status] }}
           </div>
         </div>
@@ -69,7 +72,9 @@
           </div>
           <div class="info-row">
             <span class="label">客户诉求金额</span>
-            <span class="value highlight">¥{{ workOrder.requestedAmount || 0 }}</span>
+            <span class="value highlight"
+              >¥{{ workOrder.requestedAmount || 0 }}</span
+            >
           </div>
           <div class="info-row">
             <span class="label">原始价格</span>
@@ -82,8 +87,9 @@
           <div class="info-row">
             <span class="label">处理人</span>
             <span class="value" v-if="workOrder.assignee">
-              {{ workOrder.assignee.avatar }} {{ workOrder.assignee.name }}
-              ({{ ROLE_LABELS[workOrder.assignee.role] }})
+              {{ workOrder.assignee.avatar }} {{ workOrder.assignee.name }} ({{
+                ROLE_LABELS[workOrder.assignee.role]
+              }})
             </span>
           </div>
         </div>
@@ -91,7 +97,9 @@
         <div class="info-card" v-if="workOrder.filmRoll">
           <h3 class="card-title">
             关联胶卷
-            <span class="warning-badge" v-if="workOrder.filmRoll.isMixed">⚠️ 混号</span>
+            <span class="warning-badge" v-if="workOrder.filmRoll.isMixed"
+              >⚠️ 混号</span
+            >
           </h3>
           <div class="info-row">
             <span class="label">胶卷号</span>
@@ -111,7 +119,9 @@
           </div>
           <div class="info-row">
             <span class="label">交付版本</span>
-            <span class="value">{{ workOrder.filmRoll.deliveryVersion || '-' }}</span>
+            <span class="value">{{
+              workOrder.filmRoll.deliveryVersion || "-"
+            }}</span>
           </div>
           <div class="info-row full-width" v-if="workOrder.filmRoll.isMixed">
             <span class="label">混号说明</span>
@@ -134,11 +144,15 @@
             </div>
             <div class="info-row">
               <span class="label">赔付金额</span>
-              <span class="value highlight">¥{{ workOrder.compensation.amount }}</span>
+              <span class="value highlight"
+                >¥{{ workOrder.compensation.amount }}</span
+              >
             </div>
             <div class="info-row">
               <span class="label">客户承担</span>
-              <span class="value">¥{{ workOrder.compensation.customerCost }}</span>
+              <span class="value"
+                >¥{{ workOrder.compensation.customerCost }}</span
+              >
             </div>
             <div class="info-row">
               <span class="label">门店承担</span>
@@ -148,7 +162,10 @@
               <span class="label">赔付原因</span>
               <p class="value text">{{ workOrder.compensation.reason }}</p>
             </div>
-            <div class="info-row full-width" v-if="workOrder.compensation.ownerReview">
+            <div
+              class="info-row full-width"
+              v-if="workOrder.compensation.ownerReview"
+            >
               <span class="label">复核意见</span>
               <p class="value text">{{ workOrder.compensation.ownerReview }}</p>
             </div>
@@ -174,65 +191,114 @@
           <div class="form-group">
             <label>赔付类型</label>
             <select v-model="compensationForm.type" class="form-control">
-              <option v-for="(label, key) in COMPENSATION_TYPE_LABELS" :key="key" :value="key">
+              <option
+                v-for="(label, key) in COMPENSATION_TYPE_LABELS"
+                :key="key"
+                :value="key"
+              >
                 {{ label }}
               </option>
             </select>
           </div>
           <div class="form-group">
             <label>赔付金额</label>
-            <input v-model.number="compensationForm.amount" type="number" class="form-control" />
+            <input
+              v-model.number="compensationForm.amount"
+              type="number"
+              class="form-control"
+            />
           </div>
           <div class="form-group">
             <label>赔付原因</label>
-            <textarea v-model="compensationForm.reason" class="form-control" rows="3"></textarea>
+            <textarea
+              v-model="compensationForm.reason"
+              class="form-control"
+              rows="3"
+            ></textarea>
           </div>
           <div class="form-actions">
-            <button @click="showCompensationForm = false" class="btn-text">取消</button>
-            <button @click="submitCompensation" class="btn-primary">提交</button>
+            <button @click="showCompensationForm = false" class="btn-text">
+              取消
+            </button>
+            <button @click="submitCompensation" class="btn-primary">
+              提交
+            </button>
           </div>
         </div>
 
-        <div class="info-card" v-if="workOrder.negotiationSummary || canEditNegotiationSummary">
+        <div
+          class="info-card"
+          v-if="workOrder.negotiationSummary || canEditNegotiationSummary"
+        >
           <h3 class="card-title">
             协商摘要
             <button
               v-if="!editingNegotiation && canEditNegotiationSummary"
-              @click="editingNegotiation = true; editForm.negotiationSummary = workOrder.negotiationSummary || ''"
+              @click="
+                editingNegotiation = true;
+                editForm.negotiationSummary =
+                  workOrder.negotiationSummary || '';
+              "
               class="btn-text small"
             >
               编辑
             </button>
           </h3>
           <template v-if="editingNegotiation">
-            <textarea v-model="editForm.negotiationSummary" class="form-control" rows="4"></textarea>
+            <textarea
+              v-model="editForm.negotiationSummary"
+              class="form-control"
+              rows="4"
+            ></textarea>
             <div class="form-actions">
-              <button @click="editingNegotiation = false" class="btn-text">取消</button>
-              <button @click="saveNegotiationSummary" class="btn-primary">保存</button>
+              <button @click="editingNegotiation = false" class="btn-text">
+                取消
+              </button>
+              <button @click="saveNegotiationSummary" class="btn-primary">
+                保存
+              </button>
             </div>
           </template>
-          <p v-else class="summary-text">{{ workOrder.negotiationSummary || '暂无协商摘要' }}</p>
+          <p v-else class="summary-text">
+            {{ workOrder.negotiationSummary || "暂无协商摘要" }}
+          </p>
         </div>
 
-        <div class="info-card" v-if="workOrder.reviewConclusion || canEditReviewConclusion">
+        <div
+          class="info-card"
+          v-if="workOrder.reviewConclusion || canEditReviewConclusion"
+        >
           <h3 class="card-title">
             复核结论
             <button
               v-if="!editingReview && canEditReviewConclusion"
-              @click="editingReview = true; editForm.reviewConclusion = workOrder.reviewConclusion || ''"
+              @click="
+                editingReview = true;
+                editForm.reviewConclusion = workOrder.reviewConclusion || '';
+              "
               class="btn-text small"
             >
               编辑
             </button>
           </h3>
           <template v-if="editingReview">
-            <textarea v-model="editForm.reviewConclusion" class="form-control" rows="4"></textarea>
+            <textarea
+              v-model="editForm.reviewConclusion"
+              class="form-control"
+              rows="4"
+            ></textarea>
             <div class="form-actions">
-              <button @click="editingReview = false" class="btn-text">取消</button>
-              <button @click="saveReviewConclusion" class="btn-primary">保存</button>
+              <button @click="editingReview = false" class="btn-text">
+                取消
+              </button>
+              <button @click="saveReviewConclusion" class="btn-primary">
+                保存
+              </button>
             </div>
           </template>
-          <p v-else class="summary-text">{{ workOrder.reviewConclusion || '暂无复核结论' }}</p>
+          <p v-else class="summary-text">
+            {{ workOrder.reviewConclusion || "暂无复核结论" }}
+          </p>
         </div>
       </div>
 
@@ -240,15 +306,28 @@
         <div class="timeline-card">
           <h3 class="card-title">状态流转</h3>
           <div class="timeline">
-            <div class="timeline-item" v-for="log in workOrder.statusLogs" :key="log.id">
-              <div class="timeline-dot" :style="{ background: STATUS_COLORS[log.toStatus] }"></div>
+            <div
+              class="timeline-item"
+              v-for="log in workOrder.statusLogs"
+              :key="log.id"
+            >
+              <div
+                class="timeline-dot"
+                :style="{ background: STATUS_COLORS[log.toStatus] }"
+              ></div>
               <div class="timeline-content">
                 <div class="timeline-header">
-                  <span class="from-status">{{ STATUS_LABELS[log.fromStatus] || '创建' }}</span>
+                  <span class="from-status">{{
+                    STATUS_LABELS[log.fromStatus] || "创建"
+                  }}</span>
                   <span class="arrow">→</span>
-                  <span class="to-status">{{ STATUS_LABELS[log.toStatus] }}</span>
+                  <span class="to-status">{{
+                    STATUS_LABELS[log.toStatus]
+                  }}</span>
                 </div>
-                <p class="timeline-remark" v-if="log.remark">{{ log.remark }}</p>
+                <p class="timeline-remark" v-if="log.remark">
+                  {{ log.remark }}
+                </p>
                 <div class="timeline-footer">
                   <span class="operator">{{ log.operatorName }}</span>
                   <span class="time">{{ formatDate(log.createdAt) }}</span>
@@ -270,7 +349,11 @@
             ></textarea>
             <div class="note-actions">
               <select v-model="newNote.type" class="note-type">
-                <option v-for="(label, key) in NOTE_TYPE_LABELS" :key="key" :value="key">
+                <option
+                  v-for="(label, key) in NOTE_TYPE_LABELS"
+                  :key="key"
+                  :value="key"
+                >
                   {{ label }}
                 </option>
               </select>
@@ -278,7 +361,11 @@
                 <input type="checkbox" v-model="newNote.isPrivate" />
                 仅内部可见
               </label>
-              <button @click="addNote" class="btn-primary" :disabled="!newNote.content.trim()">
+              <button
+                @click="addNote"
+                class="btn-primary"
+                :disabled="!newNote.content.trim()"
+              >
                 添加
               </button>
             </div>
@@ -313,10 +400,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { useWorkOrdersStore } from '@/stores/workOrders';
+import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import { useWorkOrdersStore } from "@/stores/workOrders";
 import {
   STATUS_LABELS,
   STATUS_COLORS,
@@ -325,8 +412,8 @@ import {
   ROLE_LABELS,
   NOTE_TYPE_LABELS,
   COMPENSATION_TYPE_LABELS,
-} from '@/utils/constants';
-import dayjs from 'dayjs';
+} from "@/utils/constants";
+import dayjs from "dayjs";
 
 const route = useRoute();
 const router = useRouter();
@@ -339,78 +426,91 @@ const editingNegotiation = ref(false);
 const editingReview = ref(false);
 
 const compensationForm = ref({
-  type: 'partial_refund',
+  type: "partial_refund",
   amount: 0,
-  reason: '',
+  reason: "",
 });
 
 const newNote = ref({
-  content: '',
-  type: 'internal',
+  content: "",
+  type: "internal",
   isPrivate: false,
 });
 
 const editForm = ref({
-  negotiationSummary: '',
-  reviewConclusion: '',
+  negotiationSummary: "",
+  reviewConclusion: "",
 });
 
 const canNegotiate = computed(() => {
   return (
-    authStore.userRole === 'customer_service' &&
-    workOrder.value?.status === 'pending'
+    authStore.userRole === "customer_service" &&
+    workOrder.value?.status === "pending"
   );
 });
 
 const canSubmitReview = computed(() => {
   return (
-    authStore.userRole === 'customer_service' &&
-    workOrder.value?.status === 'negotiating'
+    authStore.userRole === "customer_service" &&
+    workOrder.value?.status === "negotiating"
   );
 });
 
 const canApprove = computed(() => {
-  return authStore.userRole === 'owner' && workOrder.value?.status === 'reviewing';
+  return (
+    authStore.userRole === "owner" && workOrder.value?.status === "reviewing"
+  );
 });
 
 const canReject = computed(() => {
-  return authStore.userRole === 'owner' && workOrder.value?.status === 'reviewing';
+  return (
+    authStore.userRole === "owner" && workOrder.value?.status === "reviewing"
+  );
 });
 
 const canComplete = computed(() => {
   return (
-    (authStore.userRole === 'owner' || authStore.userRole === 'customer_service') &&
-    workOrder.value?.status === 'approved'
+    (authStore.userRole === "owner" ||
+      authStore.userRole === "customer_service") &&
+    workOrder.value?.status === "approved"
   );
 });
 
 const canCreateCompensation = computed(() => {
   return (
-    authStore.userRole === 'customer_service' &&
-    (workOrder.value?.status === 'negotiating' || workOrder.value?.status === 'pending')
+    authStore.userRole === "customer_service" &&
+    (workOrder.value?.status === "negotiating" ||
+      workOrder.value?.status === "pending")
   );
 });
 
 const canEditNegotiationSummary = computed(() => {
   return (
-    authStore.userRole === 'customer_service' &&
-    (workOrder.value?.status === 'negotiating' || workOrder.value?.status === 'pending')
+    authStore.userRole === "customer_service" &&
+    (workOrder.value?.status === "negotiating" ||
+      workOrder.value?.status === "pending")
   );
 });
 
 const canEditReviewConclusion = computed(() => {
   return (
-    authStore.userRole === 'owner' &&
-    (workOrder.value?.status === 'reviewing' || workOrder.value?.status === 'approved' || workOrder.value?.status === 'completed')
+    authStore.userRole === "owner" &&
+    (workOrder.value?.status === "reviewing" ||
+      workOrder.value?.status === "approved" ||
+      workOrder.value?.status === "completed")
   );
 });
 
 async function updateStatus(status: string) {
   try {
-    await workOrdersStore.updateWorkOrder(route.params.id as string, { status });
+    const payload: any = { status };
+    if (status === "approved" || status === "closed") {
+      payload.reviewConclusion = workOrder.value?.reviewConclusion || "";
+    }
+    await workOrdersStore.updateWorkOrder(route.params.id as string, payload);
     await loadData();
   } catch (e) {
-    console.error('状态更新失败', e);
+    console.error("状态更新失败", e);
   }
 }
 
@@ -421,20 +521,20 @@ async function submitCompensation() {
       compensationForm.value,
     );
     showCompensationForm.value = false;
-    compensationForm.value = { type: 'partial_refund', amount: 0, reason: '' };
+    compensationForm.value = { type: "partial_refund", amount: 0, reason: "" };
     await loadData();
   } catch (e) {
-    console.error('创建赔付方案失败', e);
+    console.error("创建赔付方案失败", e);
   }
 }
 
 async function addNote() {
   try {
     await workOrdersStore.addNote(route.params.id as string, newNote.value);
-    newNote.value = { content: '', type: 'internal', isPrivate: false };
+    newNote.value = { content: "", type: "internal", isPrivate: false };
     await loadData();
   } catch (e) {
-    console.error('添加备注失败', e);
+    console.error("添加备注失败", e);
   }
 }
 
@@ -446,7 +546,7 @@ async function saveNegotiationSummary() {
     editingNegotiation.value = false;
     await loadData();
   } catch (e) {
-    console.error('保存协商摘要失败', e);
+    console.error("保存协商摘要失败", e);
   }
 }
 
@@ -458,12 +558,12 @@ async function saveReviewConclusion() {
     editingReview.value = false;
     await loadData();
   } catch (e) {
-    console.error('保存复核结论失败', e);
+    console.error("保存复核结论失败", e);
   }
 }
 
 function formatDate(date: string) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm');
+  return dayjs(date).format("YYYY-MM-DD HH:mm");
 }
 
 async function loadData() {
@@ -711,7 +811,7 @@ onMounted(() => {
 }
 
 .timeline-item:not(:last-child)::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 4px;
   top: 20px;

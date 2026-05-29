@@ -112,22 +112,24 @@ export class WorkOrdersService {
 
         const compensation = this.db.findOne('compensations', { workOrderId: id });
         if (compensation) {
+          const latestReviewConclusion = updateDto.reviewConclusion || workOrder.reviewConclusion || compensation.ownerReview;
+
           await this.db.update('compensations', compensation.id, {
             approvedAt: new Date().toISOString(),
             approvedBy: operator?.name,
             approvedByRole: operator?.role,
-            ownerReview: updateDto.reviewConclusion || compensation.ownerReview,
+            ownerReview: latestReviewConclusion,
             status: 'approved',
           });
 
           await this.db.update('workOrders', id, {
-            reviewConclusion: updateDto.reviewConclusion || workOrder.reviewConclusion,
+            reviewConclusion: latestReviewConclusion,
           });
 
           await this.db.create('notes', {
             id: uuid.v4(),
             workOrderId: id,
-            content: `赔付方案已批准，金额 ¥${compensation.amount}。${updateDto.reviewConclusion ? '复核意见：' + updateDto.reviewConclusion : ''}`,
+            content: `赔付方案已批准，金额 ¥${compensation.amount}。${latestReviewConclusion ? '复核意见：' + latestReviewConclusion : ''}`,
             type: 'review',
             isPrivate: false,
             creatorId: operator?.id,
@@ -169,6 +171,15 @@ export class WorkOrdersService {
     if (updateDto.description) updates.description = updateDto.description;
     if (updateDto.negotiationSummary) updates.negotiationSummary = updateDto.negotiationSummary;
     if (updateDto.reviewConclusion && updateDto.status !== 'approved') updates.reviewConclusion = updateDto.reviewConclusion;
+
+    if (updateDto.reviewConclusion && !updateDto.status) {
+      const compensation = this.db.findOne('compensations', { workOrderId: id });
+      if (compensation) {
+        await this.db.update('compensations', compensation.id, {
+          ownerReview: updateDto.reviewConclusion,
+        });
+      }
+    }
 
     if (Object.keys(updates).length > 0) {
       await this.db.update('workOrders', id, updates);
@@ -221,7 +232,7 @@ export class WorkOrdersService {
   async getNotes(id: string, userRole?: string): Promise<any[]> {
     let notes = this.db.find('notes', { workOrderId: id });
 
-    if (userRole === 'customer_service') {
+    if (userRole !== 'owner') {
       notes = notes.filter((n) => !n.isPrivate);
     }
 
