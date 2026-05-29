@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"instrument-rental/database"
 	"instrument-rental/model"
@@ -9,6 +8,19 @@ import (
 
 	"gorm.io/gorm"
 )
+
+type BusinessError struct {
+	Code    int
+	Message string
+}
+
+func (e *BusinessError) Error() string {
+	return e.Message
+}
+
+func newBusinessError(code int, msg string) *BusinessError {
+	return &BusinessError{Code: code, Message: msg}
+}
 
 var validTransitions = map[model.ReturnStatus][]model.ReturnStatus{
 	model.ReturnPendingReview: {
@@ -39,6 +51,14 @@ var validTransitions = map[model.ReturnStatus][]model.ReturnStatus{
 	},
 }
 
+var knownStatuses = map[model.ReturnStatus]bool{
+	model.ReturnPendingReview: true,
+	model.ReturnApproved:      true,
+	model.ReturnRejected:      true,
+	model.ReturnNeedsReview:   true,
+	model.ReturnDisputed:      true,
+}
+
 func isValidTransition(from, to model.ReturnStatus) bool {
 	validTos, ok := validTransitions[from]
 	if !ok {
@@ -57,13 +77,13 @@ type ReturnService struct{}
 func NewReturnService() *ReturnService { return &ReturnService{} }
 
 type CreateReturnInput struct {
-	RentalID           uint    `json:"rental_id"`
-	ReturnDate         string  `json:"return_date"`
-	Condition          string  `json:"condition"`
-	DamageDescription  string  `json:"damage_description"`
-	DamagePhotos       string  `json:"damage_photos"`
-	DepositDeduction   float64 `json:"deposit_deduction"`
-	DepositRefund      float64 `json:"deposit_refund"`
+	RentalID          uint    `json:"rental_id"`
+	ReturnDate        string  `json:"return_date"`
+	Condition         string  `json:"condition"`
+	DamageDescription string  `json:"damage_description"`
+	DamagePhotos      string  `json:"damage_photos"`
+	DepositDeduction  float64 `json:"deposit_deduction"`
+	DepositRefund     float64 `json:"deposit_refund"`
 }
 
 func (s *ReturnService) List(rentalID uint, status, condition string, page, pageSize int) ([]model.ReturnRecord, int64, error) {
@@ -98,16 +118,31 @@ func (s *ReturnService) Create(input *CreateReturnInput, assessorID uint, ip str
 	if err != nil {
 		return nil, err
 	}
+
+	var rental model.Rental
+	if err := database.DB.First(&rental, input.RentalID).Error; err != nil {
+		return nil, newBusinessError(404, "rental not found")
+	}
+
+	var instrument model.Instrument
+	if err := database.DB.First(&instrument, rental.InstrumentID).Error; err != nil {
+		return nil, newBusinessError(404, "instrument not found")
+	}
+
 	record := &model.ReturnRecord{
-		RentalID:          input.RentalID,
-		ReturnDate:        rd,
-		Condition:         model.ReturnCondition(input.Condition),
-		DamageDescription: input.DamageDescription,
-		DamagePhotos:      input.DamagePhotos,
-		DepositDeduction:  input.DepositDeduction,
-		DepositRefund:     input.DepositRefund,
-		AssessorID:        assessorID,
-		Status:            model.ReturnPendingReview,
+		RentalID:                input.RentalID,
+		ReturnDate:              rd,
+		Condition:               model.ReturnCondition(input.Condition),
+		DamageDescription:       input.DamageDescription,
+		DamagePhotos:            input.DamagePhotos,
+		DepositDeduction:        input.DepositDeduction,
+		DepositRefund:           input.DepositRefund,
+		AssessorID:              assessorID,
+		Status:                  model.ReturnPendingReview,
+		SnapshotRentalStatus:    string(rental.Status),
+		SnapshotDepositStatus:   string(rental.DepositStatus),
+		SnapshotInstrumentStatus: string(instrument.Status),
+		SnapshotActualReturnDate: rental.ActualReturnDate,
 	}
 	if err := database.DB.Create(record).Error; err != nil {
 		return nil, err
@@ -126,18 +161,22 @@ func (s *ReturnService) Create(input *CreateReturnInput, assessorID uint, ip str
 }
 
 func (s *ReturnService) Review(id uint, newStatus model.ReturnStatus, reviewNotes string, reviewerID uint, ip string) error {
+	if !knownStatuses[newStatus] {
+		return newBusinessError(400, fmt.Sprintf("unknown return status: %s", newStatus))
+	}
+
 	oldReturn := fetchOldReturn(id)
 	if oldReturn == nil {
-		return errors.New("return record not found")
+		return newBusinessError(404, "return record not found")
 	}
 
 	oldStatus := model.ReturnStatus(oldReturn["status"].(string))
 	if oldStatus == newStatus {
-		return nil
+		return newBusinessError(409, fmt.Sprintf("return record is already %s, no change applied", oldStatus))
 	}
 
 	if !isValidTransition(oldStatus, newStatus) {
-		return fmt.Errorf("invalid status transition from %s to %s", oldStatus, newStatus)
+		return newBusinessError(400, fmt.Sprintf("invalid status transition from %s to %s", oldStatus, newStatus))
 	}
 
 	tx := database.DB.Begin()
@@ -156,15 +195,13 @@ func (s *ReturnService) Review(id uint, newStatus model.ReturnStatus, reviewNote
 		return err
 	}
 
-	var instrument model.Instrument
-	if err := tx.First(&instrument, rental.InstrumentID).Error; err != nil {
-		return err
-	}
+	origRentalStatus := model.RentalStatus(record.SnapshotRentalStatus)
+	origDepositStatus := model.DepositStatus(record.SnapshotDepositStatus)
+	origInstrumentStatus := model.InstrumentStatus(record.SnapshotInstrumentStatus)
+	origActualReturnDate := record.SnapshotActualReturnDate
 
-	originalRentalStatus, originalDepositStatus, originalInstrumentStatus := getOriginalStatuses(&rental, &instrument, oldStatus)
-
-	if err := s.applyStateTransition(tx, oldStatus, newStatus, &record, &rental, &instrument,
-		originalRentalStatus, originalDepositStatus, originalInstrumentStatus, reviewNotes); err != nil {
+	if err := s.applyStateTransition(tx, oldStatus, newStatus, &record, &rental,
+		origRentalStatus, origDepositStatus, origInstrumentStatus, origActualReturnDate, reviewNotes); err != nil {
 		return err
 	}
 
@@ -187,30 +224,10 @@ func (s *ReturnService) Review(id uint, newStatus model.ReturnStatus, reviewNote
 	return nil
 }
 
-func getOriginalStatuses(rental *model.Rental, instrument *model.Instrument, currentReturnStatus model.ReturnStatus) (model.RentalStatus, model.DepositStatus, model.InstrumentStatus) {
-	switch currentReturnStatus {
-	case model.ReturnPendingReview, model.ReturnNeedsReview, model.ReturnRejected:
-		return rental.Status, rental.DepositStatus, instrument.Status
-
-	case model.ReturnApproved:
-		origRentalStatus := model.RentalActive
-		if rental.ExpectedReturnDate.Before(time.Now()) {
-			origRentalStatus = model.RentalOverdue
-		}
-		return origRentalStatus, model.DepositCollected, model.InstrumentRented
-
-	case model.ReturnDisputed:
-		return rental.Status, model.DepositCollected, instrument.Status
-
-	default:
-		return rental.Status, rental.DepositStatus, instrument.Status
-	}
-}
-
 func (s *ReturnService) applyStateTransition(tx *gorm.DB, oldStatus, newStatus model.ReturnStatus,
-	record *model.ReturnRecord, rental *model.Rental, instrument *model.Instrument,
+	record *model.ReturnRecord, rental *model.Rental,
 	origRentalStatus model.RentalStatus, origDepositStatus model.DepositStatus, origInstrumentStatus model.InstrumentStatus,
-	reviewNotes string) error {
+	origActualReturnDate *time.Time, reviewNotes string) error {
 
 	if err := tx.Model(&model.ReturnRecord{}).Where("id = ?", record.ID).
 		Updates(map[string]any{
@@ -222,19 +239,19 @@ func (s *ReturnService) applyStateTransition(tx *gorm.DB, oldStatus, newStatus m
 
 	switch newStatus {
 	case model.ReturnApproved:
-		return applyApproved(tx, record, rental, instrument)
+		return applyApproved(tx, record, rental)
 	case model.ReturnRejected:
-		return applyRejected(tx, record, rental, instrument, origRentalStatus, origDepositStatus, origInstrumentStatus)
+		return applyRejected(tx, record, rental, origRentalStatus, origDepositStatus, origInstrumentStatus, origActualReturnDate)
 	case model.ReturnNeedsReview:
-		return applyNeedsReview(tx, oldStatus, rental, instrument, origRentalStatus, origDepositStatus, origInstrumentStatus)
+		return applyNeedsReview(tx, oldStatus, rental, origRentalStatus, origDepositStatus, origInstrumentStatus, origActualReturnDate)
 	case model.ReturnDisputed:
-		return applyDisputed(tx, oldStatus, rental)
+		return applyDisputed(tx, oldStatus, rental, origDepositStatus)
 	default:
-		return nil
+		return newBusinessError(400, fmt.Sprintf("unsupported target status: %s", newStatus))
 	}
 }
 
-func applyApproved(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental, instrument *model.Instrument) error {
+func applyApproved(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental) error {
 	now := time.Now()
 	if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
 		Updates(map[string]any{
@@ -263,12 +280,13 @@ func applyApproved(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental
 	return nil
 }
 
-func applyRejected(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental, instrument *model.Instrument,
-	origRentalStatus model.RentalStatus, origDepositStatus model.DepositStatus, origInstrumentStatus model.InstrumentStatus) error {
+func applyRejected(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental,
+	origRentalStatus model.RentalStatus, origDepositStatus model.DepositStatus, origInstrumentStatus model.InstrumentStatus,
+	origActualReturnDate *time.Time) error {
 
 	if err := tx.Model(&model.Rental{}).Where("id = ?", record.RentalID).
 		Updates(map[string]any{
-			"actual_return_date": nil,
+			"actual_return_date": origActualReturnDate,
 			"status":             origRentalStatus,
 			"deposit_status":     origDepositStatus,
 		}).Error; err != nil {
@@ -283,13 +301,14 @@ func applyRejected(tx *gorm.DB, record *model.ReturnRecord, rental *model.Rental
 	return nil
 }
 
-func applyNeedsReview(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.Rental, instrument *model.Instrument,
-	origRentalStatus model.RentalStatus, origDepositStatus model.DepositStatus, origInstrumentStatus model.InstrumentStatus) error {
+func applyNeedsReview(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.Rental,
+	origRentalStatus model.RentalStatus, origDepositStatus model.DepositStatus, origInstrumentStatus model.InstrumentStatus,
+	origActualReturnDate *time.Time) error {
 
 	if oldStatus == model.ReturnApproved {
 		if err := tx.Model(&model.Rental{}).Where("id = ?", rental.ID).
 			Updates(map[string]any{
-				"actual_return_date": nil,
+				"actual_return_date": origActualReturnDate,
 				"status":             origRentalStatus,
 				"deposit_status":     origDepositStatus,
 			}).Error; err != nil {
@@ -310,7 +329,9 @@ func applyNeedsReview(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.R
 	return nil
 }
 
-func applyDisputed(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.Rental) error {
+func applyDisputed(tx *gorm.DB, oldStatus model.ReturnStatus, rental *model.Rental,
+	origDepositStatus model.DepositStatus) error {
+
 	if oldStatus == model.ReturnApproved {
 		if err := tx.Model(&model.Rental{}).Where("id = ?", rental.ID).
 			Update("deposit_status", model.DepositForfeited).Error; err != nil {
@@ -336,12 +357,15 @@ func fetchOldReturn(id uint) model.JSONMap {
 
 func returnToMap(r *model.ReturnRecord) model.JSONMap {
 	return model.JSONMap{
-		"id":                r.ID,
-		"rental_id":         r.RentalID,
-		"condition":         string(r.Condition),
-		"deposit_deduction": r.DepositDeduction,
-		"deposit_refund":    r.DepositRefund,
-		"status":            string(r.Status),
+		"id":                         r.ID,
+		"rental_id":                  r.RentalID,
+		"condition":                  string(r.Condition),
+		"deposit_deduction":          r.DepositDeduction,
+		"deposit_refund":             r.DepositRefund,
+		"status":                     string(r.Status),
+		"snapshot_rental_status":     r.SnapshotRentalStatus,
+		"snapshot_deposit_status":    r.SnapshotDepositStatus,
+		"snapshot_instrument_status": r.SnapshotInstrumentStatus,
 	}
 }
 

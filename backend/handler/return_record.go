@@ -50,6 +50,9 @@ func (h *ReturnHandler) Create(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	record, err := h.svc.Create(input, userID, c.IP())
 	if err != nil {
+		if bizErr, ok := err.(*service.BusinessError); ok {
+			return c.Status(bizErr.Code).JSON(fiber.Map{"error": bizErr.Message})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(201).JSON(record)
@@ -66,6 +69,9 @@ func (h *ReturnHandler) Review(c *fiber.Ctx) error {
 	}
 	userID := middleware.GetUserID(c)
 	if err := h.svc.Review(uint(id), model.ReturnStatus(input.Status), input.ReviewNotes, userID, c.IP()); err != nil {
+		if bizErr, ok := err.(*service.BusinessError); ok {
+			return c.Status(bizErr.Code).JSON(fiber.Map{"error": bizErr.Message})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(fiber.Map{"message": "reviewed"})
