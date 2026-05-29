@@ -172,9 +172,11 @@ async function resolveNegotiation(negotiation: Negotiation) {
 async function addNegotiationNote() {
   if (!newNegotiationNote.value.trim() || !selectedNegotiation.value) return
   try {
+    const author = appStore.currentRole === '基地负责人' ? '张建国' : appStore.currentRole === '销售跟单' ? '赵敏' : '李养护'
     await store.addNegotiationNote(
       selectedNegotiation.value.id,
       newNegotiationNote.value,
+      author,
     )
     newNegotiationNote.value = ''
     store.fetchNegotiations()

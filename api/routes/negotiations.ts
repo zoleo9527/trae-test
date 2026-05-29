@@ -49,7 +49,7 @@ router.get('/:id', (req: Request, res: Response) => {
     LEFT JOIN followups f ON n.followup_id = f.id
     LEFT JOIN disease_reports dr ON n.disease_report_id = dr.id
     WHERE n.id = ?
-  `).get(req.params.id)
+  `).get(req.params.id) as Record<string, unknown> | undefined
 
   if (!negotiation) {
     res.json({ success: false, error: 'Negotiation not found' })

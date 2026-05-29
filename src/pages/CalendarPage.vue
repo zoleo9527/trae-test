@@ -56,7 +56,7 @@ const firstDayOfWeek = computed(() => {
 
 const calendarDays = computed(() => {
   const days: (number | null)[] = []
-  const offset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
+  const offset = firstDayOfWeek.value === 0 ? 6 : firstDayOfWeek.value - 1
   for (let i = 0; i < offset; i++) days.push(null)
   for (let i = 1; i <= daysInMonth.value; i++) days.push(i)
   return days

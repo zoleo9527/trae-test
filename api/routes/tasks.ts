@@ -36,7 +36,7 @@ router.get('/:id', (req: Request, res: Response) => {
   const task = db.prepare(
     `SELECT t.*, p.name as plot_name, p.area as plot_area
      FROM tasks t LEFT JOIN plots p ON t.plot_id = p.id WHERE t.id = ?`
-  ).get(req.params.id)
+  ).get(req.params.id) as Record<string, unknown> | undefined
 
   if (!task) {
     res.json({ success: false, error: 'Task not found' })

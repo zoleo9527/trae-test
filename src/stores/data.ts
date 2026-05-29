@@ -11,6 +11,7 @@ export interface Plot {
   created_at: string
   updated_at: string
   inventory?: PlotInventory[]
+  statusLogs?: PlotStatusLog[]
   status_logs?: PlotStatusLog[]
 }
 
@@ -64,7 +65,7 @@ export interface Task {
   id: number
   plot_id: number
   transfer_id: number | null
-  type: 'lifting' | 'maintenance' | 'disease'
+  type: 'lifting' | 'maintenance' | 'disease' | '起苗' | '养护' | '病害'
   title: string
   status: string
   assignee: string
@@ -104,6 +105,8 @@ export interface LoadingOrder {
   status: string
   loaded_at: string
   created_by: string
+  customer_name?: string
+  species?: string
   items?: LoadingItem[]
   transfer?: Transfer
   has_discrepancy?: boolean
@@ -140,6 +143,10 @@ export interface Negotiation {
   negotiated_by: string
   created_at: string
   resolved_at: string | null
+  customer_name?: string
+  disease_type?: string
+  severity?: string
+  issue_description?: string
   notes?: NegotiationNote[]
 }
 
@@ -249,24 +256,24 @@ export const useDataStore = defineStore('data', () => {
     return data
   }
 
-  async function createTransfer(payload: Partial<Transfer>) {
+  async function createTransfer(payload: Partial<Transfer> & { created_by: string }) {
     return apiFetch<Transfer>('/api/transfers', {
       method: 'POST',
       body: JSON.stringify(payload),
     })
   }
 
-  async function approveTransfer(id: number, approved: boolean, comment: string) {
+  async function approveTransfer(id: number, approved_by: string, action: 'approve' | 'reject', comment?: string) {
     return apiFetch(`/api/transfers/${id}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ approved, comment }),
+      body: JSON.stringify({ approved_by, action, comment }),
     })
   }
 
-  async function addTransferNote(id: number, content: string, type: string) {
+  async function addTransferNote(id: number, content: string, author: string, type?: string) {
     return apiFetch(`/api/transfers/${id}/notes`, {
       method: 'POST',
-      body: JSON.stringify({ content, type }),
+      body: JSON.stringify({ content, author, type }),
     })
   }
 
@@ -351,10 +358,10 @@ export const useDataStore = defineStore('data', () => {
     })
   }
 
-  async function addNegotiationNote(id: number, content: string) {
+  async function addNegotiationNote(id: number, content: string, author: string) {
     return apiFetch(`/api/negotiations/${id}/notes`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, author }),
     })
   }
 

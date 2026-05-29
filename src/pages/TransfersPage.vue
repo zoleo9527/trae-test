@@ -2,15 +2,17 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '@/stores/data'
+import { useAppStore } from '@/stores/app'
 import StatusBadge from '@/components/StatusBadge.vue'
 import Modal from '@/components/Modal.vue'
 import { Plus } from 'lucide-vue-next'
 
 const router = useRouter()
 const store = useDataStore()
+const appStore = useAppStore()
 
 const activeTab = ref('全部')
-const tabs = ['全部', '待审批', '进行中', '已完成', '已取消']
+const tabs = ['全部', '待审批', '待装车', '运输中', '已完成', '已拒绝']
 const showCreateModal = ref(false)
 
 const form = ref({
@@ -23,6 +25,7 @@ const form = ref({
 })
 
 onMounted(() => {
+  store.fetchPlots()
   store.fetchTransfers()
 })
 
@@ -41,6 +44,7 @@ async function handleCreate() {
       species: form.value.species,
       quantity: form.value.quantity,
       expected_date: form.value.expected_date,
+      created_by: appStore.currentRole === '销售跟单' ? '赵敏' : '张建国',
     } as any)
     showCreateModal.value = false
     form.value = { plot_id: 0, customer_name: '', species: '', quantity: 0, expected_date: '', note: '' }

@@ -26,7 +26,7 @@ const statusForm = ref({
 })
 const newNote = ref('')
 
-const statusOptions = ['在养', '养护中', '休整', '已调出']
+const statusOptions = ['在养', '待起苗', '部分起苗', '空床']
 
 onMounted(async () => {
   try {
@@ -55,9 +55,13 @@ const transferColumns: Column[] = [
   { key: 'status', label: '状态' },
 ]
 
+const plotStatusLogs = computed(() => {
+  if (!plot.value) return []
+  return plot.value.statusLogs || plot.value.status_logs || []
+})
+
 const statusTimeline = computed(() => {
-  if (!plot.value?.status_logs) return []
-  return plot.value.status_logs.map(log => ({
+  return plotStatusLogs.value.map(log => ({
     title: `${log.from_status || '初始'} → ${log.to_status}`,
     subtitle: log.operator ? `操作人: ${log.operator}` : '',
     detail: log.reason ? `原因: ${log.reason}` : '',
@@ -222,9 +226,9 @@ function goToTransfer(row: Record<string, any>) {
 
         <div class="card p-4">
           <h2 class="section-title">备注与沟通</h2>
-          <div v-if="plot.status_logs && plot.status_logs.length > 0" class="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
+          <div v-if="plotStatusLogs.length > 0" class="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
             <div
-              v-for="log in plot.status_logs"
+              v-for="log in plotStatusLogs"
               :key="log.id"
               class="flex items-start gap-3 p-3 bg-gray-50 rounded"
             >

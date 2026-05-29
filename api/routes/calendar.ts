@@ -32,7 +32,7 @@ router.get('/', (req: Request, res: Response) => {
       SELECT t.*, p.name as plot_name
       FROM tasks t
       LEFT JOIN plots p ON t.plot_id = p.id
-      WHERE t.type = 'lifting' AND t.due_date IS NOT NULL
+      WHERE t.type IN ('lifting', '起苗') AND t.due_date IS NOT NULL
         AND date(t.due_date) >= ? AND date(t.due_date) <= ?
     `).all(startDate, endDate) as Array<{ id: number; title: string; due_date: string; plot_name: string; transfer_id: number | null }>
 
@@ -52,7 +52,7 @@ router.get('/', (req: Request, res: Response) => {
       SELECT t.*, p.name as plot_name
       FROM tasks t
       LEFT JOIN plots p ON t.plot_id = p.id
-      WHERE t.type = 'maintenance' AND t.due_date IS NOT NULL
+      WHERE t.type IN ('maintenance', '养护') AND t.due_date IS NOT NULL
         AND date(t.due_date) >= ? AND date(t.due_date) <= ?
     `).all(startDate, endDate) as Array<{ id: number; title: string; due_date: string; plot_name: string }>
 
@@ -73,7 +73,7 @@ router.get('/', (req: Request, res: Response) => {
       FROM tasks t
       LEFT JOIN plots p ON t.plot_id = p.id
       LEFT JOIN disease_reports dr ON t.id = dr.task_id
-      WHERE t.type = 'disease' AND t.due_date IS NOT NULL
+      WHERE t.type IN ('disease', '病害') AND t.due_date IS NOT NULL
         AND date(t.due_date) >= ? AND date(t.due_date) <= ?
     `).all(startDate, endDate) as Array<{ id: number; title: string; due_date: string; plot_name: string; severity: string }>
 

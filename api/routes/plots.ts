@@ -33,7 +33,7 @@ router.get('/', (req: Request, res: Response) => {
 
 router.get('/:id', (req: Request, res: Response) => {
   const db = getDb()
-  const plot = db.prepare('SELECT * FROM plots WHERE id = ?').get(req.params.id)
+  const plot = db.prepare('SELECT * FROM plots WHERE id = ?').get(req.params.id) as Record<string, unknown> | undefined
   if (!plot) {
     res.json({ success: false, error: 'Plot not found' })
     return
@@ -117,7 +117,7 @@ router.post('/:id/notes', (req: Request, res: Response) => {
     return
   }
 
-  const plot = db.prepare('SELECT * FROM plots WHERE id = ?').get(req.params.id)
+  const plot = db.prepare('SELECT * FROM plots WHERE id = ?').get(req.params.id) as { id: number; status: string; [key: string]: unknown } | undefined
   if (!plot) {
     res.json({ success: false, error: 'Plot not found' })
     return

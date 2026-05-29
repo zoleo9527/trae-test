@@ -299,11 +299,11 @@ export function seedDb(): void {
   insertTransferNote.run(transfer2.lastInsertRowid, '昨天发车，预计今天下午到达', '李养护', '物流', yesterday)
   insertTransferNote.run(transfer4.lastInsertRowid, '客户已确认收货，数量质量均合格', '陈销售', '确认', twoDaysAgo)
 
-  const task1 = insertTask.run(plot3.lastInsertRowid, transfer1.lastInsertRowid, '起苗', '香樟起苗任务', '待处理', '王养护', '高', tomorrow, null, twoDaysAgo)
-  const task2 = insertTask.run(plot4.lastInsertRowid, transfer2.lastInsertRowid, '起苗', '桂花起苗任务', '已完成', '王养护', '高', twoDaysAgo, yesterday, twoDaysAgo)
-  const task3 = insertTask.run(plot1.lastInsertRowid, null, '养护', '红枫春季施肥', '进行中', '李养护', '普通', tomorrow, null, yesterday)
-  const task4 = insertTask.run(plot2.lastInsertRowid, null, '病害', '紫薇褐斑病防治', '待处理', '李养护', '高', yesterday, null, threeDaysAgo())
-  const task5 = insertTask.run(plot5.lastInsertRowid, null, '养护', '地块消毒', '待处理', '张养护', '普通', nextWeek, null, yesterday)
+  const task1 = insertTask.run(plot3.lastInsertRowid, transfer1.lastInsertRowid, 'lifting', '香樟起苗任务', '待处理', '王养护', '高', tomorrow, null, twoDaysAgo)
+  const task2 = insertTask.run(plot4.lastInsertRowid, transfer2.lastInsertRowid, 'lifting', '桂花起苗任务', '已完成', '王养护', '高', twoDaysAgo, yesterday, twoDaysAgo)
+  const task3 = insertTask.run(plot1.lastInsertRowid, null, 'maintenance', '红枫春季施肥', '进行中', '李养护', '普通', tomorrow, null, yesterday)
+  const task4 = insertTask.run(plot2.lastInsertRowid, null, 'disease', '紫薇褐斑病防治', '待处理', '李养护', '高', yesterday, null, threeDaysAgo())
+  const task5 = insertTask.run(plot5.lastInsertRowid, null, 'maintenance', '地块消毒', '待处理', '张养护', '普通', nextWeek, null, yesterday)
 
   insertTaskNote.run(task4.lastInsertRowid, '发现约50棵紫薇叶片有褐色斑点，疑似褐斑病', '李养护', threeDaysAgo())
   insertTaskNote.run(task2.lastInsertRowid, '150棵桂花已全部起苗完毕，土球完整', '王养护', yesterday)

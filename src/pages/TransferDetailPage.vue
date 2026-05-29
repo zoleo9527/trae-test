@@ -33,9 +33,9 @@ const currentStep = computed(() => {
   if (!transfer.value) return 0
   const status = transfer.value.status
   if (status === '待审批') return 1
-  if (status === '进行中') return 2
-  if (status === '装车中') return 3
-  if (status === '回访中') return 4
+  if (status === '进行中' || status === '待装车') return 2
+  if (status === '装车中' || status === '运输中') return 3
+  if (status === '回访中' || status === '待跟进') return 4
   if (status === '已完成') return 5
   return 0
 })
@@ -47,7 +47,8 @@ const canApprove = computed(() => {
 async function addNote() {
   if (!noteContent.value.trim() || !transfer.value) return
   try {
-    await store.addTransferNote(transfer.value.id, noteContent.value, 'comment')
+    const author = appStore.currentRole === '基地负责人' ? '张建国' : appStore.currentRole === '销售跟单' ? '赵敏' : '李养护'
+    await store.addTransferNote(transfer.value.id, noteContent.value, author, '备注')
     transfer.value = await store.fetchTransfer(transfer.value.id)
     noteContent.value = ''
   } catch (e) {
@@ -60,7 +61,8 @@ async function handleApproval() {
   try {
     await store.approveTransfer(
       transfer.value.id,
-      approvalAction.value === 'approve',
+      '张建国',
+      approvalAction.value,
       approvalComment.value,
     )
     transfer.value = await store.fetchTransfer(transfer.value.id)

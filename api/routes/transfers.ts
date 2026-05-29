@@ -28,7 +28,7 @@ router.get('/:id', (req: Request, res: Response) => {
   const transfer = db.prepare(
     `SELECT t.*, p.name as plot_name, p.area as plot_area
      FROM transfers t LEFT JOIN plots p ON t.plot_id = p.id WHERE t.id = ?`
-  ).get(req.params.id)
+  ).get(req.params.id) as Record<string, unknown> | undefined
 
   if (!transfer) {
     res.json({ success: false, error: 'Transfer not found' })
@@ -82,7 +82,7 @@ router.put('/:id', (req: Request, res: Response) => {
 
 router.post('/:id/approve', (req: Request, res: Response) => {
   const db = getDb()
-  const { approved_by, action } = req.body
+  const { approved_by, action, comment } = req.body
 
   if (!approved_by || !action) {
     res.json({ success: false, error: 'Missing required fields: approved_by, action' })
@@ -90,7 +90,7 @@ router.post('/:id/approve', (req: Request, res: Response) => {
   }
 
   const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-  const newStatus = action === 'approve' ? '进行中' : '已拒绝'
+  const newStatus = action === 'approve' ? '待装车' : '已拒绝'
 
   const result = db.prepare(
     'UPDATE transfers SET status = ?, approved_by = ?, updated_at = ? WHERE id = ?'
@@ -100,6 +100,13 @@ router.post('/:id/approve', (req: Request, res: Response) => {
     res.json({ success: false, error: 'Transfer not found' })
     return
   }
+
+  if (comment) {
+    db.prepare(
+      'INSERT INTO transfer_notes (transfer_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(req.params.id, comment, approved_by, action === 'approve' ? '审批' : '驳回', now)
+  }
+
   res.json({ success: true, data: { updated: true } })
 })
 

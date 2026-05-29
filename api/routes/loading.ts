@@ -32,7 +32,7 @@ router.get('/:id', (req: Request, res: Response) => {
   const order = db.prepare(
     `SELECT lo.*, t.customer_name, t.species as transfer_species
      FROM loading_orders lo LEFT JOIN transfers t ON lo.transfer_id = t.id WHERE lo.id = ?`
-  ).get(req.params.id)
+  ).get(req.params.id) as Record<string, unknown> | undefined
 
   if (!order) {
     res.json({ success: false, error: 'Loading order not found' })
