@@ -158,7 +158,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth'
-import { getReminders, getReminder, startReminder as apiStartReminder, completeReminder as apiCompleteReminder, createReminder as apiCreateReminder, addReminderRemark as apiAddReminderRemark, getOrders } from '../api/endpoints'
+import { getReminders, getReminder, startReminder as apiStartReminder, completeReminder as apiCompleteReminder, createReminder as apiCreateReminder, addReminderRemark as apiAddReminderRemark, getOrders, getSalesList } from '../api/endpoints'
 import { Plus, Flag } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -206,10 +206,12 @@ const loadOverdueOrders = async () => {
 }
 
 const loadSalesList = async () => {
-  salesList.value = [
-    { id: 2, name: '李销售' },
-    { id: 3, name: '王销售' }
-  ]
+  try {
+    const users = await getSalesList()
+    salesList.value = users.map(u => ({ id: u.id, name: `${u.first_name}${u.last_name}` }))
+  } catch {
+    salesList.value = []
+  }
 }
 
 const resetFilters = () => {

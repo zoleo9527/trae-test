@@ -8,6 +8,10 @@ export const getCurrentUser = () => {
   return api.get('/user/')
 }
 
+export const getSalesList = () => {
+  return api.get('/user/sales_list/')
+}
+
 export const getDashboardStats = () => {
   return api.get('/dashboard/')
 }

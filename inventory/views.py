@@ -452,3 +452,9 @@ class CurrentUserView(viewsets.ViewSet):
     def list(self, request):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def sales_list(self, request):
+        sales_users = User.objects.filter(profile__role='SALES')
+        serializer = UserSerializer(sales_users, many=True)
+        return Response(serializer.data)

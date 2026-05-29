@@ -114,6 +114,14 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class ReminderRemarkSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+
+    class Meta:
+        model = ReminderRemark
+        fields = '__all__'
+
+
 class CollectionReminderSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -122,18 +130,17 @@ class CollectionReminderSerializer(serializers.ModelSerializer):
     order_no = serializers.CharField(source='order.order_no', read_only=True)
     customer_name = serializers.CharField(source='order.customer.name', read_only=True)
     unpaid_amount = serializers.DecimalField(source='order.unpaid_amount', max_digits=12, decimal_places=2, read_only=True)
+    remarks = ReminderRemarkSerializer(many=True, read_only=True)
 
     class Meta:
         model = CollectionReminder
-        fields = '__all__'
-
-
-class ReminderRemarkSerializer(serializers.ModelSerializer):
-    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
-
-    class Meta:
-        model = ReminderRemark
-        fields = '__all__'
+        fields = [
+            'id', 'order', 'assignee', 'creator', 'title', 'content',
+            'priority', 'priority_display', 'status', 'status_display',
+            'due_date', 'result', 'created_at', 'completed_at',
+            'assignee_name', 'creator_name', 'order_no', 'customer_name',
+            'unpaid_amount', 'remarks'
+        ]
 
 
 class DashboardStatsSerializer(serializers.Serializer):

@@ -199,7 +199,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../store/auth'
 import { getOrder, addOrderRemark, approveInquiry, lockStock, deliverOrder, settleOrder,
-  requestReturn, approveReturn, rejectReturn, createPayment, createReminder, getCustomers } from '../api/endpoints'
+  requestReturn, approveReturn, rejectReturn, createPayment, createReminder, getSalesList } from '../api/endpoints'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -262,26 +262,58 @@ const showReminder = computed(() => {
 
 const workflowSteps = computed(() => {
   if (!order.value) return []
-  const steps = [
-    { title: '创建询价', statusText: '完成', type: 'success' },
-    { title: '确认询价', statusText: order.value.status === 'INQUIRY' ? '待处理' : '完成', type: order.value.status === 'INQUIRY' ? 'warning' : 'success' },
-    { title: '锁库', statusText: ['INQUIRY', 'INQUIRY_APPROVED'].includes(order.value.status) ? '待处理' : '完成', type: ['INQUIRY', 'INQUIRY_APPROVED'].includes(order.value.status) ? 'info' : 'success' },
-    { title: '出库', statusText: ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED'].includes(order.value.status) ? '待处理' : '完成', type: ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED'].includes(order.value.status) ? 'info' : 'success' },
-    { title: '结算', statusText: ['SETTLED', 'PAID_PARTIAL', 'PAID', 'OVERDUE'].includes(order.value.status) ? '完成' : '待处理', type: ['SETTLED', 'PAID_PARTIAL', 'PAID', 'OVERDUE'].includes(order.value.status) ? 'success' : 'info' },
+  const statusOrder = ['INQUIRY', 'INQUIRY_APPROVED', 'LOCKED', 'DELIVERED', 'SETTLED', 'PAID_PARTIAL', 'PAID']
+  const stepDefs = [
+    { title: '创建询价', matchStatus: 'INQUIRY' },
+    { title: '确认询价', matchStatus: 'INQUIRY_APPROVED' },
+    { title: '锁库', matchStatus: 'LOCKED' },
+    { title: '出库', matchStatus: 'DELIVERED' },
+    { title: '结算', matchStatus: 'SETTLED' },
+    { title: '回款确认', matchStatus: null },
   ]
 
-  const statusMap = {
-    INQUIRY: 0, INQUIRY_APPROVED: 1, LOCKED: 2, DELIVERED: 3, SETTLED: 4,
-    PAID_PARTIAL: 4, PAID: 4, OVERDUE: 4, RETURN_REQUESTED: 3, RETURNED: 3, CANCELLED: 0
-  }
-
   const logs = order.value.status_logs || []
-  steps.forEach((step, index) => {
-    const log = logs[logs.length - 1 - index]
-    if (log) {
-      step.description = `${log.operator_name} - ${formatDate(log.created_at)}${log.remark ? ` · ${log.remark}` : ''}`
+  const currentStatus = order.value.status
+  const currentStatusIdx = statusOrder.indexOf(currentStatus)
+
+  const steps = stepDefs.map((def, index) => {
+    let isCompleted, isCurrent
+
+    if (index === 5) {
+      isCompleted = ['PAID_PARTIAL', 'PAID'].includes(currentStatus)
+      isCurrent = currentStatus === 'PAID_PARTIAL'
+    } else {
+      const defIdx = statusOrder.indexOf(def.matchStatus)
+      isCompleted = currentStatusIdx > defIdx || (currentStatusIdx === defIdx && index < 5)
+      isCurrent = currentStatusIdx === defIdx && !['PAID_PARTIAL', 'PAID'].includes(currentStatus)
     }
+
+    const statusText = isCompleted ? '完成' : isCurrent ? '进行中' : '待处理'
+    const type = isCompleted ? 'success' : isCurrent ? 'warning' : 'info'
+
+    let log = null
+    if (index === 5) {
+      log = logs.find(l => ['PAID_PARTIAL', 'PAID'].includes(l.to_status))
+    } else {
+      log = logs.find(l => l.to_status === def.matchStatus)
+    }
+
+    const description = log
+      ? `${log.operator_name} - ${formatDate(log.created_at)}${log.remark ? ` · ${log.remark}` : ''}`
+      : ''
+
+    return { title: def.title, statusText, type, description }
   })
+
+  if (['RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_REJECTED'].includes(currentStatus)) {
+    const returnLog = logs.find(l => l.to_status === 'RETURN_REQUESTED')
+    steps.push({
+      title: '退货申请',
+      statusText: currentStatus === 'RETURN_REQUESTED' ? '进行中' : '完成',
+      type: currentStatus === 'RETURN_REQUESTED' ? 'warning' : 'success',
+      description: returnLog ? `${returnLog.operator_name} - ${formatDate(returnLog.created_at)}${returnLog.remark ? ` · ${returnLog.remark}` : ''}` : ''
+    })
+  }
 
   return steps
 })
@@ -290,9 +322,10 @@ const currentStep = computed(() => {
   if (!order.value) return 0
   const statusMap = {
     INQUIRY: 0, INQUIRY_APPROVED: 1, LOCKED: 2, DELIVERED: 3, SETTLED: 4,
-    PAID_PARTIAL: 5, PAID: 5, OVERDUE: 5
+    PAID_PARTIAL: 5, PAID: 6, OVERDUE: 5,
+    RETURN_REQUESTED: 5, RETURN_APPROVED: 6, RETURN_REJECTED: 6
   }
-  return statusMap[order.value.status] || 0
+  return statusMap[order.value.status] ?? 0
 })
 
 const loadOrder = async () => {
@@ -305,7 +338,12 @@ const loadOrder = async () => {
 }
 
 const loadSalesList = async () => {
-  const customers = await getCustomers()
+  try {
+    const users = await getSalesList()
+    salesList.value = users
+  } catch {
+    salesList.value = []
+  }
 }
 
 const addRemark = async () => {
@@ -432,6 +470,7 @@ const submitReminder = async () => {
 
 onMounted(() => {
   loadOrder()
+  loadSalesList()
 })
 </script>
 
