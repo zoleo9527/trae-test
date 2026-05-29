@@ -36,7 +36,7 @@
 								申诉处理
 							{/if}
 						</a>
-						{#if $user.role !== 'runner' || rolePermissions[$user.role].canViewAllSubsidies}
+						{#if $user.role === 'runner' || rolePermissions[$user.role].canViewAllSubsidies}
 							<a href="/subsidies" class="px-3 py-2 text-sm font-medium rounded-md
 								{$page.url.pathname.startsWith('/subsidies') ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}">
 								{#if $user.role === 'runner'}

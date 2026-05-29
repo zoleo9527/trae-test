@@ -86,8 +86,10 @@ func GetOrder(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
 	}
 
-	if userRole == "runner" && order.RunnerID != nil && *order.RunnerID != uint(userID) {
-		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单"})
+	if userRole == "runner" {
+		if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+			return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单"})
+		}
 	}
 
 	if userRole == "customer_service" && order.Status != "timeout" && order.Status != "appealing" {
@@ -406,7 +408,7 @@ func GetSubsidies(c *fiber.Ctx) error {
 		query = query.Where("runner_id = ?", uint(userID))
 	case "customer_service":
 		query = query.Joins("JOIN orders ON orders.id = subsidies.order_id").
-			Where("orders.status IN ?", []string{"timeout", "appealing", "resolved"})
+			Where("orders.status IN ?", []string{"timeout", "appealing"})
 	}
 
 	query.Order("id desc").Find(&subsidies)
@@ -428,7 +430,7 @@ func GetSubsidy(c *fiber.Ctx) error {
 		return c.Status(403).JSON(fiber.Map{"error": "无权查看该补贴"})
 	}
 
-	if userRole == "customer_service" && subsidy.Order.Status != "timeout" && subsidy.Order.Status != "appealing" && subsidy.Order.Status != "resolved" {
+	if userRole == "customer_service" && subsidy.Order.Status != "timeout" && subsidy.Order.Status != "appealing" {
 		return c.Status(403).JSON(fiber.Map{"error": "无权查看该补贴"})
 	}
 
@@ -487,11 +489,13 @@ func GetOrderTimeline(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
 	}
 
-	if userRole == "runner" && order.RunnerID != nil && *order.RunnerID != uint(userID) {
-		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单时间线"})
+	if userRole == "runner" {
+		if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+			return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单时间线"})
+		}
 	}
 
-	if userRole == "customer_service" && order.Status != "timeout" && order.Status != "appealing" && order.Status != "resolved" {
+	if userRole == "customer_service" && order.Status != "timeout" && order.Status != "appealing" {
 		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单时间线"})
 	}
 

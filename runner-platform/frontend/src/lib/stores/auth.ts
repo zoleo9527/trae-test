@@ -77,7 +77,7 @@ export const rolePermissions: Record<string, {
 		canCreateOrder: false,
 		canAssignOrder: false,
 		canReviewAppeal: false,
-		visibleStatuses: ['timeout', 'appealing', 'resolved'],
+		visibleStatuses: ['timeout', 'appealing'],
 		canAppealStatuses: ['timeout', 'appealing']
 	},
 	runner: {
