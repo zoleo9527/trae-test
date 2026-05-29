@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-forest-700: #1B4332;
+  --color-forest-600: #2D6A4F;
+  --color-forest-500: #40916C;
+  --color-forest-400: #52B788;
+  --color-forest-300: #74C69D;
+  --color-forest-200: #95D5B2;
+  --color-accent-600: #D97706;
+  --color-accent-500: #F59E0B;
+  --color-danger-600: #DC2626;
+  --color-bg: #FAFAF9;
+  --color-surface: #FFFFFF;
+  --color-border: #E7E5E4;
+  --color-text-primary: #1C1917;
+  --color-text-secondary: #57534E;
+  --color-text-muted: #A8A29E;
+
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+* {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #D6D3D1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #A8A29E;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-lg border border-border shadow-sm;
+  }
+
+  .btn-primary {
+    @apply bg-forest-700 text-white px-4 py-2 rounded-lg hover:bg-forest-600 font-medium text-sm;
+  }
+
+  .btn-secondary {
+    @apply border border-forest-700 text-forest-700 px-4 py-2 rounded-lg hover:bg-forest-50 font-medium text-sm;
+  }
+
+  .btn-danger {
+    @apply bg-danger-600 text-white px-4 py-2 rounded-lg hover:bg-danger-500 font-medium text-sm;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-border rounded-lg bg-white text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-forest-400 focus:border-forest-400 text-sm;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .page-title {
+    @apply text-xl font-bold text-text-primary;
+  }
+
+  .section-title {
+    @apply text-base font-semibold text-text-primary mb-3;
+  }
+}
