@@ -54,7 +54,7 @@ export default function RepairsPage() {
     if (!detailRepair) return;
     try {
       const updated: any = await api.repairs.updateLabor(detailRepair.id, {
-        laborHours: detailRepair.laborHours || 0,
+        laborHours: detailRepair.laborHours,
         diagnosis: detailRepair.diagnosis,
       });
       setDetailRepair(updated);
@@ -68,8 +68,8 @@ export default function RepairsPage() {
   const handleCompleteRepair = async () => {
     if (!detailRepair) return;
     await api.repairs.complete(detailRepair.id, {
-      diagnosis: detailRepair.diagnosis || '',
-      laborHours: detailRepair.laborHours || 0,
+      diagnosis: detailRepair.diagnosis ?? '',
+      laborHours: detailRepair.laborHours ?? 0,
     });
     setDetailRepair(null);
     loadRepairs();
@@ -275,7 +275,7 @@ export default function RepairsPage() {
                           step="0.5"
                           min="0"
                           className="input-field"
-                          value={detailRepair.laborHours || ''}
+                          value={detailRepair.laborHours ?? ''}
                           onChange={(e) => {
                             const hours = parseFloat(e.target.value) || 0;
                             setDetailRepair({

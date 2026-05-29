@@ -5,6 +5,41 @@ import { PaginatedResult, Repair, PartUsage } from '../../src/types';
 
 const router = Router();
 
+function recalculateRepairCosts(repairIdx: number) {
+  const repair = db.repairs[repairIdx];
+  repair.totalLaborCost = repair.laborHours * repair.laborRate;
+  repair.totalPartsCost = repair.partsUsed.reduce((sum, p) => sum + p.totalCost, 0);
+  repair.totalRepairCost = repair.totalPartsCost + repair.totalLaborCost;
+}
+
+function syncReturnCosts(returnId: string | undefined) {
+  if (!returnId) return;
+  const returnIdx = db.returns.findIndex((r) => r.id === returnId);
+  if (returnIdx === -1) return;
+
+  const related = db.repairs.filter(
+    (r) => r.returnId === returnId && r.status !== 'cancelled'
+  );
+
+  db.returns[returnIdx] = {
+    ...db.returns[returnIdx],
+    actualPartsCost: related.reduce((s, r) => s + r.totalPartsCost, 0),
+    actualLaborCost: related.reduce((s, r) => s + r.totalLaborCost, 0),
+    actualRepairCost: related.reduce((s, r) => s + r.totalRepairCost, 0),
+  };
+}
+
+function applyLaborAndDiagnosis(repairIdx: number, body: { laborHours?: number; diagnosis?: string }) {
+  if (body.laborHours !== undefined) {
+    db.repairs[repairIdx].laborHours = body.laborHours;
+  }
+  if (body.diagnosis !== undefined) {
+    db.repairs[repairIdx].diagnosis = body.diagnosis;
+  }
+  recalculateRepairCosts(repairIdx);
+  syncReturnCosts(db.repairs[repairIdx].returnId);
+}
+
 router.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
   const {
     page = 1,
@@ -119,33 +154,8 @@ router.post(
     part.totalCost = part.quantity * part.unitCost;
 
     db.repairs[repairIdx].partsUsed.push(part);
-    db.repairs[repairIdx].totalPartsCost = db.repairs[repairIdx].partsUsed.reduce(
-      (sum, p) => sum + p.totalCost,
-      0
-    );
-    db.repairs[repairIdx].totalRepairCost =
-      db.repairs[repairIdx].totalPartsCost +
-      db.repairs[repairIdx].totalLaborCost;
-
-    const updateReturnId = db.repairs[repairIdx].returnId;
-    if (updateReturnId) {
-      const returnIdx = db.returns.findIndex((r) => r.id === updateReturnId);
-      if (returnIdx !== -1) {
-        const relatedRepairs = db.repairs.filter(
-          (r) => r.returnId === updateReturnId && r.status !== 'cancelled'
-        );
-        const totalPartsCost = relatedRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
-        const totalLaborCost = relatedRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
-        const totalRepairCost = totalPartsCost + totalLaborCost;
-
-        db.returns[returnIdx] = {
-          ...db.returns[returnIdx],
-          actualPartsCost: totalPartsCost,
-          actualLaborCost: totalLaborCost,
-          actualRepairCost: totalRepairCost,
-        };
-      }
-    }
+    recalculateRepairCosts(repairIdx);
+    syncReturnCosts(db.repairs[repairIdx].returnId);
 
     res.json(db.repairs[repairIdx]);
   }
@@ -161,41 +171,7 @@ router.post(
       return res.status(404).json({ error: '维修单不存在' });
     }
 
-    const { laborHours, diagnosis } = req.body;
-
-    if (laborHours !== undefined) {
-      db.repairs[repairIdx].laborHours = laborHours;
-      db.repairs[repairIdx].totalLaborCost =
-        laborHours * db.repairs[repairIdx].laborRate;
-    }
-
-    if (diagnosis !== undefined) {
-      db.repairs[repairIdx].diagnosis = diagnosis;
-    }
-
-    db.repairs[repairIdx].totalRepairCost =
-      db.repairs[repairIdx].totalPartsCost +
-      db.repairs[repairIdx].totalLaborCost;
-
-    const updateReturnId = db.repairs[repairIdx].returnId;
-    if (updateReturnId) {
-      const returnIdx = db.returns.findIndex((r) => r.id === updateReturnId);
-      if (returnIdx !== -1) {
-        const relatedRepairs = db.repairs.filter(
-          (r) => r.returnId === updateReturnId && r.status !== 'cancelled'
-        );
-        const totalPartsCost = relatedRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
-        const totalLaborCost = relatedRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
-        const totalRepairCost = totalPartsCost + totalLaborCost;
-
-        db.returns[returnIdx] = {
-          ...db.returns[returnIdx],
-          actualPartsCost: totalPartsCost,
-          actualLaborCost: totalLaborCost,
-          actualRepairCost: totalRepairCost,
-        };
-      }
-    }
+    applyLaborAndDiagnosis(repairIdx, req.body);
 
     db.auditLogs.push({
       id: `audit-${Date.now()}`,
@@ -205,6 +181,7 @@ router.post(
       changes: {
         laborHours: { old: null, new: db.repairs[repairIdx].laborHours },
         totalLaborCost: { old: null, new: db.repairs[repairIdx].totalLaborCost },
+        totalRepairCost: { old: null, new: db.repairs[repairIdx].totalRepairCost },
       },
       performedBy: req.user!.id,
       performedByName: req.user!.name,
@@ -225,18 +202,7 @@ router.post(
       return res.status(404).json({ error: '维修单不存在' });
     }
 
-    const { diagnosis, laborHours } = req.body;
-
-    if (diagnosis) db.repairs[repairIdx].diagnosis = diagnosis;
-    if (laborHours) {
-      db.repairs[repairIdx].laborHours = laborHours;
-      db.repairs[repairIdx].totalLaborCost =
-        laborHours * db.repairs[repairIdx].laborRate;
-    }
-
-    db.repairs[repairIdx].totalRepairCost =
-      db.repairs[repairIdx].totalPartsCost +
-      db.repairs[repairIdx].totalLaborCost;
+    applyLaborAndDiagnosis(repairIdx, req.body);
 
     db.repairs[repairIdx].status = 'completed';
     const completedAt = new Date().toISOString();
@@ -244,31 +210,11 @@ router.post(
 
     const returnId = db.repairs[repairIdx].returnId;
     if (returnId) {
+      syncReturnCosts(returnId);
+
       const returnIdx = db.returns.findIndex((r) => r.id === returnId);
       if (returnIdx !== -1) {
-        const otherRepairs = db.repairs.filter(
-          (r) => r.returnId === returnId && r.id !== db.repairs[repairIdx].id && r.status === 'completed'
-        );
-
-        const totalPartsCost =
-          db.repairs[repairIdx].totalPartsCost +
-          otherRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
-
-        const totalLaborCost =
-          db.repairs[repairIdx].totalLaborCost +
-          otherRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
-
-        const totalRepairCost =
-          db.repairs[repairIdx].totalRepairCost +
-          otherRepairs.reduce((sum, r) => sum + r.totalRepairCost, 0);
-
-        db.returns[returnIdx] = {
-          ...db.returns[returnIdx],
-          actualPartsCost: totalPartsCost,
-          actualLaborCost: totalLaborCost,
-          actualRepairCost: totalRepairCost,
-          repairCompletedAt: completedAt,
-        };
+        db.returns[returnIdx].repairCompletedAt = completedAt;
 
         db.auditLogs.push({
           id: `audit-${Date.now()}`,
@@ -276,9 +222,9 @@ router.post(
           entityId: returnId,
           action: 'repair_cost_updated',
           changes: {
-            actualPartsCost: { old: null, new: totalPartsCost },
-            actualLaborCost: { old: null, new: totalLaborCost },
-            actualRepairCost: { old: null, new: totalRepairCost },
+            actualPartsCost: { old: null, new: db.returns[returnIdx].actualPartsCost },
+            actualLaborCost: { old: null, new: db.returns[returnIdx].actualLaborCost },
+            actualRepairCost: { old: null, new: db.returns[returnIdx].actualRepairCost },
           },
           performedBy: req.user!.id,
           performedByName: req.user!.name,
