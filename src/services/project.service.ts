@@ -377,6 +377,25 @@ export class ProjectService {
         if (activity.entityType === 'Document' && docIdSet.has(activity.entityId)) return true;
         if (activity.entityType === 'TeardownReview' && teardownIdSet.has(activity.entityId)) return true;
         return false;
+      }).filter(activity => {
+        if (user.role === Role.SUPPLIER_CONTACT) {
+          const allowedActions: AuditAction[] = [
+            AuditAction.CREATE,
+            AuditAction.SUBMIT,
+            AuditAction.APPROVE,
+            AuditAction.REJECT,
+            AuditAction.COMPLETE,
+            AuditAction.UPDATE,
+          ];
+          return allowedActions.includes(activity.action as AuditAction);
+        }
+        return true;
+      }).map(activity => {
+        if (user.role === Role.SUPPLIER_CONTACT) {
+          const { oldValue, newValue, fieldName, ...safeActivity } = activity;
+          return safeActivity;
+        }
+        return activity;
       });
 
       return {
@@ -388,12 +407,33 @@ export class ProjectService {
       };
     }
 
+    const finalActivities = recentActivities.filter(activity => {
+      if (user.role === Role.SUPPLIER_CONTACT) {
+        const allowedActions: AuditAction[] = [
+          AuditAction.CREATE,
+          AuditAction.SUBMIT,
+          AuditAction.APPROVE,
+          AuditAction.REJECT,
+          AuditAction.COMPLETE,
+          AuditAction.UPDATE,
+        ];
+        return allowedActions.includes(activity.action as AuditAction);
+      }
+      return true;
+    }).map(activity => {
+      if (user.role === Role.SUPPLIER_CONTACT) {
+        const { oldValue, newValue, fieldName, ...safeActivity } = activity;
+        return safeActivity;
+      }
+      return activity;
+    });
+
     return {
       totalProjects,
       totalReconciliations,
       totalPayments,
       pendingApprovals,
-      recentActivities,
+      recentActivities: finalActivities.slice(0, 10),
     };
   }
 }

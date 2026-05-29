@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../types';
+import { AuthenticatedRequest, AuditAction, Role } from '../types';
 import { DocumentService } from '../services/document.service';
 import { AppError } from '../middleware/errorHandler';
 import { DocumentType, DocumentStatus } from '../types';
@@ -209,6 +209,9 @@ export const addComment = async (
     const { content, parentId } = req.body;
     if (!content) throw new AppError('备注内容不能为空', 400);
 
+    const document = await DocumentService.getById(req.user, req.params.id);
+    if (!document) throw new AppError('证件任务不存在', 404);
+
     const comment = await CommentService.addComment(
       req.user,
       'Document',
@@ -236,11 +239,35 @@ export const getAuditLogs = async (
   try {
     if (!req.user) throw new AppError('未认证', 401);
 
+    const document = await DocumentService.getById(req.user, req.params.id);
+    if (!document) throw new AppError('证件任务不存在', 404);
+
     const logs = await AuditService.getEntityLogs('Document', req.params.id);
+
+    const filteredLogs = logs.filter(log => {
+      if (req.user!.role === Role.SUPPLIER_CONTACT) {
+        const allowedActions: AuditAction[] = [
+          AuditAction.CREATE,
+          AuditAction.SUBMIT,
+          AuditAction.APPROVE,
+          AuditAction.REJECT,
+          AuditAction.COMPLETE,
+          AuditAction.UPDATE,
+        ];
+        return allowedActions.includes(log.action as AuditAction);
+      }
+      return true;
+    }).map(log => {
+      if (req.user!.role === Role.SUPPLIER_CONTACT) {
+        const { oldValue, newValue, fieldName, ...safeLog } = log;
+        return safeLog;
+      }
+      return log;
+    });
 
     res.json({
       success: true,
-      data: logs,
+      data: filteredLogs,
     });
   } catch (error) {
     next(error);

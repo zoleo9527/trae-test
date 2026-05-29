@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, ReconciliationStatus, AuditAction } from '../types';
+import { AuthenticatedRequest, ReconciliationStatus, AuditAction, Role } from '../types';
 import { ReconciliationService } from '../services/reconciliation.service';
 import { AppError } from '../middleware/errorHandler';
 
@@ -210,10 +210,13 @@ export const addComment = async (
 ) => {
   try {
     if (!req.user) throw new AppError('未认证', 401);
-    
+
     const { content, parentId } = req.body;
     if (!content) throw new AppError('备注内容不能为空', 400);
-    
+
+    const reconciliation = await ReconciliationService.getById(req.user, req.params.id);
+    if (!reconciliation) throw new AppError('对账单不存在', 404);
+
     const comment = await CommentService.addComment(
       req.user,
       'Reconciliation',
@@ -222,7 +225,7 @@ export const addComment = async (
       parentId,
       req.ip
     );
-    
+
     res.status(201).json({
       success: true,
       data: comment,
@@ -240,12 +243,36 @@ export const getAuditLogs = async (
 ) => {
   try {
     if (!req.user) throw new AppError('未认证', 401);
-    
+
+    const reconciliation = await ReconciliationService.getById(req.user, req.params.id);
+    if (!reconciliation) throw new AppError('对账单不存在', 404);
+
     const logs = await AuditService.getEntityLogs('Reconciliation', req.params.id);
-    
+
+    const filteredLogs = logs.filter(log => {
+      if (req.user!.role === Role.SUPPLIER_CONTACT) {
+        const allowedActions: AuditAction[] = [
+          AuditAction.CREATE,
+          AuditAction.SUBMIT,
+          AuditAction.APPROVE,
+          AuditAction.REJECT,
+          AuditAction.COMPLETE,
+          AuditAction.UPDATE,
+        ];
+        return allowedActions.includes(log.action as AuditAction);
+      }
+      return true;
+    }).map(log => {
+      if (req.user!.role === Role.SUPPLIER_CONTACT) {
+        const { oldValue, newValue, fieldName, ...safeLog } = log;
+        return safeLog;
+      }
+      return log;
+    });
+
     res.json({
       success: true,
-      data: logs,
+      data: filteredLogs,
     });
   } catch (error) {
     next(error);

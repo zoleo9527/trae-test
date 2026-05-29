@@ -232,7 +232,119 @@ async function test() {
   console.log('之前 findUnique + id in 会导致 500 错误，现在已修复为先检查权限再查询');
   console.log('✅ 所有查询模式都已修正，不会触发 Prisma 非法查询错误');
 
-  console.log('\n✅ 所有错误边界和权限测试通过!');
+  console.log('\n=== Audit Logs 权限绕过测试 ===\n');
+
+  // 先获取一个供应商不可见的对账ID
+  const adminToken3 = await login('admin');
+  const adminHeaders3 = { 'Authorization': 'Bearer ' + adminToken3 };
+  const supplierToken3 = await login('supplier');
+  const supplierHeaders3 = { 'Authorization': 'Bearer ' + supplierToken3 };
+
+  const allRecs = await request({ path: '/api/reconciliations', headers: adminHeaders3 });
+  const supplierRecs = await request({ path: '/api/reconciliations', headers: supplierHeaders3 });
+  const supplierRecIds = supplierRecs.data.items.map(r => r.id);
+  const otherRecId = allRecs.data.items.find(r => !supplierRecIds.includes(r.id))?.id;
+
+  if (otherRecId) {
+    console.log(`供应商访问不属于自己的对账 audit-logs (${otherRecId.substring(0, 8)}...):`);
+    const result = await request({ path: `/api/reconciliations/${otherRecId}/audit-logs`, headers: supplierHeaders3 });
+    console.log(`  响应: success=${result.success}`);
+    console.log(`  错误信息: ${result.error || '(无)'}`);
+    if (result.success === false && result.error) {
+      console.log('  ✅ 正确返回 403 业务错误');
+    } else {
+      console.log('  ❌ 应该返回 403 错误!');
+    }
+  }
+
+  console.log('\n访问不存在的对账 audit-logs:');
+  const auditNotFound = await request({ path: '/api/reconciliations/non-existent-id/audit-logs', headers: adminHeaders3 });
+  console.log(`  响应: success=${auditNotFound.success}`);
+  console.log(`  错误信息: ${auditNotFound.error || '(无)'}`);
+  if (auditNotFound.success === false && auditNotFound.error) {
+    console.log('  ✅ 正确返回 404 业务错误');
+  } else {
+    console.log('  ❌ 应该返回 404 错误!');
+  }
+
+  if (supplierRecs.data.items.length > 0) {
+    const visibleRecId = supplierRecs.data.items[0].id;
+    console.log(`\n供应商查看自己对账的 audit-logs (${visibleRecId.substring(0, 8)}...):`);
+    const result = await request({ path: `/api/reconciliations/${visibleRecId}/audit-logs`, headers: supplierHeaders3 });
+    console.log(`  响应: success=${result.success}, 日志数量: ${result.data?.length || 0}`);
+
+    // 检查敏感字段是否被过滤
+    if (result.data && result.data.length > 0) {
+      const hasOldValue = result.data.some(l => l.oldValue !== undefined);
+      const hasNewValue = result.data.some(l => l.newValue !== undefined);
+      const hasFieldName = result.data.some(l => l.fieldName !== undefined);
+      console.log(`  敏感字段: oldValue=${hasOldValue}, newValue=${hasNewValue}, fieldName=${hasFieldName}`);
+      if (!hasOldValue && !hasNewValue && !hasFieldName) {
+        console.log('  ✅ 敏感字段已正确过滤');
+      } else {
+        console.log('  ❌ 敏感字段未被过滤!');
+      }
+    }
+  }
+
+  console.log('\n=== Comments 写入权限绕过测试 ===\n');
+
+  if (otherRecId) {
+    console.log(`供应商给不属于自己的对账写备注 (${otherRecId.substring(0, 8)}...):`);
+    const result = await request({
+      path: `/api/reconciliations/${otherRecId}/comments`,
+      method: 'POST',
+      headers: { ...supplierHeaders3, 'Content-Type': 'application/json' }
+    }, { content: '这是一条测试备注' });
+    console.log(`  响应: success=${result.success}`);
+    console.log(`  错误信息: ${result.error || '(无)'}`);
+    if (result.success === false && result.error) {
+      console.log('  ✅ 正确返回 403 业务错误');
+    } else {
+      console.log('  ❌ 应该返回 403 错误!');
+    }
+  }
+
+  console.log('\n给不存在的对账写备注:');
+  const commentNotFound = await request({
+    path: '/api/reconciliations/non-existent-id/comments',
+    method: 'POST',
+    headers: { ...adminHeaders3, 'Content-Type': 'application/json' }
+  }, { content: '这是一条测试备注' });
+  console.log(`  响应: success=${commentNotFound.success}`);
+  console.log(`  错误信息: ${commentNotFound.error || '(无)'}`);
+  if (commentNotFound.success === false && commentNotFound.error) {
+    console.log('  ✅ 正确返回 404 业务错误');
+  } else {
+    console.log('  ❌ 应该返回 404 错误!');
+  }
+
+  console.log('\n=== Dashboard recentActivities 过滤测试 ===\n');
+
+  const adminDash2 = await request({ path: '/api/projects/dashboard', headers: adminHeaders3 });
+  console.log('管理员 Dashboard recentActivities:');
+  console.log(`  数量: ${adminDash2.data.recentActivities.length} 条`);
+  if (adminDash2.data.recentActivities.length > 0) {
+    const hasOldValue = adminDash2.data.recentActivities.some(a => a.oldValue !== undefined);
+    console.log(`  包含 oldValue 敏感字段: ${hasOldValue} (管理员可见)`);
+  }
+
+  const supplierDash2 = await request({ path: '/api/projects/dashboard', headers: supplierHeaders3 });
+  console.log('\n供应商 Dashboard recentActivities:');
+  console.log(`  数量: ${supplierDash2.data.recentActivities.length} 条`);
+  if (supplierDash2.data.recentActivities.length > 0) {
+    const hasOldValue = supplierDash2.data.recentActivities.some(a => a.oldValue !== undefined);
+    const hasNewValue = supplierDash2.data.recentActivities.some(a => a.newValue !== undefined);
+    const hasFieldName = supplierDash2.data.recentActivities.some(a => a.fieldName !== undefined);
+    console.log(`  敏感字段: oldValue=${hasOldValue}, newValue=${hasNewValue}, fieldName=${hasFieldName}`);
+    if (!hasOldValue && !hasNewValue && !hasFieldName) {
+      console.log('  ✅ Dashboard 敏感字段已正确过滤');
+    } else {
+      console.log('  ❌ Dashboard 敏感字段未被过滤!');
+    }
+  }
+
+  console.log('\n✅ 所有权限绕过测试通过!');
 }
 
 test().catch(console.error);

@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, ProjectStatus, AuditAction } from '../types';
+import { AuthenticatedRequest, ProjectStatus, AuditAction, Role } from '../types';
 import { ProjectService } from '../services/project.service';
 import { AppError } from '../middleware/errorHandler';
 
@@ -148,10 +148,13 @@ export const addComment = async (
 ) => {
   try {
     if (!req.user) throw new AppError('未认证', 401);
-    
+
     const { content, parentId } = req.body;
     if (!content) throw new AppError('备注内容不能为空', 400);
-    
+
+    const project = await ProjectService.getById(req.user, req.params.id);
+    if (!project) throw new AppError('项目不存在', 404);
+
     const comment = await CommentService.addComment(
       req.user,
       'Project',
@@ -160,7 +163,7 @@ export const addComment = async (
       parentId,
       req.ip
     );
-    
+
     res.status(201).json({
       success: true,
       data: comment,
