@@ -731,8 +731,16 @@ func (s *Service) UpdateTransferOrderStatus(id, status string, operatorID, opera
 	return nil
 }
 
+func (s *Service) GetTransferOrder(id string) (*model.TransferOrder, error) {
+	return s.repo.GetTransferOrderByID(id)
+}
+
 func (s *Service) GetTransferItems(orderID string) ([]model.TransferItem, error) {
 	return s.repo.ListTransferItems(orderID)
+}
+
+func (s *Service) GetMemberRedemption(id string) (*model.MemberRedemption, error) {
+	return s.repo.GetMemberRedemptionByID(id)
 }
 
 func (s *Service) ListMemberRedemptions(f model.ListFilter) (*model.PaginatedResult, error) {

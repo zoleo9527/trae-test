@@ -32,6 +32,13 @@ func main() {
 
 	repo := repository.NewRepo(db)
 
+	if os.Getenv("SEED_DATA") == "true" {
+		log.Println("seeding demo data...")
+		if err := seed.Seed(db); err != nil {
+			log.Printf("seed warning: %v", err)
+		}
+	}
+
 	var systemUserID, systemUserName string
 	if u, err := repo.GetUserByUsername("system"); err == nil && u != nil {
 		systemUserID = u.ID
@@ -48,13 +55,6 @@ func main() {
 	defer asyncWorker.Stop()
 
 	svc := service.NewService(repo, cfg.JWTSecret, cfg.JWTExpireHours, asyncWorker)
-
-	if os.Getenv("SEED_DATA") == "true" {
-		log.Println("seeding demo data...")
-		if err := seed.Seed(db); err != nil {
-			log.Printf("seed warning: %v", err)
-		}
-	}
 
 	os.MkdirAll(cfg.UploadDir+"/inspections", 0755)
 	os.MkdirAll(cfg.UploadDir+"/rectifications", 0755)

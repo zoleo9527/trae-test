@@ -73,13 +73,13 @@ func Setup(app *fiber.App, jwtSecret string, allowedOrigins string,
 
 	api.Get("/transfers", middleware.InjectStoreID(), transferH.List)
 	api.Post("/transfers", transferH.Create)
-	api.Get("/transfers/:id", middleware.RequireTransferStoreAccess(storeFetcher), transferH.ListItems)
+	api.Get("/transfers/:id", middleware.RequireTransferStoreAccess(storeFetcher), transferH.Get)
 	api.Put("/transfers/:id/status", middleware.RequireTransferStoreAccess(storeFetcher), transferH.UpdateStatus)
 	api.Get("/transfers/:id/items", middleware.RequireTransferStoreAccess(storeFetcher), transferH.ListItems)
 
 	api.Get("/redemptions", middleware.InjectStoreID(), redemptionH.List)
 	api.Post("/redemptions", middleware.InjectStoreID(), redemptionH.Create)
-	api.Get("/redemptions/:id", middleware.RequireRedemptionStoreAccess(storeFetcher), redemptionH.Fulfill)
+	api.Get("/redemptions/:id", middleware.RequireRedemptionStoreAccess(storeFetcher), redemptionH.Get)
 	api.Put("/redemptions/:id/fulfill", middleware.RequireRole("admin", "store_manager"), middleware.RequireRedemptionStoreAccess(storeFetcher), redemptionH.Fulfill)
 
 	api.Get("/audit-logs", auditH.List)

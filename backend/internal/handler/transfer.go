@@ -41,6 +41,15 @@ func (h *TransferHandler) Create(c *fiber.Ctx) error {
 	return c.Status(201).JSON(o)
 }
 
+func (h *TransferHandler) Get(c *fiber.Ctx) error {
+	id := c.Params("id")
+	o, err := h.svc.GetTransferOrder(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "order not found"})
+	}
+	return c.JSON(o)
+}
+
 func (h *TransferHandler) UpdateStatus(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req model.UpdateReplenishmentStatusRequest

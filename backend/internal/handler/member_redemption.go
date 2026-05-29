@@ -44,6 +44,15 @@ func (h *RedemptionHandler) Create(c *fiber.Ctx) error {
 	return c.Status(201).JSON(mr)
 }
 
+func (h *RedemptionHandler) Get(c *fiber.Ctx) error {
+	id := c.Params("id")
+	mr, err := h.svc.GetMemberRedemption(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "redemption not found"})
+	}
+	return c.JSON(mr)
+}
+
 func (h *RedemptionHandler) Fulfill(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var req model.FulfillRedemptionRequest
