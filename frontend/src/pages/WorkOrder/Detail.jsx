@@ -11,6 +11,9 @@ function WorkOrderDetail() {
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState(null)
   const [rejectModalVisible, setRejectModalVisible] = useState(false)
+  const [scanModalVisible, setScanModalVisible] = useState(false)
+  const [scanValue, setScanValue] = useState('')
+  const [scanLoading, setScanLoading] = useState(false)
   const [form] = Form.useForm()
 
   const statusMap = {
@@ -152,6 +155,59 @@ function WorkOrderDetail() {
     printContent(printHtml)
   }
 
+  const handleScanClick = () => {
+    setScanValue('')
+    setScanModalVisible(true)
+  }
+
+  const handleScanSubmit = async () => {
+    if (!scanValue.trim()) {
+      message.warning('请输入或扫描单据编号')
+      return
+    }
+    const code = scanValue.trim().toUpperCase()
+    setScanLoading(true)
+    try {
+      if (code.startsWith('OB')) {
+        try {
+          await outboundAPI.get(code)
+          setScanModalVisible(false)
+          navigate(`/outbound/${code}`)
+          return
+        } catch {
+          message.error(`未找到出库单：${code}`)
+          return
+        }
+      }
+      if (code.startsWith('WO')) {
+        try {
+          await workOrderAPI.get(code)
+          setScanModalVisible(false)
+          navigate(`/workorder/${code}`)
+          return
+        } catch {
+          message.error(`未找到工单：${code}`)
+          return
+        }
+      }
+      try {
+        await workOrderAPI.get(code)
+        setScanModalVisible(false)
+        navigate(`/workorder/${code}`)
+        return
+      } catch {}
+      try {
+        await outboundAPI.get(code)
+        setScanModalVisible(false)
+        navigate(`/outbound/${code}`)
+        return
+      } catch {}
+      message.error(`未匹配到任何单据：${code}`)
+    } finally {
+      setScanLoading(false)
+    }
+  }
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
@@ -160,7 +216,7 @@ function WorkOrderDetail() {
         </Button>
         <Space>
           <Button onClick={loadData}>刷新</Button>
-          <Button icon={<BarcodeOutlined />}>扫码</Button>
+          <Button icon={<BarcodeOutlined />} onClick={handleScanClick}>扫码</Button>
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>打印</Button>
           {order.status === 'pending' && (
             <>
@@ -249,6 +305,26 @@ function WorkOrderDetail() {
             <Input.TextArea rows={4} placeholder="请输入驳回原因" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="扫码查询"
+        open={scanModalVisible}
+        onOk={handleScanSubmit}
+        onCancel={() => setScanModalVisible(false)}
+        okText="查询"
+        confirmLoading={scanLoading}
+      >
+        <p style={{ color: '#666', marginBottom: 12 }}>请输入或扫描工单号（WO开头）或出库单号（OB开头）</p>
+        <Input
+          autoFocus
+          size="large"
+          placeholder="例如：WO202401001 或 OB202401001"
+          value={scanValue}
+          onChange={(e) => setScanValue(e.target.value)}
+          onPressEnter={handleScanSubmit}
+          prefix={<BarcodeOutlined />}
+        />
       </Modal>
     </div>
   )
