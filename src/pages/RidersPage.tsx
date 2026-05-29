@@ -6,6 +6,8 @@ import { Tag } from '@/components/common/Tag';
 import { Button } from '@/components/common/Button';
 import { FilterBar } from '@/components/dashboard/FilterBar';
 import { getAllRiders } from '@/services/rider.service';
+import { useAppStore } from '@/store/app.store';
+import type { UserRole, RiderStatus } from '@/types';
 
 const statusOptions = [
   { value: 'all', label: '全部状态' },
@@ -23,8 +25,15 @@ const zoneOptions = [
   { value: '丰台区', label: '丰台区' },
 ];
 
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '骑手管理', description: '查看所有骑手档案，跟踪考核与培训记录' },
+  dispatcher: { title: '骑手信息', description: '查看责任区域骑手信息，协调配送' },
+  customer_service: { title: '骑手信息', description: '查询骑手信息，协助用户沟通' },
+};
+
 export function RidersPage() {
   const navigate = useNavigate();
+  const { userRole, currentUser } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -57,7 +66,7 @@ export function RidersPage() {
     setSearchValue('');
   };
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status: RiderStatus) => {
     switch (status) {
       case 'active': return 'success';
       case 'inactive': return 'default';
@@ -66,7 +75,7 @@ export function RidersPage() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: RiderStatus) => {
     switch (status) {
       case 'active': return '在职';
       case 'inactive': return '离职';
@@ -86,12 +95,14 @@ export function RidersPage() {
     return filteredRiders.filter(r => r.status === 'active' && (r.currentScore < 75 || r.trainingCount.pending > 0 || r.trainingCount.overdue > 0)).length;
   }, [filteredRiders]);
 
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">骑手管理</h1>
-          <p className="text-gray-500 mt-1">查看骑手档案，跟踪考核与培训记录</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
         {needAttentionCount > 0 && (
           <Tag variant="danger" size="md">

@@ -263,38 +263,114 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div
-              className="p-4 bg-primary-50 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors"
-              onClick={() => navigate('/orders')}
-            >
-              <Package className="w-6 h-6 text-primary-600 mb-2" />
-              <p className="text-sm font-medium text-gray-900">处理异常订单</p>
-              <p className="text-xs text-gray-500 mt-1">共 {stats.exceptionOrders} 条待处理</p>
-            </div>
-            <div
-              className="p-4 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
-              onClick={() => navigate('/appeals')}
-            >
-              <FileText className="w-6 h-6 text-amber-600 mb-2" />
-              <p className="text-sm font-medium text-gray-900">处理用户申诉</p>
-              <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.appeals} 条待处理</p>
-            </div>
-            <div
-              className="p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
-              onClick={() => navigate('/subsidies')}
-            >
-              <Coins className="w-6 h-6 text-green-600 mb-2" />
-              <p className="text-sm font-medium text-gray-900">审核补贴申请</p>
-              <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.subsidies} 条待审核</p>
-            </div>
-            <div
-              className="p-4 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
-              onClick={() => navigate('/assessments')}
-            >
-              <ClipboardCheck className="w-6 h-6 text-red-600 mb-2" />
-              <p className="text-sm font-medium text-gray-900">处理考核记录</p>
-              <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.assessments} 条待处理</p>
-            </div>
+            {userRole === 'manager' && (
+              <>
+                <div
+                  className="p-4 bg-primary-50 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors"
+                  onClick={() => navigate('/orders')}
+                >
+                  <Package className="w-6 h-6 text-primary-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">处理异常订单</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {stats.exceptionOrders} 条待处理</p>
+                </div>
+                <div
+                  className="p-4 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
+                  onClick={() => navigate('/appeals')}
+                >
+                  <FileText className="w-6 h-6 text-amber-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">处理用户申诉</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.appeals} 条待处理</p>
+                </div>
+                <div
+                  className="p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => navigate('/subsidies')}
+                >
+                  <Coins className="w-6 h-6 text-green-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">审核补贴申请</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.subsidies} 条待审核</p>
+                </div>
+                <div
+                  className="p-4 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => navigate('/assessments')}
+                >
+                  <ClipboardCheck className="w-6 h-6 text-red-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">处理考核记录</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.assessments} 条待处理</p>
+                </div>
+              </>
+            )}
+            {userRole === 'dispatcher' && (
+              <>
+                <div
+                  className="p-4 bg-primary-50 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors"
+                  onClick={() => navigate('/orders')}
+                >
+                  <Package className="w-6 h-6 text-primary-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">处理异常订单</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {stats.exceptionOrders} 条待处理</p>
+                </div>
+                <div
+                  className="p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => navigate('/subsidies')}
+                >
+                  <Coins className="w-6 h-6 text-green-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">审核补贴申请</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.subsidies} 条待审核</p>
+                </div>
+                <div
+                  className="p-4 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => navigate('/assessments')}
+                >
+                  <ClipboardCheck className="w-6 h-6 text-red-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">发起考核记录</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.assessments} 条待处理</p>
+                </div>
+                <div
+                  className="p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => navigate('/riders')}
+                >
+                  <Users className="w-6 h-6 text-blue-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">查看骑手信息</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {allRiders.filter(r => r.status === 'active').length} 名在职骑手</p>
+                </div>
+              </>
+            )}
+            {userRole === 'customer_service' && (
+              <>
+                <div
+                  className="p-4 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
+                  onClick={() => navigate('/appeals')}
+                >
+                  <FileText className="w-6 h-6 text-amber-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">处理用户申诉</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {pendingCounts.appeals} 条待处理</p>
+                </div>
+                <div
+                  className="p-4 bg-primary-50 rounded-lg cursor-pointer hover:bg-primary-100 transition-colors"
+                  onClick={() => navigate('/orders')}
+                >
+                  <Package className="w-6 h-6 text-primary-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">查询订单信息</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {stats.totalOrders} 条订单</p>
+                </div>
+                <div
+                  className="p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => navigate('/riders')}
+                >
+                  <Users className="w-6 h-6 text-blue-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">查看骑手信息</p>
+                  <p className="text-xs text-gray-500 mt-1">共 {allRiders.filter(r => r.status === 'active').length} 名在职骑手</p>
+                </div>
+                <div
+                  className="p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => navigate('/orders/order-A001/process')}
+                >
+                  <GraduationCap className="w-6 h-6 text-green-600 mb-2" />
+                  <p className="text-sm font-medium text-gray-900">体验处理流程</p>
+                  <p className="text-xs text-gray-500 mt-1">查看完整流程演示</p>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

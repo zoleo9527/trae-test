@@ -6,18 +6,23 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tag } from '@/components/common/Tag';
 import { Button } from '@/components/common/Button';
 import { FilterBar } from '@/components/dashboard/FilterBar';
-import { getAllSubsidies, getSubsidyStatusLabel, getSubsidyStatusVariant } from '@/services/subsidy.service';
+import { getAllSubsidies } from '@/services/subsidy.service';
 import { useAppStore } from '@/store/app.store';
+import {
+  getSubsidyTypeLabel,
+  getSubsidyStatusLabel,
+  getSubsidyStatusVariant,
+} from '@/utils/labels';
+import type { UserRole, SubsidyType, SubsidyStatus } from '@/types';
 
-const statusOptions = [
+const statusOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部状态' },
   { value: 'pending', label: '待审核' },
   { value: 'approved', label: '已通过' },
   { value: 'rejected', label: '已拒绝' },
-  { value: 'paid', label: '已发放' },
 ];
 
-const typeOptions = [
+const typeOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部类型' },
   { value: 'merchant_delay', label: '商家出餐慢' },
   { value: 'weather', label: '恶劣天气' },
@@ -26,9 +31,15 @@ const typeOptions = [
   { value: 'other', label: '其他' },
 ];
 
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '补贴管理', description: '审核所有补贴申请，保障骑手权益' },
+  dispatcher: { title: '补贴审核', description: '审核骑手补贴申请，确认补贴金额' },
+  customer_service: { title: '补贴查询', description: '查询补贴记录，协助用户咨询' },
+};
+
 export function SubsidiesPage() {
   const navigate = useNavigate();
-  const { pendingCounts } = useAppStore();
+  const { pendingCounts, userRole } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -40,6 +51,9 @@ export function SubsidiesPage() {
 
   const filteredSubsidies = useMemo(() => {
     return allSubsidies.filter(subsidy => {
+      if (userRole === 'dispatcher' && subsidy.status !== 'pending') {
+        return false;
+      }
       if (filters.status !== 'all' && subsidy.status !== filters.status) return false;
       if (filters.type !== 'all' && subsidy.type !== filters.type) return false;
       if (searchValue) {
@@ -50,7 +64,7 @@ export function SubsidiesPage() {
       }
       return true;
     });
-  }, [allSubsidies, filters, searchValue]);
+  }, [allSubsidies, filters, searchValue, userRole]);
 
   const totalAmount = useMemo(() => {
     return filteredSubsidies
@@ -67,23 +81,14 @@ export function SubsidiesPage() {
     setSearchValue('');
   };
 
-  const getTypeLabel = (type: string) => {
-    const map: Record<string, string> = {
-      merchant_delay: '商家出餐慢',
-      weather: '恶劣天气',
-      traffic: '交通异常',
-      address: '地址错误',
-      other: '其他',
-    };
-    return map[type] || type;
-  };
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">补贴管理</h1>
-          <p className="text-gray-500 mt-1">审核补贴申请，保障骑手权益</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
         <div className="flex items-center gap-3">
           <Tag variant="success" size="md">
@@ -135,11 +140,11 @@ export function SubsidiesPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-mono text-sm text-primary-700 font-medium">{subsidy.orderId}</span>
-                          <Tag variant="success" size="sm">{getTypeLabel(subsidy.type)}</Tag>
+                          <Tag variant="success" size="sm">{getSubsidyTypeLabel(subsidy.type as SubsidyType)}</Tag>
                           <StatusBadge
                             status={subsidy.status}
-                            label={getSubsidyStatusLabel(subsidy.status)}
-                            variant={getSubsidyStatusVariant(subsidy.status)}
+                            label={getSubsidyStatusLabel(subsidy.status as SubsidyStatus)}
+                            variant={getSubsidyStatusVariant(subsidy.status as SubsidyStatus)}
                           />
                         </div>
                         <div className="flex items-center gap-4 mb-2">

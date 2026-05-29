@@ -8,28 +8,41 @@ import { Button } from '@/components/common/Button';
 import { FilterBar } from '@/components/dashboard/FilterBar';
 import { getAllAssessments } from '@/services/assessment.service';
 import { useAppStore } from '@/store/app.store';
-import { getAssessmentStatusColor, getAssessmentStatusLabel, getAssessmentTypeLabel, getSeverityLabel, getResponsiblePartyLabel } from '@/utils/assessmentRules';
+import {
+  getAssessmentTypeLabel,
+  getAssessmentStatusLabel,
+  getAssessmentStatusVariant,
+  getSeverityLabel,
+  getResponsiblePartyLabel,
+} from '@/utils/labels';
+import type { UserRole, AssessmentType, AssessmentStatus } from '@/types';
 
-const statusOptions = [
+const statusOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部状态' },
-  { value: 'pending', label: '待审核' },
+  { value: 'draft', label: '草稿' },
+  { value: 'pending_approval', label: '待审核' },
   { value: 'approved', label: '已通过' },
   { value: 'rejected', label: '已驳回' },
   { value: 'appealed', label: '已申诉' },
 ];
 
-const typeOptions = [
+const typeOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部类型' },
   { value: 'timeout', label: '配送超时' },
-  { value: 'wrong_item', label: '错送漏送' },
-  { value: 'damage', label: '物品损坏' },
-  { value: 'rude', label: '服务态度' },
-  { value: 'refund', label: '用户退款' },
+  { value: 'complaint', label: '用户投诉' },
+  { value: 'violation', label: '违规操作' },
+  { value: 'service_issue', label: '服务问题' },
 ];
+
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '考核管理', description: '审核考核记录，执行考核规则' },
+  dispatcher: { title: '考核发起', description: '发起骑手考核，记录违规行为' },
+  customer_service: { title: '考核查询', description: '查询考核记录，了解骑手情况' },
+};
 
 export function AssessmentsPage() {
   const navigate = useNavigate();
-  const { pendingCounts } = useAppStore();
+  const { pendingCounts, userRole } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -41,6 +54,9 @@ export function AssessmentsPage() {
 
   const filteredAssessments = useMemo(() => {
     return allAssessments.filter(assessment => {
+      if (userRole === 'dispatcher' && assessment.status === 'approved') {
+        return false;
+      }
       if (filters.status !== 'all' && assessment.status !== filters.status) return false;
       if (filters.type !== 'all' && assessment.type !== filters.type) return false;
       if (searchValue) {
@@ -51,7 +67,7 @@ export function AssessmentsPage() {
       }
       return true;
     });
-  }, [allAssessments, filters, searchValue]);
+  }, [allAssessments, filters, searchValue, userRole]);
 
   const totalDeducted = useMemo(() => {
     return filteredAssessments
@@ -74,12 +90,14 @@ export function AssessmentsPage() {
     setSearchValue('');
   };
 
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">考核管理</h1>
-          <p className="text-gray-500 mt-1">处理骑手考核，执行考核规则</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
         <div className="flex items-center gap-3">
           <Tag variant="danger" size="md">
@@ -134,12 +152,12 @@ export function AssessmentsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-mono text-sm text-primary-700 font-medium">{assessment.orderId}</span>
-                          <Tag variant="danger" size="sm">{getAssessmentTypeLabel(assessment.type)}</Tag>
+                          <Tag variant="danger" size="sm">{getAssessmentTypeLabel(assessment.type as AssessmentType)}</Tag>
                           <Tag variant="warning" size="sm">{getSeverityLabel(assessment.severity)}</Tag>
                           <StatusBadge
                             status={assessment.status}
-                            label={getAssessmentStatusLabel(assessment.status)}
-                            variant={getAssessmentStatusColor(assessment.status) as any}
+                            label={getAssessmentStatusLabel(assessment.status as AssessmentStatus)}
+                            variant={getAssessmentStatusVariant(assessment.status as AssessmentStatus)}
                           />
                           {assessment.requiresTraining && (
                             <Tag variant="info" size="sm">需培训</Tag>

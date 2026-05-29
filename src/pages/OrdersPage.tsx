@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Ca
 import { getDashboardStats, getOrders } from '@/services/order.service';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/app.store';
-import type { Order } from '@/types';
+import type { Order, UserRole } from '@/types';
 
 const statusOptions = [
   { value: 'all', label: '全部状态' },
@@ -24,9 +24,15 @@ const exceptionOptions = [
   { value: 'false', label: '仅正常订单' },
 ];
 
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '订单管理', description: '查看所有订单，筛选异常订单进入处理流程' },
+  dispatcher: { title: '订单处理', description: '处理异常订单，协调配送调度' },
+  customer_service: { title: '订单查询', description: '查询订单信息，协助用户申诉' },
+};
+
 export function OrdersPage() {
   const navigate = useNavigate();
-  const { pendingCounts } = useAppStore();
+  const { pendingCounts, userRole } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -39,6 +45,10 @@ export function OrdersPage() {
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter(order => {
+      if (userRole === 'dispatcher' && order.status !== 'exception') {
+        const timeout = new Date(order.deliveredTime).getTime() - new Date(order.promisedTime).getTime();
+        if (timeout <= 0) return false;
+      }
       if (filters.status !== 'all' && order.status !== filters.status) return false;
       if (filters.hasException === 'true' && order.status !== 'exception') {
         const timeout = new Date(order.deliveredTime).getTime() - new Date(order.promisedTime).getTime();
@@ -58,7 +68,7 @@ export function OrdersPage() {
       }
       return true;
     });
-  }, [allOrders, filters, searchValue]);
+  }, [allOrders, filters, searchValue, userRole]);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -73,12 +83,14 @@ export function OrdersPage() {
     navigate(`/orders/${orderId}/process`);
   };
 
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">订单管理</h1>
-          <p className="text-gray-500 mt-1">查看所有订单，筛选异常订单进入处理流程</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
       </div>
 

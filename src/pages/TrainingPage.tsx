@@ -8,8 +8,15 @@ import { Button } from '@/components/common/Button';
 import { FilterBar } from '@/components/dashboard/FilterBar';
 import { getAllTrainings } from '@/services/training.service';
 import { useAppStore } from '@/store/app.store';
+import {
+  getTrainingTypeLabel,
+  getTrainingStatusLabel,
+  getTrainingStatusVariant,
+} from '@/utils/labels';
+import type { UserRole, TrainingType, TrainingStatus } from '@/types';
+import { cn } from '@/lib/utils';
 
-const statusOptions = [
+const statusOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部状态' },
   { value: 'pending', label: '待学习' },
   { value: 'in_progress', label: '学习中' },
@@ -17,17 +24,22 @@ const statusOptions = [
   { value: 'expired', label: '已过期' },
 ];
 
-const typeOptions = [
+const typeOptions: Array<{ value: string; label: string }> = [
   { value: 'all', label: '全部类型' },
-  { value: 'time_management', label: '时间管理' },
-  { value: 'customer_service', label: '服务规范' },
-  { value: 'delivery_skills', label: '配送技巧' },
-  { value: 'special', label: '专项强化' },
+  { value: 'mandatory', label: '强制培训' },
+  { value: 'remedial', label: '强化培训' },
+  { value: 'optional', label: '选修培训' },
 ];
+
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '培训管理', description: '查看所有培训，跟踪骑手学习进度' },
+  dispatcher: { title: '培训跟踪', description: '跟踪骑手培训完成情况' },
+  customer_service: { title: '培训查询', description: '查询培训记录，了解骑手情况' },
+};
 
 export function TrainingPage() {
   const navigate = useNavigate();
-  const { pendingCounts } = useAppStore();
+  const { pendingCounts, userRole } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -65,46 +77,18 @@ export function TrainingPage() {
     setSearchValue('');
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'completed': return 'success';
-      case 'in_progress': return 'info';
-      case 'pending': return 'warning';
-      case 'expired': return 'danger';
-      default: return 'default';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return '待学习';
-      case 'in_progress': return '学习中';
-      case 'completed': return '已完成';
-      case 'expired': return '已过期';
-      default: return status;
-    }
-  };
-
-  const getTypeLabel = (type: string) => {
-    const map: Record<string, string> = {
-      time_management: '时间管理',
-      customer_service: '服务规范',
-      delivery_skills: '配送技巧',
-      special: '专项强化',
-    };
-    return map[type] || type;
-  };
-
   const isOverdue = (training: any) => {
     return training.dueDate && new Date(training.dueDate) < new Date() && training.status !== 'completed';
   };
+
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">培训管理</h1>
-          <p className="text-gray-500 mt-1">跟踪培训进度，确保骑手完成学习</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
         <div className="flex items-center gap-3">
           <Tag variant="info" size="md">
@@ -162,11 +146,11 @@ export function TrainingPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-semibold text-gray-900">{training.title}</span>
-                          <Tag variant="info" size="sm">{getTypeLabel(training.type)}</Tag>
+                          <Tag variant="info" size="sm">{getTrainingTypeLabel(training.type as TrainingType)}</Tag>
                           <StatusBadge
                             status={training.status}
-                            label={getStatusLabel(training.status)}
-                            variant={getStatusVariant(training.status)}
+                            label={getTrainingStatusLabel(training.status as TrainingStatus)}
+                            variant={getTrainingStatusVariant(training.status as TrainingStatus)}
                           />
                           {isOverdue(training) && (
                             <Tag variant="danger" size="sm">已逾期</Tag>
@@ -220,8 +204,4 @@ export function TrainingPage() {
       </Card>
     </div>
   );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(' ');
 }

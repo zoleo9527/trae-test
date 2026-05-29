@@ -6,8 +6,14 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tag } from '@/components/common/Tag';
 import { Button } from '@/components/common/Button';
 import { FilterBar } from '@/components/dashboard/FilterBar';
-import { getAllAppeals, getAppealStatusLabel, getAppealStatusVariant } from '@/services/appeal.service';
+import { getAllAppeals } from '@/services/appeal.service';
 import { useAppStore } from '@/store/app.store';
+import {
+  getAppealTypeLabel,
+  getAppealStatusLabel,
+  getAppealStatusVariant,
+} from '@/utils/labels';
+import type { UserRole } from '@/types';
 
 const statusOptions = [
   { value: 'all', label: '全部状态' },
@@ -27,9 +33,15 @@ const typeOptions = [
   { value: 'other', label: '其他' },
 ];
 
+const rolePageConfig: Record<UserRole, { title: string; description: string }> = {
+  manager: { title: '申诉管理', description: '查看所有申诉，监控处理进度' },
+  dispatcher: { title: '申诉查询', description: '查询申诉记录，协助客服处理' },
+  customer_service: { title: '申诉处理', description: '处理用户申诉，判定责任归属' },
+};
+
 export function AppealsPage() {
   const navigate = useNavigate();
-  const { pendingCounts } = useAppStore();
+  const { pendingCounts, userRole } = useAppStore();
 
   const [filters, setFilters] = useState<Record<string, string>>({
     status: 'all',
@@ -41,6 +53,9 @@ export function AppealsPage() {
 
   const filteredAppeals = useMemo(() => {
     return allAppeals.filter(appeal => {
+      if (userRole === 'customer_service' && appeal.status !== 'pending' && appeal.status !== 'processing') {
+        return false;
+      }
       if (filters.status !== 'all' && appeal.status !== filters.status) return false;
       if (filters.type !== 'all' && appeal.type !== filters.type) return false;
       if (searchValue) {
@@ -51,7 +66,7 @@ export function AppealsPage() {
       }
       return true;
     });
-  }, [allAppeals, filters, searchValue]);
+  }, [allAppeals, filters, searchValue, userRole]);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -62,24 +77,14 @@ export function AppealsPage() {
     setSearchValue('');
   };
 
-  const getTypeLabel = (type: string) => {
-    const map: Record<string, string> = {
-      timeout: '超时',
-      wrong_item: '错送漏送',
-      damage: '物品损坏',
-      rude: '服务态度',
-      refund: '退款申请',
-      other: '其他',
-    };
-    return map[type] || type;
-  };
+  const pageConfig = userRole ? rolePageConfig[userRole] : rolePageConfig.manager;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">申诉管理</h1>
-          <p className="text-gray-500 mt-1">处理用户申诉，判定责任归属</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageConfig.title}</h1>
+          <p className="text-gray-500 mt-1">{pageConfig.description}</p>
         </div>
         <div className="flex items-center gap-3">
           <Tag variant="warning" size="md">
@@ -128,7 +133,7 @@ export function AppealsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-mono text-sm text-primary-700 font-medium">{appeal.orderId}</span>
-                          <Tag variant="warning" size="sm">{getTypeLabel(appeal.type)}</Tag>
+                          <Tag variant="warning" size="sm">{getAppealTypeLabel(appeal.type)}</Tag>
                           <StatusBadge
                             status={appeal.status}
                             label={getAppealStatusLabel(appeal.status)}
