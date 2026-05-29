@@ -211,7 +211,7 @@ export interface CreateInspectionDto {
 }
 
 export interface CreateDiseaseDto {
-  inspectionId: number;
+  inspectionId?: number;
   plotId: number;
   reporterId: number;
   type: string;

@@ -18,7 +18,7 @@ import {
 } from "element-plus";
 import dayjs from "dayjs";
 import { api } from "@/api";
-import type { Plot, User, Inspection } from "@/types";
+import type { Plot, User, Inspection, CreateDiseaseDto } from "@/types";
 import { diseaseSeverityOptions } from "@/utils/constants";
 
 const router = useRouter();
@@ -48,14 +48,16 @@ const reportableInspections = computed(() => {
 });
 
 const formRef = ref();
-const form = reactive({
-  inspectionId: prefilledInspectionId.value,
-  plotId: prefilledPlotId.value,
-  reporterId: prefilledReporterId.value,
+const form = reactive<
+  Partial<CreateDiseaseDto> & { affectedQuantity: number | null }
+>({
+  inspectionId: prefilledInspectionId.value ?? undefined,
+  plotId: prefilledPlotId.value ?? undefined,
+  reporterId: prefilledReporterId.value ?? undefined,
   type: "",
-  severity: "moderate" as string,
+  severity: "moderate",
   description: "",
-  affectedQuantity: null as number | null,
+  affectedQuantity: null,
   reportedAt: dayjs().format("YYYY-MM-DD HH:mm"),
 });
 
@@ -89,6 +91,21 @@ const loadOptions = async () => {
   }
 };
 
+const buildSubmitData = (): CreateDiseaseDto => {
+  return {
+    plotId: form.plotId!,
+    reporterId: form.reporterId!,
+    type: form.type!,
+    severity: form.severity!,
+    reportedAt: form.reportedAt!,
+    ...(form.inspectionId != null && { inspectionId: form.inspectionId }),
+    ...(form.description && { description: form.description }),
+    ...(form.affectedQuantity != null && {
+      affectedQuantity: form.affectedQuantity,
+    }),
+  };
+};
+
 const handleSubmit = async () => {
   if (!form.plotId || !form.reporterId || !form.type) {
     ElMessage.warning("请填写完整信息：地块、上报人、病害类型");
@@ -97,23 +114,13 @@ const handleSubmit = async () => {
 
   loading.value = true;
   try {
-    const data = {
-      inspectionId: form.inspectionId || undefined,
-      plotId: form.plotId,
-      reporterId: form.reporterId,
-      type: form.type,
-      severity: form.severity,
-      description: form.description,
-      affectedQuantity: form.affectedQuantity || undefined,
-      reportedAt: form.reportedAt,
-    };
-
+    const data = buildSubmitData();
     const disease = await api.diseases.create(data);
     ElMessage.success("病害上报成功");
 
     if (
       form.severity === "major" ||
-      (form.affectedQuantity && form.affectedQuantity > 20)
+      (form.affectedQuantity != null && form.affectedQuantity > 20)
     ) {
       ElMessage({
         message: "该病害较为严重，建议启动补苗协商",
@@ -138,17 +145,7 @@ const handleStartNegotiation = async () => {
 
   loading.value = true;
   try {
-    const data = {
-      inspectionId: form.inspectionId || undefined,
-      plotId: form.plotId,
-      reporterId: form.reporterId,
-      type: form.type,
-      severity: form.severity,
-      description: form.description,
-      affectedQuantity: form.affectedQuantity || undefined,
-      reportedAt: form.reportedAt,
-    };
-
+    const data = buildSubmitData();
     const disease = await api.diseases.create(data);
     ElMessage.success("病害上报成功，正在跳转协商页...");
 
