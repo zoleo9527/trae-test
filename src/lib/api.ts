@@ -56,6 +56,7 @@ export const api = {
       const query = new URLSearchParams(params).toString();
       return request(`/returns?${query}`);
     },
+    get: (id: string) => request(`/returns/${id}`),
     getPending: () => request('/returns/pending-review'),
     review: (id: string, action: string) =>
       request(`/returns/${id}/review`, {
@@ -80,7 +81,7 @@ export const api = {
         body: JSON.stringify({ technicianId, technicianName }),
       }),
     start: (id: string) =>
-      request(`/repairs/${id}/start', { method: 'POST' }),
+      request(`/repairs/${id}/start`, { method: 'POST' }),
     addPart: (id: string, part: any) =>
       request(`/repairs/${id}/add-part`, {
         method: 'POST',

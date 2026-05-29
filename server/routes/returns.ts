@@ -1,11 +1,22 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { db } from '../database/mockData';
 import { authenticateToken, AuthRequest, requireRoles } from '../middleware/auth';
-import { PaginatedResult, Return } from '../../src/types';
+import { PaginatedResult, Return, Repair } from '../../src/types';
 
 const router = Router();
 
-router.get('/', authenticateToken, (req: AuthRequest, res) => {
+interface ReturnWithRepairs extends Return {
+  repairs?: Repair[];
+  rental?: any;
+}
+
+function attachRelations(returnItem: Return): ReturnWithRepairs {
+  const repairs = db.repairs.filter((r) => r.returnId === returnItem.id);
+  const rental = db.rentals.find((r) => r.id === returnItem.rentalId);
+  return { ...returnItem, repairs, rental };
+}
+
+router.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
   const {
     page = 1,
     pageSize = 10,
@@ -15,7 +26,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
     status,
   } = req.query as any;
 
-  let filteredData = [...db.returns];
+  let filteredData = [...db.returns].map(attachRelations);
 
   if (search) {
     const searchLower = search.toLowerCase();
@@ -39,7 +50,7 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
   const start = (Number(page) - 1) * Number(pageSize);
   const data = filteredData.slice(start, start + Number(pageSize));
 
-  const result: PaginatedResult<Return> = {
+  const result: PaginatedResult<ReturnWithRepairs> = {
     data,
     total,
     page: Number(page),
@@ -49,16 +60,26 @@ router.get('/', authenticateToken, (req: AuthRequest, res) => {
   res.json(result);
 });
 
-router.get('/pending-review', authenticateToken, (req, res) => {
-  const pending = db.returns.filter((r) => r.status === 'pending_review');
+router.get('/pending-review', authenticateToken, (req: AuthRequest, res: Response) => {
+  const pending = db.returns
+    .filter((r) => r.status === 'pending_review')
+    .map(attachRelations);
   res.json(pending);
+});
+
+router.get('/:id', authenticateToken, (req: AuthRequest, res: Response) => {
+  const returnItem = db.returns.find((r) => r.id === req.params.id);
+  if (!returnItem) {
+    return res.status(404).json({ error: '归还记录不存在' });
+  }
+  res.json(attachRelations(returnItem));
 });
 
 router.post(
   '/:id/review',
   authenticateToken,
   requireRoles('store_owner', 'admin'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const returnIdx = db.returns.findIndex((r) => r.id === req.params.id);
     if (returnIdx === -1) {
       return res.status(404).json({ error: '归还记录不存在' });
@@ -99,7 +120,7 @@ router.post(
   '/batch-review',
   authenticateToken,
   requireRoles('store_owner', 'admin'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const { ids, action } = req.body;
     const results: { id: string; success: boolean; message?: string }[] = [];
 

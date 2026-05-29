@@ -155,7 +155,67 @@ router.post(
       db.repairs[repairIdx].totalLaborCost;
 
     db.repairs[repairIdx].status = 'completed';
-    db.repairs[repairIdx].completedAt = new Date().toISOString();
+    const completedAt = new Date().toISOString();
+    db.repairs[repairIdx].completedAt = completedAt;
+
+    const returnId = db.repairs[repairIdx].returnId;
+    if (returnId) {
+      const returnIdx = db.returns.findIndex((r) => r.id === returnId);
+      if (returnIdx !== -1) {
+        const otherRepairs = db.repairs.filter(
+          (r) => r.returnId === returnId && r.id !== db.repairs[repairIdx].id && r.status === 'completed'
+        );
+
+        const totalPartsCost =
+          db.repairs[repairIdx].totalPartsCost +
+          otherRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
+
+        const totalLaborCost =
+          db.repairs[repairIdx].totalLaborCost +
+          otherRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
+
+        const totalRepairCost =
+          db.repairs[repairIdx].totalRepairCost +
+          otherRepairs.reduce((sum, r) => sum + r.totalRepairCost, 0);
+
+        db.returns[returnIdx] = {
+          ...db.returns[returnIdx],
+          actualPartsCost: totalPartsCost,
+          actualLaborCost: totalLaborCost,
+          actualRepairCost: totalRepairCost,
+          repairCompletedAt: completedAt,
+        };
+
+        db.auditLogs.push({
+          id: `audit-${Date.now()}`,
+          entityType: 'return',
+          entityId: returnId,
+          action: 'repair_cost_updated',
+          changes: {
+            actualPartsCost: { old: null, new: totalPartsCost },
+            actualLaborCost: { old: null, new: totalLaborCost },
+            actualRepairCost: { old: null, new: totalRepairCost },
+          },
+          performedBy: req.user!.id,
+          performedByName: req.user!.name,
+          performedAt: completedAt,
+        });
+      }
+    }
+
+    db.auditLogs.push({
+      id: `audit-${Date.now() + 1}`,
+      entityType: 'repair',
+      entityId: db.repairs[repairIdx].id,
+      action: 'completed',
+      changes: {
+        status: { old: 'in_progress', new: 'completed' },
+        totalRepairCost: { old: null, new: db.repairs[repairIdx].totalRepairCost },
+      },
+      performedBy: req.user!.id,
+      performedByName: req.user!.name,
+      performedAt: completedAt,
+    });
 
     res.json(db.repairs[repairIdx]);
   }

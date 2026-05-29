@@ -72,6 +72,10 @@ export interface Return {
   reviewedBy?: string;
   reviewedByName?: string;
   reviewedAt?: string;
+  actualRepairCost?: number;
+  actualPartsCost?: number;
+  actualLaborCost?: number;
+  repairCompletedAt?: string;
 }
 
 export type RepairStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';

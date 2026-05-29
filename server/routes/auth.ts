@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../database/mockData';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -36,7 +36,7 @@ router.post('/login', async (req, res) => {
   });
 });
 
-router.get('/me', (req: any, res) => {
+router.get('/me', authenticateToken, (req: AuthRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: '未认证' });
   }
