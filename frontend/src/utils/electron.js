@@ -1,10 +1,11 @@
 const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null }
 
 export const openNewWindow = async (url, title, width = 1000, height = 700) => {
+  const hashUrl = url.startsWith('/#') ? url : `/#${url}`
   if (ipcRenderer) {
     return ipcRenderer.invoke('open-new-window', { url, title, width, height })
   }
-  window.open(url, '_blank', `width=${width},height=${height}`)
+  window.open(hashUrl, '_blank', `width=${width},height=${height}`)
   return null
 }
 

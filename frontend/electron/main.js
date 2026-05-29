@@ -41,10 +41,12 @@ ipcMain.handle('open-new-window', async (event, { url, title, width = 1000, heig
     parent: mainWindow
   })
 
+  const hashUrl = url.startsWith('/#') ? url : `/#${url}`
+
   if (process.env.NODE_ENV === 'development') {
-    newWindow.loadURL(`http://localhost:5173${url}`)
+    newWindow.loadURL(`http://localhost:5173${hashUrl}`)
   } else {
-    newWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+    newWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}${hashUrl}`)
   }
 
   windows.set(windowId, newWindow)

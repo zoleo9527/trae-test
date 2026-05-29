@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
-import { Table, Tag, Button, Input, Select, Space, Modal, Form, message } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Table, Tag, Button, Input, Select, Space, Modal, Form, message, Spin } from 'antd'
 import { PlusOutlined, EyeOutlined, CheckOutlined, RollbackOutlined, WindowsOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { mockOutbounds, statusMap } from '../../mock/data'
+import { outboundAPI } from '../../utils/api'
 import { openNewWindow } from '../../utils/electron'
 
 const { Search } = Input
@@ -10,12 +10,36 @@ const { Option } = Select
 
 function OutboundList() {
   const navigate = useNavigate()
-  const [data, setData] = useState(mockOutbounds)
+  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState([])
   const [filterStatus, setFilterStatus] = useState('')
   const [searchText, setSearchText] = useState('')
   const [returnModalVisible, setReturnModalVisible] = useState(false)
   const [returningId, setReturningId] = useState(null)
   const [form] = Form.useForm()
+
+  const statusMap = {
+    pending: { label: '待对账', color: 'warning' },
+    reconciled: { label: '已对账', color: 'success' },
+    review: { label: '需回查', color: 'processing' }
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await outboundAPI.list()
+      setData(Array.isArray(result) ? result : [])
+    } catch (error) {
+      console.error('加载出库列表失败:', error)
+      message.error('加载数据失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const filteredData = data.filter(item => {
     const matchStatus = !filterStatus || item.status === filterStatus
@@ -58,7 +82,7 @@ function OutboundList() {
       title: '商品数量',
       dataIndex: 'items',
       key: 'itemCount',
-      render: (items) => `${items.length}项`
+      render: (items) => `${(items || []).length}项`
     },
     {
       title: '应收金额',
@@ -90,7 +114,7 @@ function OutboundList() {
     {
       title: '操作',
       key: 'action',
-      width: 240,
+      width: 260,
       render: (_, record) => (
         <Space>
           <Button
@@ -130,11 +154,15 @@ function OutboundList() {
     }
   ]
 
-  const handleReconcile = (id) => {
-    setData(prev => prev.map(item => 
-      item.id === id ? { ...item, status: 'reconciled' } : item
-    ))
-    message.success('对账完成')
+  const handleReconcile = async (id) => {
+    try {
+      await outboundAPI.reconcile(id, {})
+      message.success('对账完成')
+      loadData()
+    } catch (error) {
+      console.error('对账失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handleReturn = (id) => {
@@ -142,19 +170,18 @@ function OutboundList() {
     setReturnModalVisible(true)
   }
 
-  const handleConfirmReturn = () => {
-    form.validateFields().then(values => {
-      setData(prev => prev.map(item => 
-        item.id === returningId ? { 
-          ...item, 
-          hasReturn: true,
-          returnItems: [{ name: values.itemName, model: values.model, qty: values.qty, reason: values.reason }]
-        } : item
-      ))
+  const handleConfirmReturn = async () => {
+    try {
+      const values = await form.validateFields()
+      await outboundAPI.return(returningId, values)
       setReturnModalVisible(false)
       form.resetFields()
       message.success('退货已登记')
-    })
+      loadData()
+    } catch (error) {
+      console.error('退货登记失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handleOpenNewWindow = (id) => {
@@ -181,6 +208,7 @@ function OutboundList() {
             <Option value="reconciled">已对账</Option>
             <Option value="review">需回查</Option>
           </Select>
+          <Button onClick={loadData}>刷新</Button>
         </Space>
         <Space>
           <Button icon={<WindowsOutlined />} onClick={() => openNewWindow('/outbound', '出库对账')}>
@@ -192,16 +220,18 @@ function OutboundList() {
         </Space>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={filteredData}
-        rowKey="id"
-        pagination={{
-          pageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`
-        }}
-      />
+      <Spin spinning={loading}>
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          rowKey="id"
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`
+          }}
+        />
+      </Spin>
 
       <Modal
         title="退货登记"

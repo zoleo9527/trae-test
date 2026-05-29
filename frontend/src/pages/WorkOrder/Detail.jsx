@@ -1,16 +1,45 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Table, Button, Space, Tag, Divider, Modal, Form, Input, message, Row, Col } from 'antd'
-import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, BarcodeOutlined } from '@ant-design/icons'
-import { mockWorkOrders, statusMap } from '../../mock/data'
+import { Card, Descriptions, Table, Button, Space, Tag, Divider, Modal, Form, Input, message, Spin } from 'antd'
+import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, BarcodeOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { workOrderAPI, outboundAPI } from '../../utils/api'
 import { printContent } from '../../utils/electron'
 
 function WorkOrderDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [order, setOrder] = useState(mockWorkOrders.find(o => o.id === id))
+  const [loading, setLoading] = useState(false)
+  const [order, setOrder] = useState(null)
   const [rejectModalVisible, setRejectModalVisible] = useState(false)
   const [form] = Form.useForm()
+
+  const statusMap = {
+    pending: { label: '待处理', color: 'warning' },
+    approved: { label: '已通过', color: 'success' },
+    rejected: { label: '已驳回', color: 'error' },
+    review: { label: '需回查', color: 'processing' }
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const result = await workOrderAPI.get(id)
+      setOrder(result)
+    } catch (error) {
+      console.error('加载工单详情失败:', error)
+      message.error('加载数据失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [id])
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>
+  }
 
   if (!order) {
     return <div>工单不存在</div>
@@ -45,21 +74,44 @@ function WorkOrderDetail() {
     }
   ]
 
-  const handleApprove = () => {
-    setOrder(prev => ({ ...prev, status: 'approved' }))
-    message.success('工单已通过')
+  const handleApprove = async () => {
+    try {
+      await workOrderAPI.approve(id)
+      message.success('工单已通过，关联出库单已生成')
+      loadData()
+    } catch (error) {
+      console.error('工单通过失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handleReject = () => {
     setRejectModalVisible(true)
   }
 
-  const handleConfirmReject = () => {
-    form.validateFields().then(values => {
-      setOrder(prev => ({ ...prev, status: 'rejected', rejectReason: values.reason }))
+  const handleConfirmReject = async () => {
+    try {
+      const values = await form.validateFields()
+      await workOrderAPI.reject(id, values.reason)
       setRejectModalVisible(false)
+      form.resetFields()
       message.success('工单已驳回')
-    })
+      loadData()
+    } catch (error) {
+      console.error('工单驳回失败:', error)
+      message.error('操作失败')
+    }
+  }
+
+  const handleReview = async () => {
+    try {
+      await workOrderAPI.review(id, '需核对库存和价格')
+      message.success('已标记为需回查')
+      loadData()
+    } catch (error) {
+      console.error('标记回查失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handlePrint = () => {
@@ -107,12 +159,16 @@ function WorkOrderDetail() {
           返回列表
         </Button>
         <Space>
+          <Button onClick={loadData}>刷新</Button>
           <Button icon={<BarcodeOutlined />}>扫码</Button>
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>打印</Button>
           {order.status === 'pending' && (
             <>
               <Button type="primary" icon={<CheckOutlined />} onClick={handleApprove}>
                 通过
+              </Button>
+              <Button icon={<ExclamationCircleOutlined />} onClick={handleReview}>
+                需回查
               </Button>
               <Button danger icon={<CloseOutlined />} onClick={handleReject}>
                 驳回
@@ -167,6 +223,13 @@ function WorkOrderDetail() {
           <>
             <Divider />
             <p><strong>驳回原因：</strong>{order.rejectReason}</p>
+          </>
+        )}
+
+        {order.reviewNote && (
+          <>
+            <Divider />
+            <p><strong>回查备注：</strong>{order.reviewNote}</p>
           </>
         )}
       </Card>

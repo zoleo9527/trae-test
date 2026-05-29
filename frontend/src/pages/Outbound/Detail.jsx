@@ -1,22 +1,54 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Table, Button, Space, Tag, Divider, Modal, Form, Input, message } from 'antd'
+import { Card, Descriptions, Table, Button, Space, Tag, Divider, Modal, Form, Input, message, Spin } from 'antd'
 import { ArrowLeftOutlined, CheckOutlined, RollbackOutlined, PrinterOutlined, BarcodeOutlined } from '@ant-design/icons'
-import { mockOutbounds, mockWorkOrders, statusMap } from '../../mock/data'
+import { outboundAPI, workOrderAPI } from '../../utils/api'
 import { printContent } from '../../utils/electron'
 
 function OutboundDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [outbound, setOutbound] = useState(mockOutbounds.find(o => o.id === id))
+  const [loading, setLoading] = useState(false)
+  const [outbound, setOutbound] = useState(null)
+  const [relatedWorkOrder, setRelatedWorkOrder] = useState(null)
   const [returnModalVisible, setReturnModalVisible] = useState(false)
   const [form] = Form.useForm()
+
+  const statusMap = {
+    pending: { label: '待对账', color: 'warning' },
+    reconciled: { label: '已对账', color: 'success' },
+    review: { label: '需回查', color: 'processing' }
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [outboundData, workOrderData] = await Promise.all([
+        outboundAPI.get(id),
+        workOrderAPI.list()
+      ])
+      setOutbound(outboundData)
+      const orders = Array.isArray(workOrderData) ? workOrderData : []
+      setRelatedWorkOrder(orders.find(w => w.id === outboundData.workOrderId) || null)
+    } catch (error) {
+      console.error('加载出库详情失败:', error)
+      message.error('加载数据失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [id])
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>
+  }
 
   if (!outbound) {
     return <div>出库单不存在</div>
   }
-
-  const relatedWorkOrder = mockWorkOrders.find(w => w.id === outbound.workOrderId)
 
   const itemColumns = [
     {
@@ -81,31 +113,33 @@ function OutboundDetail() {
     }
   ]
 
-  const handleReconcile = () => {
-    setOutbound(prev => ({ ...prev, status: 'reconciled' }))
-    message.success('对账完成')
+  const handleReconcile = async () => {
+    try {
+      await outboundAPI.reconcile(id, {})
+      message.success('对账完成')
+      loadData()
+    } catch (error) {
+      console.error('对账失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handleReturn = () => {
     setReturnModalVisible(true)
   }
 
-  const handleConfirmReturn = () => {
-    form.validateFields().then(values => {
-      setOutbound(prev => ({ 
-        ...prev, 
-        hasReturn: true,
-        returnItems: [...(prev.returnItems || []), { 
-          name: values.itemName, 
-          model: values.model, 
-          qty: values.qty, 
-          reason: values.reason 
-        }]
-      }))
+  const handleConfirmReturn = async () => {
+    try {
+      const values = await form.validateFields()
+      await outboundAPI.return(id, values)
       setReturnModalVisible(false)
       form.resetFields()
       message.success('退货已登记')
-    })
+      loadData()
+    } catch (error) {
+      console.error('退货登记失败:', error)
+      message.error('操作失败')
+    }
   }
 
   const handlePrint = () => {
@@ -154,6 +188,7 @@ function OutboundDetail() {
           返回列表
         </Button>
         <Space>
+          <Button onClick={loadData}>刷新</Button>
           <Button icon={<BarcodeOutlined />}>扫码</Button>
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>打印</Button>
           {outbound.status === 'pending' && (
@@ -197,8 +232,8 @@ function OutboundDetail() {
               <Descriptions.Item label="车牌号">{relatedWorkOrder.carNumber}</Descriptions.Item>
               <Descriptions.Item label="工单金额">¥{relatedWorkOrder.totalAmount}</Descriptions.Item>
               <Descriptions.Item label="工单状态">
-                <Tag color={statusMap[relatedWorkOrder.status].color}>
-                  {statusMap[relatedWorkOrder.status].label}
+                <Tag color={statusMap[relatedWorkOrder.status]?.color || 'default'}>
+                  {statusMap[relatedWorkOrder.status]?.label || relatedWorkOrder.status}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>

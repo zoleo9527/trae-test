@@ -1,23 +1,56 @@
 import React, { useState, useEffect } from 'react'
-import { Row, Col, Card, Table, Tag, Button, Statistic } from 'antd'
+import { Row, Col, Card, Table, Tag, Button, Statistic, Spin } from 'antd'
 import {
   ClockCircleOutlined,
-  CheckCircleOutlined,
   CloseCircleOutlined,
   QuestionCircleOutlined,
   ArrowRightOutlined
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import dayjs from 'dayjs'
-import { mockWorkOrders, mockOutbounds, statusMap } from '../mock/data'
+import { statsAPI, workOrderAPI, outboundAPI } from '../utils/api'
 import { openNewWindow } from '../utils/electron'
 
 function Dashboard() {
   const navigate = useNavigate()
-  const pendingWorkOrders = mockWorkOrders.filter(o => o.status === 'pending')
-  const rejectedWorkOrders = mockWorkOrders.filter(o => o.status === 'rejected')
-  const reviewWorkOrders = mockWorkOrders.filter(o => o.status === 'review')
-  const pendingOutbounds = mockOutbounds.filter(o => o.status === 'pending')
+  const [loading, setLoading] = useState(false)
+  const [stats, setStats] = useState({
+    pendingWorkOrders: 0,
+    rejectedWorkOrders: 0,
+    reviewWorkOrders: 0,
+    pendingOutbounds: 0
+  })
+  const [workOrders, setWorkOrders] = useState([])
+  const [outbounds, setOutbounds] = useState([])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const [statsData, workOrdersData, outboundsData] = await Promise.all([
+        statsAPI.dashboard(),
+        workOrderAPI.list(),
+        outboundAPI.list()
+      ])
+      setStats(statsData)
+      setWorkOrders(Array.isArray(workOrdersData) ? workOrdersData : [])
+      setOutbounds(Array.isArray(outboundsData) ? outboundsData : [])
+    } catch (error) {
+      console.error('加载数据失败:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const statusMap = {
+    pending: { label: '待处理', color: 'warning' },
+    approved: { label: '已通过', color: 'success' },
+    rejected: { label: '已驳回', color: 'error' },
+    review: { label: '需回查', color: 'processing' },
+    reconciled: { label: '已对账', color: 'success' }
+  }
 
   const workOrderColumns = [
     {
@@ -59,7 +92,7 @@ function Dashboard() {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Button type="link" onClick={() => handleViewWorkOrder(record)}>
+        <Button type="link" onClick={() => navigate(`/workorder/${record.id}`)}>
           处理
         </Button>
       )
@@ -95,23 +128,19 @@ function Dashboard() {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Button type="link" onClick={() => handleViewOutbound(record)}>
+        <Button type="link" onClick={() => navigate(`/outbound/${record.id}`)}>
           处理
         </Button>
       )
     }
   ]
 
-  const handleViewWorkOrder = (record) => {
-    navigate(`/workorder/${record.id}`)
-  }
-
-  const handleViewOutbound = (record) => {
-    navigate(`/outbound/${record.id}`)
-  }
-
   const handleOpenCompare = () => {
     openNewWindow('/workorder', '维修工单 - 对照窗口', 1200, 800)
+  }
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>
   }
 
   return (
@@ -120,99 +149,100 @@ function Dashboard() {
         <Col span={6}>
           <Card className="dashboard-card">
             <Statistic
-            title="待处理工单"
-            value={pendingWorkOrders.length}
-            prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
-            valueStyle={{ color: '#faad14' }}
-          />
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
-            <Button type="link" onClick={() => navigate('/workorder?status=pending')}>
-              查看全部 <ArrowRightOutlined />
-            </Button>
-          </div>
-        </Card>
-      </Col>
-      <Col span={6}>
-        <Card className="dashboard-card">
-          <Statistic
-            title="已驳回工单"
-            value={rejectedWorkOrders.length}
-            prefix={<CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
-            valueStyle={{ color: '#ff4d4f' }}
-          />
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
-            <Button type="link" onClick={() => navigate('/workorder?status=rejected')}>
-              查看全部 <ArrowRightOutlined />
-            </Button>
-          </div>
-        </Card>
-      </Col>
-      <Col span={6}>
-        <Card className="dashboard-card">
-          <Statistic
-            title="需回查工单"
-            value={reviewWorkOrders.length}
-            prefix={<QuestionCircleOutlined style={{ color: '#1890ff' }} />}
-            valueStyle={{ color: '#1890ff' }}
-          />
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
-            <Button type="link" onClick={() => navigate('/workorder?status=review')}>
-              查看全部 <ArrowRightOutlined />
-            </Button>
-          </div>
-        </Card>
-      </Col>
-      <Col span={6}>
-        <Card className="dashboard-card">
-          <Statistic
-            title="待对账出库"
-            value={pendingOutbounds.length}
-            prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
-            valueStyle={{ color: '#faad14' }}
-          />
-          <div style={{ marginTop: 12, textAlign: 'right' }}>
-            <Button type="link" onClick={() => navigate('/outbound?status=pending')}>
-              查看全部 <ArrowRightOutlined />
-            </Button>
-          </div>
-        </Card>
-      </Col>
-    </Row>
+              title="待处理工单"
+              value={stats.pendingWorkOrders}
+              prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+              valueStyle={{ color: '#faad14' }}
+            />
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <Button type="link" onClick={() => navigate('/workorder?status=pending')}>
+                查看全部 <ArrowRightOutlined />
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card className="dashboard-card">
+            <Statistic
+              title="已驳回工单"
+              value={stats.rejectedWorkOrders}
+              prefix={<CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <Button type="link" onClick={() => navigate('/workorder?status=rejected')}>
+                查看全部 <ArrowRightOutlined />
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card className="dashboard-card">
+            <Statistic
+              title="需回查工单"
+              value={stats.reviewWorkOrders}
+              prefix={<QuestionCircleOutlined style={{ color: '#1890ff' }} />}
+              valueStyle={{ color: '#1890ff' }}
+            />
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <Button type="link" onClick={() => navigate('/workorder?status=review')}>
+                查看全部 <ArrowRightOutlined />
+              </Button>
+            </div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card className="dashboard-card">
+            <Statistic
+              title="待对账出库"
+              value={stats.pendingOutbounds}
+              prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+              valueStyle={{ color: '#faad14' }}
+            />
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <Button type="link" onClick={() => navigate('/outbound?status=pending')}>
+                查看全部 <ArrowRightOutlined />
+              </Button>
+            </div>
+          </Card>
+        </Col>
+      </Row>
 
-    <Row gutter={16}>
-      <Col span={24} style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="primary" onClick={handleOpenCompare}>
-            多窗口对照
-          </Button>
-        </div>
-      </Col>
-    </Row>
+      <Row gutter={16}>
+        <Col span={24} style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button onClick={loadData}>刷新数据</Button>
+            <Button type="primary" onClick={handleOpenCompare}>
+              多窗口对照
+            </Button>
+          </div>
+        </Col>
+      </Row>
 
-    <Row gutter={16}>
-      <Col span={12}>
-        <Card title="待处理工单" extra={<Button type="link" onClick={() => navigate('/workorder')}>更多</Button>}>
-          <Table
-            columns={workOrderColumns}
-            dataSource={mockWorkOrders.slice(0, 5)}
-            rowKey="id"
-            pagination={false}
-            size="small"
-          />
-        </Card>
-      </Col>
-      <Col span={12}>
-        <Card title="待对账出库" extra={<Button type="link" onClick={() => navigate('/outbound')}>更多</Button>}>
-          <Table
-            columns={outboundColumns}
-            dataSource={mockOutbounds.slice(0, 5)}
-            rowKey="id"
-            pagination={false}
-            size="small"
-          />
-        </Card>
-      </Col>
-    </Row>
+      <Row gutter={16}>
+        <Col span={12}>
+          <Card title="最新工单" extra={<Button type="link" onClick={() => navigate('/workorder')}>更多</Button>}>
+            <Table
+              columns={workOrderColumns}
+              dataSource={workOrders.slice(0, 5)}
+              rowKey="id"
+              pagination={false}
+              size="small"
+            />
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card title="最新出库" extra={<Button type="link" onClick={() => navigate('/outbound')}>更多</Button>}>
+            <Table
+              columns={outboundColumns}
+              dataSource={outbounds.slice(0, 5)}
+              rowKey="id"
+              pagination={false}
+              size="small"
+            />
+          </Card>
+        </Col>
+      </Row>
     </div>
   )
 }

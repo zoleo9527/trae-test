@@ -131,6 +131,26 @@ def approve_workorder(id):
     for order in data['workOrders']:
         if order['id'] == id:
             order['status'] = 'approved'
+            
+            existing_outbound = next((o for o in data['outbounds'] if o['workOrderId'] == id), None)
+            if not existing_outbound:
+                outbound = {
+                    'id': f"OB{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    'workOrderId': id,
+                    'customer': order['customer'],
+                    'items': [
+                        {**item, 'actualQty': item['qty']}
+                        for item in order['items']
+                    ],
+                    'totalAmount': order['totalAmount'],
+                    'actualAmount': order['totalAmount'],
+                    'status': 'pending',
+                    'createTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'warehouse': '主仓库',
+                    'operator': '系统自动'
+                }
+                data['outbounds'].append(outbound)
+            
             save_data(data)
             return jsonify(order)
     return jsonify({'error': 'Not found'}), 404
@@ -206,4 +226,4 @@ def return_outbound(id):
 
 if __name__ == '__main__':
     init_data()
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8081, debug=True)
