@@ -45,6 +45,9 @@ export function RidersPage() {
 
   const filteredRiders = useMemo(() => {
     return allRiders.filter(rider => {
+      if (userRole === 'dispatcher' && currentUser?.zone) {
+        if (rider.zone !== currentUser.zone) return false;
+      }
       if (filters.status !== 'all' && rider.status !== filters.status) return false;
       if (filters.zone !== 'all' && rider.zone !== filters.zone) return false;
       if (searchValue) {
@@ -55,7 +58,7 @@ export function RidersPage() {
       }
       return true;
     });
-  }, [allRiders, filters, searchValue]);
+  }, [allRiders, filters, searchValue, userRole, currentUser]);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));

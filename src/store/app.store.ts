@@ -36,6 +36,7 @@ const users: Record<UserRole, User> = {
     name: '陈刚',
     role: 'dispatcher',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=chenggang',
+    zone: '朝阳区',
   },
   customer_service: {
     id: 'user-cs',

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { useProcessStore } from '@/store/process.store';
@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Ca
 import { Button } from '@/components/common/Button';
 import { useAppStore } from '@/store/app.store';
 import { buildTimeline } from '@/services/order.service';
-import type { ProcessStep } from '@/types';
+import type { ProcessStep, UserRole } from '@/types';
 
 const stepComponents: Record<Exclude<ProcessStep, 'complete'>, React.ComponentType> = {
   review: OrderDetailPanel,
@@ -110,7 +110,17 @@ export function OrderProcessPage() {
     );
   }
 
-  const CurrentStepComponent = stepComponents[processState.currentStep as Exclude<ProcessStep, 'complete'>];
+  const allowedStepsForRole: Record<UserRole, ProcessStep[]> = {
+    manager: ['review', 'appeal', 'subsidy', 'assessment', 'training', 'complete'],
+    dispatcher: ['review', 'appeal', 'subsidy', 'assessment', 'training', 'complete'],
+    customer_service: ['review', 'appeal', 'complete'],
+  };
+
+  const allowedSteps = userRole ? allowedStepsForRole[userRole] : allowedStepsForRole.manager;
+
+  const safeCurrentStep = allowedSteps.includes(processState.currentStep)
+    ? processState.currentStep
+    : allowedSteps[0];
 
   const stepTitles: Record<ProcessStep, string> = {
     review: '订单详情审核',
@@ -121,7 +131,7 @@ export function OrderProcessPage() {
     complete: '处理完成',
   };
 
-  if (processState.currentStep === 'complete') {
+  if (safeCurrentStep === 'complete') {
     return (
       <div className="animate-fade-in">
         <div className="flex-1 overflow-y-auto p-6">
@@ -154,24 +164,28 @@ export function OrderProcessPage() {
                       {appeals.length > 0 ? '已处理' : '无申诉'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">补贴处理</span>
-                    <span className={subsidies.length > 0 ? 'text-green-600' : 'text-gray-400'}>
-                      {subsidies.length > 0 ? `¥${subsidies[0].amount}` : '无补贴'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">考核处理</span>
-                    <span className={assessments.length > 0 ? 'text-green-600' : 'text-gray-400'}>
-                      {assessments.length > 0 ? `扣 ${assessments[0].scoreDeducted} 分` : '无考核'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">培训处理</span>
-                    <span className={trainings.length > 0 ? 'text-green-600' : 'text-gray-400'}>
-                      {trainings.length > 0 ? '已安排' : '无需培训'}
-                    </span>
-                  </div>
+                  {userRole !== 'customer_service' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">补贴处理</span>
+                        <span className={subsidies.length > 0 ? 'text-green-600' : 'text-gray-400'}>
+                          {subsidies.length > 0 ? `¥${subsidies[0].amount}` : '无补贴'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">考核处理</span>
+                        <span className={assessments.length > 0 ? 'text-green-600' : 'text-gray-400'}>
+                          {assessments.length > 0 ? `扣 ${assessments[0].scoreDeducted} 分` : '无考核'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">培训处理</span>
+                        <span className={trainings.length > 0 ? 'text-green-600' : 'text-gray-400'}>
+                          {trainings.length > 0 ? '已安排' : '无需培训'}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -190,6 +204,8 @@ export function OrderProcessPage() {
     );
   }
 
+  const CurrentStepComponent = stepComponents[safeCurrentStep as Exclude<ProcessStep, 'complete'>];
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="flex-1 overflow-y-auto p-6">
@@ -202,7 +218,7 @@ export function OrderProcessPage() {
             返回订单列表
           </button>
           <div className="text-sm text-gray-500">
-            当前步骤：<span className="text-primary-700 font-medium">{stepTitles[processState.currentStep]}</span>
+            当前步骤：<span className="text-primary-700 font-medium">{stepTitles[safeCurrentStep]}</span>
           </div>
         </div>
 
@@ -210,7 +226,7 @@ export function OrderProcessPage() {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">{stepTitles[processState.currentStep]}</CardTitle>
+                <CardTitle className="text-lg">{stepTitles[safeCurrentStep]}</CardTitle>
               </CardHeader>
               <CardContent>
                 <CurrentStepComponent />
@@ -287,24 +303,28 @@ export function OrderProcessPage() {
                       {appeals.length} 条
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-green-50 rounded">
-                    <span className="text-sm">补贴记录</span>
-                    <span className={`text-sm font-medium ${subsidies.length > 0 ? 'text-green-700' : 'text-gray-400'}`}>
-                      {subsidies.length} 条
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 bg-red-50 rounded">
-                    <span className="text-sm">考核记录</span>
-                    <span className={`text-sm font-medium ${assessments.length > 0 ? 'text-red-700' : 'text-gray-400'}`}>
-                      {assessments.length} 条
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
-                    <span className="text-sm">培训记录</span>
-                    <span className={`text-sm font-medium ${trainings.length > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
-                      {trainings.length} 条
-                    </span>
-                  </div>
+                  {userRole !== 'customer_service' && (
+                    <>
+                      <div className="flex items-center justify-between p-2 bg-green-50 rounded">
+                        <span className="text-sm">补贴记录</span>
+                        <span className={`text-sm font-medium ${subsidies.length > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                          {subsidies.length} 条
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-red-50 rounded">
+                        <span className="text-sm">考核记录</span>
+                        <span className={`text-sm font-medium ${assessments.length > 0 ? 'text-red-700' : 'text-gray-400'}`}>
+                          {assessments.length} 条
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                        <span className="text-sm">培训记录</span>
+                        <span className={`text-sm font-medium ${trainings.length > 0 ? 'text-blue-700' : 'text-gray-400'}`}>
+                          {trainings.length} 条
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -312,7 +332,7 @@ export function OrderProcessPage() {
         </div>
       </div>
 
-      <ProcessActionBar />
+      <ProcessActionBar allowedSteps={allowedSteps} />
     </div>
   );
 }

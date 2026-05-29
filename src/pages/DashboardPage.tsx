@@ -354,14 +354,6 @@ export function DashboardPage() {
                   <p className="text-xs text-gray-500 mt-1">共 {stats.totalOrders} 条订单</p>
                 </div>
                 <div
-                  className="p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
-                  onClick={() => navigate('/riders')}
-                >
-                  <Users className="w-6 h-6 text-blue-600 mb-2" />
-                  <p className="text-sm font-medium text-gray-900">查看骑手信息</p>
-                  <p className="text-xs text-gray-500 mt-1">共 {allRiders.filter(r => r.status === 'active').length} 名在职骑手</p>
-                </div>
-                <div
                   className="p-4 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
                   onClick={() => navigate('/orders/order-A001/process')}
                 >

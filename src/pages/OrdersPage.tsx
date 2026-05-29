@@ -5,6 +5,7 @@ import { OrderTable } from '@/components/dashboard/OrderTable';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import { getDashboardStats, getOrders } from '@/services/order.service';
+import { getAppealsByOrderId } from '@/services/appeal.service';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/app.store';
 import type { Order, UserRole } from '@/types';
@@ -48,6 +49,11 @@ export function OrdersPage() {
       if (userRole === 'dispatcher' && order.status !== 'exception') {
         const timeout = new Date(order.deliveredTime).getTime() - new Date(order.promisedTime).getTime();
         if (timeout <= 0) return false;
+      }
+      if (userRole === 'customer_service') {
+        const hasAppeal = getAppealsByOrderId(order.id).length > 0;
+        const isException = order.status === 'exception';
+        if (!hasAppeal && !isException) return false;
       }
       if (filters.status !== 'all' && order.status !== filters.status) return false;
       if (filters.hasException === 'true' && order.status !== 'exception') {

@@ -42,7 +42,6 @@ const roleNavItems: Record<UserRole, Array<{
     { to: '/dashboard', label: '工作台', icon: LayoutDashboard },
     { to: '/appeals', label: '申诉处理', icon: FileText, badge: 0 },
     { to: '/orders', label: '订单查询', icon: Package },
-    { to: '/riders', label: '骑手信息', icon: Users },
   ],
 };
 

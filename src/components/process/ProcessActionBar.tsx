@@ -6,7 +6,7 @@ import { Tag } from '@/components/common/Tag';
 import { cn } from '@/lib/utils';
 import type { ProcessStep } from '@/types';
 
-const steps: Array<{
+const allSteps: Array<{
   key: ProcessStep;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -20,12 +20,17 @@ const steps: Array<{
   { key: 'complete', label: '处理完成', icon: CheckCircle, description: '所有流程已完成' },
 ];
 
-export function ProcessActionBar() {
+interface ProcessActionBarProps {
+  allowedSteps?: ProcessStep[];
+}
+
+export function ProcessActionBar({ allowedSteps }: ProcessActionBarProps) {
   const navigate = useNavigate();
   const { processState, order, setCurrentStep } = useProcessStore();
 
   if (!processState || !order) return null;
 
+  const steps = allowedSteps ? allSteps.filter(s => allowedSteps.includes(s.key)) : allSteps;
   const currentIndex = steps.findIndex(s => s.key === processState.currentStep);
 
   const handlePrevStep = () => {
@@ -94,7 +99,7 @@ export function ProcessActionBar() {
 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-gray-100 text-gray-400">
               <CheckCircle className="w-4 h-4" />
-              <span>6. 处理完成</span>
+              <span>{steps.length}. 处理完成</span>
             </div>
           </div>
 

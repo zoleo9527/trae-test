@@ -5,6 +5,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar: string;
+  zone?: string;
 }
 
 export type OrderStatus = 'pending' | 'picked_up' | 'delivered' | 'cancelled' | 'exception';
