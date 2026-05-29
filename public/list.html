@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>单据列表 - 汽配商行退货鉴定系统</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="app-page">
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>汽配商行</h2>
+        <p class="system-name">退货鉴定与退款复核</p>
+      </div>
+      
+      <nav class="nav-menu">
+        <div class="nav-item active" data-type="inquiry">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">询价单</span>
+        </div>
+        <div class="nav-item" data-type="stockLock">
+          <span class="nav-icon">🔒</span>
+          <span class="nav-text">锁库单</span>
+        </div>
+        <div class="nav-item" data-type="returnOrder">
+          <span class="nav-icon">↩️</span>
+          <span class="nav-text">退货单</span>
+        </div>
+        <div class="nav-item" data-type="refundOrder">
+          <span class="nav-icon">💰</span>
+          <span class="nav-text">退款单</span>
+        </div>
+        <div class="nav-item" data-type="audit">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">操作日志</span>
+        </div>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="user-info" id="userInfo">
+          <div class="user-avatar" id="userAvatar">👤</div>
+          <div class="user-details">
+            <div class="user-name" id="userName">加载中...</div>
+            <div class="user-role" id="userRole"></div>
+          </div>
+        </div>
+        <button class="btn btn-logout" id="logoutBtn">退出登录</button>
+      </div>
+    </aside>
+    
+    <main class="main-content">
+      <header class="page-header">
+        <div class="page-title">
+          <h1 id="pageTitle">询价单列表</h1>
+          <p id="pageDesc">管理所有询价单，支持筛选、搜索和导出</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" id="exportBtn">
+            <span>📥</span> 导出Excel
+          </button>
+          <button class="btn btn-primary" id="createBtn" style="display: none;">
+            <span>+</span> 新建单据
+          </button>
+        </div>
+      </header>
+      
+      <section class="filter-section">
+        <div class="filter-grid">
+          <div class="filter-item">
+            <label>关键词搜索</label>
+            <input type="text" id="keyword" placeholder="输入单号/客户名称/车架号...">
+          </div>
+          <div class="filter-item">
+            <label>状态筛选</label>
+            <select id="statusFilter">
+              <option value="">全部状态</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label>开始日期</label>
+            <input type="date" id="startDate">
+          </div>
+          <div class="filter-item">
+            <label>结束日期</label>
+            <input type="date" id="endDate">
+          </div>
+          <div class="filter-item">
+            <label>异常标记</label>
+            <select id="exceptionFilter">
+              <option value="">全部</option>
+              <option value="true">仅异常</option>
+              <option value="false">仅正常</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-primary" id="searchBtn">🔍 查询</button>
+          <button class="btn btn-secondary" id="resetBtn">重置筛选</button>
+        </div>
+      </section>
+      
+      <section class="data-section">
+        <div class="table-wrapper">
+          <table class="data-table" id="dataTable">
+            <thead>
+              <tr id="tableHeader">
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="pagination" id="pagination">
+        </div>
+      </section>
+    </main>
+  </div>
+  
+  <div class="modal" id="detailModal" style="display: none;">
+    <div class="modal-overlay" data-close="true"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="modalTitle">单据详情</h3>
+        <button class="modal-close" data-close="true">×</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof initListPage === 'function') {
+        initListPage();
+      }
+    });
+  </script>
+</body>
+</html>

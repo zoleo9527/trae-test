@@ -1,0 +1,383 @@
+// ==========================================
+// 汽配商行-退货鉴定与退款复核系统 数据模型
+// 核心设计思想：询价->锁库->退货->退款 全链路关联
+// 通过 inquiryId 串起所有单据，解决"同一单查起来像三件事"的问题
+// ==========================================
+// 注意：SQLite不支持enum，所有状态/类型字段用String存储
+// 在应用层(server/types/enums.ts)做枚举值校验
+// ==========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 用户与权限
+// ==========================================
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  realName     String
+  role         String   // STORE_OWNER | SALES | WAREHOUSE
+  phone        String?
+  storeName    String?   // 门店名称（仅门店老板有）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isActive     Boolean  @default(true)
+
+  createdInquiries  Inquiry[]          @relation("createdBy")
+  handledInquiries  Inquiry[]          @relation("handledBy")
+  createdStockLocks StockLock[]        @relation("lockCreatedBy")
+  handledStockLocks StockLock[]        @relation("lockHandledBy")
+  createdReturns    ReturnOrder[]      @relation("returnCreatedBy")
+  handledReturns    ReturnOrder[]      @relation("returnHandledBy")
+  createdRefunds    RefundOrder[]      @relation("refundCreatedBy")
+  handledRefunds    RefundOrder[]      @relation("refundHandledBy")
+  checkedStockLockItems StockLockItem[] @relation("stockLockItemCheckedBy")
+  identifyReturns   ReturnOrder[]      @relation("returnIdentifyBy")
+  inspectedReturnItems ReturnItem[]    @relation("returnItemInspectedBy")
+  reviewedRefunds   RefundOrder[]    @relation("refundReviewBy")
+  uploadedEvidences Evidence[]         @relation("evidenceUploadedBy")
+  operationLogs     OperationLog[]     @relation("operationLogOperator")
+  remarks         Remark[]
+}
+
+// ==========================================
+// 配件主数据
+// ==========================================
+
+model Part {
+  id            String  @id @default(uuid())
+  partCode      String  @unique
+  partName      String
+  originalCode  String?
+  brand         String
+  spec          String?
+  unit          String
+  unitPrice     Decimal
+  stockQuantity Int     @default(0)
+  location      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  inquiryItems    InquiryItem[]
+  stockLockItems  StockLockItem[]
+  returnItems     ReturnItem[]
+}
+
+// ==========================================
+// 询价单（源头单据，关联所有后续单据）
+// ==========================================
+
+model Inquiry {
+  id              String         @id @default(uuid())
+  inquiryNo       String         @unique
+  status          String         @default("DRAFT")
+  customerName    String
+  customerPhone   String?
+  carModel        String?
+  vinNo           String?
+  totalAmount     Decimal        @default(0)
+  expectedDate    DateTime?
+  isUrgent        Boolean        @default(false)
+  
+  stockLock       StockLock?
+  returnOrder     ReturnOrder?
+  refundOrder     RefundOrder?
+
+  createdById     String
+  createdBy       User           @relation("createdBy", fields: [createdById], references: [id])
+  handledById     String?
+  handledBy       User?          @relation("handledBy", fields: [handledById], references: [id])
+
+  rejectReason    String?
+  supplementNote  String?
+  
+  hasException    Boolean        @default(false)
+  exceptionType   String?
+  exceptionNote   String?
+
+  idempotencyKey  String?        @unique
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items           InquiryItem[]
+  operationLogs   OperationLog[]
+  evidences       Evidence[]
+  remarks         Remark[]
+
+  @@index([status])
+  @@index([customerName])
+  @@index([createdAt])
+  @@index([hasException])
+}
+
+model InquiryItem {
+  id          String  @id @default(uuid())
+  inquiryId   String
+  inquiry     Inquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  partId      String
+  part        Part    @relation(fields: [partId], references: [id])
+  partName    String
+  partCode    String
+  quantity    Int     @default(1)
+  quotedPrice Decimal?
+  confirmed   Boolean @default(false)
+  remark      String?
+  createdAt   DateTime @default(now())
+}
+
+// ==========================================
+// 锁库单
+// ==========================================
+
+model StockLock {
+  id              String          @id @default(uuid())
+  lockNo          String          @unique
+  inquiryId       String          @unique
+  inquiry         Inquiry         @relation(fields: [inquiryId], references: [id])
+  status          String          @default("PENDING")
+  validUntil      DateTime?
+  warehouseNote   String?
+
+  createdById     String
+  createdBy       User            @relation("lockCreatedBy", fields: [createdById], references: [id])
+  handledById     String?
+  handledBy       User?           @relation("lockHandledBy", fields: [handledById], references: [id])
+
+  rejectReason    String?
+  idempotencyKey  String?         @unique
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  items           StockLockItem[]
+  operationLogs   OperationLog[]
+  evidences       Evidence[]
+  remarks         Remark[]
+}
+
+model StockLockItem {
+  id           String     @id @default(uuid())
+  stockLockId  String
+  stockLock    StockLock  @relation(fields: [stockLockId], references: [id], onDelete: Cascade)
+  partId       String
+  part         Part       @relation(fields: [partId], references: [id])
+  partName     String
+  partCode     String
+  quantity     Int        @default(1)
+  location     String?
+  checked      Boolean    @default(false)
+  checkedAt    DateTime?
+  checkedById  String?
+  checkedBy    User?      @relation("stockLockItemCheckedBy", fields: [checkedById], references: [id])
+  createdAt    DateTime   @default(now())
+}
+
+// ==========================================
+// 退货鉴定单
+// ==========================================
+
+model ReturnOrder {
+  id                String        @id @default(uuid())
+  returnNo          String        @unique
+  inquiryId         String        @unique
+  inquiry           Inquiry       @relation(fields: [inquiryId], references: [id])
+  status            String        @default("PENDING_IDENTIFY")
+  
+  returnReason      String
+  returnDate        DateTime      @default(now())
+  originalSalesDate DateTime?
+  originalAmount    Decimal
+  applyRefundAmount Decimal
+  
+  identifyResult    String?
+  identifyDate      DateTime?
+  identifyById      String?
+  identifyBy        User?         @relation("returnIdentifyBy", fields: [identifyById], references: [id])
+  
+  rejectReason      String?
+  supplementNote    String?
+  reworkNote        String?
+
+  hasException      Boolean       @default(false)
+  exceptionType     String?
+  exceptionNote     String?
+
+  createdById       String
+  createdBy         User          @relation("returnCreatedBy", fields: [createdById], references: [id])
+  handledById       String?
+  handledBy         User?         @relation("returnHandledBy", fields: [handledById], references: [id])
+
+  idempotencyKey    String?       @unique
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items             ReturnItem[]
+  operationLogs     OperationLog[]
+  evidences         Evidence[]
+  remarks           Remark[]
+  refundOrder       RefundOrder?
+}
+
+model ReturnItem {
+  id               String      @id @default(uuid())
+  returnOrderId    String
+  returnOrder      ReturnOrder @relation(fields: [returnOrderId], references: [id], onDelete: Cascade)
+  partId           String
+  part             Part        @relation(fields: [partId], references: [id])
+  partName         String
+  partCode         String
+  returnQuantity   Int         @default(1)
+  originalQuantity Int
+  unitPrice        Decimal
+  subTotal         Decimal
+  inspectionResult String?
+  inspectionNote   String?
+  inspected        Boolean     @default(false)
+  inspectedById    String?
+  inspectedBy      User?       @relation("returnItemInspectedBy", fields: [inspectedById], references: [id])
+  inspectedAt      DateTime?
+  createdAt        DateTime    @default(now())
+}
+
+// ==========================================
+// 退款复核单
+// ==========================================
+
+model RefundOrder {
+  id                String       @id @default(uuid())
+  refundNo          String       @unique
+  returnOrderId     String       @unique
+  returnOrder       ReturnOrder  @relation(fields: [returnOrderId], references: [id])
+  inquiryId         String       @unique
+  inquiry           Inquiry      @relation(fields: [inquiryId], references: [id])
+  status            String       @default("PENDING_REVIEW")
+  
+  refundAmount      Decimal
+  actualRefundAmount Decimal?
+  paymentMethod     String?
+  paymentDate       DateTime?
+  paymentTraceNo    String?
+  
+  reviewResult      String?
+  reviewDate        DateTime?
+  reviewById        String?
+  reviewBy          User?        @relation("refundReviewBy", fields: [reviewById], references: [id])
+  
+  rejectReason      String?
+  supplementNote    String?
+  
+  isCreditCustomer  Boolean      @default(false)
+  dueDate           DateTime?
+  hasDelay          Boolean      @default(false)
+  delayDays         Int?
+  
+  hasException      Boolean      @default(false)
+  exceptionType     String?
+  exceptionNote     String?
+
+  createdById       String
+  createdBy         User         @relation("refundCreatedBy", fields: [createdById], references: [id])
+  handledById       String?
+  handledBy         User?        @relation("refundHandledBy", fields: [handledById], references: [id])
+
+  idempotencyKey    String?      @unique
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  operationLogs     OperationLog[]
+  evidences         Evidence[]
+  remarks           Remark[]
+}
+
+// ==========================================
+// 证据链
+// ==========================================
+
+model Evidence {
+  id            String       @id @default(uuid())
+  evidenceType  String
+  fileName      String
+  fileUrl       String
+  fileSize      Int?
+  description   String?
+  uploadedById  String
+  uploadedBy    User         @relation("evidenceUploadedBy", fields: [uploadedById], references: [id])
+  
+  inquiryId     String?
+  inquiry       Inquiry?     @relation(fields: [inquiryId], references: [id])
+  stockLockId   String?
+  stockLock     StockLock?   @relation(fields: [stockLockId], references: [id])
+  returnOrderId String?
+  returnOrder   ReturnOrder? @relation(fields: [returnOrderId], references: [id])
+  refundOrderId String?
+  refundOrder   RefundOrder? @relation(fields: [refundOrderId], references: [id])
+
+  createdAt     DateTime     @default(now())
+}
+
+// ==========================================
+// 操作日志
+// ==========================================
+
+model OperationLog {
+  id             String         @id @default(uuid())
+  operationType  String
+  operatorId     String
+  operatorName   String
+  operatorRole   String
+  operator       User?          @relation("operationLogOperator", fields: [operatorId], references: [id])
+  detail         String?
+  ipAddress      String?
+  userAgent      String?
+  
+  inquiryId     String?
+  inquiry       Inquiry?       @relation(fields: [inquiryId], references: [id])
+  stockLockId   String?
+  stockLock     StockLock?     @relation(fields: [stockLockId], references: [id])
+  returnOrderId String?
+  returnOrder   ReturnOrder?   @relation(fields: [returnOrderId], references: [id])
+  refundOrderId String?
+  refundOrder   RefundOrder?   @relation(fields: [refundOrderId], references: [id])
+
+  oldStatus      String?
+  newStatus      String?
+  
+  createdAt      DateTime       @default(now())
+
+  @@index([inquiryId])
+  @@index([operatorId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// 备注
+// ==========================================
+
+model Remark {
+  id            String       @id @default(uuid())
+  content       String
+  isImportant   Boolean      @default(false)
+  createdById   String
+  createdBy     User         @relation(fields: [createdById], references: [id])
+  
+  inquiryId     String?
+  inquiry       Inquiry?     @relation(fields: [inquiryId], references: [id])
+  stockLockId   String?
+  stockLock     StockLock?   @relation(fields: [stockLockId], references: [id])
+  returnOrderId String?
+  returnOrder   ReturnOrder? @relation(fields: [returnOrderId], references: [id])
+  refundOrderId String?
+  refundOrder   RefundOrder? @relation(fields: [refundOrderId], references: [id])
+
+  createdAt     DateTime     @default(now())
+}

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>汽配商行 - 退货鉴定与退款复核系统</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+  <div class="login-container">
+    <div class="login-header">
+      <h1>汽配商行</h1>
+      <h2>退货鉴定与退款复核系统</h2>
+      <p class="subtitle">询价 · 锁库 · 退货 · 退款 · 全链路追溯</p>
+    </div>
+    
+    <div class="login-card" id="loginCard">
+      <h3>请选择您的角色</h3>
+      <div class="role-selector">
+        <div class="role-card" data-role="STORE_OWNER" data-username="store_owner">
+          <div class="role-icon">🏪</div>
+          <div class="role-name">门店老板</div>
+          <div class="role-desc">查看经营数据、审批退款、异常处理</div>
+        </div>
+        <div class="role-card" data-role="SALES" data-username="sales">
+          <div class="role-icon">💼</div>
+          <div class="role-name">配件销售</div>
+          <div class="role-desc">创建询价单、报价、跟进客户</div>
+        </div>
+        <div class="role-card" data-role="WAREHOUSE" data-username="warehouse">
+          <div class="role-icon">📦</div>
+          <div class="role-name">仓库管库</div>
+          <div class="role-desc">锁库确认、退货鉴定、出入库管理</div>
+        </div>
+      </div>
+      
+      <div class="login-form" id="loginForm" style="display: none;">
+        <div class="form-group">
+          <label>账号</label>
+          <input type="text" id="username" readonly>
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="password" value="123456">
+          <small class="hint">默认密码：123456</small>
+        </div>
+        <button class="btn btn-primary btn-block" id="loginBtn">登录系统</button>
+        <button class="btn btn-link btn-block" id="backBtn">← 返回选择角色</button>
+      </div>
+    </div>
+    
+    <div class="login-footer">
+      <p>© 2025 汽配商行管理系统 | 后端 Express + Prisma | 前端轻量实现</p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
