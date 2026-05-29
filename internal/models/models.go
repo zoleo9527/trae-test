@@ -88,6 +88,7 @@ const (
 	ActionUpdateRefund    OperationAction = "update_refund"
 	ActionApproveRefund   OperationAction = "approve_refund"
 	ActionRejectRefund    OperationAction = "reject_refund"
+	ActionCompleteRefund  OperationAction = "complete_refund"
 	ActionCreateAppeal    OperationAction = "create_appeal"
 	ActionUpdateAppeal    OperationAction = "update_appeal"
 	ActionUpheldAppeal    OperationAction = "upheld_appeal"

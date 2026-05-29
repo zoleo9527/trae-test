@@ -35,6 +35,7 @@ type RefundQuery struct {
 }
 
 type RefundDetailResponse struct {
-	Refund interface{} `json:"refund"`
-	Logs   interface{} `json:"operation_logs"`
+	Refund     interface{} `json:"refund"`
+	Logs       interface{} `json:"operation_logs"`
+	TaskQueues interface{} `json:"task_queues"`
 }

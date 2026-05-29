@@ -5,8 +5,11 @@ import (
 	"log"
 	"runner-platform/internal/database"
 	"runner-platform/internal/models"
+	"runner-platform/internal/utils"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type TaskWorker struct {
@@ -140,14 +143,59 @@ func (w *TaskWorker) handleRefundPayment(task *models.TaskQueue) error {
 
 	refundID, _ := payload["refund_id"].(string)
 	var refund models.Refund
-	if err := database.DB.Where("id = ?", refundID).First(&refund).Error; err == nil {
-		if refund.Status == models.RefundStatusApproved {
-			refund.Status = models.RefundStatusCompleted
-			now := time.Now()
-			refund.ProcessedAt = &now
-			database.DB.Save(&refund)
-			log.Printf("[PAYMENT] Refund %s marked as completed", refund.RefundNo)
+	if err := database.DB.Where("id = ?", refundID).First(&refund).Error; err != nil {
+		return err
+	}
+
+	if refund.Status == models.RefundStatusApproved {
+		oldRefund := refund
+		refund.Status = models.RefundStatusCompleted
+		now := time.Now()
+		refund.ProcessedAt = &now
+		if refund.ReviewedBy != nil {
+			refund.ProcessedBy = refund.ReviewedBy
 		}
+
+		if err := database.DB.Save(&refund).Error; err != nil {
+			return err
+		}
+
+		var processorName string
+		var processorRole models.Role
+		if refund.ProcessedBy != nil {
+			var processor models.User
+			if err := database.DB.Where("id = ?", *refund.ProcessedBy).First(&processor).Error; err == nil {
+				processorName = processor.RealName
+				processorRole = processor.Role
+			}
+		}
+		if processorName == "" {
+			processorName = "System"
+		}
+		if processorRole == "" {
+			processorRole = models.RoleCustomerService
+		}
+
+		var operatorID uuid.UUID
+		if refund.ProcessedBy != nil {
+			operatorID = *refund.ProcessedBy
+		} else {
+			operatorID = uuid.New()
+		}
+
+		utils.LogOperationBackground(
+			models.ActionCompleteRefund,
+			refund.ID,
+			"refund",
+			operatorID,
+			processorName,
+			processorRole,
+			&oldRefund,
+			&refund,
+			"退款自动完成",
+		)
+
+		log.Printf("[PAYMENT] Refund %s marked as completed", refund.RefundNo)
 	}
 
 	return nil

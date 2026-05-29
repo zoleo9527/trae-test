@@ -100,3 +100,36 @@ func GetCurrentUser(c *fiber.Ctx) *Claims {
 	}
 	return user
 }
+
+func LogOperationBackground(
+	action models.OperationAction,
+	targetID uuid.UUID,
+	targetType string,
+	operatorID uuid.UUID,
+	operatorName string,
+	operatorRole models.Role,
+	oldValue interface{},
+	newValue interface{},
+	remark string,
+) error {
+	oldJSON, _ := json.Marshal(oldValue)
+	newJSON, _ := json.Marshal(newValue)
+	changedFields := detectChangedFields(oldValue, newValue)
+
+	log := &models.OperationLog{
+		Action:        action,
+		TargetID:      targetID,
+		TargetType:    targetType,
+		OperatorID:    operatorID,
+		OperatorName:  operatorName,
+		OperatorRole:  operatorRole,
+		OldValue:      string(oldJSON),
+		NewValue:      string(newJSON),
+		ChangedFields: changedFields,
+		IPAddress:     "127.0.0.1",
+		UserAgent:     "BackgroundWorker/1.0",
+		Remark:        remark,
+	}
+
+	return database.DB.Create(log).Error
+}

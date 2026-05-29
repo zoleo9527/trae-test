@@ -308,9 +308,20 @@ func (s *RefundService) GetRefundDetail(c *fiber.Ctx, id uuid.UUID) (*schemas.Re
 		return nil, err
 	}
 
+	var tasks []models.TaskQueue
+	refundIDStr := id.String()
+	if err := database.DB.Where("task_type IN ? AND payload LIKE ?",
+		[]string{"refund_notification", "refund_payment"},
+		"%"+refundIDStr+"%").
+		Order("created_at DESC").
+		Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+
 	return &schemas.RefundDetailResponse{
-		Refund: refund,
-		Logs:   logs,
+		Refund:     refund,
+		Logs:       logs,
+		TaskQueues: tasks,
 	}, nil
 }
 
