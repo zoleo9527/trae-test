@@ -26,20 +26,22 @@ import {
   ROLE_LABEL,
 } from '@/lib/status'
 
-async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
-  const json = await res.json()
-  if (!json.success) throw new Error(json.error || '请求失败')
-  return json.data as T
-}
-
 export default function RollDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { currentRoll, fetchRollDetail, loading } = useRollStore()
+  const {
+    currentRoll,
+    fetchRollDetail,
+    loading,
+    startDevelop,
+    submitQc,
+    submitReworkDecision,
+    executeRework,
+    submitRecheck,
+    requestConfirm,
+    submitConfirmResult,
+    submitCompensation,
+  } = useRollStore()
   const currentUser = useAuthStore((state) => state.currentUser)
   const [activeTab, setActiveTab] = useState<'timeline' | 'qc' | 'confirm'>('timeline')
   const [showQcForm, setShowQcForm] = useState(false)
@@ -66,166 +68,127 @@ export default function RollDetail() {
 
   const handleDevelop = async () => {
     if (!currentRoll || !currentUser) return
-    try {
-      await apiFetch('/api/actions', {
-        method: 'POST',
-        body: JSON.stringify({
-          roll_id: currentRoll.id,
-          action_type: 'develop',
-          operator_id: currentUser.id,
-          operator_role: currentUser.role,
-          detail: '开始冲扫处理',
-        }),
-      })
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    const success = await startDevelop(currentRoll.id, currentUser.id, currentUser.role)
+    if (!success) {
       alert('操作失败')
     }
   }
 
   const handleQcSubmit = async () => {
     if (!currentRoll || !currentUser) return
-    try {
-      await apiFetch('/api/qc/qc', {
-        method: 'POST',
-        body: JSON.stringify({
-          roll_id: currentRoll.id,
-          result: qcForm.result,
-          issue_desc: qcForm.issue_desc,
-          impact_scope: qcForm.impact_scope,
-          operator_id: currentUser.id,
-        }),
-      })
+    const success = await submitQc(currentRoll.id, {
+      result: qcForm.result,
+      issue_desc: qcForm.issue_desc,
+      impact_scope: qcForm.impact_scope,
+      operator_id: currentUser.id,
+    })
+    if (success) {
       setShowQcForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleDecisionSubmit = async () => {
     if (!currentRoll || !currentUser || currentRoll.qc_records.length === 0) return
-    try {
-      await apiFetch('/api/qc/rework/decision', {
-        method: 'POST',
-        body: JSON.stringify({
-          qc_id: currentRoll.qc_records[currentRoll.qc_records.length - 1].id,
-          roll_id: currentRoll.id,
-          decision: decisionForm.decision,
-          reason: decisionForm.reason,
-          decided_by: currentUser.id,
-        }),
-      })
+    const success = await submitReworkDecision(
+      currentRoll.id,
+      currentRoll.qc_records[currentRoll.qc_records.length - 1].id,
+      {
+        decision: decisionForm.decision,
+        reason: decisionForm.reason,
+        decided_by: currentUser.id,
+      }
+    )
+    if (success) {
       setShowDecisionForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleReworkSubmit = async () => {
     if (!currentRoll || !currentUser || currentRoll.rework_decisions.length === 0) return
-    try {
-      await apiFetch('/api/qc/rework/execution', {
-        method: 'POST',
-        body: JSON.stringify({
-          decision_id: currentRoll.rework_decisions[currentRoll.rework_decisions.length - 1].id,
-          roll_id: currentRoll.id,
-          action_detail: reworkForm.action_detail,
-          result: reworkForm.result,
-          operator_id: currentUser.id,
-        }),
-      })
+    const success = await executeRework(
+      currentRoll.id,
+      currentRoll.rework_decisions[currentRoll.rework_decisions.length - 1].id,
+      {
+        action_detail: reworkForm.action_detail,
+        result: reworkForm.result,
+        operator_id: currentUser.id,
+      }
+    )
+    if (success) {
       setShowReworkForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleRecheckSubmit = async () => {
     if (!currentRoll || !currentUser || currentRoll.rework_executions.length === 0) return
-    try {
-      await apiFetch('/api/qc/rework/recheck', {
-        method: 'POST',
-        body: JSON.stringify({
-          execution_id: currentRoll.rework_executions[currentRoll.rework_executions.length - 1].id,
-          roll_id: currentRoll.id,
-          result: recheckForm.result,
-          note: recheckForm.note,
-          checked_by: currentUser.id,
-        }),
-      })
+    const success = await submitRecheck(
+      currentRoll.id,
+      currentRoll.rework_executions[currentRoll.rework_executions.length - 1].id,
+      {
+        result: recheckForm.result,
+        note: recheckForm.note,
+        checked_by: currentUser.id,
+      }
+    )
+    if (success) {
       setShowRecheckForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleConfirmSubmit = async () => {
     if (!currentRoll || !currentUser) return
-    try {
-      await apiFetch('/api/confirm/request', {
-        method: 'POST',
-        body: JSON.stringify({
-          roll_id: currentRoll.id,
-          delivery_desc: confirmForm.delivery_desc,
-          operator_id: currentUser.id,
-        }),
-      })
+    const success = await requestConfirm(currentRoll.id, {
+      delivery_desc: confirmForm.delivery_desc,
+      operator_id: currentUser.id,
+    })
+    if (success) {
       setShowConfirmForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleConfirmResultSubmit = async () => {
     if (!currentRoll || !currentUser || currentRoll.confirm_requests.length === 0) return
-    try {
-      await apiFetch('/api/confirm/result', {
-        method: 'POST',
-        body: JSON.stringify({
-          request_id: currentRoll.confirm_requests[currentRoll.confirm_requests.length - 1].id,
-          roll_id: currentRoll.id,
-          result: confirmResultForm.result,
-          feedback: confirmResultForm.feedback,
-          operator_id: currentUser.id,
-        }),
-      })
+    const success = await submitConfirmResult(
+      currentRoll.id,
+      currentRoll.confirm_requests[currentRoll.confirm_requests.length - 1].id,
+      {
+        result: confirmResultForm.result,
+        feedback: confirmResultForm.feedback,
+        operator_id: currentUser.id,
+      }
+    )
+    if (success) {
       setShowConfirmResultForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
 
   const handleCompensateSubmit = async () => {
     if (!currentRoll || !currentUser || currentRoll.confirm_results.length === 0) return
-    try {
-      await apiFetch('/api/confirm/compensate', {
-        method: 'POST',
-        body: JSON.stringify({
-          confirm_result_id: currentRoll.confirm_results[currentRoll.confirm_results.length - 1].id,
-          roll_id: currentRoll.id,
-          amount: parseFloat(compensateForm.amount),
-          method: compensateForm.method,
-          reason: compensateForm.reason,
-          approved_by: currentUser.id,
-        }),
-      })
+    const success = await submitCompensation(
+      currentRoll.id,
+      currentRoll.confirm_results[currentRoll.confirm_results.length - 1].id,
+      {
+        amount: parseFloat(compensateForm.amount),
+        method: compensateForm.method,
+        reason: compensateForm.reason,
+        approved_by: currentUser.id,
+      }
+    )
+    if (success) {
       setShowCompensateForm(false)
-      fetchRollDetail(currentRoll.id)
-    } catch (e) {
-      console.error('操作失败:', e)
+    } else {
       alert('操作失败')
     }
   }
@@ -748,7 +711,7 @@ export default function RollDetail() {
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C4813D]/20"
                       >
                         <option value="satisfied">客户满意</option>
-                        <option value="compensate_required">要求赔偿</option>
+                        <option value="compensation">要求赔偿</option>
                       </select>
                     </div>
                     <div>

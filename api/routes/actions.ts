@@ -48,6 +48,37 @@ router.post('/', (req: Request, res: Response): void => {
   }
 })
 
+router.post('/develop', (req: Request, res: Response): void => {
+  try {
+    const db = getDb()
+    const { roll_id, operator_id, operator_role } = req.body
+
+    if (!roll_id || !operator_id) {
+      res.status(400).json({ success: false, error: '缺少必填字段' })
+      return
+    }
+
+    const tx = db.transaction(() => {
+      const id = uuidv4()
+      const now = new Date().toISOString()
+
+      db.prepare(`
+        INSERT INTO actions (id, roll_id, action_type, operator_id, operator_role, detail, created_at)
+        VALUES (?, ?, 'develop', ?, ?, '开始冲扫', ?)
+      `).run(id, roll_id, operator_id, operator_role || 'developer', now)
+
+      db.prepare('UPDATE film_rolls SET status = ? WHERE id = ?').run('developing', roll_id)
+
+      return db.prepare('SELECT * FROM actions WHERE id = ?').get(id)
+    })
+
+    const action = tx()
+    res.status(201).json({ success: true, data: action })
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message })
+  }
+})
+
 router.get('/calendar', (req: Request, res: Response): void => {
   try {
     const db = getDb()

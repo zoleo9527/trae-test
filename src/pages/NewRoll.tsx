@@ -27,7 +27,6 @@ export default function NewRoll() {
   const currentUser = useAuthStore((state) => state.currentUser)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    roll_number: '',
     customer_name: '',
     customer_contact: '',
     film_type: '',
@@ -38,7 +37,7 @@ export default function NewRoll() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.roll_number || !form.customer_name || !form.customer_contact || !form.film_type || !form.due_date) {
+    if (!form.customer_name || !form.customer_contact || !form.film_type || !form.due_date) {
       alert('请填写必填字段')
       return
     }
@@ -47,13 +46,15 @@ export default function NewRoll() {
     const success = await createRoll({
       ...form,
       assignee_id: currentUser?.id,
+      operator_id: currentUser?.id,
+      operator_role: currentUser?.role,
     })
     setLoading(false)
 
     if (success) {
       navigate('/rolls')
     } else {
-      alert('创建失败，请检查胶卷编号是否重复')
+      alert('创建失败，请重试')
     }
   }
 
@@ -71,30 +72,16 @@ export default function NewRoll() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 shadow-sm max-w-2xl">
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                胶卷编号 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.roll_number}
-                onChange={(e) => setForm({ ...form, roll_number: e.target.value })}
-                placeholder="例如：A-2024-001"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C4813D]/20 focus:border-[#C4813D]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                预计交付日期 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={form.due_date}
-                onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C4813D]/20 focus:border-[#C4813D]"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              预计交付日期 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={form.due_date}
+              onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#C4813D]/20 focus:border-[#C4813D]"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

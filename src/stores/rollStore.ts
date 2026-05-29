@@ -136,7 +136,7 @@ interface RollState {
   filters: RollFilters
   fetchRolls: () => Promise<void>
   fetchRollDetail: (id: string) => Promise<RollDetail | null>
-  createRoll: (data: Partial<FilmRoll>) => Promise<boolean>
+  createRoll: (data: Partial<FilmRoll> & { operator_id?: string; operator_role?: string }) => Promise<boolean>
   updateRoll: (id: string, data: Partial<FilmRoll>) => Promise<boolean>
   setFilter: (filters: Partial<RollFilters>) => void
   fetchRecentActions: (limit?: number) => Promise<ActionRecord[]>
@@ -198,7 +198,7 @@ export const useRollStore = create<RollState>((set, get) => ({
     }
   },
 
-  createRoll: async (data) => {
+  createRoll: async (data: Partial<FilmRoll> & { operator_id?: string; operator_role?: string }) => {
     try {
       await apiFetch<FilmRoll>('/api/rolls', {
         method: 'POST',

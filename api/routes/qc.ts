@@ -4,7 +4,7 @@ import { getDb } from '../db.js'
 
 const router = Router()
 
-router.post('/qc', (req: Request, res: Response): void => {
+router.post('/submit', (req: Request, res: Response): void => {
   try {
     const db = getDb()
     const { roll_id, result, issue_desc, impact_scope, operator_id } = req.body
@@ -43,7 +43,7 @@ router.post('/qc', (req: Request, res: Response): void => {
   }
 })
 
-router.post('/decision', (req: Request, res: Response): void => {
+router.post('/rework-decision', (req: Request, res: Response): void => {
   try {
     const db = getDb()
     const { qc_id, roll_id, decision, reason, decided_by } = req.body
@@ -86,7 +86,7 @@ router.post('/decision', (req: Request, res: Response): void => {
   }
 })
 
-router.post('/execute', (req: Request, res: Response): void => {
+router.post('/rework-execute', (req: Request, res: Response): void => {
   try {
     const db = getDb()
     const { decision_id, roll_id, action_detail, result, operator_id } = req.body
