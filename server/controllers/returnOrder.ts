@@ -9,6 +9,7 @@ import {
   getReturnOrderByInquiry,
   getReturnOrderList,
   addReturnOrderRemark,
+  addReturnOrderEvidence,
 } from '../services/returnOrder';
 import { QueryFilterDto } from '../types/dto';
 
@@ -56,4 +57,10 @@ export async function addReturnOrderRemarkController(req: Request, res: Response
   const { id } = req.params;
   const result = await addReturnOrderRemark(id as string, req.body, req.user, req);
   return sendSuccess(res, result, '备注添加成功');
+}
+
+export async function addReturnOrderEvidenceController(req: Request, res: Response) {
+  const { id } = req.params;
+  const result = await addReturnOrderEvidence(id as string, req.body, req.user, req);
+  return sendSuccess(res, result, '证据添加成功');
 }

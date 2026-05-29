@@ -8,6 +8,7 @@ import {
   ReturnItemInspectDto,
   QueryFilterDto,
   RemarkCreateDto,
+  EvidenceCreateDto,
 } from '../types/dto';
 import {
   ReturnStatus,
@@ -503,4 +504,41 @@ function getReturnOrderInclude(): any {
       },
     },
   } as const;
+}
+
+export async function addReturnOrderEvidence(
+  id: string,
+  dto: EvidenceCreateDto,
+  user: JwtPayload,
+  req?: Request
+) {
+  const returnOrder = await prisma.returnOrder.findUnique({ where: { id } });
+  if (!returnOrder) {
+    throw new BusinessError(ErrorCodes.NOT_FOUND, '退货单不存在');
+  }
+
+  const evidence = await prisma.evidence.create({
+    data: {
+      evidenceType: dto.evidenceType,
+      fileName: dto.fileName,
+      fileUrl: dto.fileUrl,
+      fileSize: dto.fileSize,
+      description: dto.description,
+      uploadedById: user.userId,
+      returnOrderId: id,
+    },
+  });
+
+  await createOperationLog(
+    user,
+    OperationType.ADD_REMARK,
+    {
+      inquiryId: returnOrder.inquiryId,
+      returnOrderId: id,
+      detail: { evidenceType: dto.evidenceType, fileName: dto.fileName },
+    },
+    req
+  );
+
+  return evidence;
 }

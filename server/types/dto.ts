@@ -64,7 +64,7 @@ export const InquiryCreateSchema = z.object({
   vinNo: z.string().optional(),
   expectedDate: z.string().optional(),
   isUrgent: z.boolean().default(false),
-  items: z.array(InquiryItemCreateSchema).min(1),
+  items: z.array(InquiryItemCreateSchema).optional(),
   idempotencyKey: z.string().optional(),
 });
 
@@ -245,6 +245,20 @@ export const StatusUpdateSchema = z.object({
 });
 
 export type StatusUpdateDto = z.infer<typeof StatusUpdateSchema>;
+
+// ==========================================
+// 证据 DTO
+// ==========================================
+
+export const EvidenceCreateSchema = z.object({
+  evidenceType: z.nativeEnum(EvidenceType),
+  fileName: z.string().min(1).max(200),
+  fileUrl: z.string().min(1),
+  fileSize: z.number().int().min(0).optional(),
+  description: z.string().max(500).optional(),
+});
+
+export type EvidenceCreateDto = z.infer<typeof EvidenceCreateSchema>;
 
 // ==========================================
 // 备注 DTO

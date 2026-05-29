@@ -848,17 +848,34 @@ function renderActionPanel(data, user) {
   const currentStatus = data.status;
   
   const actions = getAvailableActions(currentDocType, currentStatus, userRole);
+  const linkedButtons = renderLinkedCreateButtons(data, user);
   
-  if (actions.length === 0) return '';
+  if (actions.length === 0 && !linkedButtons) return '';
   
-  return `<div class="action-panel">
-    <h5>⚡ 可用操作</h5>
-    <div class="action-buttons">
-      ${actions.map(action => `
-        <button class="btn ${action.style}" onclick="executeAction('${action.key}', '${data.id}')">${action.label}</button>
-      `).join('')}
-    </div>
-    
+  let html = `<div class="action-panel">`;
+  
+  if (linkedButtons) {
+    html += `
+      <h5>🔗 关联操作</h5>
+      <div class="action-buttons">
+        ${linkedButtons}
+      </div>
+    `;
+  }
+  
+  if (actions.length > 0) {
+    html += `
+      ${linkedButtons ? '<div style="margin: 15px 0; border-top: 1px solid #c3d4ff;"></div>' : ''}
+      <h5>⚡ 状态操作</h5>
+      <div class="action-buttons">
+        ${actions.map(action => `
+          <button class="btn ${action.style}" onclick="executeAction('${action.key}', '${data.id}')">${action.label}</button>
+        `).join('')}
+      </div>
+    `;
+  }
+  
+  html += `
     <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #c3d4ff;">
       <div class="form-group">
         <label>添加备注（可选）</label>
@@ -869,6 +886,8 @@ function renderActionPanel(data, user) {
       </div>
     </div>
   </div>`;
+  
+  return html;
 }
 
 function getAvailableActions(docType, status, role) {
@@ -1078,6 +1097,9 @@ window.switchDetail = switchDetail;
 window.executeAction = executeAction;
 window.initLoginPage = initLoginPage;
 window.initListPage = initListPage;
+window.openCreateForm = openCreateForm;
+window.submitCreateForm = submitCreateForm;
+window.addEvidence = addEvidence;
 
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname;
@@ -1088,3 +1110,350 @@ document.addEventListener('DOMContentLoaded', () => {
     initListPage();
   }
 });
+
+const CREATE_CONFIG = {
+  inquiry: {
+    title: '新建询价单',
+    fields: [
+      { key: 'customerName', label: '客户名称', type: 'text', required: true, placeholder: '请输入客户名称' },
+      { key: 'customerPhone', label: '联系电话', type: 'text', required: true, placeholder: '请输入联系电话' },
+      { key: 'carModel', label: '车型', type: 'text', required: false, placeholder: '请输入车型' },
+      { key: 'vinNo', label: '车架号', type: 'text', required: false, placeholder: '请输入车架号（选填）' },
+      { key: 'plateNumber', label: '车牌号', type: 'text', required: false, placeholder: '请输入车牌号（选填）' },
+      { key: 'isCreditCustomer', label: '账期客户', type: 'checkbox', required: false },
+      { key: 'remark', label: '备注', type: 'textarea', required: false, placeholder: '请输入备注信息' },
+    ],
+  },
+  returnOrder: {
+    title: '新建退货单',
+    fields: [
+      { key: 'inquiryId', label: '关联询价单', type: 'select-inquiry', required: true, placeholder: '请选择关联询价单' },
+      { key: 'returnReason', label: '退货原因', type: 'select', required: true, options: [
+        { value: 'WRONG_PART', label: '配件型号错误' },
+        { value: 'QUALITY_ISSUE', label: '质量问题' },
+        { value: 'DAMAGED', label: '运输破损' },
+        { value: 'WRONG_DELIVERY', label: '错发漏发' },
+        { value: 'OTHER', label: '其他原因' },
+      ]},
+      { key: 'returnAmount', label: '退货金额', type: 'number', required: true, placeholder: '请输入退货金额' },
+      { key: 'remark', label: '退货说明', type: 'textarea', required: false, placeholder: '请输入详细说明' },
+    ],
+  },
+  stockLock: {
+    title: '创建锁库单',
+    fields: [
+      { key: 'inquiryId', label: '关联询价单', type: 'hidden', required: true },
+      { key: 'lockReason', label: '锁库原因', type: 'select', required: true, options: [
+        { value: 'CUSTOMER_ORDER', label: '客户订单' },
+        { value: 'RESERVATION', label: '库存预留' },
+        { value: 'URGENT', label: '紧急需求' },
+        { value: 'OTHER', label: '其他原因' },
+      ]},
+      { key: 'validDays', label: '有效天数', type: 'number', required: true, placeholder: '请输入锁库有效天数', default: 7 },
+      { key: 'warehouseNote', label: '仓库便签', type: 'textarea', required: false, placeholder: '请输入仓库备注信息' },
+    ],
+  },
+  refundOrder: {
+    title: '创建退款单',
+    fields: [
+      { key: 'returnOrderId', label: '关联退货单', type: 'hidden', required: true },
+      { key: 'refundAmount', label: '退款金额', type: 'number', required: true, placeholder: '请输入退款金额' },
+      { key: 'refundMethod', label: '退款方式', type: 'select', required: true, options: [
+        { value: 'ORIGINAL_PAYMENT', label: '原路退回' },
+        { value: 'BANK_TRANSFER', label: '银行转账' },
+        { value: 'CASH', label: '现金' },
+        { value: 'CREDIT', label: '抵扣下次消费' },
+      ]},
+      { key: 'bankAccount', label: '收款账户', type: 'text', required: false, placeholder: '银行转账时必填' },
+      { key: 'remark', label: '退款说明', type: 'textarea', required: false, placeholder: '请输入退款说明' },
+    ],
+  },
+};
+
+let createFormData = {};
+let createFormType = '';
+let linkedCreateData = null;
+
+function updatePageHeader() {
+  const config = DOC_TYPE_CONFIG[currentDocType];
+  document.getElementById('pageTitle').textContent = config.title + '列表';
+  document.getElementById('pageDesc').textContent = config.desc;
+  
+  const createBtn = document.getElementById('createBtn');
+  if (CREATE_CONFIG[currentDocType]) {
+    createBtn.style.display = 'inline-flex';
+    createBtn.onclick = () => openCreateForm(currentDocType);
+  } else {
+    createBtn.style.display = 'none';
+  }
+}
+
+function openCreateForm(type, linkedData = null) {
+  createFormType = type;
+  createFormData = {};
+  linkedCreateData = linkedData;
+  
+  const config = CREATE_CONFIG[type];
+  if (!config) return;
+  
+  let html = `<h3 style="margin-top: 0;">${config.title}</h3>`;
+  
+  config.fields.forEach(field => {
+    const value = linkedData?.[field.key] || createFormData[field.key] || field.default || '';
+    
+    if (field.type === 'hidden') {
+      html += `<input type="hidden" id="create-${field.key}" value="${value}">`;
+    } else if (field.type === 'textarea') {
+      html += `
+        <div class="form-group">
+          <label>${field.label}${field.required ? ' <span style="color: #e74c3c;">*</span>' : ''}</label>
+          <textarea id="create-${field.key}" rows="3" placeholder="${field.placeholder || ''}" 
+            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;">${value}</textarea>
+        </div>`;
+    } else if (field.type === 'checkbox') {
+      html += `
+        <div class="form-group">
+          <label style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="create-${field.key}" ${value ? 'checked' : ''}>
+            ${field.label}
+          </label>
+        </div>`;
+    } else if (field.type === 'select') {
+      html += `
+        <div class="form-group">
+          <label>${field.label}${field.required ? ' <span style="color: #e74c3c;">*</span>' : ''}</label>
+          <select id="create-${field.key}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            <option value="">请选择</option>
+            ${field.options.map(opt => `<option value="${opt.value}" ${value === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+          </select>
+        </div>`;
+    } else if (field.type === 'select-inquiry') {
+      html += `
+        <div class="form-group">
+          <label>${field.label}${field.required ? ' <span style="color: #e74c3c;">*</span>' : ''}</label>
+          <select id="create-${field.key}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+            <option value="">加载中...</option>
+          </select>
+        </div>`;
+    } else {
+      html += `
+        <div class="form-group">
+          <label>${field.label}${field.required ? ' <span style="color: #e74c3c;">*</span>' : ''}</label>
+          <input type="${field.type}" id="create-${field.key}" value="${value}" placeholder="${field.placeholder || ''}"
+            style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+        </div>`;
+    }
+  });
+  
+  html += `
+    <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="document.getElementById('detailModal').style.display = 'none';">取消</button>
+      <button class="btn btn-primary" onclick="submitCreateForm()">提交创建</button>
+    </div>`;
+  
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('detailModal').style.display = 'block';
+  
+  if (type === 'returnOrder') {
+    loadInquiryOptions();
+  }
+}
+
+async function loadInquiryOptions() {
+  try {
+    const data = await apiCall('/inquiries?pageSize=100&status=CONFIRMED', { method: 'GET' });
+    const select = document.getElementById('create-inquiryId');
+    if (select && data?.data) {
+      select.innerHTML = '<option value="">请选择询价单</option>' + 
+        data.data.map(inq => `<option value="${inq.id}">${inq.inquiryNo} - ${inq.customerName}</option>`).join('');
+    }
+  } catch (e) {
+    console.error('Load inquiry options failed:', e);
+  }
+}
+
+function validateCreateForm() {
+  const config = CREATE_CONFIG[createFormType];
+  if (!config) return false;
+  
+  let isValid = true;
+  createFormData = {};
+  
+  config.fields.forEach(field => {
+    const el = document.getElementById(`create-${field.key}`);
+    if (el) {
+      let value;
+      if (field.type === 'checkbox') {
+        value = el.checked;
+      } else {
+        value = el.value.trim();
+      }
+
+      if (field.required && !value) {
+        if (field.type !== 'hidden') {
+          el.style.borderColor = '#e74c3c';
+        }
+        isValid = false;
+      } else {
+        if (field.type !== 'hidden') {
+          el.style.borderColor = '';
+        }
+      }
+
+      createFormData[field.key] = value;
+    }
+  });
+  
+  if (!isValid) {
+    showToast('请填写必填字段');
+  }
+  
+  return isValid;
+}
+
+async function submitCreateForm() {
+  if (!validateCreateForm()) return;
+  
+  try {
+    const endpointMap = {
+      inquiry: '/inquiries',
+      returnOrder: '/return-orders',
+      stockLock: '/stock-locks',
+      refundOrder: '/refund-orders',
+    };
+    
+    const endpoint = endpointMap[createFormType];
+    if (!endpoint) throw new Error('未知单据类型');
+    
+    if (linkedCreateData) {
+      Object.assign(createFormData, linkedCreateData);
+    }
+    
+    if (createFormType === 'inquiry') {
+      delete createFormData.items;
+    }
+    
+    if (createFormType === 'returnOrder' && !createFormData.items) {
+      createFormData.items = [];
+    }
+    
+    if (createFormType === 'stockLock' && !createFormData.items) {
+      createFormData.items = [];
+    }
+    
+    if (createFormType === 'refundOrder') {
+      if (!createFormData.actualRefundAmount) {
+        createFormData.actualRefundAmount = createFormData.refundAmount;
+      }
+      if (!createFormData.isCreditCustomer) {
+        createFormData.isCreditCustomer = false;
+      }
+    }
+    
+    await apiCall(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(createFormData),
+      headers: { 'X-Idempotency-Key': 'create-' + Date.now() },
+    });
+    
+    showToast('创建成功');
+    document.getElementById('detailModal').style.display = 'none';
+    
+    if (linkedCreateData) {
+      currentDocType = createFormType;
+      document.querySelectorAll('.nav-item').forEach(i => {
+        i.classList.toggle('active', i.dataset.type === createFormType);
+      });
+      updatePageHeader();
+      updateStatusFilter();
+    }
+    
+    currentPage = 1;
+    loadData();
+  } catch (e) {
+    console.error('Create failed:', e);
+  }
+}
+
+function renderLinkedCreateButtons(data, user) {
+  let buttons = '';
+  
+  if (currentDocType === 'inquiry') {
+    if (data.status === 'CONFIRMED' && !data.stockLock) {
+      buttons += `<button class="btn btn-primary" onclick="openCreateForm('stockLock', { inquiryId: '${data.id}' })">🔒 创建锁库单</button>`;
+    }
+  }
+  
+  if (currentDocType === 'returnOrder') {
+    if (data.status === 'APPROVED' && !data.refundOrder) {
+      buttons += `<button class="btn btn-success" onclick="openCreateForm('refundOrder', { returnOrderId: '${data.id}' })">💰 创建退款单</button>`;
+    }
+    if (data.status === 'REWORK' || data.status === 'IDENTIFYING') {
+      buttons += `<button class="btn btn-secondary" onclick="openAddEvidence('${data.id}')">📎 补充证据</button>`;
+    }
+  }
+  
+  return buttons;
+}
+
+function openAddEvidence(returnOrderId) {
+  const html = `
+    <h3 style="margin-top: 0;">补充退货证据</h3>
+    <div class="form-group">
+      <label>证据类型 <span style="color: #e74c3c;">*</span></label>
+      <select id="evidence-type" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+        <option value="PHOTO">照片凭证</option>
+        <option value="RECEIPT">收货单据</option>
+        <option value="CHAT_RECORD">聊天记录</option>
+        <option value="INVOICE">发票凭证</option>
+        <option value="INSPECTION_REPORT">检测报告</option>
+        <option value="OTHER">其他凭证</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>文件名称 <span style="color: #e74c3c;">*</span></label>
+      <input type="text" id="evidence-fileName" placeholder="请输入文件名称"
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+    </div>
+    <div class="form-group">
+      <label>文件链接 <span style="color: #e74c3c;">*</span></label>
+      <input type="text" id="evidence-fileUrl" placeholder="请输入文件访问链接"
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+    </div>
+    <div class="form-group">
+      <label>证据说明</label>
+      <textarea id="evidence-description" rows="3" placeholder="请输入证据说明（选填）"
+        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+    </div>
+    <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="document.getElementById('detailModal').style.display = 'none';">取消</button>
+      <button class="btn btn-primary" onclick="addEvidence('${returnOrderId}')">提交证据</button>
+    </div>`;
+  
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('detailModal').style.display = 'block';
+}
+
+async function addEvidence(returnOrderId) {
+  const evidenceType = document.getElementById('evidence-type').value;
+  const fileName = document.getElementById('evidence-fileName').value.trim();
+  const fileUrl = document.getElementById('evidence-fileUrl').value.trim();
+  const description = document.getElementById('evidence-description').value.trim();
+  
+  if (!evidenceType || !fileName || !fileUrl) {
+    showToast('请填写必填字段');
+    return;
+  }
+  
+  try {
+    await apiCall(`/return-orders/${returnOrderId}/evidences`, {
+      method: 'POST',
+      body: JSON.stringify({ evidenceType, fileName, fileUrl, description }),
+    });
+    
+    showToast('证据补充成功');
+    showDetail(returnOrderId);
+  } catch (e) {
+    console.error('Add evidence failed:', e);
+  }
+}

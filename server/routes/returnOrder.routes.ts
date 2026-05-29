@@ -8,6 +8,7 @@ import {
   getReturnOrderByInquiryController,
   getReturnOrderListController,
   addReturnOrderRemarkController,
+  addReturnOrderEvidenceController,
 } from '../controllers/returnOrder';
 import { authenticate, requirePermission } from '../middleware/auth';
 import { idempotency } from '../middleware/idempotency';
@@ -19,6 +20,7 @@ import {
   StatusUpdateSchema,
   ReturnItemInspectSchema,
   RemarkAddSchema,
+  EvidenceCreateSchema,
   QueryFilterSchema,
 } from '../types/dto';
 
@@ -34,5 +36,6 @@ router.put('/:id', requirePermission(OperationType.UPDATE), validate(ReturnOrder
 router.patch('/:id/status', validate(StatusUpdateSchema), updateReturnOrderStatusController);
 router.patch('/:id/items/:itemId/inspect', requirePermission(OperationType.INSPECT), validate(ReturnItemInspectSchema), inspectReturnItemController);
 router.post('/:id/remarks', requirePermission(OperationType.ADD_REMARK), validate(RemarkAddSchema), addReturnOrderRemarkController);
+router.post('/:id/evidences', requirePermission(OperationType.ADD_REMARK), validate(EvidenceCreateSchema), addReturnOrderEvidenceController);
 
 export default router;

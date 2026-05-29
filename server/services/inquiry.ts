@@ -55,8 +55,9 @@ export async function createInquiry(
   req?: Request
 ): Promise<any> {
   const idempotencyKey = dto.idempotencyKey || (req as unknown as Record<string, unknown>).idempotencyKey as string;
+  const items = dto.items || [];
 
-  const totalAmount = dto.items.reduce((sum, item) => {
+  const totalAmount = items.reduce((sum, item) => {
     return sum + (item.quotedPrice || 0) * item.quantity;
   }, 0);
 
@@ -73,8 +74,8 @@ export async function createInquiry(
       isUrgent: dto.isUrgent,
       createdById: user.userId,
       idempotencyKey,
-      items: {
-        create: dto.items.map(item => ({
+      items: items.length > 0 ? {
+        create: items.map(item => ({
           partId: item.partId,
           partName: item.partName,
           partCode: item.partCode,
@@ -82,7 +83,7 @@ export async function createInquiry(
           quotedPrice: item.quotedPrice,
           remark: item.remark,
         })),
-      },
+      } : undefined,
     },
     include: getInquiryInclude(),
   });
@@ -93,7 +94,7 @@ export async function createInquiry(
     {
       inquiryId: inquiry.id,
       newStatus: inquiry.status,
-      detail: { customerName: dto.customerName, itemCount: dto.items.length },
+      detail: { customerName: dto.customerName, itemCount: items.length },
     },
     req
   );
