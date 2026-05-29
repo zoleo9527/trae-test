@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { api, appealTypeMap } from '$lib/api';
-	import { user } from '$lib/stores/auth';
+	import { api, appealTypeMap, statusMap } from '$lib/api';
+	import { user, rolePermissions } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
 
 	let orderId = $page.url.searchParams.get('order_id') || '';
@@ -15,12 +15,23 @@
 	};
 
 	let orders = [];
+	let filteredOrders = [];
 	let loading = false;
 	let error = '';
 	let selectedOrder = null;
 
+	$: permissions = $user ? rolePermissions[$user.role] : null;
+	$: canAppealStatuses = permissions ? permissions.canAppealStatuses : [];
+
 	async function loadOrders() {
 		orders = await api.getOrders();
+		filteredOrders = orders.filter(o => {
+			if (o.appeal) return false;
+			if (!canAppealStatuses.includes(o.status)) return false;
+			if ($user?.role === 'runner' && o.runner?.id !== $user?.id) return false;
+			if ($user?.role === 'customer_service' && !['timeout', 'appealing'].includes(o.status)) return false;
+			return true;
+		});
 		if (orderId) {
 			appeal.order_id = parseInt(orderId);
 			onOrderChange();
@@ -81,10 +92,13 @@
 					required
 				>
 					<option value={0}>选择订单</option>
-					{#each orders as order}
-						<option value={order.id}>{order.order_no} - {order.merchant_name}</option>
+					{#each filteredOrders as order}
+						<option value={order.id}>{order.order_no} - {order.merchant_name} ({statusMap[order.status]?.label || order.status})</option>
 					{/each}
 				</select>
+				{#if filteredOrders.length === 0}
+					<p class="mt-2 text-sm text-gray-500">当前没有可申诉的订单</p>
+				{/if}
 			</div>
 
 			<div>

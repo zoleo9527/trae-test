@@ -53,6 +53,9 @@ func GetCurrentUser(c *fiber.Ctx) error {
 
 func GetOrders(c *fiber.Ctx) error {
 	status := c.Query("status")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var orders []models.Order
 
 	query := database.DB.Preload("Runner").Preload("Appeal").Preload("Subsidy")
@@ -61,16 +64,34 @@ func GetOrders(c *fiber.Ctx) error {
 		query = query.Where("status = ?", status)
 	}
 
+	switch userRole {
+	case "runner":
+		query = query.Where("runner_id = ?", uint(userID))
+	case "customer_service":
+		query = query.Where("status IN ?", []string{"timeout", "appealing"})
+	}
+
 	query.Order("id desc").Find(&orders)
 	return c.JSON(orders)
 }
 
 func GetOrder(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var order models.Order
 
 	if err := database.DB.Preload("Runner").Preload("Appeal").Preload("Subsidy").First(&order, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if userRole == "runner" && order.RunnerID != nil && *order.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单"})
+	}
+
+	if userRole == "customer_service" && order.Status != "timeout" && order.Status != "appealing" {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单"})
 	}
 
 	return c.JSON(order)
@@ -156,10 +177,16 @@ func UpdateOrderStatus(c *fiber.Ctx) error {
 
 func PickupOrder(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var order models.Order
 
 	if err := database.DB.First(&order, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作该订单"})
 	}
 
 	order.Status = "delivering"
@@ -176,10 +203,16 @@ func PickupOrder(c *fiber.Ctx) error {
 
 func DeliverOrder(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var order models.Order
 
 	if err := database.DB.First(&order, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作该订单"})
 	}
 
 	order.Status = "delivered"
@@ -196,6 +229,9 @@ func DeliverOrder(c *fiber.Ctx) error {
 
 func GetAppeals(c *fiber.Ctx) error {
 	status := c.Query("status")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var appeals []models.Appeal
 
 	query := database.DB.Preload("Order").Preload("Runner").Preload("Reviewer").Preload("Subsidy")
@@ -204,32 +240,78 @@ func GetAppeals(c *fiber.Ctx) error {
 		query = query.Where("status = ?", status)
 	}
 
+	switch userRole {
+	case "runner":
+		query = query.Where("runner_id = ?", uint(userID))
+	case "customer_service":
+		query = query.Joins("JOIN orders ON orders.id = appeals.order_id").
+			Where("orders.status IN ?", []string{"timeout", "appealing"})
+	}
+
 	query.Order("id desc").Find(&appeals)
 	return c.JSON(appeals)
 }
 
 func GetAppeal(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var appeal models.Appeal
 
 	if err := database.DB.Preload("Order").Preload("Runner").Preload("Reviewer").Preload("Subsidy").First(&appeal, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "申诉不存在"})
 	}
 
+	if userRole == "runner" && appeal.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该申诉"})
+	}
+
+	if userRole == "customer_service" && appeal.Order.Status != "timeout" && appeal.Order.Status != "appealing" {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该申诉"})
+	}
+
 	return c.JSON(appeal)
 }
 
 func CreateAppeal(c *fiber.Ctx) error {
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	var appeal models.Appeal
 	if err := c.BodyParser(&appeal); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "请求参数错误"})
 	}
 
+	var order models.Order
+	if err := database.DB.First(&order, appeal.OrderID).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if userRole == "runner" {
+		if order.RunnerID == nil || *order.RunnerID != uint(userID) {
+			return c.Status(403).JSON(fiber.Map{"error": "只能对本人订单发起申诉"})
+		}
+		if order.Status != "delivering" && order.Status != "timeout" {
+			return c.Status(400).JSON(fiber.Map{"error": "该订单状态不允许申诉"})
+		}
+		appeal.RunnerID = *order.RunnerID
+	}
+
+	if userRole == "customer_service" {
+		if order.Status != "timeout" && order.Status != "appealing" {
+			return c.Status(400).JSON(fiber.Map{"error": "只能对超时或申诉中的订单发起申诉"})
+		}
+		if order.RunnerID == nil {
+			return c.Status(400).JSON(fiber.Map{"error": "该订单未分配骑手，无法申诉"})
+		}
+		appeal.RunnerID = *order.RunnerID
+	}
+
 	appeal.Status = "pending"
 	database.DB.Create(&appeal)
 
-	var order models.Order
-	database.DB.First(&order, appeal.OrderID)
 	order.Status = "appealing"
 	database.DB.Save(&order)
 
@@ -308,6 +390,9 @@ func ReviewAppeal(c *fiber.Ctx) error {
 
 func GetSubsidies(c *fiber.Ctx) error {
 	status := c.Query("status")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var subsidies []models.Subsidy
 
 	query := database.DB.Preload("Order").Preload("Runner").Preload("Appeal")
@@ -316,16 +401,35 @@ func GetSubsidies(c *fiber.Ctx) error {
 		query = query.Where("status = ?", status)
 	}
 
+	switch userRole {
+	case "runner":
+		query = query.Where("runner_id = ?", uint(userID))
+	case "customer_service":
+		query = query.Joins("JOIN orders ON orders.id = subsidies.order_id").
+			Where("orders.status IN ?", []string{"timeout", "appealing", "resolved"})
+	}
+
 	query.Order("id desc").Find(&subsidies)
 	return c.JSON(subsidies)
 }
 
 func GetSubsidy(c *fiber.Ctx) error {
 	id := c.Params("id")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
 	var subsidy models.Subsidy
 
 	if err := database.DB.Preload("Order").Preload("Runner").Preload("Appeal").First(&subsidy, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "补贴不存在"})
+	}
+
+	if userRole == "runner" && subsidy.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该补贴"})
+	}
+
+	if userRole == "customer_service" && subsidy.Order.Status != "timeout" && subsidy.Order.Status != "appealing" && subsidy.Order.Status != "resolved" {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该补贴"})
 	}
 
 	return c.JSON(subsidy)
@@ -374,6 +478,23 @@ func GetRunners(c *fiber.Ctx) error {
 
 func GetOrderTimeline(c *fiber.Ctx) error {
 	orderId := c.Params("orderId")
+	userRole := c.Locals("userRole").(string)
+	userIDStr := c.Locals("userID").(string)
+	userID, _ := strconv.Atoi(userIDStr)
+
+	var order models.Order
+	if err := database.DB.First(&order, orderId).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "订单不存在"})
+	}
+
+	if userRole == "runner" && order.RunnerID != nil && *order.RunnerID != uint(userID) {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单时间线"})
+	}
+
+	if userRole == "customer_service" && order.Status != "timeout" && order.Status != "appealing" && order.Status != "resolved" {
+		return c.Status(403).JSON(fiber.Map{"error": "无权查看该订单时间线"})
+	}
+
 	var events []models.TimelineEvent
 	database.DB.Where("order_id = ?", orderId).Order("created_at asc").Find(&events)
 	return c.JSON(events)

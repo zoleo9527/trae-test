@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { user } from '$lib/stores/auth';
 
 	let subsidies = [];
 	let selectedSubsidy = null;
@@ -29,7 +30,13 @@
 	<div class="bg-white rounded-xl shadow-sm">
 		<div class="p-4 border-b border-gray-200 flex items-center justify-between">
 			<div class="flex items-center space-x-4">
-				<h2 class="text-lg font-semibold">补贴管理</h2>
+				<h2 class="text-lg font-semibold">
+					{#if $user?.role === 'runner'}
+						我的补贴
+					{:else}
+						补贴管理
+					{/if}
+				</h2>
 				<select
 					bind:value={filterStatus}
 					class="px-3 py-2 border border-gray-300 rounded-lg text-sm"

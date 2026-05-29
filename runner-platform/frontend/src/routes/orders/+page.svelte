@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, statusMap } from '$lib/api';
-	import { user } from '$lib/stores/auth';
+	import { user, rolePermissions } from '$lib/stores/auth';
 
 	let orders = [];
 	let selectedOrder = null;
@@ -12,6 +12,10 @@
 	let showCreateModal = false;
 	let runners = [];
 	let selectedRunner = 0;
+
+	$: permissions = $user ? rolePermissions[$user.role] : null;
+	$: visibleStatusOptions = permissions ? permissions.visibleStatuses : [];
+	$: canAppealStatuses = permissions ? permissions.canAppealStatuses : [];
 
 	async function loadOrders() {
 		loading = true;
@@ -97,18 +101,26 @@
 	<div class="w-1/2 border-r border-gray-200 flex flex-col bg-white">
 		<div class="p-4 border-b border-gray-200 flex items-center justify-between">
 			<div class="flex items-center space-x-4">
-				<h2 class="text-lg font-semibold">订单列表</h2>
+				<h2 class="text-lg font-semibold">
+					{#if $user?.role === 'runner'}
+						我的订单
+					{:else if $user?.role === 'customer_service'}
+						异常订单
+					{:else}
+						订单列表
+					{/if}
+				</h2>
 				<select
 					bind:value={filterStatus}
 					class="px-3 py-2 border border-gray-300 rounded-lg text-sm"
 				>
 					<option value="">全部状态</option>
-					{#each Object.entries(statusMap) as [key, val]}
-						<option value={key}>{val.label}</option>
+					{#each visibleStatusOptions as key}
+						<option value={key}>{statusMap[key]?.label || key}</option>
 					{/each}
 				</select>
 			</div>
-			{#if $user?.role === 'manager' || $user?.role === 'dispatcher'}
+			{#if permissions?.canCreateOrder}
 				<button
 					on:click={() => showCreateModal = true}
 					class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -175,7 +187,7 @@
 						</span>
 					</div>
 					<div class="flex space-x-2">
-						{#if $user?.role === 'dispatcher' && selectedOrder.status === 'pending'}
+						{#if permissions?.canAssignOrder && selectedOrder.status === 'pending'}
 							<button
 								on:click={() => showAssignModal = true}
 								class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -200,7 +212,7 @@
 							</button>
 						{/if}
 						{#if ($user?.role === 'runner' || $user?.role === 'customer_service') && 
-							(selectedOrder.status === 'timeout' || selectedOrder.status === 'delivering')}
+							canAppealStatuses.includes(selectedOrder.status) && !selectedOrder.appeal}
 							<a
 								href="/appeals/new?order_id={selectedOrder.id}"
 								class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"

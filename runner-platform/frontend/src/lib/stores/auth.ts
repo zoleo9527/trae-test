@@ -39,3 +39,55 @@ export const roleNames: Record<string, string> = {
 	customer_service: '客服',
 	runner: '骑手'
 };
+
+export const rolePermissions: Record<string, {
+	canViewAllOrders: boolean;
+	canViewAllAppeals: boolean;
+	canViewAllSubsidies: boolean;
+	canCreateOrder: boolean;
+	canAssignOrder: boolean;
+	canReviewAppeal: boolean;
+	visibleStatuses: string[];
+	canAppealStatuses: string[];
+}> = {
+	manager: {
+		canViewAllOrders: true,
+		canViewAllAppeals: true,
+		canViewAllSubsidies: true,
+		canCreateOrder: true,
+		canAssignOrder: false,
+		canReviewAppeal: true,
+		visibleStatuses: ['pending', 'assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved', 'cancelled'],
+		canAppealStatuses: ['delivering', 'timeout', 'appealing']
+	},
+	dispatcher: {
+		canViewAllOrders: true,
+		canViewAllAppeals: true,
+		canViewAllSubsidies: true,
+		canCreateOrder: true,
+		canAssignOrder: true,
+		canReviewAppeal: false,
+		visibleStatuses: ['pending', 'assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved', 'cancelled'],
+		canAppealStatuses: ['delivering', 'timeout', 'appealing']
+	},
+	customer_service: {
+		canViewAllOrders: false,
+		canViewAllAppeals: false,
+		canViewAllSubsidies: false,
+		canCreateOrder: false,
+		canAssignOrder: false,
+		canReviewAppeal: false,
+		visibleStatuses: ['timeout', 'appealing', 'resolved'],
+		canAppealStatuses: ['timeout', 'appealing']
+	},
+	runner: {
+		canViewAllOrders: false,
+		canViewAllAppeals: false,
+		canViewAllSubsidies: false,
+		canCreateOrder: false,
+		canAssignOrder: false,
+		canReviewAppeal: false,
+		visibleStatuses: ['assigned', 'picked_up', 'delivering', 'delivered', 'timeout', 'appealing', 'resolved'],
+		canAppealStatuses: ['delivering', 'timeout']
+	}
+};

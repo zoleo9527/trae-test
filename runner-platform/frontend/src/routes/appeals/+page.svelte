@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, statusMap, appealTypeMap } from '$lib/api';
-	import { user } from '$lib/stores/auth';
+	import { user, rolePermissions } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
 
 	let appeals = [];
@@ -9,6 +9,8 @@
 	let filterStatus = '';
 	let loading = false;
 	let timeline = [];
+
+	$: permissions = $user ? rolePermissions[$user.role] : null;
 
 	async function loadAppeals() {
 		loading = true;
@@ -64,7 +66,13 @@
 	<div class="w-1/2 border-r border-gray-200 flex flex-col bg-white">
 		<div class="p-4 border-b border-gray-200 flex items-center justify-between">
 			<div class="flex items-center space-x-4">
-				<h2 class="text-lg font-semibold">申诉列表</h2>
+				<h2 class="text-lg font-semibold">
+					{#if $user?.role === 'runner'}
+						我的申诉
+					{:else}
+						申诉处理
+					{/if}
+				</h2>
 				<select
 					bind:value={filterStatus}
 					class="px-3 py-2 border border-gray-300 rounded-lg text-sm"
