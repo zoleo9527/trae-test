@@ -57,7 +57,7 @@ export const useMemberStore = defineStore('member', () => {
     )
   }
 
-  const addPoints = (memberId: string, amount: number, source: string, remark: string, operator: User) => {
+  const addPoints = (memberId: string, amount: number, source: string, remark: string, operator: User, orderNo?: string) => {
     const member = members.value.find(m => m.id === memberId)
     if (!member) return false
 
@@ -72,7 +72,89 @@ export const useMemberStore = defineStore('member', () => {
       amount,
       balance: member.availablePoints,
       source: source as any,
+      orderNo,
       remark,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    pointsRecords.value.unshift(record)
+    return true
+  }
+
+  const freezePoints = (memberId: string, amount: number, remark: string, operator: User, orderNo?: string) => {
+    const member = members.value.find(m => m.id === memberId)
+    if (!member) return false
+    if (member.availablePoints < amount) return false
+
+    member.availablePoints -= amount
+    member.frozenPoints += amount
+
+    const record: PointsRecord = {
+      id: `PR${Date.now()}`,
+      memberId,
+      memberName: member.name,
+      type: 'adjust',
+      amount: 0,
+      balance: member.availablePoints,
+      source: 'adjust',
+      orderNo,
+      remark: `${remark}，冻结${amount}积分`,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    pointsRecords.value.unshift(record)
+    return true
+  }
+
+  const deductFrozenPoints = (memberId: string, amount: number, remark: string, operator: User, orderNo?: string) => {
+    const member = members.value.find(m => m.id === memberId)
+    if (!member) return false
+    if (member.frozenPoints < amount) return false
+
+    member.totalPoints -= amount
+    member.frozenPoints -= amount
+
+    const record: PointsRecord = {
+      id: `PR${Date.now()}`,
+      memberId,
+      memberName: member.name,
+      type: 'spend',
+      amount: -amount,
+      balance: member.availablePoints,
+      source: 'exchange',
+      orderNo,
+      remark,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    pointsRecords.value.unshift(record)
+    return true
+  }
+
+  const unfreezePoints = (memberId: string, amount: number, remark: string, operator: User, orderNo?: string) => {
+    const member = members.value.find(m => m.id === memberId)
+    if (!member) return false
+    if (member.frozenPoints < amount) return false
+
+    member.availablePoints += amount
+    member.frozenPoints -= amount
+
+    const record: PointsRecord = {
+      id: `PR${Date.now()}`,
+      memberId,
+      memberName: member.name,
+      type: 'adjust',
+      amount: 0,
+      balance: member.availablePoints,
+      source: 'adjust',
+      orderNo,
+      remark: `${remark}，解冻${amount}积分`,
       operatorId: operator.id,
       operatorName: operator.name,
       storeId: operator.storeId || 'S001',
@@ -87,7 +169,10 @@ export const useMemberStore = defineStore('member', () => {
     pointsRecords,
     getMemberById,
     getMemberPointsRecords,
-    addPoints
+    addPoints,
+    freezePoints,
+    deductFrozenPoints,
+    unfreezePoints
   }
 })
 
@@ -119,6 +204,90 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
+  const lockStock = (productId: string, quantity: number, remark: string, operator: User, relatedOrderNo?: string) => {
+    const product = products.value.find(p => p.id === productId)
+    if (!product) return false
+    if (product.availableStock < quantity) return false
+
+    const beforeAvailable = product.availableStock
+    product.availableStock -= quantity
+    product.lockedStock += quantity
+
+    const log: InventoryLog = {
+      id: `IL${Date.now()}`,
+      productId,
+      productName: product.name,
+      type: 'lock',
+      quantity,
+      beforeStock: beforeAvailable,
+      afterStock: product.availableStock,
+      relatedOrderNo,
+      remark,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    inventoryLogs.value.unshift(log)
+    return true
+  }
+
+  const unlockStock = (productId: string, quantity: number, remark: string, operator: User, relatedOrderNo?: string) => {
+    const product = products.value.find(p => p.id === productId)
+    if (!product) return false
+    if (product.lockedStock < quantity) return false
+
+    const beforeAvailable = product.availableStock
+    product.availableStock += quantity
+    product.lockedStock -= quantity
+
+    const log: InventoryLog = {
+      id: `IL${Date.now()}`,
+      productId,
+      productName: product.name,
+      type: 'unlock',
+      quantity,
+      beforeStock: beforeAvailable,
+      afterStock: product.availableStock,
+      relatedOrderNo,
+      remark,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    inventoryLogs.value.unshift(log)
+    return true
+  }
+
+  const deductLockedStock = (productId: string, quantity: number, remark: string, operator: User, relatedOrderNo?: string) => {
+    const product = products.value.find(p => p.id === productId)
+    if (!product) return false
+    if (product.lockedStock < quantity) return false
+
+    const beforeStock = product.stock
+    product.stock -= quantity
+    product.lockedStock -= quantity
+
+    const log: InventoryLog = {
+      id: `IL${Date.now()}`,
+      productId,
+      productName: product.name,
+      type: 'out',
+      quantity,
+      beforeStock,
+      afterStock: product.stock,
+      relatedOrderNo,
+      remark,
+      operatorId: operator.id,
+      operatorName: operator.name,
+      storeId: operator.storeId || 'S001',
+      createTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }
+    inventoryLogs.value.unshift(log)
+    return true
+  }
+
   const adjustStock = (productId: string, quantity: number, type: string, remark: string, operator: User) => {
     const product = products.value.find(p => p.id === productId)
     if (!product) return false
@@ -130,6 +299,9 @@ export const useProductStore = defineStore('product', () => {
     } else if (type === 'out') {
       product.stock -= quantity
       product.availableStock -= quantity
+    } else if (type === 'adjust') {
+      product.stock = quantity
+      product.availableStock = quantity - product.lockedStock
     }
 
     const log: InventoryLog = {
@@ -150,6 +322,31 @@ export const useProductStore = defineStore('product', () => {
     return true
   }
 
+  const syncCoBrandedProduct = (productId: string, operator: User) => {
+    const product = products.value.find(p => p.id === productId)
+    if (!product || !product.isCoBranded) return false
+
+    product.syncStatus = 'pending'
+    product.lastSyncTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+
+    setTimeout(() => {
+      const success = Math.random() > 0.3
+      if (success) {
+        product.syncStatus = 'synced'
+        const newStock = Math.floor(Math.random() * 50) + 20
+        product.stock = newStock
+        product.availableStock = newStock - product.lockedStock
+        product.status = 'on_shelf'
+      } else {
+        product.syncStatus = 'failed'
+      }
+      product.lastSyncTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+      product.updateTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
+    }, 2000)
+
+    return true
+  }
+
   return {
     products,
     inventoryLogs,
@@ -158,11 +355,17 @@ export const useProductStore = defineStore('product', () => {
     syncFailedProducts,
     getProductById,
     updateProductStatus,
-    adjustStock
+    lockStock,
+    unlockStock,
+    deductLockedStock,
+    adjustStock,
+    syncCoBrandedProduct
   }
 })
 
 export const useOrderStore = defineStore('order', () => {
+  const memberStore = useMemberStore()
+  const productStore = useProductStore()
   const orders = ref<ExchangeOrder[]>([...mockExchangeOrders])
   const inspectionIssues = ref<InspectionIssue[]>([...mockInspectionIssues])
 
@@ -192,7 +395,40 @@ export const useOrderStore = defineStore('order', () => {
 
   const createOrder = (member: Member, product: Product, quantity: number, operator: User) => {
     const totalPoints = product.pointsRequired * quantity
-    
+
+    if (member.availablePoints < totalPoints) {
+      return { success: false, message: '会员可用积分不足' }
+    }
+
+    if (product.availableStock < quantity) {
+      return { success: false, message: '商品可用库存不足' }
+    }
+
+    const pointsFrozen = memberStore.freezePoints(
+      member.id, 
+      totalPoints, 
+      `兑换${product.name}`, 
+      operator
+    )
+    if (!pointsFrozen) {
+      return { success: false, message: '积分冻结失败' }
+    }
+
+    const stockLocked = productStore.lockStock(
+      product.id, 
+      quantity, 
+      `订单锁定库存`, 
+      operator
+    )
+    if (!stockLocked) {
+      memberStore.unfreezePoints(member.id, totalPoints, '库存锁定失败，回滚积分', operator)
+      return { success: false, message: '库存锁定失败' }
+    }
+
+    const isAbnormal = product.isCoBranded && product.syncStatus === 'failed'
+    const abnormalType = isAbnormal ? 'sync_failed' as const : undefined
+    const abnormalRemark = isAbnormal ? '联名商品同步失败，需企划专员处理' : undefined
+
     const order: ExchangeOrder = {
       id: `O${Date.now()}`,
       orderNo: generateOrderNo(),
@@ -209,88 +445,180 @@ export const useOrderStore = defineStore('order', () => {
       storeId: operator.storeId || 'S001',
       storeName: '文创旗舰店',
       applyTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      currentHandler: RoleEnum.STORE_MANAGER,
-      isAbnormal: product.availableStock < quantity,
-      abnormalType: product.availableStock < quantity ? 'stock_mismatch' : undefined,
-      abnormalRemark: product.availableStock < quantity ? '库存不足，需确认' : undefined
+      currentHandler: isAbnormal ? RoleEnum.PLANNER : RoleEnum.STORE_MANAGER,
+      isAbnormal,
+      abnormalType,
+      abnormalRemark
     }
     
     orders.value.unshift(order)
-    return order
+    return { success: true, order }
   }
 
   const confirmOrder = (orderId: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order || order.status !== OrderStatusEnum.PENDING) return false
+    if (!order || order.status !== OrderStatusEnum.PENDING) {
+      return { success: false, message: '订单状态不正确' }
+    }
+
+    if (order.isAbnormal) {
+      return { success: false, message: '异常订单需先由企划专员解除异常' }
+    }
+
+    const product = productStore.getProductById(order.productId)
+    if (product?.isCoBranded && product.syncStatus === 'failed') {
+      order.isAbnormal = true
+      order.abnormalType = 'sync_failed'
+      order.abnormalRemark = '联名商品同步失败，需企划专员处理'
+      order.currentHandler = RoleEnum.PLANNER
+      return { success: false, message: '联名商品同步失败，已转企划专员处理' }
+    }
 
     order.status = OrderStatusEnum.CONFIRMED
     order.confirmTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.confirmBy = operator.name
     order.currentHandler = RoleEnum.WAREHOUSE
-    order.isAbnormal = false
-    order.abnormalType = undefined
-    order.abnormalRemark = undefined
 
-    return true
+    return { success: true }
   }
 
   const shipOrder = (orderId: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order || order.status !== OrderStatusEnum.CONFIRMED) return false
+    if (!order || order.status !== OrderStatusEnum.CONFIRMED) {
+      return { success: false, message: '订单状态不正确' }
+    }
+
+    if (order.isAbnormal) {
+      return { success: false, message: '异常订单需先解除异常' }
+    }
+
+    const stockDeducted = productStore.deductLockedStock(
+      order.productId,
+      order.quantity,
+      `兑换发货出库`,
+      operator,
+      order.orderNo
+    )
+    if (!stockDeducted) {
+      return { success: false, message: '库存扣减失败' }
+    }
 
     order.status = OrderStatusEnum.SHIPPED
     order.shipTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.shipBy = operator.name
     order.currentHandler = RoleEnum.STORE_MANAGER
 
-    return true
+    return { success: true }
   }
 
   const deliverOrder = (orderId: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order || order.status !== OrderStatusEnum.SHIPPED) return false
+    if (!order || order.status !== OrderStatusEnum.SHIPPED) {
+      return { success: false, message: '订单状态不正确' }
+    }
 
     order.status = OrderStatusEnum.DELIVERED
     order.deliverTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.currentHandler = RoleEnum.STORE_MANAGER
     order.verifyCode = generateVerifyCode()
 
-    return true
+    return { success: true }
   }
 
   const verifyOrder = (orderId: string, verifyCode: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order || order.status !== OrderStatusEnum.DELIVERED) return false
-    if (order.verifyCode !== verifyCode) return false
+    if (!order || order.status !== OrderStatusEnum.DELIVERED) {
+      return { success: false, message: '订单状态不正确' }
+    }
+    if (order.verifyCode !== verifyCode) {
+      return { success: false, message: '核销码错误' }
+    }
+
+    const pointsDeducted = memberStore.deductFrozenPoints(
+      order.memberId,
+      order.totalPoints,
+      `兑换${order.productName}`,
+      operator,
+      order.orderNo
+    )
+    if (!pointsDeducted) {
+      return { success: false, message: '积分扣减失败' }
+    }
 
     order.status = OrderStatusEnum.VERIFIED
     order.verifyTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.verifyBy = operator.name
+    order.currentHandler = RoleEnum.STORE_MANAGER
 
-    return true
+    const member = memberStore.getMemberById(order.memberId)
+    if (member) {
+      member.lastConsumeDate = dayjs().format('YYYY-MM-DD')
+    }
+
+    return { success: true }
   }
 
   const cancelOrder = (orderId: string, reason: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order) return false
+    if (!order) return { success: false, message: '订单不存在' }
+
+    if (order.status === OrderStatusEnum.PENDING || order.status === OrderStatusEnum.CONFIRMED) {
+      memberStore.unfreezePoints(
+        order.memberId,
+        order.totalPoints,
+        `订单取消：${reason}`,
+        operator,
+        order.orderNo
+      )
+      productStore.unlockStock(
+        order.productId,
+        order.quantity,
+        `订单取消：${reason}`,
+        operator,
+        order.orderNo
+      )
+    }
 
     order.status = OrderStatusEnum.CANCELLED
     order.cancelTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.cancelBy = operator.name
     order.cancelReason = reason
 
-    return true
+    return { success: true }
   }
 
-  const markAbnormal = (orderId: string, type: string, remark: string) => {
+  const markAbnormal = (orderId: string, type: string, remark: string, handler?: UserRole) => {
     const order = orders.value.find(o => o.id === orderId)
-    if (!order) return false
+    if (!order) return { success: false, message: '订单不存在' }
 
     order.isAbnormal = true
     order.abnormalType = type as any
     order.abnormalRemark = remark
+    if (handler) {
+      order.currentHandler = handler
+    }
 
-    return true
+    return { success: true }
+  }
+
+  const resolveAbnormal = (orderId: string, remark: string, operator: User) => {
+    const order = orders.value.find(o => o.id === orderId)
+    if (!order) return { success: false, message: '订单不存在' }
+
+    order.isAbnormal = false
+    order.abnormalType = undefined
+    order.abnormalRemark = undefined
+    order.remark = `${order.remark || ''} 异常已解除：${remark}，处理人：${operator.name}`
+
+    const statusMap: Record<string, UserRole> = {
+      [OrderStatusEnum.PENDING]: RoleEnum.STORE_MANAGER,
+      [OrderStatusEnum.CONFIRMED]: RoleEnum.WAREHOUSE,
+      [OrderStatusEnum.SHIPPED]: RoleEnum.STORE_MANAGER,
+      [OrderStatusEnum.DELIVERED]: RoleEnum.STORE_MANAGER
+    }
+    order.currentHandler = statusMap[order.status] || RoleEnum.PLANNER
+
+    return { success: true }
   }
 
   const getIssuesByStore = (storeId?: string) => {
@@ -322,30 +650,31 @@ export const useOrderStore = defineStore('order', () => {
     verifyOrder,
     cancelOrder,
     markAbnormal,
+    resolveAbnormal,
     getIssuesByStore,
     getMyPendingIssues
   }
 })
 
 export const useDashboardStore = defineStore('dashboard', () => {
-  const getStats = () => {
-    const memberStore = useMemberStore()
-    const orderStore = useOrderStore()
-    const productStore = useProductStore()
+  const memberStore = useMemberStore()
+  const orderStore = useOrderStore()
+  const productStore = useProductStore()
 
+  const stats = computed(() => {
     return {
       totalMembers: memberStore.members.length,
       totalPoints: memberStore.members.reduce((sum, m) => sum + m.totalPoints, 0),
       todayExchanges: orderStore.orders.filter(o => 
         dayjs(o.applyTime).isSame(dayjs(), 'day')
       ).length,
-      pendingOrders: orderStore.pendingOrders.value.length,
-      abnormalOrders: orderStore.abnormalOrders.value.length,
+      pendingOrders: orderStore.pendingOrders.length,
+      abnormalOrders: orderStore.abnormalOrders.length,
       stockWarnings: productStore.products.filter(p => 
         p.availableStock < 10 || p.syncStatus === 'failed'
       ).length
     }
-  }
+  })
 
   const getPointsTrend = () => {
     return [
@@ -370,8 +699,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   return {
-    getStats,
+    stats,
     getPointsTrend,
     getExchangeByCategory
   }
 })
+

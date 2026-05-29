@@ -167,9 +167,18 @@ const adjustForm = ref({
 })
 
 const shipOrder = (order: any) => {
-  if (authStore.currentUser) {
-    orderStore.shipOrder(order.id, authStore.currentUser)
-    ElMessage.success('已发货')
+  if (!authStore.currentUser) return
+  
+  if (order.isAbnormal) {
+    ElMessage.error('该订单存在异常，请先由企划专员解除异常')
+    return
+  }
+  
+  const result = orderStore.shipOrder(order.id, authStore.currentUser)
+  if (result.success) {
+    ElMessage.success('已发货，库存已扣减')
+  } else {
+    ElMessage.error(result.message || '发货失败')
   }
 }
 

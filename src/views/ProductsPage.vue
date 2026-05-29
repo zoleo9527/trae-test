@@ -117,10 +117,26 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.syncStatus === 'failed'" type="danger" size="small" link @click="retrySync(row)">
+            <el-button 
+              v-if="row.syncStatus === 'failed'" 
+              type="danger" 
+              size="small" 
+              link 
+              @click="retrySync(row)"
+              :loading="syncingProducts.has(row.id)"
+            >
               重试同步
+            </el-button>
+            <el-button 
+              v-if="isPlanner && row.availableStock < 10 && row.stock > 0" 
+              type="warning" 
+              size="small" 
+              link 
+              @click="handleStockAdjust(row)"
+            >
+              库存调整
             </el-button>
             <template v-if="isPlanner">
               <el-button v-if="row.status === 'pending'" type="primary" size="small" link @click="handleOnShelf(row)">
@@ -137,6 +153,29 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="showStockDialog" title="库存调整" width="400px">
+      <el-alert 
+        v-if="selectedProduct"
+        :title="`当前总库存：${selectedProduct.stock}，可用库存：${selectedProduct.availableStock}，锁定库存：${selectedProduct.lockedStock}`"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 15px;"
+      />
+      <el-form :model="stockForm" label-width="80px">
+        <el-form-item label="调整后库存">
+          <el-input-number v-model="stockForm.quantity" :min="0" :max="1000" />
+        </el-form-item>
+        <el-form-item label="调整原因">
+          <el-input v-model="stockForm.remark" type="textarea" :rows="3" placeholder="请输入调整原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showStockDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmStockAdjust">确认调整</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="showDetail" title="商品详情" width="600px">
       <div v-if="selectedProduct" class="product-detail">
@@ -194,11 +233,12 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { useAuthStore, useProductStore } from '@/stores'
+import { useAuthStore, useProductStore, useOrderStore } from '@/stores'
 import { ProductStatusLabels, ProductStatus, type Product } from '@/types'
 
 const authStore = useAuthStore()
 const productStore = useProductStore()
+const orderStore = useOrderStore()
 
 const products = computed(() => productStore.products)
 const onShelfCount = computed(() => products.value.filter(p => p.status === ProductStatus.ON_SHELF).length)
@@ -210,7 +250,10 @@ const isPlanner = computed(() => authStore.isPlanner)
 const searchKeyword = ref('')
 const filterStatus = ref('')
 const showDetail = ref(false)
+const showStockDialog = ref(false)
 const selectedProduct = ref<Product | null>(null)
+const syncingProducts = ref<Set<string>>(new Set())
+const stockForm = ref({ quantity: 0, remark: '' })
 
 const filteredProducts = computed(() => {
   let list = products.value
@@ -258,15 +301,38 @@ const filterSyncFailed = () => {
 }
 
 const retrySync = (product: Product) => {
-  ElMessage.info(`正在重试同步 ${product.name}...`)
-  setTimeout(() => {
-    const p = productStore.products.find(item => item.id === product.id)
-    if (p) {
-      p.syncStatus = 'synced'
-      p.lastSyncTime = new Date().toLocaleString()
-      ElMessage.success(`${product.name} 同步成功`)
-    }
-  }, 1500)
+  const user = authStore.currentUser
+  if (!user) return
+
+  syncingProducts.value.add(product.id)
+  const result = productStore.syncCoBrandedProduct(product.id, user)
+  
+  if (result) {
+    ElMessage.info(`正在同步 ${product.name}...`)
+    setTimeout(() => {
+      syncingProducts.value.delete(product.id)
+      const p = productStore.products.find(item => item.id === product.id)
+      if (p) {
+        if (p.syncStatus === 'synced') {
+          ElMessage.success(`${product.name} 同步成功`)
+          const relatedOrders = orderStore.orders.filter(
+            o => o.productId === product.id && o.isAbnormal && o.abnormalType === 'sync_failed'
+          )
+          relatedOrders.forEach(order => {
+            orderStore.resolveAbnormal(order.id, '联名商品同步成功，异常解除', user)
+          })
+          if (relatedOrders.length > 0) {
+            ElMessage.info(`已自动解除 ${relatedOrders.length} 个关联订单的异常`)
+          }
+        } else {
+          ElMessage.error(`${product.name} 同步失败，请重试`)
+        }
+      }
+    }, 2500)
+  } else {
+    syncingProducts.value.delete(product.id)
+    ElMessage.error('同步操作失败')
+  }
 }
 
 const handleOnShelf = (product: Product) => {
@@ -282,6 +348,49 @@ const handleOffShelf = (product: Product) => {
 const viewDetail = (product: Product) => {
   selectedProduct.value = product
   showDetail.value = true
+}
+
+const handleStockAdjust = (product: Product) => {
+  selectedProduct.value = product
+  stockForm.value = { quantity: product.stock, remark: '' }
+  showStockDialog.value = true
+}
+
+const confirmStockAdjust = () => {
+  const user = authStore.currentUser
+  if (!selectedProduct.value || !user) return
+  if (!stockForm.value.remark) {
+    ElMessage.warning('请填写调整原因')
+    return
+  }
+
+  const result = productStore.adjustStock(
+    selectedProduct.value.id,
+    stockForm.value.quantity,
+    'adjust',
+    stockForm.value.remark,
+    user
+  )
+
+  if (result) {
+    ElMessage.success('库存调整成功')
+    
+    if (stockForm.value.quantity > 0) {
+      const relatedOrders = orderStore.orders.filter(
+        o => o.productId === selectedProduct.value?.id && o.isAbnormal && o.abnormalType === 'stock_mismatch'
+      )
+      relatedOrders.forEach(order => {
+        orderStore.resolveAbnormal(order.id, `库存已调整至 ${stockForm.value.quantity}，异常解除`, user)
+      })
+      if (relatedOrders.length > 0) {
+        ElMessage.info(`已自动解除 ${relatedOrders.length} 个关联订单的异常`)
+      }
+    }
+    
+    showStockDialog.value = false
+  } else {
+    ElMessage.error('库存调整失败')
+  }
 }
 </script>
 

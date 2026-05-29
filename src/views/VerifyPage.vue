@@ -149,11 +149,21 @@ const handleQuickVerify = () => {
       verifying.value = false
       return
     }
+
+    if (order.isAbnormal) {
+      ElMessage.error('该订单存在异常，请先联系企划专员处理')
+      verifying.value = false
+      return
+    }
     
     if (authStore.currentUser) {
-      orderStore.verifyOrder(order.id, verifyCode.value.toUpperCase(), authStore.currentUser)
-      ElMessage.success('核销成功！')
-      verifyCode.value = ''
+      const result = orderStore.verifyOrder(order.id, verifyCode.value.toUpperCase(), authStore.currentUser)
+      if (result.success) {
+        ElMessage.success('核销成功！积分已扣减')
+        verifyCode.value = ''
+      } else {
+        ElMessage.error(result.message || '核销失败')
+      }
     }
     verifying.value = false
   }, 500)
@@ -161,9 +171,15 @@ const handleQuickVerify = () => {
 
 const verifyOrder = (order: any) => {
   if (authStore.currentUser && order.verifyCode) {
-    const success = orderStore.verifyOrder(order.id, order.verifyCode, authStore.currentUser)
-    if (success) {
-      ElMessage.success('核销成功！')
+    if (order.isAbnormal) {
+      ElMessage.error('该订单存在异常，请先联系企划专员处理')
+      return
+    }
+    const result = orderStore.verifyOrder(order.id, order.verifyCode, authStore.currentUser)
+    if (result.success) {
+      ElMessage.success('核销成功！积分已扣减')
+    } else {
+      ElMessage.error(result.message || '核销失败')
     }
   }
 }

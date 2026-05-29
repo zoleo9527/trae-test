@@ -271,15 +271,19 @@ const submitPoints = () => {
 const confirmExchange = (product: Product & { quantity: number }) => {
   if (!selectedMember.value || !authStore.currentUser) return
 
-  const order = orderStore.createOrder(
+  const result = orderStore.createOrder(
     selectedMember.value,
     product,
     product.quantity || 1,
     authStore.currentUser
   )
 
-  ElMessage.success(`兑换申请已提交，订单号: ${order.orderNo}`)
-  showExchange.value = false
+  if (result.success && result.order) {
+    ElMessage.success(`兑换申请已提交，订单号: ${result.order.orderNo}，积分已冻结`)
+    showExchange.value = false
+  } else {
+    ElMessage.error(result.message || '兑换申请失败')
+  }
 }
 </script>
 

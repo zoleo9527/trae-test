@@ -203,7 +203,7 @@ const dashboardStore = useDashboardStore()
 const trendChartRef = ref()
 const pieChartRef = ref()
 
-const stats = computed(() => dashboardStore.getStats())
+const stats = computed(() => dashboardStore.stats)
 
 const businessFlowWithStatus = computed(() => {
   const flow = JSON.parse(JSON.stringify(BusinessFlow))
@@ -274,7 +274,7 @@ const warnings = computed(() => {
     })
   }
   
-  const abnormal = orderStore.abnormalOrders.value
+  const abnormal = orderStore.abnormalOrders
   if (abnormal.length > 0) {
     list.push({
       id: 'abnormal',
