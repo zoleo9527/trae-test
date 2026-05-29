@@ -40,6 +40,16 @@ export default function Loading() {
       if (activeTab !== '全部') params.status = activeTab;
       const res = await api.get('/loading', { params });
       setLoadingList(res.data);
+    } catch (err) {
+      console.error(err);
+      message.error('获取装车记录失败');
+    }
+    setLoading(false);
+  };
+
+  const fetchPendingLoadingOrderIds = async () => {
+    try {
+      const res = await api.get('/loading');
       const occupiedIds = new Set(
         res.data
           .filter(item => item.status !== '已复核' && item.status !== '异常')
@@ -48,9 +58,7 @@ export default function Loading() {
       setExistingLoadingOrderIds(occupiedIds);
     } catch (err) {
       console.error(err);
-      message.error('获取装车记录失败');
     }
-    setLoading(false);
   };
 
   const fetchCompletedOrders = async () => {
@@ -68,6 +76,7 @@ export default function Loading() {
 
   useEffect(() => {
     fetchCompletedOrders();
+    fetchPendingLoadingOrderIds();
   }, []);
 
   const handleCreate = async () => {
@@ -87,6 +96,7 @@ export default function Loading() {
       setCreateModalOpen(false);
       createForm.resetFields();
       fetchLoadingList();
+      fetchPendingLoadingOrderIds();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -130,6 +140,7 @@ export default function Loading() {
       setFillModalOpen(false);
       fillForm.resetFields();
       fetchLoadingList();
+      fetchPendingLoadingOrderIds();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -143,6 +154,7 @@ export default function Loading() {
       await api.put(`/loading/${id}/verify`);
       message.success('复核确认成功');
       fetchLoadingList();
+      fetchPendingLoadingOrderIds();
     } catch (err) {
       console.error(err);
       const detail = err.response?.data?.detail;

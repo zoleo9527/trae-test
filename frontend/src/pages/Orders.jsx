@@ -21,6 +21,7 @@ const statusTabs = [
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [plots, setPlots] = useState([]);
+  const [pendingOrderPlotIds, setPendingOrderPlotIds] = useState(new Set());
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('全部');
   const [modalOpen, setModalOpen] = useState(false);
@@ -55,12 +56,27 @@ export default function Orders() {
     }
   };
 
+  const fetchPendingOrderPlotIds = async () => {
+    try {
+      const res = await api.get('/orders');
+      const pendingPlotIds = new Set(
+        res.data
+          .filter(o => o.status !== '已完成')
+          .map(o => o.plot_id)
+      );
+      setPendingOrderPlotIds(pendingPlotIds);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
   }, [activeTab]);
 
   useEffect(() => {
     fetchPlots();
+    fetchPendingOrderPlotIds();
   }, []);
 
   const handleCreate = async () => {
@@ -82,6 +98,7 @@ export default function Orders() {
       form.resetFields();
       fetchOrders();
       fetchPlots();
+      fetchPendingOrderPlotIds();
     } catch (err) {
       if (err.response) {
         console.error(err);
@@ -145,7 +162,9 @@ export default function Orders() {
     }
   };
 
-  const availablePlots = plots.filter(p => p.status !== '已起苗' && p.available_count > 0);
+  const availablePlots = plots.filter(
+    p => p.status !== '已起苗' && p.available_count > 0 && !pendingOrderPlotIds.has(p.id)
+  );
 
   const handlePlotChange = (plotId) => {
     const selectedPlot = plots.find(p => p.id === plotId);
