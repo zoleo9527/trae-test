@@ -1,0 +1,16 @@
+{
+    "name": "nursery-system",
+    "version": "1.0.0",
+    "description": "苗木基地养护巡查与病害上报系统",
+    "private": true,
+    "scripts": {
+        "install:all": "cd api && npm install && cd ../web && npm install",
+        "dev:api": "cd api && npm run start:dev",
+        "dev:web": "cd web && npm run dev",
+        "seed": "cd api && npm run seed",
+        "build:api": "cd api && npm run build",
+        "build:web": "cd web && npm run build",
+        "typecheck:api": "cd api && npm run typecheck",
+        "typecheck:web": "cd web && npm run typecheck"
+    }
+}
