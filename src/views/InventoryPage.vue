@@ -170,7 +170,7 @@ const shipOrder = (order: any) => {
   if (!authStore.currentUser) return
   
   if (order.isAbnormal) {
-    ElMessage.error('该订单存在异常，请先由企划专员解除异常')
+    ElMessage.error('该订单存在异常，需先由企划专员解除异常')
     return
   }
   

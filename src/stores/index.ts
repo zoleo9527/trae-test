@@ -461,6 +461,10 @@ export const useOrderStore = defineStore('order', () => {
       return { success: false, message: '订单状态不正确' }
     }
 
+    if (operator.storeId && order.storeId !== operator.storeId) {
+      return { success: false, message: '无权处理其他门店的订单' }
+    }
+
     if (order.isAbnormal) {
       return { success: false, message: '异常订单需先由企划专员解除异常' }
     }
@@ -517,6 +521,14 @@ export const useOrderStore = defineStore('order', () => {
       return { success: false, message: '订单状态不正确' }
     }
 
+    if (operator.storeId && order.storeId !== operator.storeId) {
+      return { success: false, message: '无权处理其他门店的订单' }
+    }
+
+    if (order.isAbnormal) {
+      return { success: false, message: '异常订单需先由企划专员解除异常' }
+    }
+
     order.status = OrderStatusEnum.DELIVERED
     order.deliverTime = dayjs().format('YYYY-MM-DD HH:mm:ss')
     order.currentHandler = RoleEnum.STORE_MANAGER
@@ -530,6 +542,15 @@ export const useOrderStore = defineStore('order', () => {
     if (!order || order.status !== OrderStatusEnum.DELIVERED) {
       return { success: false, message: '订单状态不正确' }
     }
+
+    if (operator.storeId && order.storeId !== operator.storeId) {
+      return { success: false, message: '无权核销其他门店的订单' }
+    }
+
+    if (order.isAbnormal) {
+      return { success: false, message: '异常订单需先由企划专员解除异常' }
+    }
+
     if (order.verifyCode !== verifyCode) {
       return { success: false, message: '核销码错误' }
     }
@@ -561,6 +582,10 @@ export const useOrderStore = defineStore('order', () => {
   const cancelOrder = (orderId: string, reason: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return { success: false, message: '订单不存在' }
+
+    if (operator.storeId && order.storeId !== operator.storeId && operator.role === RoleEnum.STORE_MANAGER) {
+      return { success: false, message: '无权取消其他门店的订单' }
+    }
 
     if (order.status === OrderStatusEnum.PENDING || order.status === OrderStatusEnum.CONFIRMED) {
       memberStore.unfreezePoints(
@@ -604,6 +629,22 @@ export const useOrderStore = defineStore('order', () => {
   const resolveAbnormal = (orderId: string, remark: string, operator: User) => {
     const order = orders.value.find(o => o.id === orderId)
     if (!order) return { success: false, message: '订单不存在' }
+
+    if (order.abnormalType === 'stock_mismatch') {
+      const product = productStore.getProductById(order.productId)
+      if (!product) return { success: false, message: '关联商品不存在' }
+      if (product.availableStock < order.quantity) {
+        return { success: false, message: `库存未补足，当前可用库存${product.availableStock}，订单需求${order.quantity}，请先在商品页调整库存` }
+      }
+    }
+
+    if (order.abnormalType === 'sync_failed') {
+      const product = productStore.getProductById(order.productId)
+      if (!product) return { success: false, message: '关联商品不存在' }
+      if (product.syncStatus !== 'synced') {
+        return { success: false, message: '联名商品尚未同步成功，请先在商品页完成同步后再解除异常' }
+      }
+    }
 
     order.isAbnormal = false
     order.abnormalType = undefined

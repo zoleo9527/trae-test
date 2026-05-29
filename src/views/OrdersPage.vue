@@ -142,7 +142,7 @@ const canHandle = (order: ExchangeOrder) => {
   }
   
   if (user.role === UserRole.STORE_MANAGER) {
-    return (order.status === 'pending' || order.status === 'delivered') && 
+    return (order.status === 'pending' || order.status === 'shipped' || order.status === 'delivered') && 
            order.storeId === user.storeId
   }
   
@@ -152,6 +152,7 @@ const canHandle = (order: ExchangeOrder) => {
 const getActionText = (order: ExchangeOrder) => {
   if (order.status === 'pending') return '确认订单'
   if (order.status === 'confirmed') return '发货'
+  if (order.status === 'shipped') return '确认收货'
   if (order.status === 'delivered') return '核销'
   return '处理'
 }
@@ -161,12 +162,20 @@ const handleAction = (order: ExchangeOrder) => {
   if (!user) return
   
   if (order.status === 'pending') {
-    orderStore.confirmOrder(order.id, user)
-    ElMessage.success('订单已确认')
+    const result = orderStore.confirmOrder(order.id, user)
+    if (result.success) {
+      ElMessage.success('订单已确认')
+    } else {
+      ElMessage.error(result.message || '操作失败')
+    }
   } else if (order.status === 'confirmed') {
-    orderStore.shipOrder(order.id, user)
-    ElMessage.success('已发货')
-  } else if (order.status === 'delivered') {
+    const result = orderStore.shipOrder(order.id, user)
+    if (result.success) {
+      ElMessage.success('已发货，库存已扣减')
+    } else {
+      ElMessage.error(result.message || '发货失败')
+    }
+  } else if (order.status === 'shipped' || order.status === 'delivered') {
     goToDetail(order.id)
   }
 }

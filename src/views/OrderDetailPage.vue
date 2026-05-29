@@ -250,10 +250,31 @@
         show-icon
         style="margin-bottom: 15px;"
       />
+
+      <el-alert 
+        v-if="order?.abnormalType === 'stock_mismatch'"
+        :title="`库存未补足：当前可用 ${resolveCheckInfo.availableStock}，订单需求 ${resolveCheckInfo.requiredStock}`"
+        description="请先前往商品页调整库存，补足后再解除异常"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 15px;"
+      />
+
+      <el-alert 
+        v-if="order?.abnormalType === 'sync_failed'"
+        :title="resolveCheckInfo.syncStatusText"
+        description="请先前往商品页完成联名商品库存同步，同步成功后再解除异常"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 15px;"
+      />
+
       <el-form :model="resolveForm" label-width="80px">
         <el-form-item label="处理方案">
           <el-radio-group v-model="resolveForm.action">
-            <el-radio label="resolve">解除异常，继续流转</el-radio>
+            <el-radio label="resolve" :disabled="!canResolveAbnormal">解除异常，继续流转</el-radio>
             <el-radio label="cancel">取消订单</el-radio>
           </el-radio-group>
         </el-form-item>
@@ -263,7 +284,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showResolveDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleResolve">确认处理</el-button>
+        <el-button type="primary" @click="handleResolve" :disabled="resolveForm.action === 'resolve' && !canResolveAbnormal">确认处理</el-button>
       </template>
     </el-dialog>
   </div>
@@ -390,9 +411,45 @@ const canResolve = computed(() => {
          order.value?.isAbnormal
 })
 
+const canResolveAbnormal = computed(() => {
+  if (!order.value || !product.value) return false
+  if (order.value.abnormalType === 'stock_mismatch') {
+    return product.value.availableStock >= order.value.quantity
+  }
+  if (order.value.abnormalType === 'sync_failed') {
+    return product.value.syncStatus === 'synced'
+  }
+  return true
+})
+
+const resolveCheckInfo = computed(() => {
+  const info: Record<string, any> = {
+    availableStock: 0,
+    requiredStock: 0,
+    syncStatusText: ''
+  }
+  if (order.value && product.value) {
+    info.availableStock = product.value.availableStock
+    info.requiredStock = order.value.quantity
+    if (order.value.abnormalType === 'sync_failed') {
+      const statusMap: Record<string, string> = {
+        'synced': '已同步',
+        'failed': '同步失败',
+        'pending': '同步中',
+        'not_synced': '未同步'
+      }
+      info.syncStatusText = `联名商品同步状态：${statusMap[product.value.syncStatus || 'not_synced'] || '未知'}`
+    }
+  }
+  return info
+})
+
 const canCancel = computed(() => {
-  return order.value && 
-         ['pending', 'confirmed'].includes(order.value.status)
+  const user = authStore.currentUser
+  if (!order.value || !user) return false
+  if (!['pending', 'confirmed'].includes(order.value.status)) return false
+  if (user.role === UserRole.STORE_MANAGER && order.value.storeId !== user.storeId) return false
+  return true
 })
 
 const canSync = computed(() => {

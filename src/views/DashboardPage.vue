@@ -246,10 +246,13 @@ const myPendingOrders = computed(() => {
       return o.status === 'confirmed'
     }
     if (user.role === UserRole.STORE_MANAGER) {
-      return (o.status === 'pending' || o.status === 'delivered') && 
+      return (o.status === 'pending' || o.status === 'shipped' || o.status === 'delivered') && 
              o.storeId === user.storeId
     }
-    return o.isAbnormal
+    if (user.role === UserRole.PLANNER) {
+      return o.isAbnormal
+    }
+    return false
   }).slice(0, 5)
 })
 

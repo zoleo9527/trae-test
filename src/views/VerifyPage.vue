@@ -58,9 +58,21 @@
                 <el-tag type="success" size="small">{{ row.verifyCode }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.isAbnormal" type="danger" size="small">异常</el-tag>
+                <el-tag v-else type="success" size="small">正常</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
-                <el-button type="primary" size="small" link @click="verifyOrder(row)">
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  link 
+                  @click="verifyOrder(row)"
+                  :disabled="row.isAbnormal"
+                >
                   核销
                 </el-button>
               </template>
@@ -155,32 +167,50 @@ const handleQuickVerify = () => {
       verifying.value = false
       return
     }
+
+    const user = authStore.currentUser
+    if (!user) {
+      ElMessage.error('请先登录')
+      verifying.value = false
+      return
+    }
+
+    if (user.storeId && order.storeId !== user.storeId) {
+      ElMessage.error('该订单属于其他门店，无权核销')
+      verifying.value = false
+      return
+    }
     
-    if (authStore.currentUser) {
-      const result = orderStore.verifyOrder(order.id, verifyCode.value.toUpperCase(), authStore.currentUser)
-      if (result.success) {
-        ElMessage.success('核销成功！积分已扣减')
-        verifyCode.value = ''
-      } else {
-        ElMessage.error(result.message || '核销失败')
-      }
+    const result = orderStore.verifyOrder(order.id, verifyCode.value.toUpperCase(), user)
+    if (result.success) {
+      ElMessage.success('核销成功！积分已扣减')
+      verifyCode.value = ''
+    } else {
+      ElMessage.error(result.message || '核销失败')
     }
     verifying.value = false
   }, 500)
 }
 
 const verifyOrder = (order: any) => {
-  if (authStore.currentUser && order.verifyCode) {
-    if (order.isAbnormal) {
-      ElMessage.error('该订单存在异常，请先联系企划专员处理')
-      return
-    }
-    const result = orderStore.verifyOrder(order.id, order.verifyCode, authStore.currentUser)
-    if (result.success) {
-      ElMessage.success('核销成功！积分已扣减')
-    } else {
-      ElMessage.error(result.message || '核销失败')
-    }
+  const user = authStore.currentUser
+  if (!user || !order.verifyCode) return
+
+  if (order.isAbnormal) {
+    ElMessage.error('该订单存在异常，请先联系企划专员处理')
+    return
+  }
+
+  if (user.storeId && order.storeId !== user.storeId) {
+    ElMessage.error('该订单属于其他门店，无权核销')
+    return
+  }
+
+  const result = orderStore.verifyOrder(order.id, order.verifyCode, user)
+  if (result.success) {
+    ElMessage.success('核销成功！积分已扣减')
+  } else {
+    ElMessage.error(result.message || '核销失败')
   }
 }
 </script>
