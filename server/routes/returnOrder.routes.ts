@@ -26,7 +26,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', requirePermission(OperationType.EXPORT), validate(QueryFilterSchema), getReturnOrderListController);
+router.get('/', validate(QueryFilterSchema), getReturnOrderListController);
 router.post('/', requirePermission(OperationType.CREATE), idempotency, validate(ReturnOrderCreateSchema), createReturnOrderController);
 router.get('/:id', getReturnOrderController);
 router.get('/inquiry/:inquiryId', getReturnOrderByInquiryController);

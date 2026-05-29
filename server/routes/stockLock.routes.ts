@@ -24,7 +24,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', requirePermission(OperationType.EXPORT), validate(QueryFilterSchema), getStockLockListController);
+router.get('/', validate(QueryFilterSchema), getStockLockListController);
 router.post('/', requirePermission(OperationType.LOCK), idempotency, validate(StockLockCreateSchema), createStockLockController);
 router.get('/:id', getStockLockController);
 router.get('/inquiry/:inquiryId', getStockLockByInquiryController);

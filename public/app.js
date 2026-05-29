@@ -11,8 +11,8 @@ const InquiryStatusLabel = {
   PENDING: '待报价',
   QUOTED: '已报价',
   CONFIRMED: '已确认',
-  REJECTED: '已拒绝',
-  CLOSED: '已关闭',
+  CANCELLED: '已取消',
+  COMPLETED: '已完成',
 };
 
 const StockLockStatusLabel = {
@@ -28,28 +28,31 @@ const ReturnStatusLabel = {
   REWORK: '需补录',
   APPROVED: '鉴定通过',
   REJECTED: '鉴定驳回',
-  CLOSED: '已结案',
+  COMPLETED: '退货完成',
 };
 
 const RefundStatusLabel = {
   PENDING_REVIEW: '待复核',
   REVIEWING: '复核中',
-  APPROVED: '审批通过',
-  REJECTED: '审批驳回',
+  APPROVED: '复核通过',
+  REJECTED: '复核驳回',
   PAID: '已打款',
   FAILED: '打款失败',
-  CLOSED: '已结案',
+  COMPLETED: '退款完成',
 };
 
 const OperationTypeLabel = {
   CREATE: '创建',
   UPDATE: '编辑',
   UPDATE_STATUS: '状态变更',
+  SUBMIT: '提交',
   APPROVE: '审批通过',
   REJECT: '审批驳回',
+  REWORK: '退回补录',
+  CANCEL: '取消',
   LOCK: '锁库',
   UNLOCK: '释放库存',
-  IDENTIFY: '退货鉴定',
+  INSPECT: '验货',
   PAY: '打款',
   ADD_REMARK: '添加备注',
   UPLOAD_EVIDENCE: '上传凭证',
@@ -57,14 +60,35 @@ const OperationTypeLabel = {
 };
 
 const ExceptionTypeLabel = {
-  WRONG_MODEL: '型号错误',
+  WRONG_PART: '型号错误',
   NO_EVIDENCE: '退货无据',
   PAYMENT_DELAY: '回款拖欠',
   PRICE_DISPUTE: '价格争议',
   QUALITY_ISSUE: '质量问题',
-  LOST_DAMAGED: '丢失损坏',
+  LOST_DAMAGE: '丢失损坏',
   OTHER: '其他异常',
 };
+
+const EvidenceTypeLabel = {
+  PHOTO: '照片',
+  RECEIPT: '收据',
+  CHAT_RECORD: '聊天记录',
+  INVOICE: '发票',
+  INSPECTION_REPORT: '检测报告',
+  OTHER: '其他',
+};
+
+function getEvidenceIcon(type) {
+  const icons = {
+    PHOTO: '📷',
+    RECEIPT: '🧾',
+    CHAT_RECORD: '💬',
+    INVOICE: '📄',
+    INSPECTION_REPORT: '🔬',
+    OTHER: '📎',
+  };
+  return icons[type] || '📎';
+}
 
 function getStatusClass(status) {
   const s = String(status).toLowerCase();
@@ -81,6 +105,15 @@ function getStatusClass(status) {
     return 'status-completed';
   }
   return 'status-draft';
+}
+
+function getStatusLabel(status) {
+  if (!status) return '-';
+  return InquiryStatusLabel[status] || 
+         StockLockStatusLabel[status] || 
+         ReturnStatusLabel[status] || 
+         RefundStatusLabel[status] || 
+         status;
 }
 
 function getToken() {
@@ -234,7 +267,7 @@ const DOC_TYPE_CONFIG = {
     apiEndpoint: '/inquiries',
     detailEndpoint: '/inquiries',
     statusLabel: InquiryStatusLabel,
-    statusEnum: ['DRAFT', 'PENDING', 'QUOTED', 'CONFIRMED', 'REJECTED', 'CLOSED'],
+    statusEnum: ['DRAFT', 'PENDING', 'QUOTED', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
     columns: [
       { key: 'inquiryNo', label: '询价单号', width: '140px' },
       { key: 'customerName', label: '客户名称', width: '120px' },
@@ -276,7 +309,7 @@ const DOC_TYPE_CONFIG = {
     apiEndpoint: '/return-orders',
     detailEndpoint: '/return-orders',
     statusLabel: ReturnStatusLabel,
-    statusEnum: ['PENDING_IDENTIFY', 'IDENTIFYING', 'REWORK', 'APPROVED', 'REJECTED', 'CLOSED'],
+    statusEnum: ['PENDING_IDENTIFY', 'IDENTIFYING', 'REWORK', 'APPROVED', 'REJECTED', 'COMPLETED'],
     columns: [
       { key: 'returnNo', label: '退货单号', width: '140px' },
       { key: 'inquiry', label: '询价单号', width: '140px', format: v => v?.inquiryNo || '-' },
@@ -297,7 +330,7 @@ const DOC_TYPE_CONFIG = {
     apiEndpoint: '/refund-orders',
     detailEndpoint: '/refund-orders',
     statusLabel: RefundStatusLabel,
-    statusEnum: ['PENDING_REVIEW', 'REVIEWING', 'APPROVED', 'REJECTED', 'PAID', 'FAILED', 'CLOSED'],
+    statusEnum: ['PENDING_REVIEW', 'REVIEWING', 'APPROVED', 'REJECTED', 'PAID', 'FAILED', 'COMPLETED'],
     columns: [
       { key: 'refundNo', label: '退款单号', width: '140px' },
       { key: 'returnOrder', label: '退货单号', width: '140px', format: v => v?.returnNo || '-' },
@@ -386,17 +419,42 @@ function initListPage() {
     window.location.href = '/index.html';
   });
   
-  document.getElementById('exportBtn').addEventListener('click', () => {
+  document.getElementById('exportBtn').addEventListener('click', async () => {
     const token = getToken();
     const config = DOC_TYPE_CONFIG[currentDocType];
     const params = new URLSearchParams({
-      entityType: currentDocType === 'inquiry' ? 'inquiry' :
-                  currentDocType === 'stockLock' ? 'stockLock' :
-                  currentDocType === 'returnOrder' ? 'returnOrder' : 'refundOrder',
+      type: currentDocType === 'inquiry' ? 'inquiry' :
+            currentDocType === 'stockLock' ? 'stockLock' :
+            currentDocType === 'returnOrder' ? 'returnOrder' : 'refundOrder',
       format: 'xlsx',
       ...currentFilters,
     });
-    window.open(`${API_BASE}/export?${params.toString()}&token=${token}`, '_blank');
+    
+    try {
+      const response = await fetch(`${API_BASE}/export?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        showToast(errorData.message || '导出失败', 'error');
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${config.label}列表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showToast('导出成功');
+    } catch (e) {
+      console.error('Export failed:', e);
+      showToast('导出失败，请重试', 'error');
+    }
   });
   
   document.querySelectorAll('[data-close="true"]').forEach(el => {
@@ -714,14 +772,14 @@ function renderDetail(data) {
       <h4>📜 操作日志（最近${data.operationLogs.length}条）</h4>
       <div class="timeline">
         ${data.operationLogs.map(log => `
-          <div class="timeline-item ${log.exceptionType ? 'exception' : 'completed'}">
+          <div class="timeline-item">
             <div class="timeline-content">
               <div class="timeline-title">
                 ${OperationTypeLabel[log.operationType] || log.operationType}
-                ${log.oldStatus && log.newStatus ? `：${config.statusLabel[log.oldStatus] || log.oldStatus} → ${config.statusLabel[log.newStatus] || log.newStatus}` : ''}
+                ${log.oldStatus && log.newStatus ? `：${getStatusLabel(log.oldStatus)} → ${getStatusLabel(log.newStatus)}` : ''}
               </div>
               <div class="timeline-meta">
-                ${log.operator?.realName || '系统'} · ${formatDate(log.createdAt)} · IP: ${log.ipAddress || '-'}
+                ${log.operatorName || '系统'} · ${formatDate(log.createdAt)} · IP: ${log.ipAddress || '-'}
               </div>
               ${log.detail ? `<div class="timeline-detail">${renderLogDetail(log.detail)}</div>` : ''}
             </div>
@@ -752,8 +810,11 @@ function renderDetail(data) {
       <div class="evidence-list">
         ${data.evidences.map(ev => `
           <div class="evidence-item">
-            <div class="evidence-icon">${ev.type === 'PHOTO' ? '📷' : ev.type === 'RECEIPT' ? '🧾' : ev.type === 'CHAT' ? '💬' : ev.type === 'INVOICE' ? '📄' : '📎'}</div>
-            <div>${ev.name || ev.type}</div>
+            <div class="evidence-icon">${getEvidenceIcon(ev.type)}</div>
+            <div>
+              <div>${ev.fileName || EvidenceTypeLabel[ev.type] || ev.type}</div>
+              ${ev.remark ? `<div class="evidence-remark">${ev.remark}</div>` : ''}
+            </div>
           </div>
         `).join('')}
       </div>
@@ -843,35 +904,56 @@ function getAvailableActions(docType, status, role) {
   }
   
   if (docType === 'returnOrder') {
-    if (role === 'WAREHOUSE') {
+    if (role === 'SALES') {
       if (status === 'PENDING_IDENTIFY') {
         actions.push({ key: 'startIdentify', label: '开始鉴定', style: 'btn-primary' });
+        actions.push({ key: 'reject', label: '直接驳回', style: 'btn-danger' });
       }
       if (status === 'IDENTIFYING') {
         actions.push({ key: 'approve', label: '鉴定通过', style: 'btn-success' });
         actions.push({ key: 'rework', label: '需补资料', style: 'btn-warning' });
         actions.push({ key: 'reject', label: '鉴定驳回', style: 'btn-danger' });
       }
+      if (status === 'REWORK') {
+        actions.push({ key: 'resubmit', label: '补录重提', style: 'btn-primary' });
+        actions.push({ key: 'reject', label: '鉴定驳回', style: 'btn-danger' });
+      }
+      if (status === 'APPROVED') {
+        actions.push({ key: 'complete', label: '完成退货', style: 'btn-success' });
+      }
     }
-    if (role === 'SALES' && status === 'REWORK') {
+    if (role === 'STORE_OWNER' && status === 'REWORK') {
       actions.push({ key: 'resubmit', label: '补录重提', style: 'btn-primary' });
     }
   }
   
   if (docType === 'refundOrder') {
-    if (role === 'STORE_OWNER') {
+    if (role === 'SALES') {
       if (status === 'PENDING_REVIEW') {
         actions.push({ key: 'review', label: '开始复核', style: 'btn-primary' });
+        actions.push({ key: 'reject', label: '直接驳回', style: 'btn-danger' });
       }
       if (status === 'REVIEWING') {
-        actions.push({ key: 'approve', label: '审批通过', style: 'btn-success' });
-        actions.push({ key: 'reject', label: '审批驳回', style: 'btn-danger' });
+        actions.push({ key: 'reject', label: '复核驳回', style: 'btn-danger' });
       }
       if (status === 'APPROVED') {
         actions.push({ key: 'pay', label: '确认打款', style: 'btn-success' });
+        actions.push({ key: 'fail', label: '打款失败', style: 'btn-danger' });
+      }
+      if (status === 'PAID') {
+        actions.push({ key: 'complete', label: '完成退款', style: 'btn-success' });
       }
       if (status === 'FAILED') {
         actions.push({ key: 'retry', label: '重新打款', style: 'btn-primary' });
+        actions.push({ key: 'reject', label: '终止退款', style: 'btn-danger' });
+      }
+    }
+    if (role === 'STORE_OWNER') {
+      if (status === 'REVIEWING') {
+        actions.push({ key: 'approve', label: '审批通过', style: 'btn-success' });
+      }
+      if (status === 'FAILED') {
+        actions.push({ key: 'reject', label: '终止退款', style: 'btn-danger' });
       }
     }
   }
@@ -889,7 +971,7 @@ async function executeAction(actionKey, id) {
     'inquiry-submit': 'PENDING',
     'inquiry-quote': 'QUOTED',
     'inquiry-confirm': 'CONFIRMED',
-    'inquiry-reject': 'REJECTED',
+    'inquiry-reject': 'CANCELLED',
     'stockLock-lock': 'LOCKED',
     'stockLock-reject': 'RELEASED',
     'stockLock-release': 'RELEASED',
@@ -898,11 +980,14 @@ async function executeAction(actionKey, id) {
     'returnOrder-rework': 'REWORK',
     'returnOrder-reject': 'REJECTED',
     'returnOrder-resubmit': 'IDENTIFYING',
+    'returnOrder-complete': 'COMPLETED',
     'refundOrder-review': 'REVIEWING',
     'refundOrder-approve': 'APPROVED',
     'refundOrder-reject': 'REJECTED',
     'refundOrder-pay': 'PAID',
+    'refundOrder-fail': 'FAILED',
     'refundOrder-retry': 'PAID',
+    'refundOrder-complete': 'COMPLETED',
   };
   
   if (actionKey === 'addRemark') {
@@ -964,7 +1049,7 @@ async function executeAction(actionKey, id) {
     }
     
     await apiCall(endpointMap[currentDocType], {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(body),
     });
     

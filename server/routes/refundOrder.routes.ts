@@ -25,7 +25,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', requirePermission(OperationType.EXPORT), validate(QueryFilterSchema), getRefundOrderListController);
+router.get('/', validate(QueryFilterSchema), getRefundOrderListController);
 router.post('/', requirePermission(OperationType.CREATE), idempotency, validate(RefundOrderCreateSchema), createRefundOrderController);
 router.get('/:id', getRefundOrderController);
 router.get('/inquiry/:inquiryId', getRefundOrderByInquiryController);

@@ -9,7 +9,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', requirePermission(OperationType.EXPORT), validate(QueryFilterSchema), getAuditLogsController);
+router.get('/', validate(QueryFilterSchema), getAuditLogsController);
 router.get('/inquiry/:inquiryId', getAuditLogsByInquiryController);
 
 export default router;

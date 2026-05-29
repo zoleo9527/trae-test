@@ -23,7 +23,7 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', requirePermission(OperationType.EXPORT), validate(QueryFilterSchema), getInquiryListController);
+router.get('/', validate(QueryFilterSchema), getInquiryListController);
 router.post('/', requirePermission(OperationType.CREATE), idempotency, validate(InquiryCreateSchema), createInquiryController);
 router.get('/:id', getInquiryController);
 router.put('/:id', requirePermission(OperationType.UPDATE), validate(InquiryUpdateSchema), updateInquiryController);
