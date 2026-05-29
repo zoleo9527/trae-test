@@ -27,6 +27,8 @@ export function initDatabase(): Database.Database {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
 
+  migrateCompensationMethod()
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS film_rolls (
       id TEXT PRIMARY KEY,
@@ -123,7 +125,7 @@ export function initDatabase(): Database.Database {
       confirm_result_id TEXT NOT NULL REFERENCES confirm_results(id) ON DELETE CASCADE,
       roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
       amount REAL NOT NULL,
-      method TEXT NOT NULL CHECK(method IN ('refund', 'discount', 'credit', 'other')),
+      method TEXT NOT NULL CHECK(method IN ('refund', 'rework', 'voucher', 'other')),
       reason TEXT NOT NULL DEFAULT '',
       approved_by TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -131,6 +133,57 @@ export function initDatabase(): Database.Database {
   `)
 
   return db
+}
+
+function migrateCompensationMethod(): void {
+  if (!db) return
+
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info('compensation_records')").all() as any[]
+    const methodCol = tableInfo.find(col => col.name === 'method')
+    
+    if (methodCol) {
+      const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='compensation_records'").get() as { sql: string } | undefined
+      
+      if (sql && sql.sql && sql.sql.includes("CHECK(method IN ('refund', 'discount', 'credit', 'other'))")) {
+        db.exec('PRAGMA foreign_keys = OFF')
+        
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS compensation_records_new (
+            id TEXT PRIMARY KEY,
+            confirm_result_id TEXT NOT NULL REFERENCES confirm_results(id) ON DELETE CASCADE,
+            roll_id TEXT NOT NULL REFERENCES film_rolls(id) ON DELETE CASCADE,
+            amount REAL NOT NULL,
+            method TEXT NOT NULL CHECK(method IN ('refund', 'rework', 'voucher', 'other')),
+            reason TEXT NOT NULL DEFAULT '',
+            approved_by TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+        `)
+        
+        const oldRecords = db.prepare('SELECT * FROM compensation_records').all() as any[]
+        const insert = db.prepare(`
+          INSERT INTO compensation_records_new (id, confirm_result_id, roll_id, amount, method, reason, approved_by, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        
+        oldRecords.forEach(rec => {
+          let newMethod = rec.method
+          if (newMethod === 'discount') newMethod = 'voucher'
+          if (newMethod === 'credit') newMethod = 'other'
+          insert.run(rec.id, rec.confirm_result_id, rec.roll_id, rec.amount, newMethod, rec.reason, rec.approved_by, rec.created_at)
+        })
+        
+        db.exec('DROP TABLE compensation_records')
+        db.exec('ALTER TABLE compensation_records_new RENAME TO compensation_records')
+        
+        db.exec('PRAGMA foreign_keys = ON')
+        console.log('Migrated compensation_records method CHECK constraint')
+      }
+    }
+  } catch (e) {
+    console.warn('Migration check failed:', e)
+  }
 }
 
 export function clearDatabase(): void {

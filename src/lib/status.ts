@@ -72,6 +72,13 @@ export const ROLE_LABEL: Record<string, string> = {
   cs: '客服',
 }
 
+export const COMPENSATION_METHOD_LABEL: Record<string, string> = {
+  refund: '退款',
+  rework: '免费重冲',
+  voucher: '代金券',
+  other: '其他',
+}
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN', {

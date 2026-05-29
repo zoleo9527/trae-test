@@ -126,7 +126,7 @@ router.post('/rework-execute', (req: Request, res: Response): void => {
 router.post('/recheck', (req: Request, res: Response): void => {
   try {
     const db = getDb()
-    const { execution_id, roll_id, result, note, checked_by } = req.body
+    const { execution_id, roll_id, result, note, checked_by, operator_role } = req.body
 
     if (!execution_id || !roll_id || !result || !checked_by) {
       res.status(400).json({ success: false, error: '缺少必填字段' })
@@ -146,8 +146,8 @@ router.post('/recheck', (req: Request, res: Response): void => {
       const detail = result === 'pass' ? '复检通过' : `复检未通过: ${note || ''}`
       db.prepare(`
         INSERT INTO actions (id, roll_id, action_type, operator_id, operator_role, detail, created_at)
-        VALUES (?, ?, ?, ?, 'owner', ?, ?)
-      `).run(uuidv4(), roll_id, actionType, checked_by, detail, now)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(uuidv4(), roll_id, actionType, checked_by, operator_role || 'owner', detail, now)
 
       if (result === 'pass') {
         db.prepare('UPDATE film_rolls SET status = ? WHERE id = ?').run('qc_passed', roll_id)

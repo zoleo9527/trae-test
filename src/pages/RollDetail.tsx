@@ -21,6 +21,7 @@ import {
   STATUS_LABEL,
   STATUS_COLOR,
   ACTION_TYPE_LABEL,
+  COMPENSATION_METHOD_LABEL,
   formatDate,
   formatDateTime,
   ROLE_LABEL,
@@ -134,6 +135,7 @@ export default function RollDetail() {
         result: recheckForm.result,
         note: recheckForm.note,
         checked_by: currentUser.id,
+        operator_role: currentUser.role,
       }
     )
     if (success) {
@@ -818,7 +820,7 @@ export default function RollDetail() {
                       <div key={rec.id} className="border border-red-100 rounded-lg p-4 bg-red-50">
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-gray-800">
-                            赔付: ¥{rec.amount} ({rec.method === 'refund' ? '退款' : rec.method === 'rework' ? '免费重冲' : '代金券'})
+                            赔付: ¥{rec.amount} ({COMPENSATION_METHOD_LABEL[rec.method] || rec.method})
                           </span>
                           <span className="text-xs text-gray-400">{formatDateTime(rec.created_at)}</span>
                         </div>
