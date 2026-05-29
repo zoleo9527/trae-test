@@ -4,7 +4,7 @@ exports.validateQuery = exports.validateRequest = void 0;
 const validateRequest = (schema) => {
     return (req, res, next) => {
         try {
-            schema.parse(req.body);
+            req.body = schema.parse(req.body);
             next();
         }
         catch (error) {
@@ -16,7 +16,7 @@ exports.validateRequest = validateRequest;
 const validateQuery = (schema) => {
     return (req, res, next) => {
         try {
-            schema.parse(req.query);
+            req.query = schema.parse(req.query);
             next();
         }
         catch (error) {

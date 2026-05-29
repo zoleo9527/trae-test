@@ -37,7 +37,11 @@ router.post('/:id/settle', (0, auth_1.requirePermission)('deposit:settle'), idem
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: deposit, message: '押金结算完成' });
+        const response = { success: true, data: deposit, message: '押金结算完成' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);
@@ -46,7 +50,11 @@ router.post('/:id/settle', (0, auth_1.requirePermission)('deposit:settle'), idem
 router.post('/:id/dispute', (0, auth_1.requirePermission)('deposit:dispute'), idempotency_1.idempotencyMiddleware, async (req, res, next) => {
     try {
         const deposit = await (0, depositService_1.markDepositDisputed)(req.params.id, req.user.id, req.user.name, req.user.role, req.idempotencyKey);
-        res.json({ success: true, data: deposit, message: '押金标记为有争议' });
+        const response = { success: true, data: deposit, message: '押金标记为有争议' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);

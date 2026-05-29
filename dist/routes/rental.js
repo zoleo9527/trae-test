@@ -36,7 +36,11 @@ router.post('/', (0, auth_1.requirePermission)('rental:create'), idempotency_1.i
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: rental, message: '租赁创建成功' });
+        const response = { success: true, data: rental, message: '租赁创建成功' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);
@@ -52,7 +56,11 @@ router.post('/:id/return', (0, auth_1.requirePermission)('rental:return'), idemp
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: rental, message: '归还成功' });
+        const response = { success: true, data: rental, message: '归还成功' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);

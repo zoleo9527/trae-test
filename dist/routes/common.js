@@ -103,7 +103,11 @@ router.post('/notes', (0, auth_1.requirePermission)('note:create'), idempotency_
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: note, message: '备注添加成功' });
+        const response = { success: true, data: note, message: '备注添加成功' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);
@@ -126,7 +130,11 @@ router.post('/notes/supplement', (0, auth_1.requirePermission)('note:supplement'
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: note, message: '补录备注成功' });
+        const response = { success: true, data: note, message: '补录备注成功' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);

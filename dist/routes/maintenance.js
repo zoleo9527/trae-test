@@ -46,7 +46,11 @@ router.post('/', (0, auth_1.requirePermission)('maintenance:create'), idempotenc
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: maintenance, message: '维修单创建成功' });
+        const response = { success: true, data: maintenance, message: '维修单创建成功' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);
@@ -62,7 +66,11 @@ router.post('/:id/complete', (0, auth_1.requirePermission)('maintenance:complete
             operatorRole: req.user.role,
             idempotencyKey: req.idempotencyKey,
         });
-        res.json({ success: true, data: maintenance, message: '维修完成' });
+        const response = { success: true, data: maintenance, message: '维修完成' };
+        if (req.idempotencyKey) {
+            await (0, idempotency_1.saveIdempotentResponse)(req.idempotencyKey, response);
+        }
+        res.json(response);
     }
     catch (error) {
         next(error);

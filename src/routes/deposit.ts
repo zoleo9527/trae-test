@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { authenticate, requirePermission } from '../middleware/auth'
-import { idempotencyMiddleware } from '../middleware/idempotency'
+import { idempotencyMiddleware, saveIdempotentResponse } from '../middleware/idempotency'
 import { validateRequest } from '../middleware/validate'
 import { settleDepositSchema } from '../lib/validation'
 import { settleDeposit, markDepositDisputed, getDepositList, getDepositDetail } from '../services/depositService'
@@ -49,7 +49,11 @@ router.post('/:id/settle',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: deposit, message: '押金结算完成' })
+      const response = { success: true, data: deposit, message: '押金结算完成' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -68,7 +72,11 @@ router.post('/:id/dispute',
         req.user!.role,
         req.idempotencyKey
       )
-      res.json({ success: true, data: deposit, message: '押金标记为有争议' })
+      const response = { success: true, data: deposit, message: '押金标记为有争议' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }

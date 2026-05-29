@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { authenticate, requirePermission } from '../middleware/auth'
-import { idempotencyMiddleware } from '../middleware/idempotency'
+import { idempotencyMiddleware, saveIdempotentResponse } from '../middleware/idempotency'
 import { validateRequest } from '../middleware/validate'
 import {
   createDamageClaimSchema,
@@ -73,7 +73,11 @@ router.post('/',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: claim, message: '损坏申诉创建成功' })
+      const response = { success: true, data: claim, message: '损坏申诉创建成功' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -92,7 +96,11 @@ router.post('/:id/confirm',
         req.user!.role,
         req.idempotencyKey
       )
-      res.json({ success: true, data: claim, message: '损坏判定已确认' })
+      const response = { success: true, data: claim, message: '损坏判定已确认' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -113,7 +121,11 @@ router.post('/:id/dispute',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: claim, message: '客户申诉已提交' })
+      const response = { success: true, data: claim, message: '客户申诉已提交' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -134,7 +146,11 @@ router.post('/:id/reject',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: claim, message: '申诉已驳回' })
+      const response = { success: true, data: claim, message: '申诉已驳回' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -155,7 +171,11 @@ router.post('/:id/resolve',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: claim, message: '申诉已通过，重新判定完成' })
+      const response = { success: true, data: claim, message: '申诉已通过，重新判定完成' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -174,7 +194,11 @@ router.post('/:id/close',
         req.user!.role,
         req.idempotencyKey
       )
-      res.json({ success: true, data: claim, message: '损坏申诉已结案' })
+      const response = { success: true, data: claim, message: '损坏申诉已结案' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }

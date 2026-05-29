@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { authenticate, requirePermission } from '../middleware/auth'
-import { idempotencyMiddleware } from '../middleware/idempotency'
+import { idempotencyMiddleware, saveIdempotentResponse } from '../middleware/idempotency'
 import { validateRequest } from '../middleware/validate'
 import { createMaintenanceSchema, completeMaintenanceSchema } from '../lib/validation'
 import {
@@ -67,7 +67,11 @@ router.post('/',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: maintenance, message: '维修单创建成功' })
+      const response = { success: true, data: maintenance, message: '维修单创建成功' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -88,7 +92,11 @@ router.post('/:id/complete',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: maintenance, message: '维修完成' })
+      const response = { success: true, data: maintenance, message: '维修完成' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }

@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from '../types'
 export const validateRequest = (schema: ZodSchema) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.body)
+      req.body = schema.parse(req.body)
       next()
     } catch (error) {
       next(error)
@@ -16,7 +16,7 @@ export const validateRequest = (schema: ZodSchema) => {
 export const validateQuery = (schema: ZodSchema) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.query)
+      req.query = schema.parse(req.query)
       next()
     } catch (error) {
       next(error)

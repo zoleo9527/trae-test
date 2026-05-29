@@ -35,7 +35,7 @@ export const createAuditLog = async (params: AuditLogParams) => {
     },
   })
 
-  if (idempotencyKey && responseBody) {
+  if (idempotencyKey && responseBody && !tx) {
     await saveIdempotentResponse(idempotencyKey, responseBody)
   }
 

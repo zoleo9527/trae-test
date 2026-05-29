@@ -38,11 +38,24 @@ const idempotencyMiddleware = async (req, res, next) => {
             if (existingKey.responseBody) {
                 return res.status(200).json((0, jsonUtils_1.fromJsonString)(existingKey.responseBody));
             }
-            return res.status(409).json({
-                success: false,
-                error: '该请求正在处理中，请稍后重试',
-                code: 409,
+            const keyAge = Date.now() - new Date(existingKey.createdAt).getTime();
+            if (keyAge < 60000) {
+                return res.status(409).json({
+                    success: false,
+                    error: '该请求正在处理中，请稍后重试',
+                    code: 409,
+                });
+            }
+            await prisma_1.default.idempotencyKey.update({
+                where: { key: idempotencyKey },
+                data: {
+                    requestHash,
+                    responseBody: null,
+                    createdAt: new Date(),
+                },
             });
+            req.idempotencyKey = idempotencyKey;
+            return next();
         }
         await prisma_1.default.idempotencyKey.create({
             data: {

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { authenticate, requirePermission } from '../middleware/auth'
-import { idempotencyMiddleware } from '../middleware/idempotency'
+import { idempotencyMiddleware, saveIdempotentResponse } from '../middleware/idempotency'
 import { validateRequest } from '../middleware/validate'
 import { createRentalSchema, returnRentalSchema } from '../lib/validation'
 import { createRental, returnRental, getRentalList, getRentalDetail, getInstrumentList } from '../services/rentalService'
@@ -49,7 +49,11 @@ router.post('/',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: rental, message: '租赁创建成功' })
+      const response = { success: true, data: rental, message: '租赁创建成功' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
@@ -70,7 +74,11 @@ router.post('/:id/return',
         operatorRole: req.user!.role,
         idempotencyKey: req.idempotencyKey,
       })
-      res.json({ success: true, data: rental, message: '归还成功' })
+      const response = { success: true, data: rental, message: '归还成功' }
+      if (req.idempotencyKey) {
+        await saveIdempotentResponse(req.idempotencyKey, response)
+      }
+      res.json(response)
     } catch (error) {
       next(error)
     }
