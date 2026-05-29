@@ -12,7 +12,7 @@ const auditService_1 = require("./auditService");
 const noteService_1 = require("./noteService");
 const jsonUtils_1 = require("../lib/jsonUtils");
 const createRental = async (params) => {
-    const { instrumentId, customerName, customerPhone, customerIdCard, customerAddress, startDate, expectedEndDate, dailyRate, depositAmount, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
+    const { instrumentId, customerName, customerPhone, customerIdCard, customerAddress, startDate, expectedEndDate, dailyRate, depositAmount, isSchoolCooperation, schoolContractNo, operatorId, operatorName, operatorRole, idempotencyKey, } = params;
     return prisma_1.default.$transaction(async (tx) => {
         const instrument = await tx.instrument.findUnique({
             where: { id: instrumentId },
@@ -50,6 +50,10 @@ const createRental = async (params) => {
                 expectedEndDate,
                 dailyRate,
                 depositAmount,
+                totalRentalFee: 0,
+                status: enums_1.RentalStatus.ACTIVE,
+                isSchoolCooperation: isSchoolCooperation ?? false,
+                schoolContractNo: schoolContractNo ?? null,
                 createdBy: operatorId,
             },
             include: {
@@ -63,6 +67,7 @@ const createRental = async (params) => {
                 depositNo,
                 rentalId: rental.id,
                 amount: depositAmount,
+                customerId: customer.id,
                 createdBy: operatorId,
             },
         });
@@ -76,11 +81,12 @@ const createRental = async (params) => {
             message: '租赁创建成功',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.RENTAL_CREATE,
             entityType: enums_1.EntityType.RENTAL,
             entityId: rental.id,
             newValue: rental,
-            remark: `租赁创建，单号${rentalNo}，客户${customerName}，租期${startDate.toISOString().split('T')[0]}到${expectedEndDate.toISOString().split('T')[0]}`,
+            remark: `租赁创建，单号${rentalNo}，客户${customerName}，租期${new Date(startDate).toISOString().split('T')[0]}到${new Date(expectedEndDate).toISOString().split('T')[0]}`,
             operatorId,
             operatorName,
             operatorRole,
@@ -88,7 +94,7 @@ const createRental = async (params) => {
             responseBody: response,
         });
         return rental;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.createRental = createRental;
 const returnRental = async (params) => {
@@ -111,6 +117,7 @@ const returnRental = async (params) => {
             data: {
                 status: enums_1.RentalStatus.RETURNED,
                 actualEndDate: returnDate,
+                totalRentalFee: rentalFee,
                 handledBy: operatorId,
             },
             include: {
@@ -142,6 +149,7 @@ const returnRental = async (params) => {
             message: '归还成功',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.RENTAL_RETURN,
             entityType: enums_1.EntityType.RENTAL,
             entityId: rentalId,
@@ -156,7 +164,7 @@ const returnRental = async (params) => {
             responseBody: response,
         });
         return { ...updatedRental, rentalFee };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.returnRental = returnRental;
 const getRentalList = async (status, customerId, instrumentId, page = 1, pageSize = 20) => {

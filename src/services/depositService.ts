@@ -101,21 +101,15 @@ export const settleDeposit = async (params: SettleDepositParams) => {
         handledBy: operatorId,
       },
       include: {
-        rental: {
-          update: {
-            status: RentalStatus.SETTLED,
-          },
-        },
+        rental: true,
         handler: { select: { id: true, name: true, role: true } },
       },
     })
 
-    if (oldDeposit.rental) {
-      await tx.rental.update({
-        where: { id: oldDeposit.rentalId },
-        data: { status: RentalStatus.SETTLED },
-      })
-    }
+    await tx.rental.update({
+      where: { id: oldDeposit.rentalId },
+      data: { status: RentalStatus.SETTLED },
+    })
 
     const changes = compareObjects(
       {
@@ -146,6 +140,7 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: auditAction,
       entityType: EntityType.DEPOSIT,
       entityId: depositId,
@@ -161,7 +156,7 @@ export const settleDeposit = async (params: SettleDepositParams) => {
     })
 
     return updatedDeposit
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const markDepositDisputed = async (
@@ -192,6 +187,7 @@ export const markDepositDisputed = async (
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DEPOSIT_DISPUTE,
       entityType: EntityType.DEPOSIT,
       entityId: depositId,
@@ -206,7 +202,7 @@ export const markDepositDisputed = async (
     })
 
     return updatedDeposit
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const getDepositList = async (

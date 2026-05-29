@@ -21,6 +21,7 @@ export const createRentalSchema = z.object({
 
 export const returnRentalSchema = z.object({
   actualEndDate: z.coerce.date().optional(),
+  hasDamage: z.boolean().default(false),
 })
 
 export const createDamageClaimSchema = z.object({

@@ -45,6 +45,7 @@ const createDamageClaim = async (params) => {
             message: '损坏申诉创建成功',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_REPORT,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: damageClaim.id,
@@ -57,7 +58,7 @@ const createDamageClaim = async (params) => {
             responseBody: response,
         });
         return damageClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.createDamageClaim = createDamageClaim;
 const disputeDamageClaim = async (params) => {
@@ -86,6 +87,7 @@ const disputeDamageClaim = async (params) => {
             message: '客户申诉已提交',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_DISPUTE,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: claimId,
@@ -100,7 +102,7 @@ const disputeDamageClaim = async (params) => {
             responseBody: response,
         });
         return updatedClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.disputeDamageClaim = disputeDamageClaim;
 const rejectDispute = async (params) => {
@@ -134,6 +136,7 @@ const rejectDispute = async (params) => {
             message: '申诉已驳回',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_REJECT,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: claimId,
@@ -148,7 +151,7 @@ const rejectDispute = async (params) => {
             responseBody: response,
         });
         return updatedClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.rejectDispute = rejectDispute;
 const resolveDispute = async (params) => {
@@ -188,6 +191,7 @@ const resolveDispute = async (params) => {
             message: '申诉已通过，重新判定完成',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_RESOLVE,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: claimId,
@@ -202,7 +206,7 @@ const resolveDispute = async (params) => {
             responseBody: response,
         });
         return updatedClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.resolveDispute = resolveDispute;
 const confirmDamageClaim = async (claimId, operatorId, operatorName, operatorRole, idempotencyKey) => {
@@ -230,6 +234,7 @@ const confirmDamageClaim = async (claimId, operatorId, operatorName, operatorRol
             message: '损坏判定已确认，客户无异议',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_CONFIRM,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: claimId,
@@ -243,7 +248,7 @@ const confirmDamageClaim = async (claimId, operatorId, operatorName, operatorRol
             responseBody: response,
         });
         return updatedClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.confirmDamageClaim = confirmDamageClaim;
 const closeDamageClaim = async (claimId, operatorId, operatorName, operatorRole, idempotencyKey) => {
@@ -269,6 +274,7 @@ const closeDamageClaim = async (claimId, operatorId, operatorName, operatorRole,
             message: '损坏申诉已结案',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DAMAGE_CLOSE,
             entityType: enums_1.EntityType.DAMAGE_CLAIM,
             entityId: claimId,
@@ -282,7 +288,7 @@ const closeDamageClaim = async (claimId, operatorId, operatorName, operatorRole,
             responseBody: response,
         });
         return updatedClaim;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.closeDamageClaim = closeDamageClaim;
 const getDamageClaimList = async (status, rentalId, instrumentId, page = 1, pageSize = 20) => {
@@ -373,7 +379,7 @@ const getEvidenceChain = async (claimId) => {
             estimatedCost: claim.estimatedCost,
         },
         disputes: {
-            customerDispute: claim.disputeReason,
+            disputeReason: claim.disputeReason,
             rejectReason: claim.rejectReason,
             resolvedReason: claim.resolvedReason,
         },

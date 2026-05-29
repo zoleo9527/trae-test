@@ -70,6 +70,7 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_REPORT,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: damageClaim.id,
@@ -83,7 +84,7 @@ export const createDamageClaim = async (params: CreateDamageClaimParams) => {
     })
 
     return damageClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 interface DisputeDamageClaimParams {
@@ -138,6 +139,7 @@ export const disputeDamageClaim = async (params: DisputeDamageClaimParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_DISPUTE,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
@@ -153,7 +155,7 @@ export const disputeDamageClaim = async (params: DisputeDamageClaimParams) => {
     })
 
     return updatedClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 interface RejectDisputeParams {
@@ -215,6 +217,7 @@ export const rejectDispute = async (params: RejectDisputeParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_REJECT,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
@@ -230,7 +233,7 @@ export const rejectDispute = async (params: RejectDisputeParams) => {
     })
 
     return updatedClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 interface ResolveDisputeParams {
@@ -298,6 +301,7 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_RESOLVE,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
@@ -313,7 +317,7 @@ export const resolveDispute = async (params: ResolveDisputeParams) => {
     })
 
     return updatedClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const confirmDamageClaim = async (
@@ -352,6 +356,7 @@ export const confirmDamageClaim = async (
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_CONFIRM,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
@@ -366,7 +371,7 @@ export const confirmDamageClaim = async (
     })
 
     return updatedClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const closeDamageClaim = async (
@@ -403,6 +408,7 @@ export const closeDamageClaim = async (
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.DAMAGE_CLOSE,
       entityType: EntityType.DAMAGE_CLAIM,
       entityId: claimId,
@@ -417,7 +423,7 @@ export const closeDamageClaim = async (
     })
 
     return updatedClaim
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const getDamageClaimList = async (
@@ -526,7 +532,7 @@ export const getEvidenceChain = async (claimId: string) => {
       estimatedCost: claim.estimatedCost,
     },
     disputes: {
-      customerDispute: claim.disputeReason,
+      disputeReason: claim.disputeReason,
       rejectReason: claim.rejectReason,
       resolvedReason: claim.resolvedReason,
     },

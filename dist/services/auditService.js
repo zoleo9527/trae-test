@@ -8,8 +8,9 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 const idempotency_1 = require("../middleware/idempotency");
 const jsonUtils_1 = require("../lib/jsonUtils");
 const createAuditLog = async (params) => {
-    const { idempotencyKey, responseBody, ...logData } = params;
-    const auditLog = await prisma_1.default.auditLog.create({
+    const { idempotencyKey, responseBody, tx, ...logData } = params;
+    const client = tx || prisma_1.default;
+    const auditLog = await client.auditLog.create({
         data: {
             ...logData,
             oldValue: (0, jsonUtils_1.toJsonString)(logData.oldValue),
@@ -19,7 +20,7 @@ const createAuditLog = async (params) => {
             idempotencyKey,
         },
     });
-    if (idempotencyKey && responseBody) {
+    if (idempotencyKey && responseBody && !tx) {
         await (0, idempotency_1.saveIdempotentResponse)(idempotencyKey, responseBody);
     }
     return auditLog;

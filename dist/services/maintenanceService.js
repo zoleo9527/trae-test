@@ -50,6 +50,7 @@ const createMaintenance = async (params) => {
             message: '维修单创建成功',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.MAINTENANCE_CREATE,
             entityType: enums_1.EntityType.MAINTENANCE,
             entityId: maintenance.id,
@@ -62,7 +63,7 @@ const createMaintenance = async (params) => {
             responseBody: response,
         });
         return maintenance;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.createMaintenance = createMaintenance;
 const completeMaintenance = async (params) => {
@@ -130,6 +131,7 @@ const completeMaintenance = async (params) => {
             message: '维修完成',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.MAINTENANCE_COMPLETE,
             entityType: enums_1.EntityType.MAINTENANCE,
             entityId: maintenanceId,
@@ -144,7 +146,7 @@ const completeMaintenance = async (params) => {
             responseBody: response,
         });
         return updatedMaintenance;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.completeMaintenance = completeMaintenance;
 const getMaintenanceList = async (instrumentId, damageClaimId, status, page = 1, pageSize = 20) => {

@@ -68,20 +68,14 @@ const settleDeposit = async (params) => {
                 handledBy: operatorId,
             },
             include: {
-                rental: {
-                    update: {
-                        status: enums_1.RentalStatus.SETTLED,
-                    },
-                },
+                rental: true,
                 handler: { select: { id: true, name: true, role: true } },
             },
         });
-        if (oldDeposit.rental) {
-            await tx.rental.update({
-                where: { id: oldDeposit.rentalId },
-                data: { status: enums_1.RentalStatus.SETTLED },
-            });
-        }
+        await tx.rental.update({
+            where: { id: oldDeposit.rentalId },
+            data: { status: enums_1.RentalStatus.SETTLED },
+        });
         const changes = (0, utils_1.compareObjects)({
             status: oldDeposit.status,
             refundAmount: oldDeposit.refundAmount,
@@ -107,6 +101,7 @@ const settleDeposit = async (params) => {
             message: '押金结算完成',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: auditAction,
             entityType: enums_1.EntityType.DEPOSIT,
             entityId: depositId,
@@ -121,7 +116,7 @@ const settleDeposit = async (params) => {
             responseBody: response,
         });
         return updatedDeposit;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.settleDeposit = settleDeposit;
 const markDepositDisputed = async (depositId, operatorId, operatorName, operatorRole, idempotencyKey) => {
@@ -142,6 +137,7 @@ const markDepositDisputed = async (depositId, operatorId, operatorName, operator
             message: '押金标记为有争议',
         };
         await (0, auditService_1.createAuditLog)({
+            tx,
             action: enums_1.AuditAction.DEPOSIT_DISPUTE,
             entityType: enums_1.EntityType.DEPOSIT,
             entityId: depositId,
@@ -155,7 +151,7 @@ const markDepositDisputed = async (depositId, operatorId, operatorName, operator
             responseBody: response,
         });
         return updatedDeposit;
-    });
+    }, { maxWait: 10000, timeout: 30000 });
 };
 exports.markDepositDisputed = markDepositDisputed;
 const getDepositList = async (status, rentalId, page = 1, pageSize = 20) => {

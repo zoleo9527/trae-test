@@ -17,6 +17,8 @@ interface CreateRentalParams {
   expectedEndDate: Date
   dailyRate: number
   depositAmount: number
+  isSchoolCooperation?: boolean
+  schoolContractNo?: string
   operatorId: string
   operatorName: string
   operatorRole: any
@@ -44,6 +46,8 @@ export const createRental = async (params: CreateRentalParams) => {
     expectedEndDate,
     dailyRate,
     depositAmount,
+    isSchoolCooperation,
+    schoolContractNo,
     operatorId,
     operatorName,
     operatorRole,
@@ -94,6 +98,10 @@ export const createRental = async (params: CreateRentalParams) => {
         expectedEndDate,
         dailyRate,
         depositAmount,
+        totalRentalFee: 0,
+        status: RentalStatus.ACTIVE,
+        isSchoolCooperation: isSchoolCooperation ?? false,
+        schoolContractNo: schoolContractNo ?? null,
         createdBy: operatorId,
       },
       include: {
@@ -108,6 +116,7 @@ export const createRental = async (params: CreateRentalParams) => {
         depositNo,
         rentalId: rental.id,
         amount: depositAmount,
+        customerId: customer.id,
         createdBy: operatorId,
       },
     })
@@ -124,11 +133,12 @@ export const createRental = async (params: CreateRentalParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.RENTAL_CREATE,
       entityType: EntityType.RENTAL,
       entityId: rental.id,
       newValue: rental,
-      remark: `租赁创建，单号${rentalNo}，客户${customerName}，租期${startDate.toISOString().split('T')[0]}到${expectedEndDate.toISOString().split('T')[0]}`,
+      remark: `租赁创建，单号${rentalNo}，客户${customerName}，租期${new Date(startDate).toISOString().split('T')[0]}到${new Date(expectedEndDate).toISOString().split('T')[0]}`,
       operatorId,
       operatorName,
       operatorRole,
@@ -137,7 +147,7 @@ export const createRental = async (params: CreateRentalParams) => {
     })
 
     return rental
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const returnRental = async (params: ReturnRentalParams) => {
@@ -177,6 +187,7 @@ export const returnRental = async (params: ReturnRentalParams) => {
       data: {
         status: RentalStatus.RETURNED,
         actualEndDate: returnDate,
+        totalRentalFee: rentalFee,
         handledBy: operatorId,
       },
       include: {
@@ -214,6 +225,7 @@ export const returnRental = async (params: ReturnRentalParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.RENTAL_RETURN,
       entityType: EntityType.RENTAL,
       entityId: rentalId,
@@ -229,7 +241,7 @@ export const returnRental = async (params: ReturnRentalParams) => {
     })
 
     return { ...updatedRental, rentalFee }
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const getRentalList = async (

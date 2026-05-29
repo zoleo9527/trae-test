@@ -21,6 +21,7 @@ exports.createRentalSchema = zod_1.z.object({
 });
 exports.returnRentalSchema = zod_1.z.object({
     actualEndDate: zod_1.z.coerce.date().optional(),
+    hasDamage: zod_1.z.boolean().default(false),
 });
 exports.createDamageClaimSchema = zod_1.z.object({
     rentalId: zod_1.z.string().min(1, '租赁单ID不能为空'),

@@ -16,12 +16,15 @@ interface AuditLogParams {
   operatorRole: Role
   idempotencyKey?: string
   responseBody?: unknown
+  tx?: any
 }
 
 export const createAuditLog = async (params: AuditLogParams) => {
-  const { idempotencyKey, responseBody, ...logData } = params
+  const { idempotencyKey, responseBody, tx, ...logData } = params
 
-  const auditLog = await prisma.auditLog.create({
+  const client = tx || prisma
+
+  const auditLog = await client.auditLog.create({
     data: {
       ...logData,
       oldValue: toJsonString(logData.oldValue),

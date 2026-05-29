@@ -77,6 +77,7 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.MAINTENANCE_CREATE,
       entityType: EntityType.MAINTENANCE,
       entityId: maintenance.id,
@@ -90,7 +91,7 @@ export const createMaintenance = async (params: CreateMaintenanceParams) => {
     })
 
     return maintenance
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 interface CompleteMaintenanceParams {
@@ -190,6 +191,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
     }
 
     await createAuditLog({
+      tx,
       action: AuditAction.MAINTENANCE_COMPLETE,
       entityType: EntityType.MAINTENANCE,
       entityId: maintenanceId,
@@ -205,7 +207,7 @@ export const completeMaintenance = async (params: CompleteMaintenanceParams) => 
     })
 
     return updatedMaintenance
-  })
+  }, { maxWait: 10000, timeout: 30000 })
 }
 
 export const getMaintenanceList = async (
