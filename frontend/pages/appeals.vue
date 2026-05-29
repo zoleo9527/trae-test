@@ -157,8 +157,11 @@ const loadAppeals = async () => {
 }
 
 const openAppealDrawer = (appealId: string) => {
-  selectedAppealId.value = appealId
-  drawerVisible.value = true
+  selectedAppealId.value = ''
+  nextTick(() => {
+    selectedAppealId.value = appealId
+    drawerVisible.value = true
+  })
 }
 
 const prevPage = () => {

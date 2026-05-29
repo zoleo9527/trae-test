@@ -251,6 +251,11 @@ const loadAppeal = async () => {
 const processAppeal = async () => {
   if (!processStatus.value || !processNote.value) return
   
+  if (processStatus.value === 'approved' && (!subsidyAmount.value || subsidyAmount.value <= 0)) {
+    alert('请输入有效的补贴金额')
+    return
+  }
+  
   processing.value = true
   try {
     await post(`/appeals/${props.appealId}/process`, {
@@ -320,10 +325,18 @@ const formatTime = (dateStr: string) => {
   })
 }
 
+const lastAppealId = ref('')
+
 watch(() => props.appealId, (newId) => {
   if (newId) {
-    visible.value = true
-    loadAppeal()
+    if (newId === lastAppealId.value && !visible.value) {
+      visible.value = true
+      loadAppeal()
+    } else if (newId !== lastAppealId.value) {
+      visible.value = true
+      loadAppeal()
+    }
+    lastAppealId.value = newId
   }
 }, { immediate: true })
 </script>

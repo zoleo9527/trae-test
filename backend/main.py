@@ -179,9 +179,28 @@ def init_mock_data():
 
     abnormal_orders = [o for o in orders_db.values() if o.is_abnormal]
     appeal_reasons = ["配送超时", "商品损坏", "错送漏送", "用户拒收", "其他"]
+    
+    status_distribution = [
+        AppealStatus.PENDING,
+        AppealStatus.PENDING,
+        AppealStatus.PENDING,
+        AppealStatus.PENDING,
+        AppealStatus.APPROVED,
+        AppealStatus.APPROVED,
+        AppealStatus.APPROVED,
+        AppealStatus.REJECTED,
+        AppealStatus.REJECTED,
+        AppealStatus.NEED_REVIEW,
+        AppealStatus.NEED_REVIEW,
+        AppealStatus.PENDING,
+        AppealStatus.APPROVED,
+        AppealStatus.REJECTED,
+        AppealStatus.NEED_REVIEW,
+    ]
+    
     for i, order in enumerate(abnormal_orders[:15]):
         appeal_id = f"a{i+1:04d}"
-        status = random.choice([AppealStatus.PENDING, AppealStatus.APPROVED, AppealStatus.REJECTED, AppealStatus.NEED_REVIEW])
+        status = status_distribution[i] if i < len(status_distribution) else AppealStatus.PENDING
         appeals_db[appeal_id] = Appeal(
             id=appeal_id,
             order_id=order.id,
@@ -346,6 +365,10 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
     appeal = appeals_db[appeal_id]
     old_status = appeal.status
     
+    if request.status == AppealStatus.APPROVED:
+        if not request.subsidy_amount or request.subsidy_amount <= 0:
+            raise HTTPException(status_code=400, detail="申诉通过时必须提供有效的补贴金额")
+    
     appeal.status = request.status
     appeal.process_note = request.process_note
     appeal.processed_at = datetime.now()
@@ -365,7 +388,7 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
     
     if request.status == AppealStatus.APPROVED and request.subsidy_amount:
         subsidy_id = f"s{len(subsidies_db)+1:04d}"
-        subsidies_db[subsidy_id] = Subsidy(
+        subsidy = Subsidy(
             id=subsidy_id,
             order_id=appeal.order_id,
             order_no=appeal.order_no,
@@ -379,6 +402,33 @@ async def process_appeal(appeal_id: str, request: ProcessAppealRequest):
             created_at=datetime.now(),
             created_by=request.processor
         )
+        subsidies_db[subsidy_id] = subsidy
+        
+        add_operation_log(
+            order_id=appeal.order_id,
+            appeal_id=appeal_id,
+            action="create_subsidy",
+            operator=request.processor,
+            operator_role="运营专员",
+            description=f"创建补贴: ¥{request.subsidy_amount} - {appeal.reason}",
+            old_value=None,
+            new_value=f"¥{request.subsidy_amount}"
+        )
+        
+        for settlement in settlements_db.values():
+            if settlement.merchant_id == appeal.merchant_id:
+                settlement.total_subsidy += request.subsidy_amount
+                settlement.net_amount += request.subsidy_amount
+                add_operation_log(
+                    order_id=appeal.order_id,
+                    action="update_settlement",
+                    operator=request.processor,
+                    operator_role="运营专员",
+                    description=f"更新商家结算汇总: 增加补贴 ¥{request.subsidy_amount}",
+                    old_value=None,
+                    new_value=f"结算单 {settlement.id} 补贴总额更新为 ¥{settlement.total_subsidy}"
+                )
+                break
     
     return appeal
 
