@@ -74,16 +74,16 @@ export interface DiseaseTimeline {
 
 export interface Disease {
   id: number;
-  inspectionId: number;
-  inspection: Inspection;
+  inspectionId?: number;
+  inspection?: Inspection;
   plotId: number;
   plot: Plot;
   reporterId: number;
   reporter: User;
   type: string;
   severity: DiseaseSeverity;
-  description: string;
-  affectedQuantity: number;
+  description?: string;
+  affectedQuantity?: number;
   status: DiseaseStatus;
   reportedAt: string;
   confirmedAt?: string;

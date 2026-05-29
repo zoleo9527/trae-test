@@ -22,6 +22,7 @@ import type { Disease, User } from "@/types";
 import {
   diseaseStatusOptions,
   diseaseSeverityOptions,
+  negotiationStatusOptions,
   getLabel,
   getColor,
 } from "@/utils/constants";
@@ -201,12 +202,17 @@ onMounted(loadDetail);
             }}
           </ElDescriptionsItem>
           <ElDescriptionsItem label="关联巡查">
-            <el-button
-              type="text"
-              @click="router.push(`/inspections/${disease.inspectionId}`)"
-            >
-              #{{ disease.inspectionId }} 查看
-            </el-button>
+            <template v-if="disease.inspectionId">
+              <el-button
+                type="text"
+                @click="router.push(`/inspections/${disease.inspectionId}`)"
+              >
+                #{{ disease.inspectionId }} 查看
+              </el-button>
+            </template>
+            <template v-else>
+              <span style="color: #909399">独立上报，无关联巡查</span>
+            </template>
           </ElDescriptionsItem>
         </ElDescriptions>
 
@@ -258,7 +264,9 @@ onMounted(loadDetail);
             "
           >
             <span style="font-weight: 600">协商 #{{ neg.id }}</span>
-            <el-tag>{{ getLabel(diseaseStatusOptions, neg.status) }}</el-tag>
+            <el-tag :color="getColor(negotiationStatusOptions, neg.status)">
+              {{ getLabel(negotiationStatusOptions, neg.status) }}
+            </el-tag>
           </div>
           <div style="color: #909399; font-size: 13px">
             发起人：{{ getUserName(neg.initiatorId) }} ·
