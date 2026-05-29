@@ -87,6 +87,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(part),
       }),
+    updateLabor: (id: string, data: { laborHours: number; diagnosis?: string }) =>
+      request(`/repairs/${id}/update-labor`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     complete: (id: string, data: { diagnosis: string; laborHours: number }) =>
       request(`/repairs/${id}/complete`, {
         method: 'POST',

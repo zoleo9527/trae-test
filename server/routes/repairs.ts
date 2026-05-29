@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { db } from '../database/mockData';
 import { authenticateToken, AuthRequest, requireRoles } from '../middleware/auth';
 import { PaginatedResult, Repair, PartUsage } from '../../src/types';
 
 const router = Router();
 
-router.get('/', authenticateToken, (req: AuthRequest, res) => {
+router.get('/', authenticateToken, (req: AuthRequest, res: Response) => {
   const {
     page = 1,
     pageSize = 10,
@@ -73,7 +73,7 @@ router.post(
   '/:id/assign',
   authenticateToken,
   requireRoles('store_owner', 'admin', 'repair_technician'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const repairIdx = db.repairs.findIndex((r) => r.id === req.params.id);
     if (repairIdx === -1) {
       return res.status(404).json({ error: '维修单不存在' });
@@ -92,7 +92,7 @@ router.post(
   '/:id/start',
   authenticateToken,
   requireRoles('repair_technician', 'admin'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const repairIdx = db.repairs.findIndex((r) => r.id === req.params.id);
     if (repairIdx === -1) {
       return res.status(404).json({ error: '维修单不存在' });
@@ -109,7 +109,7 @@ router.post(
   '/:id/add-part',
   authenticateToken,
   requireRoles('repair_technician', 'admin'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const repairIdx = db.repairs.findIndex((r) => r.id === req.params.id);
     if (repairIdx === -1) {
       return res.status(404).json({ error: '维修单不存在' });
@@ -127,6 +127,90 @@ router.post(
       db.repairs[repairIdx].totalPartsCost +
       db.repairs[repairIdx].totalLaborCost;
 
+    const updateReturnId = db.repairs[repairIdx].returnId;
+    if (updateReturnId) {
+      const returnIdx = db.returns.findIndex((r) => r.id === updateReturnId);
+      if (returnIdx !== -1) {
+        const relatedRepairs = db.repairs.filter(
+          (r) => r.returnId === updateReturnId && r.status !== 'cancelled'
+        );
+        const totalPartsCost = relatedRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
+        const totalLaborCost = relatedRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
+        const totalRepairCost = totalPartsCost + totalLaborCost;
+
+        db.returns[returnIdx] = {
+          ...db.returns[returnIdx],
+          actualPartsCost: totalPartsCost,
+          actualLaborCost: totalLaborCost,
+          actualRepairCost: totalRepairCost,
+        };
+      }
+    }
+
+    res.json(db.repairs[repairIdx]);
+  }
+);
+
+router.post(
+  '/:id/update-labor',
+  authenticateToken,
+  requireRoles('repair_technician', 'admin'),
+  (req: AuthRequest, res: Response) => {
+    const repairIdx = db.repairs.findIndex((r) => r.id === req.params.id);
+    if (repairIdx === -1) {
+      return res.status(404).json({ error: '维修单不存在' });
+    }
+
+    const { laborHours, diagnosis } = req.body;
+
+    if (laborHours !== undefined) {
+      db.repairs[repairIdx].laborHours = laborHours;
+      db.repairs[repairIdx].totalLaborCost =
+        laborHours * db.repairs[repairIdx].laborRate;
+    }
+
+    if (diagnosis !== undefined) {
+      db.repairs[repairIdx].diagnosis = diagnosis;
+    }
+
+    db.repairs[repairIdx].totalRepairCost =
+      db.repairs[repairIdx].totalPartsCost +
+      db.repairs[repairIdx].totalLaborCost;
+
+    const updateReturnId = db.repairs[repairIdx].returnId;
+    if (updateReturnId) {
+      const returnIdx = db.returns.findIndex((r) => r.id === updateReturnId);
+      if (returnIdx !== -1) {
+        const relatedRepairs = db.repairs.filter(
+          (r) => r.returnId === updateReturnId && r.status !== 'cancelled'
+        );
+        const totalPartsCost = relatedRepairs.reduce((sum, r) => sum + r.totalPartsCost, 0);
+        const totalLaborCost = relatedRepairs.reduce((sum, r) => sum + r.totalLaborCost, 0);
+        const totalRepairCost = totalPartsCost + totalLaborCost;
+
+        db.returns[returnIdx] = {
+          ...db.returns[returnIdx],
+          actualPartsCost: totalPartsCost,
+          actualLaborCost: totalLaborCost,
+          actualRepairCost: totalRepairCost,
+        };
+      }
+    }
+
+    db.auditLogs.push({
+      id: `audit-${Date.now()}`,
+      entityType: 'repair',
+      entityId: db.repairs[repairIdx].id,
+      action: 'labor_updated',
+      changes: {
+        laborHours: { old: null, new: db.repairs[repairIdx].laborHours },
+        totalLaborCost: { old: null, new: db.repairs[repairIdx].totalLaborCost },
+      },
+      performedBy: req.user!.id,
+      performedByName: req.user!.name,
+      performedAt: new Date().toISOString(),
+    });
+
     res.json(db.repairs[repairIdx]);
   }
 );
@@ -135,7 +219,7 @@ router.post(
   '/:id/complete',
   authenticateToken,
   requireRoles('repair_technician', 'admin'),
-  (req: AuthRequest, res) => {
+  (req: AuthRequest, res: Response) => {
     const repairIdx = db.repairs.findIndex((r) => r.id === req.params.id);
     if (repairIdx === -1) {
       return res.status(404).json({ error: '维修单不存在' });

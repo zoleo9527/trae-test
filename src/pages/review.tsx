@@ -419,28 +419,30 @@ export default function ReviewPage() {
                           押金: ¥{calculateDeposit(returnItem)} - 租金: ¥{returnItem.totalRentalFee} - 扣款: ¥{returnItem.damageDeduction} = <strong>实退: ¥{returnItem.netRefund}</strong>
                         </div>
 
-                        {activeTab === 'pending' && hasRole('store_owner', 'admin') && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setDetailReturn(returnItem)}
-                              className="btn-secondary text-sm py-1.5"
-                            >
-                              查看详情
-                            </button>
-                            <button
-                              onClick={() => handleSingleReview(returnItem.id, 'approve')}
-                              className="btn-primary text-sm py-1.5"
-                            >
-                              通过
-                            </button>
-                            <button
-                              onClick={() => handleSingleReview(returnItem.id, 'dispute')}
-                              className="btn-danger text-sm py-1.5"
-                            >
-                              异议
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDetailReturn(returnItem)}
+                            className="btn-secondary text-sm py-1.5"
+                          >
+                            查看详情
+                          </button>
+                          {activeTab === 'pending' && hasRole('store_owner', 'admin') && (
+                            <>
+                              <button
+                                onClick={() => handleSingleReview(returnItem.id, 'approve')}
+                                className="btn-primary text-sm py-1.5"
+                              >
+                                通过
+                              </button>
+                              <button
+                                onClick={() => handleSingleReview(returnItem.id, 'dispute')}
+                                className="btn-danger text-sm py-1.5"
+                              >
+                                异议
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -673,7 +675,7 @@ export default function ReviewPage() {
                   >
                     关闭
                   </button>
-                  {activeTab === 'pending' && hasRole('store_owner', 'admin') && (
+                  {detailReturn.status === 'pending_review' && hasRole('store_owner', 'admin') && (
                     <>
                       <button
                         onClick={() => handleSingleReview(detailReturn.id, 'dispute')}

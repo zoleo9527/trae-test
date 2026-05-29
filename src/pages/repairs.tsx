@@ -50,6 +50,21 @@ export default function RepairsPage() {
     loadRepairs();
   };
 
+  const handleSaveLabor = async () => {
+    if (!detailRepair) return;
+    try {
+      const updated: any = await api.repairs.updateLabor(detailRepair.id, {
+        laborHours: detailRepair.laborHours || 0,
+        diagnosis: detailRepair.diagnosis,
+      });
+      setDetailRepair(updated);
+      loadRepairs();
+      alert('工时已保存，归还单成本已同步更新！');
+    } catch (error) {
+      console.error('保存工时失败:', error);
+    }
+  };
+
   const handleCompleteRepair = async () => {
     if (!detailRepair) return;
     await api.repairs.complete(detailRepair.id, {
@@ -222,16 +237,14 @@ export default function RepairsPage() {
                   </div>
                 </div>
 
-                {detailRepair.diagnosis && (
-                  <div>
-                    <h4 className="font-medium mb-2">诊断结果</h4>
-                    <p className="text-gray-600 p-3 bg-gray-50 rounded-lg">{detailRepair.diagnosis}</p>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">诊断结果</h4>
+                    {detailRepair.status === 'in_progress' && hasRole('repair_technician', 'admin') && (
+                      <span className="text-xs text-gray-500">可编辑</span>
+                    )}
                   </div>
-                )}
-
-                {detailRepair.status !== 'completed' && (
-                  <div>
-                    <h4 className="font-medium mb-2">诊断编辑</h4>
+                  {detailRepair.status === 'in_progress' && hasRole('repair_technician', 'admin') ? (
                     <textarea
                       className="input-field"
                       rows={3}
@@ -239,8 +252,70 @@ export default function RepairsPage() {
                       onChange={(e) => setDetailRepair({ ...detailRepair, diagnosis: e.target.value })}
                       placeholder="请输入诊断结果..."
                     />
+                  ) : (
+                    <p className="text-gray-600 p-3 bg-gray-50 rounded-lg">
+                      {detailRepair.diagnosis || '暂无诊断'}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">工时录入</h4>
+                    {detailRepair.status === 'in_progress' && hasRole('repair_technician', 'admin') && (
+                      <span className="text-xs text-green-600">可编辑 · 修改后保存即可同步更新归还单</span>
+                    )}
                   </div>
-                )}
+                  {detailRepair.status === 'in_progress' && hasRole('repair_technician', 'admin') ? (
+                    <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
+                      <div className="flex-1">
+                        <label className="text-sm text-gray-600 mb-1 block">工时（小时）</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          className="input-field"
+                          value={detailRepair.laborHours || ''}
+                          onChange={(e) => {
+                            const hours = parseFloat(e.target.value) || 0;
+                            setDetailRepair({
+                              ...detailRepair,
+                              laborHours: hours,
+                              totalLaborCost: hours * detailRepair.laborRate,
+                              totalRepairCost: hours * detailRepair.laborRate + detailRepair.totalPartsCost,
+                            });
+                          }}
+                          placeholder="输入工时..."
+                        />
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">工时单价</div>
+                        <div className="font-medium">¥{detailRepair.laborRate}/小时</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">工时费用</div>
+                        <div className="font-bold text-blue-600">
+                          ¥{(detailRepair.laborHours || 0) * detailRepair.laborRate}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="text-sm text-gray-500">工时</div>
+                        <div className="font-medium">{detailRepair.laborHours || 0} 小时</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500">单价</div>
+                        <div className="font-medium">¥{detailRepair.laborRate}/小时</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500">工时费用</div>
+                        <div className="font-bold">¥{detailRepair.totalLaborCost}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -346,10 +421,22 @@ export default function RepairsPage() {
                       </button>
                     )}
                     {detailRepair.status === 'in_progress' && hasRole('repair_technician', 'admin') && (
-                      <button onClick={handleCompleteRepair} className="btn-primary">
-                        完成维修
-                      </button>
+                      <>
+                        <button onClick={handleSaveLabor} className="btn-secondary">
+                          保存工时
+                        </button>
+                        <button onClick={handleCompleteRepair} className="btn-primary">
+                          完成维修
+                        </button>
+                      </>
                     )}
+                  </div>
+                )}
+                {detailRepair.status === 'completed' && (
+                  <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+                    <button onClick={() => setDetailRepair(null)} className="btn-secondary">
+                      关闭
+                    </button>
                   </div>
                 )}
               </div>
