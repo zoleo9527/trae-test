@@ -23,11 +23,5 @@ func (u *User) HasPermission(requiredRole Role) bool {
 	if u.Role == RoleAdmin {
 		return true
 	}
-	if u.Role == requiredRole {
-		return true
-	}
-	if u.Role == RoleOwner {
-		return requiredRole == RoleSales || requiredRole == RoleWarehouse
-	}
-	return false
+	return u.Role == requiredRole
 }

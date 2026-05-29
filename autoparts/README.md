@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-基于 Go Fiber + PostgreSQL 实现的汽配商行管理系统，核心功能包括询价报价、配件锁库、库存管理等。系统采用 RBAC 权限控制，支持门店老板、配件销售、库管等不同角色的差异化视图。
+基于 Go Fiber + PostgreSQL 实现的汽配商行管理系统，核心功能包括询价报价、配件锁库、库存管理等。系统采用 RBAC 权限控制，支持管理员、门店老板、配件销售、库管四种角色的严格隔离视图。
 
 ## 技术栈
 
@@ -10,36 +10,11 @@
 - **数据库**: PostgreSQL 14+
 - **ORM**: GORM
 - **认证**: JWT
-- **权限**: RBAC (基于角色的访问控制)
-
-## 目录结构
-
-```
-autoparts/
-├── cmd/
-│   └── main.go              # 主入口
-├── internal/
-│   ├── config/              # 配置管理
-│   ├── controller/          # 控制器层
-│   ├── dto/               # 数据传输对象
-│   ├── middleware/        # 中间件
-│   ├── model/             # 数据模型
-│   ├── service/           # 业务服务层
-│   └── util/              # 工具函数
-├── pkg/
-│   └── errors/            # 错误处理
-├── scripts/                 # 脚本
-│   └── seed_demo_data.go # 演示数据脚本
-├── .env.example           # 环境变量示例
-├── go.mod
-└── README.md
-```
+- **权限**: RBAC (基于角色的访问控制，角色间无隐式继承)
 
 ## 快速启动
 
 ### 1. 环境配置
-
-复制环境变量文件：
 
 ```bash
 cp .env.example .env
@@ -48,46 +23,34 @@ cp .env.example .env
 编辑 `.env` 文件，配置数据库连接：
 
 ```env
-# 服务器配置
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
-
-# 数据库配置
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=your_password
 DB_NAME=autoparts
 DB_SSLMODE=disable
-
-# JWT 配置
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRE_HOURS=24
 ```
 
 ### 2. 数据库准备
 
-确保 PostgreSQL 服务已启动，并创建数据库：
-
 ```sql
 CREATE DATABASE autoparts;
 ```
 
-### 3. 安装依赖
+### 3. 安装依赖并启动
 
 ```bash
 go mod tidy
-```
-
-### 4. 启动服务
-
-```bash
 go run cmd/main.go
 ```
 
-服务将自动执行数据库迁移并初始化基础数据。
+服务启动时自动执行数据库迁移并初始化基础用户数据。
 
-### 5. （可选）导入演示数据
+### 4. （可选）导入演示数据
 
 ```bash
 go run scripts/seed_demo_data.go
@@ -95,215 +58,151 @@ go run scripts/seed_demo_data.go
 
 ## 测试账号
 
-系统初始化时会自动创建以下测试账号，密码均为 `123456`：
+系统初始化时自动创建以下测试账号，密码均为 `123456`：
 
-| 用户名 | 角色 | 姓名 | 说明 |
-|--------|------|------|------|
-| admin | 管理员 | 系统管理员 | 拥有所有权限 |
-| owner | 门店老板 | 店老板-王总 | 查看报表、管理客户 |
-| sales1 | 销售员 | 销售员-小张 | 询价、报价 |
-| sales2 | 销售员 | 销售员-小李 | 询价、报价 |
-| warehouse1 | 库管 | 库管-老李 | 锁库、拣货、退货 |
-| warehouse2 | 库管 | 库管-小王 | 锁库、拣货、退货 |
+| 用户名 | 角色 | 姓名 | 能做什么 |
+|--------|------|------|----------|
+| admin | 管理员 | 系统管理员 | 全部权限 |
+| owner | 门店老板 | 店老板 | 查看询价/锁库、管理客户、退货审核 |
+| sales1 | 销售员 | 销售员小张 | 询价单创建/修改/取消、报价单全操作 |
+| warehouse1 | 库管 | 库管老李 | 锁库创建/释放/拣货/退货申请/批量释放 |
 
-## 核心功能
+> 演示数据脚本会额外创建 sales2、warehouse2 等账号，但主入口初始化仅包含以上 4 个。
 
-### 1. 询价报价流程
+## 角色权限矩阵
 
-**询价单 (Enquiry) → 报价单 (Quote) → 配件锁库 (Lock) → 拣货出库 (Pick) → 完成 (Complete)
-
-**状态流转：
-
-```
-待处理 → 已报价 → 已确认 → 已锁库 → 已完成
-     ↓         ↓
-   已取消    已拒绝
-```
-
-### 2. 角色权限矩阵
+各角色权限严格隔离，无隐式继承：
 
 | 功能 | 管理员 | 门店老板 | 销售员 | 库管 |
 |------|--------|----------|--------|------|
-| 用户管理 | ✅ | ❌ | ❌ | ❌ |
-| 客户管理 | ✅ | ✅ | ✅ | ❌ |
-| 创建询价单 | ✅ | ✅ | ✅ | ❌ |
-| 创建报价单 | ✅ | ✅ | ✅ | ❌ |
-| 审核报价 | ✅ | ✅ | ✅ | ❌ |
-| 创建锁库单 | ✅ | ❌ | ❌ | ✅ |
-| 拣货出库 | ✅ | ❌ | ❌ | ✅ |
-| 退货处理 | ✅ | ✅ | ❌ | ✅ |
-| 批量释放锁库 | ✅ | ❌ | ❌ | ✅ |
-| 查看审计日志 | ✅ | ✅ | ❌ | ❌ |
-| 导出数据 | ✅ | ✅ | ✅ | ✅ |
+| 客户管理（增删改查） | ✅ | ✅ | ✅ | ❌ |
+| 询价单查看/列表/导出/链路追踪 | ✅ | ✅ | ✅ | ❌ |
+| 询价单创建/修改/删除/取消 | ✅ | ❌ | ✅ | ❌ |
+| 报价单全部操作（创建/审核/取消/列表/导出） | ✅ | ❌ | ✅ | ❌ |
+| 锁库单查看/列表 | ✅ | ✅ | ❌ | ✅ |
+| 退货审核 | ✅ | ✅ | ❌ | ❌ |
+| 锁库创建/释放/拣货 | ✅ | ❌ | ❌ | ✅ |
+| 退货申请 | ✅ | ❌ | ❌ | ✅ |
+| 批量释放/导出 | ✅ | ❌ | ❌ | ✅ |
 
-### 3. 链路追踪
+**关键设计**：老板不继承销售和库管权限。老板能查看询价和锁库数据、审核退货，但不能创建询价单、审核报价、创建锁库单、拣货或批量释放。
 
-通过 `GET /api/enquiries/:id/chain` 接口可以查看完整的业务链路：
+## 询价状态流转
 
-- 询价单信息
-- 关联的报价单
-- 关联的锁库单
-- 所有状态变更历史
-- 操作人信息
+询价单状态只能由业务动作自动推进，不允许手工修改：
 
-### 4. 批量操作
+| 业务动作 | enquiry 状态变化 |
+|---------|-----------------|
+| 创建询价单 | → pending |
+| 创建报价单 | pending → quoted |
+| 报价审核通过 | quoted → confirmed |
+| 创建锁库单 | confirmed → locked |
+| 手工取消（仅限未完成） | 任意 → cancelled |
 
-- 批量释放锁库：`POST /api/locks/batch-release`
-- 支持通过筛选条件批量操作
+Update 接口只能修改加急、优先级、备注和明细，不能变更 status。
 
-### 5. 异步任务
+## 链路追踪
 
-- 数据导出任务在后台异步执行
-- 支持查询任务状态
-- 支持下载导出文件
+通过 `GET /api/v1/enquiries/:id/trace` 接口查看完整业务链路，返回内容包含：
 
-### 6. 审计日志
+- 询价单基础信息和明细
+- 关联的报价单摘要
+- 关联的锁库单摘要
+- 全链路审计日志（涵盖 enquiry / quote / lock / lock_item 四个模块的所有操作记录）
 
-系统自动记录所有关键操作：
-- 创建、更新、删除操作
-- 状态变更
-- 操作人、操作时间
-- 变更前后数据对比
+## API 路由概览
 
-## API 接口示例
+所有接口前缀为 `/api/v1`。
 
-### 认证接口
+### 公开路由
 
-#### 登录
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /auth/login | 登录 |
 
-```bash
-# 登录
-POST /api/auth/login
-Content-Type: application/json
+### 认证路由（需 Bearer Token）
 
-{
-  "username": "sales1",
-  "password": "123456"
-}
-```
+| 方法 | 路径 | 说明 | 允许角色 |
+|------|------|------|----------|
+| GET | /auth/profile | 获取当前用户信息 | 全部 |
+| POST | /auth/change-password | 修改密码 | 全部 |
+| GET | /tasks | 任务列表 | 全部 |
+| GET | /tasks/:id | 任务详情 | 全部 |
 
-### 询价单接口
+### 客户路由（admin / owner / sales）
 
-```bash
-# 创建询价单
-POST /api/enquiries
-Authorization: Bearer {token}
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /customers | 创建客户 |
+| GET | /customers/:id | 客户详情 |
+| PUT | /customers/:id | 更新客户 |
+| DELETE | /customers/:id | 删除客户 |
+| POST | /customers/list | 客户列表（销售只看自己创建的） |
 
-{
-  "customer_id": 1,
-  "license_plate": "京A12345",
-  "car_model": "大众帕萨特",
-  "is_urgent": false,
-  "items": [
-    {
-      "part_id": 1,
-      "quantity": 2,
-      "remark": "前刹车片"
-    }
-  ],
-  "remark": "常规保养"
-}
-```
+### 询价单路由
 
-```bash
-# 查询询价单列表（支持筛选）
-GET /api/enquiries?status=pending&is_urgent=true&keyword=京A
-```
+**查看类（admin / owner / sales）**：
 
-```bash
-# 查看业务链路
-GET /api/enquiries/:id/chain
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /enquiries/:id | 询价单详情 |
+| GET | /enquiries/:id/trace | 链路追踪（含审计日志） |
+| POST | /enquiries/list | 询价单列表 |
+| POST | /enquiries/export | 导出 |
 
-### 报价单接口
+**操作类（admin / sales，owner 不可操作）**：
 
-```bash
-# 创建报价单
-POST /api/quotes
-{
-  "enquiry_id": 1,
-  "valid_days": 7,
-  "items": [
-    {
-      "enquiry_item_id": 1,
-      "quote_price": 350.00
-    }
-  ]
-}
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /enquiries | 创建询价单 |
+| PUT | /enquiries/:id | 修改询价单（不含 status） |
+| DELETE | /enquiries/:id | 删除询价单 |
+| POST | /enquiries/:id/cancel | 取消询价单 |
 
-```bash
-# 审核报价
-POST /api/quotes/:id/review
-{
-  "status": "accepted"  # 或 "rejected"
-  "reject_reason": ""
-}
-```
+### 报价单路由（admin / sales，owner 不可访问）
 
-### 锁库单接口
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /quotes | 创建报价单 |
+| GET | /quotes/:id | 报价单详情 |
+| POST | /quotes/:id/review | 审核报价 |
+| POST | /quotes/:id/cancel | 取消报价 |
+| POST | /quotes/list | 报价单列表 |
+| POST | /quotes/export | 导出 |
 
-```bash
-# 创建锁库单
-POST /api/locks
-{
-  "enquiry_id": 1,
-  "quote_id": 1
-}
-```
+### 锁库单路由
 
-```bash
-# 拣货出库
-POST /api/locks/:id/pick
-```
+**老板查看 + 退货审核（admin / owner）**：
 
-```bash
-# 申请退货
-POST /api/locks/:id/request-return
-{
-  "reason": "型号不符",
-  "items": [
-    {
-      "lock_item_id": 1,
-      "quantity": 1
-    }
-  ]
-}
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /locks/:id | 锁库单详情 |
+| POST | /locks/list | 锁库单列表（库管只看自己创建的） |
+| POST | /locks/:lockOrderId/return/:itemId/review | 退货审核 |
 
-```bash
-# 审核退货
-POST /api/locks/:id/review-return
-{
-  "approved": true,
-  "review_remark": "同意退货"
-}
-```
+**仓库操作（admin / warehouse，owner 不可操作）**：
 
-```bash
-# 批量释放锁库
-POST /api/locks/batch-release
-{
-  "ids": [1, 2, 3]
-}
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /locks | 创建锁库单 |
+| POST | /locks/:id/release | 释放锁库 |
+| POST | /locks/:id/pick | 拣货出库 |
+| POST | /locks/:id/return | 申请退货 |
+| POST | /locks/batch-release | 批量释放 |
+| POST | /locks/export | 导出 |
 
 ## 错误处理
 
-系统采用统一的错误响应格式：
+统一错误响应格式：
 
 ```json
 {
   "success": false,
   "code": "VALIDATION_ERROR",
   "message": "参数校验失败",
-  "details": {
-    "customer_id": "客户ID不能为空"
-  }
+  "details": { "customer_id": "客户ID不能为空" }
 }
 ```
-
-主要错误类型：
 
 | 错误码 | HTTP 状态码 | 说明 |
 |---------|-------------|------|
@@ -311,52 +210,33 @@ POST /api/locks/batch-release
 | UNAUTHORIZED | 401 | 未授权 |
 | PERMISSION_DENIED | 403 | 权限不足 |
 | NOT_FOUND | 404 | 资源不存在 |
-| STATUS_CONFLICT | 409 | 状态冲突 |
+| STATUS_CONFLICT | 409 | 状态冲突/状态不允许操作 |
 | STOCK_INSUFFICIENT | 409 | 库存不足 |
 | INTERNAL_ERROR | 500 | 服务器内部错误 |
 
 ## 演示数据中的异常场景
 
-运行演示数据脚本后，可以测试以下异常场景：
-
-1. **状态冲突**：尝试修改状态为 "已完成" 的询价单
-2. **库存不足**：尝试锁定 ENG-002（机油滤清器），库存为0
-3. **权限不足**：使用库管账号创建询价单
-4. **权限不足**：使用销售账号进行拣货操作
-5. **已过期报价单**：尝试审核已过期的报价单
-6. **参数校验**：创建询价单时缺少必要字段
-7. **高风险客户**：查看"王五-高风险账期客户的账期风险
-8. **退货流程**：测试待退货状态的锁库单退货审核
+1. **状态冲突**：尝试修改已完成询价单 → 409
+2. **状态手工推进被拒**：通过 Update 接口提交 status 字段 → 409
+3. **库存不足**：锁定库存为 0 的配件（ENG-002）→ 409
+4. **权限不足**：库管尝试访问客户列表 → 403
+5. **权限不足**：销售尝试访问锁库列表 → 403
+6. **权限不足**：老板尝试创建询价单 → 403
+7. **已过期报价单**：审核已过期报价 → 409
+8. **参数校验**：创建询价单缺少必要字段 → 400
+9. **退货流程**：测试待退货状态的锁库单退货审核
 
 ## 刻意简化的部分
 
-本项目为演示版本，以下功能做了简化：
-
-1. **支付结算模块
+1. **支付结算**：未实现收银、收款、发票
 2. **财务报表**：未实现应收账款、账龄分析
-3. **库存预警**：未实现库存预警通知
-4. **消息推送**：未实现消息推送
+3. **库存预警通知**：未实现自动通知
+4. **消息推送**：未实现站内信/短信
 5. **文件上传**：未实现图片、附件上传
-6. **数据备份**：未实现自动备份
-7. **多仓库**：当前仅支持单仓库
-8. **供应商管理**：未实现供应商管理
-9. **采购管理**：未实现采购管理
-10. **前端界面**：未实现前端界面，仅提供API接口
-
-## 开发说明
-
-### 环境要求
-
-- Go 1.21+
-- PostgreSQL 14+
-
-### 代码规范
-
-- 服务层做厚，控制器做薄
-- 错误处理统一使用 pkg/errors
-- DTO 层做参数校验
-- 审计日志自动记录
-- 数据库操作使用事务保证数据一致性
+6. **多仓库**：当前仅支持单仓库
+7. **供应商管理**：未实现
+8. **采购管理**：未实现
+9. **前端界面**：仅提供 API 接口
 
 ## License
 
