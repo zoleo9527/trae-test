@@ -169,6 +169,7 @@
   }
 
   $: canHandover = foundOrder && (foundOrder.status === 'completed' || foundOrder.status === 'qc')
+  $: handoverBtnText = foundOrder?.status === 'qc' ? '质检通过并交接' : '交接出库'
 
   const colors = ['白色', '黑色', '蓝色', '灰色', '红色', '蓝色', '粉色', '绿色', '黄色']
 </script>
@@ -355,7 +356,7 @@
                 </button>
                 {#if canHandover}
                   <button class="btn-success" on:click={handleQuickHandover}>
-                    📦 交接出库
+                    📦 {handoverBtnText}
                   </button>
                 {/if}
                 <button class="btn-secondary" on:click={resetSearch}>

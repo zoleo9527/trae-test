@@ -21,7 +21,7 @@
 
   $: availableOrders = orders.filter(o => {
     if (handoverType === 'out') {
-      return (o.status === 'completed' || o.status === 'qc') && 
+      return o.status === 'completed' && 
              (!selectedStoreId || o.storeId === selectedStoreId)
     } else {
       return o.status === 'pending' && 
@@ -36,7 +36,7 @@
     if (selectedOrderIds.includes(orderId)) {
       selectedOrderIds = selectedOrderIds.filter(id => id !== orderId)
     } else {
-      selectedOrderIds.push(orderId)
+      selectedOrderIds = [...selectedOrderIds, orderId]
     }
   }
 

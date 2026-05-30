@@ -42,6 +42,23 @@
   }
 
   async function quickHandover(order: Order) {
+    if (order.status !== 'completed') {
+      await db.orders.update(order.id, {
+        status: 'completed',
+        currentStage: 6,
+        updatedAt: Date.now()
+      })
+
+      await db.timelineEvents.add({
+        id: generateId(),
+        type: 'order',
+        referenceId: order.id,
+        action: '质检通过',
+        description: '质检完成，进入已完成状态待出库',
+        timestamp: Date.now()
+      })
+    }
+
     const handover = {
       id: generateId(),
       type: 'out' as const,

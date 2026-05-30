@@ -1,8 +1,8 @@
 <script lang="ts">
   import { db } from '../lib/db'
-  import { STAGES } from '../lib/sampleData'
-  import { formatDateTime, formatDuration, getStatusLabel, getStatusBadgeClass, formatOrderNo, getPriorityLabel, getPriorityBadgeClass, generateId } from '../lib/utils'
-  import type { Order, ProcessRecord, RewashRecord, Issue } from '../lib/types'
+  import { STAGES, sampleStores } from '../lib/sampleData'
+  import { formatDateTime, formatDuration, getStatusLabel, getStatusBadgeClass, formatOrderNo, getPriorityLabel, getPriorityBadgeClass, generateId, getIssueTypeLabel } from '../lib/utils'
+  import type { Order, ProcessRecord, RewashRecord, Issue, HandoverRecord, TimelineEvent } from '../lib/types'
 
   export let order: Order
   export let onClose: () => void
@@ -11,6 +11,8 @@
   let processRecords: ProcessRecord[] = []
   let rewashRecords: RewashRecord[] = []
   let issues: Issue[] = []
+  let handoverRecords: HandoverRecord[] = []
+  let timelineEvents: TimelineEvent[] = []
   let activeTab: 'timeline' | 'items' | 'issues' = 'timeline'
   let showAdvance = false
   let nextStageNotes = ''
@@ -19,9 +21,56 @@
     processRecords = await db.processRecords.where('orderId').equals(order.id).sortBy('createdAt')
     rewashRecords = await db.rewashRecords.where('orderId').equals(order.id).sortBy('detectedAt')
     issues = await db.issues.where('orderId').equals(order.id).sortBy('reportedAt')
+    
+    const allHandover = await db.handoverRecords.orderBy('timestamp').reverse().toArray()
+    handoverRecords = allHandover.filter(h => h.orderIds.includes(order.id))
+    
+    const allEvents = await db.timelineEvents.orderBy('timestamp').reverse().toArray()
+    timelineEvents = allEvents.filter(e => 
+      e.referenceId === order.id || 
+      (e.type === 'handover' && handoverRecords.some(h => h.id === e.referenceId)) ||
+      (e.type === 'rewash' && rewashRecords.some(r => r.id === e.referenceId))
+    )
   }
 
   loadRelatedData()
+
+  function getStoreName(storeId: string): string {
+    return sampleStores.find(s => s.id === storeId)?.name || '-'
+  }
+
+  function getEventDotClass(event: TimelineEvent): string {
+    switch (event.type) {
+      case 'order':
+        return event.action.includes('推进') ? 'active' : 'success'
+      case 'issue':
+        return 'danger'
+      case 'rewash':
+        return event.action.includes('完成') ? 'success' : 'warning'
+      case 'handover':
+        return 'primary'
+      default:
+        return 'success'
+    }
+  }
+
+  function getEventIcon(event: TimelineEvent): string {
+    switch (event.type) {
+      case 'order':
+        if (event.action.includes('创建')) return '📥'
+        if (event.action.includes('推进')) return '➡️'
+        if (event.action.includes('质检')) return '✅'
+        return '📋'
+      case 'issue':
+        return '⚠️'
+      case 'rewash':
+        return event.action.includes('完成') ? '✅' : '🔄'
+      case 'handover':
+        return event.action.includes('出库') ? '📤' : '📥'
+      default:
+        return '📌'
+    }
+  }
 
   async function advanceStage() {
     if (order.currentStage >= 6) return
@@ -125,47 +174,86 @@
     <div class="modal-body modal-body-scroll">
       {#if activeTab === 'timeline'}
         <div class="timeline">
-          {#each processRecords as record}
+          {#each timelineEvents as event}
             <div class="timeline-item">
-              <div class="timeline-dot {record.endTime ? 'success' : 'active'}"></div>
+              <div class="timeline-dot {getEventDotClass(event)}"></div>
               <div class="timeline-content">
-                <div class="timeline-title">{record.stageName}</div>
-                <div class="timeline-time">
-                  开始：{formatDateTime(record.startTime)}
-                  {#if record.endTime}
-                    <br>完成：{formatDateTime(record.endTime)}
-                    <br>耗时：{formatDuration(record.startTime, record.endTime)}
-                  {/if}
-                </div>
-                {#if record.notes}
-                  <div class="timeline-desc">备注：{record.notes}</div>
+                <div class="timeline-title">{getEventIcon(event)} {event.action}</div>
+                <div class="timeline-time">{formatDateTime(event.timestamp)}</div>
+                {#if event.description}
+                  <div class="timeline-desc">{event.description}</div>
                 {/if}
-                {#if record.operator}
-                  <div class="text-sm text-gray-500 mt-1">操作人：{record.operator}</div>
+                {#if event.operator}
+                  <div class="text-sm text-gray-500 mt-1">操作人：{event.operator}</div>
                 {/if}
               </div>
             </div>
           {/each}
 
-          {#each rewashRecords as rewash}
-            <div class="timeline-item">
-              <div class="timeline-dot danger"></div>
-              <div class="timeline-content">
-                <div class="timeline-title">🔄 返洗登记（第 {rewash.rewashCount} 次）</div>
-                <div class="timeline-time">{formatDateTime(rewash.detectedAt)}</div>
-                <div class="timeline-desc">
-                  <strong>原因：</strong>{rewash.reason}
-                  {#if rewash.notes}
-                    <br><strong>备注：</strong>{rewash.notes}
-                  {/if}
-                </div>
-                {#if rewash.resolved}
-                  <div class="text-sm text-success mt-1">✓ 已处理</div>
-                {/if}
-              </div>
+          {#if timelineEvents.length === 0}
+            <div class="empty-state small">
+              <div class="empty-title">暂无流程记录</div>
             </div>
-          {/each}
+          {/if}
         </div>
+
+        {#if handoverRecords.length > 0 || rewashRecords.length > 0}
+          <div class="mt-4">
+            <h4 class="section-title">📋 详细记录</h4>
+            
+            {#if handoverRecords.length > 0}
+              <div class="record-section">
+                <h5 class="record-subtitle">交接记录 ({handoverRecords.length})</h5>
+                <div class="record-list">
+                  {#each handoverRecords as record}
+                    <div class="record-item">
+                      <div class="record-header">
+                        <span class="badge {record.type === 'out' ? 'badge-success' : 'badge-primary'}">
+                          {record.type === 'out' ? '工厂送店' : '门店送厂'}
+                        </span>
+                        <span class="record-time">{formatDateTime(record.timestamp)}</span>
+                      </div>
+                      <div class="record-body">
+                        <span>门店：{getStoreName(record.storeId)}</span>
+                        {#if record.notes}
+                          <span class="record-notes">备注：{record.notes}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            {#if rewashRecords.length > 0}
+              <div class="record-section">
+                <h5 class="record-subtitle">返洗记录 ({rewashRecords.length})</h5>
+                <div class="record-list">
+                  {#each rewashRecords as rewash}
+                    <div class="record-item">
+                      <div class="record-header">
+                        <span class="badge badge-warning">
+                          第 {rewash.rewashCount} 次返洗
+                        </span>
+                        <span class="record-time">{formatDateTime(rewash.detectedAt)}</span>
+                        {#if rewash.resolved}
+                          <span class="badge badge-success">已处理</span>
+                        {/if}
+                      </div>
+                      <div class="record-body">
+                        <span>类型：{getIssueTypeLabel(rewash.issueType)}</span>
+                        <span>原因：{rewash.reason}</span>
+                        {#if rewash.notes}
+                          <span class="record-notes">备注：{rewash.notes}</span>
+                        {/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
       {:else if activeTab === 'items'}
         <table>
           <thead>
@@ -368,5 +456,70 @@
     background: rgba(16, 185, 129, 0.1);
     border-radius: var(--radius);
     color: var(--success);
+  }
+
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .record-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .record-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: var(--gray-600);
+  }
+
+  .record-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .record-item {
+    padding: 0.75rem 1rem;
+    background: var(--gray-50);
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-100);
+  }
+
+  .record-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .record-time {
+    font-size: 12px;
+    color: var(--gray-500);
+    margin-left: auto;
+  }
+
+  .record-body {
+    font-size: 13px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: var(--gray-700);
+  }
+
+  .record-notes {
+    color: var(--gray-500);
+  }
+
+  .empty-state.small {
+    padding: 2rem;
+  }
+
+  .empty-state.small .empty-title {
+    font-size: 14px;
   }
 </style>
