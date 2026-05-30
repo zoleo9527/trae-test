@@ -7,6 +7,7 @@ from .serializers import (
     BookSerializer, BookListSerializer, BookCategorySerializer, BorrowRecordSerializer
 )
 from apps.common.permissions import IsManager
+from apps.audit.services import OverdueReminderService
 
 
 class BookCategoryViewSet(viewsets.ModelViewSet):
@@ -48,6 +49,8 @@ class BorrowRecordViewSet(viewsets.ModelViewSet):
         book.available_copies += 1
         book.status = 'available'
         book.save()
+
+        OverdueReminderService.close_borrow_reminder(borrow, operator=request.user)
 
         serializer = self.get_serializer(borrow)
         return Response(serializer.data)

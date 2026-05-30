@@ -2,6 +2,7 @@ from django.utils import timezone
 from .models import RepairTicket, RepairStatus, RepairLog
 from apps.devices.models import DeviceStatus
 from apps.audit.models import Notification
+from apps.audit.services import OverdueReminderService
 
 
 class RepairFlowService:
@@ -132,6 +133,8 @@ class RepairFlowService:
             remarks=comments,
         )
 
+        OverdueReminderService.close_repair_reminder(ticket, operator=user)
+
         return ticket
 
     @staticmethod
@@ -198,5 +201,7 @@ class RepairFlowService:
             module='repairs',
             object_id=str(ticket.id),
         )
+
+        OverdueReminderService.close_repair_reminder(ticket, operator=user)
 
         return ticket

@@ -3,6 +3,7 @@ from .models import InspectionRecord, InspectionStatus, InspectionItemResult
 from apps.repairs.models import RepairTicket, RepairStatus, RepairPriority, RepairCategory
 from apps.devices.models import DeviceStatus
 from apps.audit.models import Notification
+from apps.audit.services import OverdueReminderService
 
 
 class InspectionFlowService:
@@ -51,6 +52,8 @@ class InspectionFlowService:
             if not RepairTicket.objects.filter(inspection_item=item).exists():
                 InspectionFlowService._create_repair_from_inspection(item, user)
 
+        OverdueReminderService.close_inspection_reminder(inspection, operator=user)
+
         return inspection
 
     @staticmethod
@@ -76,6 +79,8 @@ class InspectionFlowService:
             module='inspections',
             object_id=str(inspection.id),
         )
+
+        OverdueReminderService.close_inspection_reminder(inspection, operator=user)
 
         return inspection
 
@@ -151,5 +156,7 @@ class InspectionFlowService:
         inspection.status = InspectionStatus.COMPLETED
         inspection.end_time = timezone.now()
         inspection.save()
+
+        OverdueReminderService.close_inspection_reminder(inspection, operator=user)
 
         return inspection

@@ -1,10 +1,11 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils import timezone
 from .models import AuditLog, Notification, OverdueReminder
 from .serializers import AuditLogSerializer, NotificationSerializer, OverdueReminderSerializer
+from .services import OverdueReminderService
 from apps.common.permissions import IsAdmin, IsManager
 from apps.common.views import filter_by_venue
 
@@ -82,9 +83,43 @@ class OverdueReminderViewSet(viewsets.ModelViewSet):
             self.permission_denied(request, message='没有权限操作此提醒')
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'scan', 'scan_all']:
             return [IsManager()]
         return super().get_permissions()
+
+    @action(detail=False, methods=['post'])
+    def scan_all(self, request):
+        module = request.data.get('module', 'all')
+        results, summary = OverdueReminderService.check_all_overdue(
+            trigger_type='api',
+            operator=request.user
+        )
+
+        detailed_results = []
+        for mod, items in results.items():
+            if module != 'all' and mod != module:
+                continue
+            for action, reminder in items:
+                detailed_results.append({
+                    'module': mod,
+                    'action': action,
+                    'id': reminder.id,
+                    'type': reminder.type,
+                    'related_object': reminder.related_object_repr,
+                    'overdue_days': reminder.overdue_days,
+                    'assignee': reminder.assignee.username,
+                    'message': reminder.message,
+                })
+
+        return Response({
+            'summary': summary,
+            'results': detailed_results,
+        })
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        data = OverdueReminderService.get_overdue_summary()
+        return Response(data)
 
     @action(detail=True, methods=['post'])
     def handle(self, request, pk=None):
@@ -93,5 +128,47 @@ class OverdueReminderViewSet(viewsets.ModelViewSet):
         reminder.handled_by = request.user
         reminder.handled_at = timezone.now()
         reminder.save()
+
+        Notification.objects.filter(
+            module=reminder.type,
+            object_id=str(reminder.related_object_id),
+            is_read=False
+        ).update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+
         serializer = self.get_serializer(reminder)
         return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsManager])
+def scan_overdue(request):
+    module = request.data.get('module', 'all')
+    results, summary = OverdueReminderService.check_all_overdue(
+        trigger_type='api',
+        operator=request.user
+    )
+
+    count_created = 0
+    count_updated = 0
+    for mod, items in results.items():
+        if module != 'all' and mod != module:
+            continue
+        count_created += sum(1 for s, _ in items if s == 'created')
+        count_updated += sum(1 for s, _ in items if s == 'updated')
+
+    return Response({
+        'status': 'success',
+        'summary': summary,
+        'created': count_created,
+        'updated': count_updated,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def overdue_summary(request):
+    data = OverdueReminderService.get_overdue_summary()
+    return Response(data)
