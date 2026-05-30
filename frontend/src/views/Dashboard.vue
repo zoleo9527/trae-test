@@ -155,7 +155,6 @@ import dayjs from 'dayjs'
 import { useScheduleStore } from '@/stores/schedule'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useUserStore } from '@/stores/user'
-import { mockVolunteers } from '@/mock/data'
 
 const router = useRouter()
 const scheduleStore = useScheduleStore()
@@ -192,11 +191,11 @@ const roleWelcomeDesc = computed(() => {
 })
 
 const activeVolunteerCount = computed(() => {
-  return mockVolunteers.filter(v => v.status === 'active').length
+  return scheduleStore.volunteerStats.activeVolunteers
 })
 
 const totalServiceHours = computed(() => {
-  return mockVolunteers.reduce((sum, v) => sum + v.totalHours, 0)
+  return scheduleStore.volunteerStats.totalServiceHours
 })
 
 const weekScheduleCount = computed(() => {
@@ -280,12 +279,33 @@ const todoList = computed(() => {
   }
 
   if (role === 'coordinator') {
-    const makeupPending = scheduleStore.schedules.filter(s => s.makeupStatus === 'pending')
+    const makeupPending = scheduleStore.getMakeupByHandler(role)
     if (makeupPending.length > 0) {
       todos.push({
         type: 'warning', icon: 'RefreshRight', priority: 'warning', time: `${makeupPending.length}人`,
-        title: '待安排补班',
-        desc: `有${makeupPending.length}位志愿者需要安排补班`,
+        title: '待我安排补班',
+        desc: `有${makeupPending.length}位志愿者需要您安排补班`,
+        action: 'schedule'
+      })
+    }
+  }
+
+  if (role === 'director') {
+    const makeupPending = scheduleStore.makeupPending
+    if (makeupPending.length > 0) {
+      const totalByHandler = {}
+      makeupPending.forEach(s => {
+        const handler = s.makeupAssignedTo || 'coordinator'
+        totalByHandler[handler] = (totalByHandler[handler] || 0) + 1
+      })
+      const handlerLabels = { director: '馆长', coordinator: '志愿者协调', operator: '活动运营' }
+      const descText = Object.entries(totalByHandler)
+        .map(([h, c]) => `${handlerLabels[h] || h}: ${c}人`)
+        .join('，')
+      todos.push({
+        type: 'warning', icon: 'RefreshRight', priority: 'warning', time: `${makeupPending.length}人`,
+        title: '待安排补班（全局）',
+        desc: descText,
         action: 'schedule'
       })
     }

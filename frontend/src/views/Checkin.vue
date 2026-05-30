@@ -326,15 +326,27 @@ const rolePendingLabel = computed(() => {
 
 const todaySchedules = computed(() => {
   if (role.value === 'operator') {
-    return scheduleStore.todaySchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
+    return scheduleStore.todaySchedules
+      .filter(s => s.type === '活动协助' || s.type === '读者服务')
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
   }
   return scheduleStore.todaySchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
 })
 
-const overdueSchedules = computed(() => scheduleStore.overdueSchedules)
+const overdueSchedules = computed(() => {
+  if (role.value === 'operator') {
+    return scheduleStore.overdueSchedules
+      .filter(s => s.type === '活动协助' || s.type === '读者服务')
+  }
+  return scheduleStore.overdueSchedules
+})
 
 const historySchedules = computed(() => {
-  return scheduleStore.getSchedulesByDate(historyDate.value)
+  const all = scheduleStore.getSchedulesByDate(historyDate.value)
+  if (role.value === 'operator') {
+    return all.filter(s => s.type === '活动协助' || s.type === '读者服务')
+  }
+  return all
 })
 
 function getOverdueTime(row) {
@@ -380,6 +392,7 @@ function confirmMarkMissed() {
     currentSchedule.value.id,
     missedForm.value.remark,
     missedForm.value.needMakeup,
+    missedForm.value.makeupAssignedTo,
     operatorName
   )
   ElMessage.success('已标记为缺勤')

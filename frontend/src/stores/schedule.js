@@ -46,6 +46,44 @@ export const useScheduleStore = defineStore('schedule', () => {
     return { total, checkedIn, missed, pending, completed }
   })
 
+  const volunteerStats = computed(() => {
+    const volunteerMap = {}
+    schedules.value.forEach(s => {
+      if (s.status !== 'pending') {
+        if (!volunteerMap[s.volunteerId]) {
+          volunteerMap[s.volunteerId] = {
+            id: s.volunteerId,
+            name: s.volunteerName,
+            hours: 0,
+            shiftCount: 0,
+            status: 'active'
+          }
+        }
+        if (s.status === 'completed' || s.status === 'checkedIn') {
+          const [startH, startM] = s.startTime.split(':').map(Number)
+          const [endH, endM] = s.endTime.split(':').map(Number)
+          const durationHours = (endH - startH) + (endM - startM) / 60
+          volunteerMap[s.volunteerId].hours += durationHours
+          volunteerMap[s.volunteerId].shiftCount += 1
+        }
+      }
+    })
+    const list = Object.values(volunteerMap)
+    return {
+      activeVolunteers: list.length,
+      totalServiceHours: list.reduce((sum, v) => sum + Math.round(v.hours), 0),
+      list
+    }
+  })
+
+  const makeupPending = computed(() => {
+    return schedules.value.filter(s => s.needMakeup && s.makeupStatus === 'pending')
+  })
+
+  const getMakeupByHandler = (role) => {
+    return schedules.value.filter(s => s.needMakeup && s.makeupStatus === 'pending' && s.makeupAssignedTo === role)
+  }
+
   const weeklyTrend = computed(() => {
     const days = []
     const labels = []
@@ -136,7 +174,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     })
   }
 
-  function markAsMissed(id, remark = '', needMakeup = false, operatorName = '系统') {
+  function markAsMissed(id, remark = '', needMakeup = false, makeupAssignedTo = '', operatorName = '系统') {
     const updates = {
       status: 'missed',
       missedRemark: remark,
@@ -146,7 +184,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
     if (needMakeup) {
       updates.makeupStatus = 'pending'
-      updates.makeupAssignedTo = operatorName
+      updates.makeupAssignedTo = makeupAssignedTo || operatorName
     }
     const index = schedules.value.findIndex(s => s.id === id)
     if (index !== -1) {
@@ -190,11 +228,14 @@ export const useScheduleStore = defineStore('schedule', () => {
     pendingSchedules,
     overdueSchedules,
     statistics,
+    volunteerStats,
+    makeupPending,
     weeklyTrend,
     monthlyTrend,
     getSchedulesByDate,
     getSchedulesByVolunteer,
     getSchedulesByStatus,
+    getMakeupByHandler,
     addSchedule,
     updateSchedule,
     checkIn,
