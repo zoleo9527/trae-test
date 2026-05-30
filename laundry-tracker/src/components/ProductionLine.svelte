@@ -65,6 +65,15 @@
       startTime: Date.now()
     })
 
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'batch',
+      referenceId: batch.id,
+      action: batch.type === 'rewash' ? '返洗批次开始' : '批次开始洗涤',
+      description: `${batch.processType} - ${batch.orderIds.length}件`,
+      timestamp: Date.now()
+    })
+
     for (const orderId of batch.orderIds) {
       await db.orders.update(orderId, {
         status: 'washing',
@@ -80,6 +89,15 @@
         startTime: Date.now(),
         createdAt: Date.now()
       })
+
+      await db.timelineEvents.add({
+        id: generateId(),
+        type: 'order',
+        referenceId: orderId,
+        action: '工序推进',
+        description: batch.type === 'rewash' ? '进入返洗洗涤阶段' : '进入洗涤阶段',
+        timestamp: Date.now()
+      })
     }
 
     onRefresh()
@@ -89,6 +107,15 @@
     await db.batches.update(batch.id, {
       status: 'completed',
       endTime: Date.now()
+    })
+
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'batch',
+      referenceId: batch.id,
+      action: batch.type === 'rewash' ? '返洗批次完成' : '批次洗涤完成',
+      description: `${batch.processType} - ${batch.orderIds.length}件`,
+      timestamp: Date.now()
     })
 
     for (const orderId of batch.orderIds) {
@@ -108,6 +135,17 @@
         stageName: STAGES[nextStage].name,
         startTime: Date.now(),
         createdAt: Date.now()
+      })
+
+      await db.timelineEvents.add({
+        id: generateId(),
+        type: 'order',
+        referenceId: orderId,
+        action: '工序推进',
+        description: batch.type === 'rewash' 
+          ? `返洗完成，进入${STAGES[nextStage].name}阶段` 
+          : `洗涤完成，进入${STAGES[nextStage].name}阶段`,
+        timestamp: Date.now()
       })
     }
 

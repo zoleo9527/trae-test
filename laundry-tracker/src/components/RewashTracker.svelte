@@ -72,6 +72,24 @@
       updatedAt: Date.now()
     })
 
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'rewash',
+      referenceId: record.id,
+      action: '返洗完成',
+      description: `第 ${record.rewashCount} 次返洗处理完成，进入质检`,
+      timestamp: Date.now()
+    })
+
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'order',
+      referenceId: record.orderId,
+      action: '工序推进',
+      description: '返洗完成，进入质检阶段',
+      timestamp: Date.now()
+    })
+
     await loadRewashRecords()
     onRefresh()
   }

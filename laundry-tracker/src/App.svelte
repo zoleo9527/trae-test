@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import { db, exportData, importData } from './lib/db'
   import { loadSampleData, STAGES } from './lib/sampleData'
-  import { formatDateTime, getStatusLabel, getStatusBadgeClass, formatOrderNo } from './lib/utils'
+  import { formatDateTime, getStatusLabel, getStatusBadgeClass, formatOrderNo, generateId } from './lib/utils'
   import type { Order, Batch, Issue, TimelineEvent } from './lib/types'
   import OrderDetail from './components/OrderDetail.svelte'
   import BatchDetail from './components/BatchDetail.svelte'
@@ -11,6 +11,7 @@
   import ImportExport from './components/ImportExport.svelte'
   import ProductionLine from './components/ProductionLine.svelte'
   import RewashTracker from './components/RewashTracker.svelte'
+  import HandoverManager from './components/HandoverManager.svelte'
 
   let activeTab: 'dashboard' | 'production' | 'rewash' | 'issues' | 'handover' = 'dashboard'
   let orders: Order[] = []
@@ -38,6 +39,36 @@
     issues = await db.issues.orderBy('reportedAt').reverse().toArray()
     timelineEvents = await db.timelineEvents.orderBy('timestamp').reverse().limit(20).toArray()
     stores = await db.stores.toArray()
+  }
+
+  async function quickHandover(order: Order) {
+    const handover = {
+      id: generateId(),
+      type: 'out' as const,
+      orderIds: [order.id],
+      storeId: order.storeId,
+      timestamp: Date.now()
+    }
+
+    await db.handoverRecords.add(handover)
+    await db.orders.update(order.id, {
+      status: 'delivered',
+      currentStage: 8,
+      deliveredAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'handover',
+      referenceId: handover.id,
+      action: '快速交接出库',
+      description: `${stores.find(s => s.id === order.storeId)?.name || '门店'} - ${order.customerName}`,
+      timestamp: Date.now(),
+      metadata: { orderId: order.id }
+    })
+
+    await refreshData()
   }
 
   $: filteredOrders = orders.filter(o => {
@@ -266,38 +297,12 @@
     </div>
   {:else if activeTab === 'handover'}
     <div class="page-content">
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">门店交接</h3>
-          <button class="btn-primary">新建交接单</button>
-        </div>
-        <div class="card-body">
-          <div class="form-row mb-4">
-            <div class="form-group">
-              <label class="form-label">交接类型</label>
-              <select>
-                <option value="in">门店送厂</option>
-                <option value="out">工厂送店</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">门店</label>
-              <select bind:value={filterStore}>
-                <option value="all">全部门店</option>
-                {#each stores as store}
-                  <option value={store.id}>{store.name}</option>
-                {/each}
-              </select>
-            </div>
-          </div>
-          
-          <div class="empty-state">
-            <div class="empty-icon">📦</div>
-            <div class="empty-title">暂无交接记录</div>
-            <div class="empty-desc">扫码录入订单后，可在此处批量交接</div>
-          </div>
-        </div>
-      </div>
+      <HandoverManager 
+        orders={orders} 
+        stores={stores} 
+        onRefresh={refreshData} 
+        onSelectOrder={(order) => selectedOrder = order}
+      />
     </div>
   {/if}
 </main>
@@ -315,7 +320,12 @@
 {/if}
 
 {#if showScanner}
-  <Scanner onClose={() => showScanner = false} onScanned={refreshData} />
+  <Scanner 
+    onClose={() => showScanner = false} 
+    onScanned={refreshData}
+    onSelectOrder={(order) => selectedOrder = order}
+    onHandoverOrder={quickHandover}
+  />
 {/if}
 
 {#if showImportExport}

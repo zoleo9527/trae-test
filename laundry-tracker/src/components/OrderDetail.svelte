@@ -28,6 +28,7 @@
 
     const nextStage = order.currentStage + 1
     const nextStatus = STAGES[nextStage]?.key || 'completed'
+    const nextStageName = STAGES[nextStage]?.name || '已完成'
 
     await db.processRecords.where('orderId').equals(order.id).and(r => r.stage === order.currentStage).modify({
       endTime: Date.now()
@@ -37,7 +38,7 @@
       id: generateId(),
       orderId: order.id,
       stage: nextStage,
-      stageName: STAGES[nextStage]?.name || '已完成',
+      stageName: nextStageName,
       startTime: Date.now(),
       notes: nextStageNotes || undefined,
       createdAt: Date.now()
@@ -47,6 +48,16 @@
       status: nextStatus as any,
       currentStage: nextStage,
       updatedAt: Date.now()
+    })
+
+    await db.timelineEvents.add({
+      id: generateId(),
+      type: 'order',
+      referenceId: order.id,
+      action: '工序推进',
+      description: `从 ${STAGES[order.currentStage]?.name || ''} 进入 ${nextStageName}`,
+      timestamp: Date.now(),
+      metadata: { notes: nextStageNotes || undefined }
     })
 
     order.currentStage = nextStage

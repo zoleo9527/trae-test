@@ -1,6 +1,6 @@
 import { db } from './db'
 import type {
-  Order, ClothingItem, Store, User, Batch, ProcessRecord, RewashRecord, Issue, TimelineEvent
+  Order, ClothingItem, Store, User, Batch, ProcessRecord, RewashRecord, Issue, TimelineEvent, HandoverRecord
 } from './types'
 
 function generateId(): string {
@@ -231,7 +231,7 @@ export function generateSampleIssues(orders: Order[]): Issue[] {
   return issues
 }
 
-export function generateTimelineEvents(orders: Order[], batches: Batch[], issues: Issue[]): TimelineEvent[] {
+export function generateTimelineEvents(orders: Order[], batches: Batch[], issues: Issue[], handoverRecords?: HandoverRecord[]): TimelineEvent[] {
   const events: TimelineEvent[] = []
   
   orders.forEach(order => {
@@ -270,6 +270,17 @@ export function generateTimelineEvents(orders: Order[], batches: Batch[], issues
     })
   })
   
+  handoverRecords?.forEach(record => {
+    events.push({
+      id: generateId(),
+      type: 'handover',
+      referenceId: record.id,
+      action: record.type === 'out' ? '门店交接出库' : '门店送厂入库',
+      description: `${sampleStores.find(s => s.id === record.storeId)?.name} - ${record.orderIds.length}单`,
+      timestamp: record.timestamp
+    })
+  })
+  
   return events.sort((a, b) => b.timestamp - a.timestamp)
 }
 
@@ -299,9 +310,30 @@ export async function loadSampleData(): Promise<void> {
     const issues = generateSampleIssues(orders)
     await db.issues.bulkAdd(issues)
     
-    const timelineEvents = generateTimelineEvents(orders, batches, issues)
+    const handoverRecords = generateSampleHandoverRecords(orders)
+    await db.handoverRecords.bulkAdd(handoverRecords)
+    
+    const timelineEvents = generateTimelineEvents(orders, batches, issues, handoverRecords)
     await db.timelineEvents.bulkAdd(timelineEvents)
   })
   
   console.log('示例数据加载完成')
+}
+
+export function generateSampleHandoverRecords(orders: Order[]): HandoverRecord[] {
+  const deliveredOrders = orders.filter(o => o.status === 'delivered')
+  const records: HandoverRecord[] = []
+  
+  if (deliveredOrders.length > 0) {
+    records.push({
+      id: generateId(),
+      type: 'out',
+      orderIds: deliveredOrders.slice(0, 2).map(o => o.id),
+      storeId: sampleStores[0].id,
+      timestamp: Date.now() - 86400000,
+      notes: '日常交接'
+    })
+  }
+  
+  return records
 }
