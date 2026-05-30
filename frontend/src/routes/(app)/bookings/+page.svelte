@@ -50,6 +50,12 @@
 		}
 	}
 
+	async function handleDrawerClose() {
+		drawerOpen = false;
+		selectedBookingId = null;
+		bookings = await bookingApi.list();
+	}
+
 	function formatTime(date: string) {
 		return dayjs(date).format('HH:mm');
 	}
@@ -199,6 +205,6 @@
 <ExceptionDrawer
 	bookingId={selectedBookingId}
 	open={drawerOpen}
-	on:close={() => drawerOpen = false}
+	on:close={handleDrawerClose}
 	on:updated={(e) => handleBookingUpdated(e.detail)}
 />

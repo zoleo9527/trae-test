@@ -29,6 +29,7 @@
 	let showResolveForm = false;
 	let showExceptionForm = false;
 	let followUpNote = '';
+	let selectedExceptionId: string | null = null;
 
 	let resolveForm = {
 		resolution: '',
@@ -63,6 +64,14 @@
 
 	function close() {
 		open = false;
+		booking = null;
+		activeTab = 'overview';
+		showResolveForm = false;
+		showExceptionForm = false;
+		followUpNote = '';
+		selectedExceptionId = null;
+		resolveForm = { resolution: '', refundAmount: 0, penaltyAmount: 0, status: 'resolved' };
+		newExceptionForm = { type: 'other', severity: 'medium', title: '', description: '' };
 		dispatch('close');
 	}
 
@@ -111,9 +120,10 @@
 		if (!booking) return;
 
 		try {
-			const ex = await bookingApi.resolveException(exception.id, resolveForm);
+			await bookingApi.resolveException(exception.id, resolveForm);
 			booking = await bookingApi.get(booking.id);
 			showResolveForm = false;
+			selectedExceptionId = null;
 			resolveForm = { resolution: '', refundAmount: 0, penaltyAmount: 0, status: 'resolved' };
 			dispatch('updated', booking);
 		} catch (e: any) {
@@ -206,7 +216,7 @@
 							{ id: 'wallet', label: '储值记录' },
 							{ id: 'equipment', label: '器材借还' },
 							{ id: 'audit', label: '操作留痕' }
-						] as const}
+						] as tab}
 							<button
 								class="py-3 text-sm font-medium border-b-2 transition-colors {activeTab === tab.id
 									? 'border-green-600 text-green-600'
@@ -312,8 +322,15 @@
 													<button
 														class="btn btn-secondary text-sm"
 														on:click={() => {
+															selectedExceptionId = ex.id;
 															showResolveForm = true;
 															activeTab = 'exceptions';
+															resolveForm = {
+																resolution: ex.resolution || '',
+																refundAmount: ex.refundAmount || 0,
+																penaltyAmount: ex.penaltyAmount || 0,
+																status: 'resolved'
+															};
 														}}
 													>
 														处理
@@ -438,16 +455,21 @@
 											</select>
 										</div>
 										<div class="flex gap-2 justify-end">
-											<button class="btn btn-secondary" on:click={() => showResolveForm = false}>
+											<button class="btn btn-secondary" on:click={() => {
+												showResolveForm = false;
+												selectedExceptionId = null;
+											}}>
 												取消
 											</button>
 											<button
 												class="btn btn-primary"
 												on:click={() => {
-													if (activeExceptions.length > 0) {
-														handleResolveException(activeExceptions[0]);
+													const ex = booking?.exceptions?.find(e => e.id === selectedExceptionId);
+													if (ex) {
+														handleResolveException(ex);
 													}
 												}}
+												disabled={!selectedExceptionId}
 											>
 												确认处理
 											</button>
@@ -474,6 +496,7 @@
 													<button
 														class="btn btn-primary text-sm"
 														on:click={() => {
+															selectedExceptionId = ex.id;
 															showResolveForm = true;
 															resolveForm = {
 																resolution: ex.resolution || '',

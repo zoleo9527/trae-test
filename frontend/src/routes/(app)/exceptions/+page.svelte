@@ -77,11 +77,11 @@
 
 	<div class="grid grid-cols-4 gap-4">
 		{#each [
-			{ label: '待处理', count: openCount, color: 'red', value: 'open' as const },
-			{ label: '处理中', count: investigatingCount, color: 'yellow', value: 'investigating' as const },
-			{ label: '已解决', count: resolvedCount, color: 'green', value: 'resolved' as const },
-			{ label: '全部', count: exceptions.length, color: 'gray', value: '' as const }
-		]}
+			{ label: '待处理', count: openCount, color: 'red', value: 'open' as ExceptionStatus | '' },
+			{ label: '处理中', count: investigatingCount, color: 'yellow', value: 'investigating' as ExceptionStatus | '' },
+			{ label: '已解决', count: resolvedCount, color: 'green', value: 'resolved' as ExceptionStatus | '' },
+			{ label: '全部', count: exceptions.length, color: 'gray', value: '' as ExceptionStatus | '' }
+		] as tab}
 			<button
 				class="card p-5 text-left transition-all {statusFilter === tab.value ? 'ring-2 ring-offset-2 ' +
 					(tab.color === 'red' ? 'ring-red-500' :

@@ -93,7 +93,7 @@
 			{#each [
 				{ id: 'list', label: '器材清单', count: equipment.length },
 				{ id: 'rentals', label: '借出中', count: activeRentals.length }
-			] as const}
+			] as tab}
 				<button
 					class="py-3 text-sm font-medium border-b-2 transition-colors {activeTab === tab.id
 						? 'border-green-600 text-green-600'
