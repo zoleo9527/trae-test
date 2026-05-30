@@ -74,9 +74,11 @@ class ActivityRegistrationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def approve(self, request, pk=None):
         registration = self.get_object()
+        if registration.user == request.user:
+            return Response({'error': '不能审批自己的报名'}, status=status.HTTP_403_FORBIDDEN)
         if registration.status != RegistrationStatus.PENDING:
             return Response({'error': '只有待审核状态可以审批'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -92,9 +94,11 @@ class ActivityRegistrationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(registration)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def reject(self, request, pk=None):
         registration = self.get_object()
+        if registration.user == request.user:
+            return Response({'error': '不能审批自己的报名'}, status=status.HTTP_403_FORBIDDEN)
         if registration.status != RegistrationStatus.PENDING:
             return Response({'error': '只有待审核状态可以拒绝'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -134,12 +138,25 @@ class VolunteerFeedbackViewSet(viewsets.ModelViewSet):
             qs = qs.filter(volunteer=user)
         return qs
 
+    def get_permissions(self):
+        if self.action in ['resolve', 'update', 'partial_update', 'destroy']:
+            return [IsManager()]
+        return super().get_permissions()
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            if request.user.role not in ['admin', 'manager']:
+                self.permission_denied(request, message='没有权限修改此反馈')
+
     def perform_create(self, serializer):
         serializer.save(volunteer=self.request.user)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def resolve(self, request, pk=None):
         feedback = self.get_object()
+        if feedback.volunteer == request.user:
+            return Response({'error': '不能处理自己提交的反馈'}, status=status.HTTP_403_FORBIDDEN)
         feedback.is_resolved = True
         feedback.handler = request.user
         feedback.handle_notes = request.data.get('notes', '')

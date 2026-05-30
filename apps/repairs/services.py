@@ -7,6 +7,8 @@ from apps.audit.models import Notification
 class RepairFlowService:
     @staticmethod
     def assign_repair(ticket_id, assignee, assigner):
+        if assigner.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以派单')
         ticket = RepairTicket.objects.get(id=ticket_id)
         if ticket.status != RepairStatus.PENDING:
             raise ValueError('只有待处理状态的工单可以派单')
@@ -108,6 +110,8 @@ class RepairFlowService:
         ticket = RepairTicket.objects.get(id=ticket_id)
         if ticket.status != RepairStatus.NEEDS_CONFIRM:
             raise ValueError('只有待确认状态的工单可以确认')
+        if ticket.reporter != user and user.role not in ['admin', 'manager']:
+            raise ValueError('只有报修人或经理可以确认工单')
 
         old_status = ticket.status
         ticket.status = RepairStatus.COMPLETED
@@ -135,6 +139,8 @@ class RepairFlowService:
         ticket = RepairTicket.objects.get(id=ticket_id)
         if ticket.status != RepairStatus.NEEDS_CONFIRM:
             raise ValueError('只有待确认状态的工单可以重新打开')
+        if ticket.reporter != user and user.role not in ['admin', 'manager']:
+            raise ValueError('只有报修人或经理可以重新打开工单')
 
         old_status = ticket.status
         ticket.status = RepairStatus.IN_PROGRESS
@@ -163,6 +169,8 @@ class RepairFlowService:
 
     @staticmethod
     def reject_repair(ticket_id, user, reason=''):
+        if user.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以驳回工单')
         ticket = RepairTicket.objects.get(id=ticket_id)
         if ticket.status != RepairStatus.PENDING:
             raise ValueError('只有待处理状态的工单可以驳回')

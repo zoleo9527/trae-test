@@ -1,16 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from .models import RepairTicket, RepairStatus, RepairLog
 from .serializers import RepairTicketSerializer, RepairTicketListSerializer, RepairLogSerializer
 from .services import RepairFlowService
-from apps.common.permissions import IsManager, IsMaintenance, IsOwnerOrManager, IsInspector
+from apps.common.permissions import IsManager, IsMaintenance, IsOwnerOrManager
 from apps.common.views import filter_by_venue
 
 
 class RepairTicketViewSet(viewsets.ModelViewSet):
     serializer_class = RepairTicketSerializer
-    permission_classes = [IsManager | IsMaintenance | IsInspector | IsOwnerOrManager]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = RepairTicket.objects.select_related(
@@ -19,10 +20,15 @@ class RepairTicketViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = filter_by_venue(qs, user, 'venue_id')
         if user.role == 'maintenance':
-            qs = qs.filter(assignee=user) | qs.filter(status__in=['pending', 'assigned'])
+            qs = qs.filter(assignee=user)
         elif user.role not in ['admin', 'manager']:
             qs = qs.filter(reporter=user)
-        return qs.distinct()
+        return qs
+
+    def get_permissions(self):
+        if self.action in ['assign', 'reject']:
+            return [IsManager()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -33,6 +39,12 @@ class RepairTicketViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            if request.user.role not in ['admin', 'manager']:
+                self.permission_denied(request, message='没有权限修改此工单')
 
     def perform_create(self, serializer):
         serializer.save(reporter=self.request.user, created_by=self.request.user)
@@ -60,6 +72,9 @@ class RepairTicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
+        ticket = self.get_object()
+        if ticket.assignee != request.user:
+            return Response({'error': '只有指定的维修人员可以完成工单'}, status=status.HTTP_403_FORBIDDEN)
         solution = request.data.get('solution', '')
         cost = request.data.get('cost')
         try:

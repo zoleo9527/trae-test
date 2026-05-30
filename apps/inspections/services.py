@@ -9,6 +9,8 @@ class InspectionFlowService:
     @staticmethod
     def submit_inspection(inspection_id, user):
         inspection = InspectionRecord.objects.get(id=inspection_id)
+        if inspection.inspector != user and user.role not in ['admin', 'manager']:
+            raise ValueError('只有巡检人本人或经理可以提交巡检')
         if inspection.status != InspectionStatus.DRAFT:
             raise ValueError('只有草稿状态的巡检可以提交')
 
@@ -28,6 +30,8 @@ class InspectionFlowService:
 
     @staticmethod
     def approve_inspection(inspection_id, user, comments=''):
+        if user.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以审核巡检')
         inspection = InspectionRecord.objects.get(id=inspection_id)
         if inspection.status not in [InspectionStatus.SUBMITTED, InspectionStatus.REVIEWING, InspectionStatus.NEEDS_REVIEW]:
             raise ValueError('当前状态不允许审核通过')
@@ -51,6 +55,8 @@ class InspectionFlowService:
 
     @staticmethod
     def reject_inspection(inspection_id, user, comments=''):
+        if user.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以驳回巡检')
         inspection = InspectionRecord.objects.get(id=inspection_id)
         if inspection.status not in [InspectionStatus.SUBMITTED, InspectionStatus.REVIEWING]:
             raise ValueError('当前状态不允许驳回')
@@ -75,6 +81,8 @@ class InspectionFlowService:
 
     @staticmethod
     def mark_needs_review(inspection_id, user, reason=''):
+        if user.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以标记需回查')
         inspection = InspectionRecord.objects.get(id=inspection_id)
         if inspection.status not in [InspectionStatus.SUBMITTED, InspectionStatus.REVIEWING]:
             raise ValueError('当前状态不允许标记需回查')
@@ -126,6 +134,8 @@ class InspectionFlowService:
 
     @staticmethod
     def complete_inspection(inspection_id, user):
+        if user.role not in ['admin', 'manager']:
+            raise ValueError('只有经理或管理员可以完成巡检')
         inspection = InspectionRecord.objects.get(id=inspection_id)
         if inspection.status != InspectionStatus.APPROVED:
             raise ValueError('只有已通过的巡检可以标记完成')

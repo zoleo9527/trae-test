@@ -42,8 +42,8 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = filter_by_venue(qs, user, 'venue_id')
         if user.role == 'inspector':
-            qs = qs.filter(inspector=user) | qs.filter(status__in=['submitted', 'reviewing', 'needs_review'])
-        return qs.distinct()
+            qs = qs.filter(inspector=user)
+        return qs
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -58,6 +58,12 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(inspector=self.request.user, created_by=self.request.user)
 
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            if request.user.role not in ['admin', 'manager'] and obj.inspector != request.user:
+                self.permission_denied(request, message='没有权限修改此巡检记录')
+
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
         try:
@@ -67,7 +73,7 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def approve(self, request, pk=None):
         comments = request.data.get('comments', '')
         try:
@@ -77,7 +83,7 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def reject(self, request, pk=None):
         comments = request.data.get('comments', '')
         try:
@@ -87,7 +93,7 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def needs_review(self, request, pk=None):
         reason = request.data.get('reason', '')
         try:
@@ -97,7 +103,7 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsManager])
     def complete(self, request, pk=None):
         try:
             inspection = InspectionFlowService.complete_inspection(pk, request.user)
@@ -109,6 +115,11 @@ class InspectionRecordViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'])
     def items(self, request, pk=None):
         inspection = self.get_object()
+        if request.method == 'POST':
+            if request.user.role not in ['admin', 'manager'] and inspection.inspector != request.user:
+                return Response({'error': '只有巡检人本人或经理可以添加巡检项'}, status=status.HTTP_403_FORBIDDEN)
+            if inspection.status != InspectionStatus.DRAFT:
+                return Response({'error': '只有草稿状态的巡检可以添加巡检项'}, status=status.HTTP_400_BAD_REQUEST)
         if request.method == 'GET':
             items = InspectionItemResult.objects.filter(inspection=inspection)
             serializer = InspectionItemResultSerializer(items, many=True)
