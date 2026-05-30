@@ -24,12 +24,17 @@ func main() {
 		AllowHeaders:     "Content-Type, Authorization",
 	}))
 
-	api := app.Group("/api")
-	api.Use(middleware.AuthRequired)
+	app.Get("/api/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
 	auth := app.Group("/api/auth")
 	auth.Post("/login", handlers.Login)
-	auth.Get("/me", handlers.GetCurrentUser)
+
+	api := app.Group("/api")
+	api.Use(middleware.AuthRequired)
+
+	api.Get("/auth/me", handlers.GetCurrentUser)
 
 	users := api.Group("/users")
 	users.Get("/", handlers.ListUsers)
@@ -65,9 +70,7 @@ func main() {
 	members := api.Group("/members")
 	members.Get("/", handlers.ListMembers)
 
-	app.Get("/api/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	api.Get("/exceptions", handlers.ListAllExceptions)
 
 	log.Println("Server starting on :3000")
 	log.Fatal(app.Listen(":3000"))

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,8 +16,8 @@ func ListBookings(c *fiber.Ctx) error {
 	date := c.Query("date")
 
 	var bookings []models.Booking
-	query := database.DB.Preload("Member").Preload("Bay").Preload("Coach").
-		Preload("Exceptions").Preload("EquipmentRentals").Preload("WalletRecords").
+	query := database.DB.Preload("Member.Wallet").Preload("Bay").Preload("Coach").
+		Preload("Exceptions.FollowUps").Preload("EquipmentRentals").Preload("WalletRecords").
 		Preload("AuditLogs").Order("created_at DESC")
 
 	if status != "" {
@@ -48,7 +49,7 @@ func GetBooking(c *fiber.Ctx) error {
 	}
 
 	var booking models.Booking
-	result := database.DB.Preload("Member").Preload("Bay").Preload("Coach").
+	result := database.DB.Preload("Member.Wallet").Preload("Bay").Preload("Coach").
 		Preload("Exceptions.FollowUps").Preload("EquipmentRentals").Preload("WalletRecords").
 		Preload("AuditLogs").Where("id = ?", bookingID).First(&booking)
 
@@ -170,7 +171,7 @@ func CreateBooking(c *fiber.Ctx) error {
 			BalanceBefore: oldBalance,
 			BalanceAfter:  wallet.Balance,
 			OperatorID:    user.ID,
-			Remark:        "预约消费: " + bay.BayNumber + " " + duration + "小时",
+			Remark:        fmt.Sprintf("预约消费: %s %.1f小时", bay.BayNumber, duration),
 			CreatedAt:     time.Now(),
 		}
 		if err := tx.Create(&walletRecord).Error; err != nil {
@@ -211,8 +212,6 @@ func CheckInBooking(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "无效的预约ID"})
 	}
 
-	user := middleware.GetCurrentUser(c)
-
 	var booking models.Booking
 	if err := database.DB.Where("id = ?", bookingID).First(&booking).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "预约不存在"})
@@ -239,8 +238,6 @@ func CheckOutBooking(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "无效的预约ID"})
 	}
-
-	user := middleware.GetCurrentUser(c)
 
 	var booking models.Booking
 	if err := database.DB.Where("id = ?", bookingID).First(&booking).Error; err != nil {

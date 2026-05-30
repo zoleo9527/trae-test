@@ -112,8 +112,6 @@ func ReturnEquipment(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "请求格式错误"})
 	}
 
-	user := middleware.GetCurrentUser(c)
-
 	var rental models.EquipmentRental
 	if err := database.DB.Where("equipment_id = ? AND returned_at IS NULL", equipmentID).
 		Order("rented_at DESC").First(&rental).Error; err != nil {

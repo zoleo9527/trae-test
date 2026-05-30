@@ -53,8 +53,6 @@ func CreateSchedule(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "请求格式错误"})
 	}
 
-	user := middleware.GetCurrentUser(c)
-
 	var coach models.User
 	if err := database.DB.Where("id = ?", schedule.CoachID).First(&coach).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "教练不存在"})

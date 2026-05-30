@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"golf-range/pkg/models"
 )
 

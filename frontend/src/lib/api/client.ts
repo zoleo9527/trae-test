@@ -91,7 +91,8 @@ export const bookingApi = {
 		request(`/bookings/exceptions/${exceptionId}/followup`, {
 			method: 'POST',
 			body: JSON.stringify(data)
-		})
+		}),
+	listAllExceptions: (): Promise<Exception[]> => request('/exceptions')
 };
 
 export const coachApi = {

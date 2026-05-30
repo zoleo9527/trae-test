@@ -1,15 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { bookingApi } from '$lib/api/client';
-	import type { Exception, Booking } from '$lib/types';
+	import type { Exception, Booking, ExceptionStatus, ExceptionType } from '$lib/types';
+	import { EXCEPTION_STATUS_COLORS, EXCEPTION_STATUS_LABELS, EXCEPTION_TYPE_LABELS, EXCEPTION_SEVERITY_COLORS, EXCEPTION_SEVERITY_LABELS } from '$lib/types';
 	import dayjs from 'dayjs';
 	import ExceptionDrawer from '$lib/components/ExceptionDrawer.svelte';
 
-	let exceptions: Exception[] = [];
-	let bookings: Record<string, Booking> = {};
+	interface ExceptionWithMember extends Exception {
+		memberName?: string;
+	}
+
+	let exceptions: ExceptionWithMember[] = [];
 	let loading = true;
-	let statusFilter = 'pending';
-	let typeFilter = '';
+	let statusFilter: ExceptionStatus | '' = 'open';
+	let typeFilter: ExceptionType | '' = '';
 	let selectedBookingId = '';
 	let drawerOpen = false;
 
@@ -19,21 +23,24 @@
 		return matchesStatus && matchesType;
 	});
 
-	$: pendingCount = exceptions.filter(e => e.status === 'pending').length;
-	$: processingCount = exceptions.filter(e => e.status === 'processing').length;
+	$: openCount = exceptions.filter(e => e.status === 'open').length;
+	$: investigatingCount = exceptions.filter(e => e.status === 'investigating').length;
 	$: resolvedCount = exceptions.filter(e => e.status === 'resolved').length;
 	$: types = [...new Set(exceptions.map(e => e.type))];
 
 	onMount(async () => {
+		await refreshExceptions();
+	});
+
+	async function refreshExceptions() {
 		try {
-			const result = await bookingApi.listExceptions();
-			exceptions = result;
+			exceptions = await bookingApi.listAllExceptions() as ExceptionWithMember[];
 		} finally {
 			loading = false;
 		}
-	});
+	}
 
-	async function openBookingDetail(bookingId: string) {
+	function openBookingDetail(bookingId: string) {
 		selectedBookingId = bookingId;
 		drawerOpen = true;
 	}
@@ -42,79 +49,21 @@
 		return dayjs(date).format('MM-DD HH:mm');
 	}
 
-	function getTypeColor(type: string) {
-		switch (type) {
-			case 'no_show': return 'bg-red-100 text-red-700';
-			case 'late': return 'bg-orange-100 text-orange-700';
-			case 'overstay': return 'bg-purple-100 text-purple-700';
-			case 'payment_issue': return 'bg-yellow-100 text-yellow-700';
-			case 'equipment_damage': return 'bg-rose-100 text-rose-700';
-			case 'complaint': return 'bg-red-100 text-red-700';
-			case 'schedule_conflict': return 'bg-amber-100 text-amber-700';
-			case 'bay_issue': return 'bg-gray-100 text-gray-700';
-			default: return 'bg-gray-100 text-gray-700';
-		}
-	}
-
-	function getTypeLabel(type: string) {
-		switch (type) {
-			case 'no_show': return '未到场';
-			case 'late': return '迟到';
-			case 'overstay': return '超时';
-			case 'payment_issue': return '支付问题';
-			case 'equipment_damage': return '器材损坏';
-			case 'complaint': return '客户投诉';
-			case 'schedule_conflict': return '排班冲突';
-			case 'bay_issue': return '打位故障';
-			default: return type;
-		}
-	}
-
-	function getPriorityColor(priority: string) {
-		switch (priority) {
-			case 'high': return 'bg-red-100 text-red-700';
-			case 'medium': return 'bg-yellow-100 text-yellow-700';
-			case 'low': return 'bg-green-100 text-green-700';
-			default: return 'bg-gray-100 text-gray-700';
-		}
-	}
-
-	function getPriorityLabel(priority: string) {
-		switch (priority) {
-			case 'high': return '高';
-			case 'medium': return '中';
-			case 'low': return '低';
-			default: return priority;
-		}
-	}
-
-	function getStatusColor(status: string) {
-		switch (status) {
-			case 'pending': return 'bg-red-100 text-red-700';
-			case 'processing': return 'bg-blue-100 text-blue-700';
-			case 'resolved': return 'bg-green-100 text-green-700';
-			case 'closed': return 'bg-gray-100 text-gray-700';
-			default: return 'bg-gray-100 text-gray-700';
-		}
-	}
-
-	function getStatusLabel(status: string) {
-		switch (status) {
-			case 'pending': return '待处理';
-			case 'processing': return '处理中';
-			case 'resolved': return '已解决';
-			case 'closed': return '已关闭';
-			default: return status;
-		}
-	}
-
 	async function handleBookingUpdated(updated: Booking) {
 		if (updated.exceptions) {
 			exceptions = exceptions.map(e => {
 				const matching = updated.exceptions?.find(ne => ne.id === e.id);
-				return matching || e;
+				if (matching) {
+					return { ...matching, memberName: e.memberName };
+				}
+				return e;
 			});
 		}
+	}
+
+	async function handleDrawerClose() {
+		drawerOpen = false;
+		await refreshExceptions();
 	}
 </script>
 
@@ -128,15 +77,15 @@
 
 	<div class="grid grid-cols-4 gap-4">
 		{#each [
-			{ label: '待处理', count: pendingCount, color: 'red', value: 'pending' },
-			{ label: '处理中', count: processingCount, color: 'blue', value: 'processing' },
-			{ label: '已解决', count: resolvedCount, color: 'green', value: 'resolved' },
-			{ label: '全部', count: exceptions.length, color: 'gray', value: '' }
-		] as const}
+			{ label: '待处理', count: openCount, color: 'red', value: 'open' as const },
+			{ label: '处理中', count: investigatingCount, color: 'yellow', value: 'investigating' as const },
+			{ label: '已解决', count: resolvedCount, color: 'green', value: 'resolved' as const },
+			{ label: '全部', count: exceptions.length, color: 'gray', value: '' as const }
+		]}
 			<button
 				class="card p-5 text-left transition-all {statusFilter === tab.value ? 'ring-2 ring-offset-2 ' +
 					(tab.color === 'red' ? 'ring-red-500' :
-					 tab.color === 'blue' ? 'ring-blue-500' :
+					 tab.color === 'yellow' ? 'ring-yellow-500' :
 					 tab.color === 'green' ? 'ring-green-500' : 'ring-gray-500')
 					: 'hover:bg-gray-50'}"
 				on:click={() => statusFilter = tab.value}
@@ -154,7 +103,7 @@
 				<select class="select" bind:value={typeFilter}>
 					<option value="">全部类型</option>
 					{#each types as type}
-						<option value={type}>{getTypeLabel(type)}</option>
+						<option value={type}>{EXCEPTION_TYPE_LABELS[type] || type}</option>
 					{/each}
 				</select>
 			</div>
@@ -192,18 +141,18 @@
 									<span class="font-mono text-sm text-gray-600">#{exp.id.slice(0, 8)}</span>
 								</td>
 								<td>
-									<span class="badge {getTypeColor(exp.type)}">
-										{getTypeLabel(exp.type)}
+									<span class="badge bg-gray-100 text-gray-700">
+										{EXCEPTION_TYPE_LABELS[exp.type] || exp.type}
 									</span>
 								</td>
 								<td>
-									<span class="badge {getPriorityColor(exp.priority)}">
-										{getPriorityLabel(exp.priority)}
+									<span class="badge {EXCEPTION_SEVERITY_COLORS[exp.severity] || 'bg-gray-100 text-gray-700'}">
+										{EXCEPTION_SEVERITY_LABELS[exp.severity] || exp.severity}
 									</span>
 								</td>
 								<td>
-									<span class="badge {getStatusColor(exp.status)}">
-										{getStatusLabel(exp.status)}
+									<span class="badge {EXCEPTION_STATUS_COLORS[exp.status] || 'bg-gray-100 text-gray-700'}">
+										{EXCEPTION_STATUS_LABELS[exp.status] || exp.status}
 									</span>
 								</td>
 								<td>
@@ -233,6 +182,6 @@
 <ExceptionDrawer
 	bookingId={selectedBookingId}
 	open={drawerOpen}
-	on:close={() => drawerOpen = false}
+	on:close={handleDrawerClose}
 	on:updated={(e) => handleBookingUpdated(e.detail)}
 />

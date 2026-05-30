@@ -105,8 +105,11 @@ func ResolveException(c *fiber.Ctx) error {
 	tx := database.DB.Begin()
 
 	if req.RefundAmount > 0 || req.PenaltyAmount > 0 {
+		var booking models.Booking
+		tx.Where("id = ?", exception.BookingID).First(&booking)
+
 		var wallet models.Wallet
-		if err := tx.Where("member_id = ?", exception.ID).First(&wallet).Error; err == nil {
+		if err := tx.Where("member_id = ?", booking.MemberID).First(&wallet).Error; err == nil {
 			oldBalance := wallet.Balance
 
 			if req.RefundAmount > 0 {
@@ -180,6 +183,27 @@ func ResolveException(c *fiber.Ctx) error {
 	tx.Commit()
 
 	return c.JSON(exception)
+}
+
+func ListAllExceptions(c *fiber.Ctx) error {
+	type ExceptionWithMember struct {
+		models.Exception
+		MemberName string `json:"memberName"`
+	}
+
+	var results []ExceptionWithMember
+
+	query := database.DB.Table("exceptions").
+		Select("exceptions.*, members.name as member_name").
+		Joins("LEFT JOIN bookings ON exceptions.booking_id = bookings.id").
+		Joins("LEFT JOIN members ON bookings.member_id = members.id").
+		Order("exceptions.created_at DESC")
+
+	if err := query.Scan(&results).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "查询异常列表失败"})
+	}
+
+	return c.JSON(results)
 }
 
 func AddExceptionFollowUp(c *fiber.Ctx) error {

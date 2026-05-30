@@ -206,7 +206,7 @@
 							{ id: 'wallet', label: '储值记录' },
 							{ id: 'equipment', label: '器材借还' },
 							{ id: 'audit', label: '操作留痕' }
-						] as const as { id: string; label: string }[]}
+						] as const}
 							<button
 								class="py-3 text-sm font-medium border-b-2 transition-colors {activeTab === tab.id
 									? 'border-green-600 text-green-600'
