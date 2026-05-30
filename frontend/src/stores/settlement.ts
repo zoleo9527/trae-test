@@ -1,44 +1,54 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { MonthlySettlement, SettlementItem } from '@/types';
-import { mockMonthlySettlements } from '@/data/mockData';
 import { useOrderStore } from './order';
 import { useComplaintStore } from './complaint';
 import dayjs from 'dayjs';
 
 export const useSettlementStore = defineStore('settlement', () => {
-  const settlements = ref<MonthlySettlement[]>([...mockMonthlySettlements]);
+  const settlementConfirmations = ref<Map<string, {
+    factoryConfirmedBy?: string;
+    factoryConfirmedAt?: string;
+    storeConfirmedBy?: string;
+    storeConfirmedAt?: string;
+    status: 'draft' | 'pending' | 'confirmed' | 'completed';
+  }>>(new Map());
 
-  function getSettlementById(id: string) {
-    return settlements.value.find(s => s.id === id);
-  }
-
-  function getSettlementsByMonth(month: string) {
-    return settlements.value.filter(s => s.month === month);
+  function getConfirmationKey(storeId: string, month: string) {
+    return `${storeId}:${month}`;
   }
 
   function getSettlementByStoreAndMonth(storeId: string, month: string) {
-    return settlements.value.find(s => s.storeId === storeId && s.month === month);
+    const key = getConfirmationKey(storeId, month);
+    return settlementConfirmations.value.get(key);
+  }
+
+  function ensureConfirmation(storeId: string, month: string) {
+    const key = getConfirmationKey(storeId, month);
+    if (!settlementConfirmations.value.has(key)) {
+      settlementConfirmations.value.set(key, { status: 'draft' });
+    }
+    return settlementConfirmations.value.get(key)!;
   }
 
   function calculateMonthStats(month: string) {
     const orderStore = useOrderStore();
     const complaintStore = useComplaintStore();
-    
+
     const monthPrefix = month;
-    
+
     const monthOrders = orderStore.orders.filter(o => o.receivedAt.startsWith(monthPrefix));
     const totalOrders = monthOrders.length;
     const totalItems = monthOrders.reduce((sum, o) => sum + o.items.length, 0);
     const totalAmount = monthOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-    
+
     const monthComplaints = complaintStore.complaints.filter(c => {
       const order = orderStore.getOrderById(c.orderId);
-      return order && order.receivedAt.startsWith(monthPrefix) && 
+      return order && order.receivedAt.startsWith(monthPrefix) &&
              (c.status === 'approved' || c.status === 'resolved');
     });
     const totalCompensation = monthComplaints.reduce((sum, c) => sum + (c.approvedCompensation || 0), 0);
-    
+
     return {
       totalOrders,
       totalItems,
@@ -48,53 +58,57 @@ export const useSettlementStore = defineStore('settlement', () => {
     };
   }
 
-  function getDynamicSettlements() {
+  function getDynamicSettlements(month?: string) {
     const orderStore = useOrderStore();
     const complaintStore = useComplaintStore();
-    
+
     const storeMonthMap: Record<string, Record<string, {
       orders: typeof orderStore.orders;
       complaints: typeof complaintStore.complaints;
     }>> = {};
 
     orderStore.orders.forEach(order => {
-      const month = order.receivedAt.substring(0, 7);
+      const orderMonth = order.receivedAt.substring(0, 7);
+      if (month && orderMonth !== month) return;
+
       if (!storeMonthMap[order.storeId]) {
         storeMonthMap[order.storeId] = {};
       }
-      if (!storeMonthMap[order.storeId][month]) {
-        storeMonthMap[order.storeId][month] = { orders: [], complaints: [] };
+      if (!storeMonthMap[order.storeId][orderMonth]) {
+        storeMonthMap[order.storeId][orderMonth] = { orders: [], complaints: [] };
       }
-      storeMonthMap[order.storeId][month].orders.push(order);
+      storeMonthMap[order.storeId][orderMonth].orders.push(order);
     });
 
     complaintStore.complaints.forEach(complaint => {
       if (complaint.status === 'approved' || complaint.status === 'resolved') {
         const order = orderStore.getOrderById(complaint.orderId);
         if (order) {
-          const month = order.receivedAt.substring(0, 7);
+          const orderMonth = order.receivedAt.substring(0, 7);
+          if (month && orderMonth !== month) return;
+
           if (!storeMonthMap[order.storeId]) {
             storeMonthMap[order.storeId] = {};
           }
-          if (!storeMonthMap[order.storeId][month]) {
-            storeMonthMap[order.storeId][month] = { orders: [], complaints: [] };
+          if (!storeMonthMap[order.storeId][orderMonth]) {
+            storeMonthMap[order.storeId][orderMonth] = { orders: [], complaints: [] };
           }
-          storeMonthMap[order.storeId][month].complaints.push(complaint);
+          storeMonthMap[order.storeId][orderMonth].complaints.push(complaint);
         }
       }
     });
 
     const dynamicSettlements: MonthlySettlement[] = [];
-    
+
     Object.entries(storeMonthMap).forEach(([storeId, months]) => {
-      Object.entries(months).forEach(([month, data]) => {
-        const existingSettlement = getSettlementByStoreAndMonth(storeId, month);
+      Object.entries(months).forEach(([m, data]) => {
+        const confirmation = getSettlementByStoreAndMonth(storeId, m);
         const storeName = data.orders[0]?.storeName || '';
         const totalOrders = data.orders.length;
         const totalItems = data.orders.reduce((sum, o) => sum + o.items.length, 0);
         const totalAmount = data.orders.reduce((sum, o) => sum + o.totalAmount, 0);
         const totalCompensation = data.complaints.reduce((sum, c) => sum + (c.approvedCompensation || 0), 0);
-        
+
         const items: SettlementItem[] = data.orders.map(order => {
           const orderComplaints = data.complaints.filter(c => c.orderId === order.id);
           const compensation = orderComplaints.reduce((sum, c) => sum + (c.approvedCompensation || 0), 0);
@@ -106,97 +120,79 @@ export const useSettlementStore = defineStore('settlement', () => {
             orderAmount: order.totalAmount,
             compensationAmount: compensation,
             netAmount: order.totalAmount - compensation,
-            status: existingSettlement?.status === 'completed' ? 'confirmed' : 'pending',
-            confirmedBy: existingSettlement?.storeConfirmedBy,
-            confirmedAt: existingSettlement?.storeConfirmedAt
+            status: (confirmation?.status === 'completed' || confirmation?.status === 'confirmed')
+              ? 'confirmed' as const
+              : 'pending' as const,
+            confirmedBy: confirmation?.storeConfirmedBy,
+            confirmedAt: confirmation?.storeConfirmedAt
           };
         });
 
-        if (existingSettlement) {
-          dynamicSettlements.push({
-            ...existingSettlement,
-            totalOrders,
-            totalItems,
-            totalAmount,
-            totalCompensation,
-            netAmount: totalAmount - totalCompensation,
-            items
-          });
-        } else {
-          dynamicSettlements.push({
-            id: `settle-dynamic-${storeId}-${month}`,
-            month,
-            storeId,
-            storeName,
-            totalOrders,
-            totalItems,
-            totalAmount,
-            totalCompensation,
-            netAmount: totalAmount - totalCompensation,
-            items,
-            status: 'draft'
-          });
-        }
-      });
-    });
+        const settlementStatus = confirmation?.status || 'draft';
 
-    settlements.value.filter(s => !dynamicSettlements.find(ds => ds.id === s.id)).forEach(s => {
-      dynamicSettlements.push(s);
+        dynamicSettlements.push({
+          id: `settle-${storeId}-${m}`,
+          month: m,
+          storeId,
+          storeName,
+          totalOrders,
+          totalItems,
+          totalAmount,
+          totalCompensation,
+          netAmount: totalAmount - totalCompensation,
+          items,
+          status: settlementStatus,
+          factoryConfirmedBy: confirmation?.factoryConfirmedBy,
+          factoryConfirmedAt: confirmation?.factoryConfirmedAt,
+          storeConfirmedBy: confirmation?.storeConfirmedBy,
+          storeConfirmedAt: confirmation?.storeConfirmedAt
+        });
+      });
     });
 
     return dynamicSettlements.sort((a, b) => b.month.localeCompare(a.month));
   }
 
-  function updateSettlementCompensation(storeId: string, month: string, compensationAmount: number) {
-    const settlement = getSettlementByStoreAndMonth(storeId, month);
-    if (settlement) {
-      settlement.totalCompensation += compensationAmount;
-      settlement.netAmount = settlement.totalAmount - settlement.totalCompensation;
-    }
-  }
-
   function confirmFactorySettlement(id: string, operator: string) {
-    const settlement = settlements.value.find(s => s.id === id) || getDynamicSettlements().find(s => s.id === id);
-    if (settlement && !settlement.factoryConfirmedBy) {
-      settlement.factoryConfirmedBy = operator;
-      settlement.factoryConfirmedAt = dayjs().format('YYYY-MM-DD HH:mm');
-      if (settlement.storeConfirmedBy) {
-        settlement.status = 'completed';
+    const parts = id.replace('settle-', '').split('-');
+    if (parts.length < 2) return;
+    const storeId = parts[0];
+    const month = parts.slice(1).join('-');
+
+    const confirmation = ensureConfirmation(storeId, month);
+    if (!confirmation.factoryConfirmedBy) {
+      confirmation.factoryConfirmedBy = operator;
+      confirmation.factoryConfirmedAt = dayjs().format('YYYY-MM-DD HH:mm');
+      if (confirmation.storeConfirmedBy) {
+        confirmation.status = 'completed';
       } else {
-        settlement.status = 'confirmed';
-      }
-      
-      if (!settlements.value.find(s => s.id === settlement.id)) {
-        settlements.value.push(settlement);
+        confirmation.status = 'confirmed';
       }
     }
   }
 
   function confirmStoreSettlement(id: string, operator: string) {
-    const settlement = settlements.value.find(s => s.id === id) || getDynamicSettlements().find(s => s.id === id);
-    if (settlement && !settlement.storeConfirmedBy) {
-      settlement.storeConfirmedBy = operator;
-      settlement.storeConfirmedAt = dayjs().format('YYYY-MM-DD HH:mm');
-      if (settlement.factoryConfirmedBy) {
-        settlement.status = 'completed';
+    const parts = id.replace('settle-', '').split('-');
+    if (parts.length < 2) return;
+    const storeId = parts[0];
+    const month = parts.slice(1).join('-');
+
+    const confirmation = ensureConfirmation(storeId, month);
+    if (!confirmation.storeConfirmedBy) {
+      confirmation.storeConfirmedBy = operator;
+      confirmation.storeConfirmedAt = dayjs().format('YYYY-MM-DD HH:mm');
+      if (confirmation.factoryConfirmedBy) {
+        confirmation.status = 'completed';
       } else {
-        settlement.status = 'confirmed';
-      }
-      
-      if (!settlements.value.find(s => s.id === settlement.id)) {
-        settlements.value.push(settlement);
+        confirmation.status = 'confirmed';
       }
     }
   }
 
   return {
-    settlements,
-    getSettlementById,
-    getSettlementsByMonth,
-    getSettlementByStoreAndMonth,
+    settlementConfirmations,
     calculateMonthStats,
     getDynamicSettlements,
-    updateSettlementCompensation,
     confirmFactorySettlement,
     confirmStoreSettlement
   };

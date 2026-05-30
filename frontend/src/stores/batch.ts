@@ -23,7 +23,7 @@ export const useBatchStore = defineStore('batch', () => {
     const orderStore = useOrderStore();
     const batch = getBatchById(batchId);
     if (!batch) return [];
-    
+
     const items: { orderId: string; orderNo: string; item: any }[] = [];
     batch.orderIds.forEach(orderId => {
       const order = orderStore.getOrderById(orderId);
@@ -42,32 +42,41 @@ export const useBatchStore = defineStore('batch', () => {
     return getBatchItems(batchId).length;
   }
 
-  function createBatch(washType: WashType, orderIds: string[], operator: string, remark?: string) {
-    const orderStore = useOrderStore();
+  function createBatch(washType: WashType, operator: string, remark?: string) {
     const newBatchNo = `BATCH-${dayjs().format('YYYYMMDD')}-${String(batches.value.length + 1).padStart(3, '0')}`;
-    
-    let itemCount = 0;
-    orderIds.forEach(orderId => {
-      const order = orderStore.getOrderById(orderId);
-      if (order) {
-        itemCount += order.items.filter(i => i.batchId === undefined || i.status !== 'completed').length;
-      }
-    });
 
     const newBatch: Batch = {
       id: `batch-${Date.now()}`,
       batchNo: newBatchNo,
       washType,
-      itemCount,
-      orderIds: [...new Set(orderIds)],
+      itemCount: 0,
+      orderIds: [],
       status: 'washing',
       startedAt: dayjs().format('YYYY-MM-DD HH:mm'),
       operator,
       remark
     };
-    
+
     batches.value.push(newBatch);
     return newBatch;
+  }
+
+  function syncBatchData(batchId: string) {
+    const orderStore = useOrderStore();
+    const batch = getBatchById(batchId);
+    if (!batch) return;
+
+    const allItems: { orderId: string; item: any }[] = [];
+    orderStore.orders.forEach(order => {
+      order.items.forEach(item => {
+        if (item.batchId === batchId) {
+          allItems.push({ orderId: order.id, item });
+        }
+      });
+    });
+
+    batch.itemCount = allItems.length;
+    batch.orderIds = [...new Set(allItems.map(i => i.orderId))];
   }
 
   function completeBatch(batchId: string, operator: string) {
@@ -79,14 +88,9 @@ export const useBatchStore = defineStore('batch', () => {
   }
 
   function addOrderToBatch(batchId: string, orderId: string) {
-    const orderStore = useOrderStore();
     const batch = getBatchById(batchId);
     if (batch && !batch.orderIds.includes(orderId)) {
       batch.orderIds.push(orderId);
-      const order = orderStore.getOrderById(orderId);
-      if (order) {
-        batch.itemCount += order.items.filter(i => !i.batchId).length;
-      }
     }
   }
 
@@ -99,6 +103,7 @@ export const useBatchStore = defineStore('batch', () => {
     getBatchItems,
     getBatchItemCount,
     createBatch,
+    syncBatchData,
     completeBatch,
     addOrderToBatch
   };

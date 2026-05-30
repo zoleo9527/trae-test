@@ -56,24 +56,24 @@
               v-model="selectedMonth"
               placeholder="选择月份"
               size="small"
-              style="width: 140px"
+              style="width: 160px"
               @change="refreshSettlements"
             >
-              <el-option label="2024年5月" value="2024-05" />
-              <el-option label="2024年4月" value="2024-04" />
-              <el-option label="2024年3月" value="2024-03" />
+              <el-option
+                v-for="month in availableMonths"
+                :key="month"
+                :label="formatMonthLabel(month)"
+                :value="month"
+              />
             </el-select>
           </div>
           <div class="flex-1 overflow-auto">
             <el-table
-              :data="dynamicSettlements"
+              :data="monthSettlements"
               style="width: 100%"
               stripe
               @row-click="viewSettlementDetail"
             >
-              <el-table-column prop="month" label="月份" width="110">
-                <template #default="{ row }">{{ row.month }}</template>
-              </el-table-column>
               <el-table-column prop="storeName" label="门店" width="110" />
               <el-table-column label="订单数" width="90">
                 <template #default="{ row }">{{ row.totalOrders }} 单</template>
@@ -82,18 +82,18 @@
                 <template #default="{ row }">{{ row.totalItems }} 件</template>
               </el-table-column>
               <el-table-column label="洗涤收入" width="120">
-                <template #default="{ row }" class="text-green-600">
-                  ¥{{ row.totalAmount }}
+                <template #default="{ row }">
+                  <span class="text-green-600">¥{{ row.totalAmount }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="赔付金额" width="120">
-                <template #default="{ row }" class="text-red-500">
-                  ¥{{ row.totalCompensation }}
+                <template #default="{ row }">
+                  <span class="text-red-500">¥{{ row.totalCompensation }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="结算金额" width="120">
-                <template #default="{ row }" class="font-semibold">
-                  ¥{{ row.netAmount }}
+                <template #default="{ row }">
+                  <span class="font-semibold">¥{{ row.netAmount }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="状态" width="110">
@@ -199,7 +199,7 @@
                     <el-button
                       type="primary"
                       @click="confirmFactory"
-                      :disabled="!userStore.isFactoryManager || selectedSettlement.factoryConfirmedBy"
+                      :disabled="!userStore.isFactoryManager || !!selectedSettlement.factoryConfirmedBy"
                       class="flex-1"
                     >
                       工厂确认
@@ -207,7 +207,7 @@
                     <el-button
                       type="success"
                       @click="confirmStore"
-                      :disabled="!userStore.isStoreManager || selectedSettlement.storeConfirmedBy"
+                      :disabled="!userStore.isStoreManager || !!selectedSettlement.storeConfirmedBy"
                       class="flex-1"
                     >
                       门店确认
@@ -273,16 +273,40 @@ import type { MonthlySettlement } from '@/types';
 const settlementStore = useSettlementStore();
 const userStore = useUserStore();
 
-const selectedMonth = ref('2024-05');
+const selectedMonth = ref('');
 const selectedSettlement = ref<MonthlySettlement | null>(null);
 
-const dynamicSettlements = computed(() => {
+const allSettlements = computed(() => {
   return settlementStore.getDynamicSettlements();
 });
 
+const availableMonths = computed(() => {
+  const months = [...new Set(allSettlements.value.map(s => s.month))];
+  return months.sort().reverse();
+});
+
+const monthSettlements = computed(() => {
+  if (!selectedMonth.value) return allSettlements.value;
+  return allSettlements.value.filter(s => s.month === selectedMonth.value);
+});
+
 const currentMonthStats = computed(() => {
+  if (!selectedMonth.value) {
+    return { totalOrders: 0, totalItems: 0, totalAmount: 0, totalCompensation: 0, netAmount: 0 };
+  }
   return settlementStore.calculateMonthStats(selectedMonth.value);
 });
+
+watch(availableMonths, (months) => {
+  if (months.length > 0 && !months.includes(selectedMonth.value)) {
+    selectedMonth.value = months[0];
+  }
+}, { immediate: true });
+
+function formatMonthLabel(month: string) {
+  const [year, m] = month.split('-');
+  return `${year}年${parseInt(m)}月`;
+}
 
 function refreshSettlements() {
   selectedSettlement.value = null;
@@ -318,6 +342,8 @@ function confirmFactory() {
     selectedSettlement.value.id,
     userStore.currentUser.name
   );
+  selectedSettlement.value = settlementStore.getDynamicSettlements(selectedMonth.value)
+    .find(s => s.id === selectedSettlement.value!.id) || selectedSettlement.value;
   ElMessage.success('工厂确认成功');
 }
 
@@ -327,6 +353,8 @@ function confirmStore() {
     selectedSettlement.value.id,
     userStore.currentUser.name
   );
+  selectedSettlement.value = settlementStore.getDynamicSettlements(selectedMonth.value)
+    .find(s => s.id === selectedSettlement.value!.id) || selectedSettlement.value;
   ElMessage.success('门店确认成功');
 }
 </script>

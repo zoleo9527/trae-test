@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Order, OrderStatus, StatusHistory, ClothingItem } from '@/types';
+import type { Order, OrderStatus, StatusHistory, ClothingItem, WashType } from '@/types';
 import { mockOrders, mockStatusHistory } from '@/data/mockData';
 import { useRewashStore } from './rewash';
+import { useBatchStore } from './batch';
+import { WASH_TYPE_LABELS } from '@/constants';
 import dayjs from 'dayjs';
 
 export const useOrderStore = defineStore('order', () => {
@@ -67,7 +69,7 @@ export const useOrderStore = defineStore('order', () => {
   function addStatusHistory(orderId: string, itemId: string | undefined, fromStatus: string, toStatus: string, operator: string, remark?: string) {
     const now = dayjs().format('YYYY-MM-DD HH:mm');
     statusHistory.value.push({
-      id: `history-${Date.now()}-${Math.random()}`,
+      id: `history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       orderId,
       itemId,
       fromStatus,
@@ -81,7 +83,7 @@ export const useOrderStore = defineStore('order', () => {
   function updateOrderStatusFromItems(orderId: string) {
     const order = getOrderById(orderId);
     if (!order) return;
-    
+
     const itemStatuses = [...new Set(order.items.map(i => i.status))];
     if (itemStatuses.length === 1) {
       order.status = itemStatuses[0];
@@ -96,51 +98,148 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  function batchUpdateStatus(orderIds: string[], status: OrderStatus, operator: string, remark?: string, newBatchId?: string) {
+  function batchUpdateStatus(orderIds: string[], status: OrderStatus, operator: string, remark?: string) {
     const now = dayjs().format('YYYY-MM-DD HH:mm');
     const rewashStore = useRewashStore();
+    const batchStore = useBatchStore();
 
-    orderIds.forEach(orderId => {
-      const order = orders.value.find(o => o.id === orderId);
-      if (order) {
+    if (status === 'sorted') {
+      const itemsByWashType: Record<string, { orderId: string; item: ClothingItem }[]> = {};
+
+      orderIds.forEach(orderId => {
+        const order = orders.value.find(o => o.id === orderId);
+        if (!order) return;
+        order.items.forEach(item => {
+          const wt = item.washType;
+          if (!itemsByWashType[wt]) itemsByWashType[wt] = [];
+          itemsByWashType[wt].push({ orderId, item });
+        });
+      });
+
+      const batchIdByWashType: Record<string, string> = {};
+      Object.entries(itemsByWashType).forEach(([wt, entries]) => {
+        const batch = batchStore.createBatch(
+          wt as WashType,
+          operator,
+          remark || `${WASH_TYPE_LABELS[wt] || wt}分拣批次`
+        );
+        batchIdByWashType[wt] = batch.id;
+      });
+
+      orderIds.forEach(orderId => {
+        const order = orders.value.find(o => o.id === orderId);
+        if (!order) return;
         const oldStatus = order.status;
-        
+        let primaryBatchId = '';
+
         order.items.forEach(item => {
           const oldItemStatus = item.status;
           item.status = status;
-          
-          if (status === 'rewash') {
-            item.rewashCount += 1;
-            rewashStore.addRecord({
-              orderId,
-              itemId: item.id,
-              reason: remark || '质检不合格返洗',
-              operator,
-              remark: `第${item.rewashCount}次返洗`
-            });
+          const batchId = batchIdByWashType[item.washType];
+          if (batchId) {
+            item.batchId = batchId;
+            if (!primaryBatchId) primaryBatchId = batchId;
           }
-          
-          if (newBatchId) {
-            item.batchId = newBatchId;
-          }
-          
-          addStatusHistory(orderId, item.id, oldItemStatus, status, operator, remark);
+          addStatusHistory(orderId, item.id, oldItemStatus, status, operator,
+            remark || `分拣归入${WASH_TYPE_LABELS[item.washType] || item.washType}批次`);
         });
-        
+
         order.status = status;
         order.updatedAt = now;
         order.updatedBy = operator;
-        if (newBatchId) {
-          order.currentBatchId = newBatchId;
-        }
-      }
-    });
+        order.currentBatchId = primaryBatchId;
+      });
+
+      Object.values(batchIdByWashType).forEach(batchId => {
+        batchStore.syncBatchData(batchId);
+      });
+
+    } else if (status === 'rewash') {
+      const itemsByWashType: Record<string, { orderId: string; item: ClothingItem }[]> = {};
+
+      orderIds.forEach(orderId => {
+        const order = orders.value.find(o => o.id === orderId);
+        if (!order) return;
+        order.items.forEach(item => {
+          const wt = item.washType;
+          if (!itemsByWashType[wt]) itemsByWashType[wt] = [];
+          itemsByWashType[wt].push({ orderId, item });
+        });
+      });
+
+      const batchIdByWashType: Record<string, string> = {};
+      Object.entries(itemsByWashType).forEach(([wt, entries]) => {
+        const batch = batchStore.createBatch(
+          wt as WashType,
+          operator,
+          `返洗批次-${WASH_TYPE_LABELS[wt] || wt}`
+        );
+        batchIdByWashType[wt] = batch.id;
+      });
+
+      orderIds.forEach(orderId => {
+        const order = orders.value.find(o => o.id === orderId);
+        if (!order) return;
+        let primaryBatchId = '';
+
+        order.items.forEach(item => {
+          const oldItemStatus = item.status;
+          item.status = status;
+          item.rewashCount += 1;
+
+          const batchId = batchIdByWashType[item.washType];
+          if (batchId) {
+            item.batchId = batchId;
+            if (!primaryBatchId) primaryBatchId = batchId;
+          }
+
+          rewashStore.addRecord({
+            orderId,
+            itemId: item.id,
+            reason: remark || '质检不合格返洗',
+            operator,
+            remark: `第${item.rewashCount}次返洗`
+          });
+
+          addStatusHistory(orderId, item.id, oldItemStatus, status, operator,
+            `返洗归入${WASH_TYPE_LABELS[item.washType] || item.washType}批次，第${item.rewashCount}次返洗`);
+        });
+
+        order.status = status;
+        order.updatedAt = now;
+        order.updatedBy = operator;
+        order.currentBatchId = primaryBatchId;
+      });
+
+      Object.values(batchIdByWashType).forEach(batchId => {
+        batchStore.syncBatchData(batchId);
+      });
+
+    } else {
+      orderIds.forEach(orderId => {
+        const order = orders.value.find(o => o.id === orderId);
+        if (!order) return;
+        const oldStatus = order.status;
+
+        order.items.forEach(item => {
+          const oldItemStatus = item.status;
+          item.status = status;
+          addStatusHistory(orderId, item.id, oldItemStatus, status, operator, remark);
+        });
+
+        order.status = status;
+        order.updatedAt = now;
+        order.updatedBy = operator;
+      });
+    }
+
     clearSelection();
   }
 
   function updateOrderItemStatus(orderId: string, itemId: string, status: OrderStatus, operator: string, remark?: string, newBatchId?: string) {
     const now = dayjs().format('YYYY-MM-DD HH:mm');
     const rewashStore = useRewashStore();
+    const batchStore = useBatchStore();
     const order = orders.value.find(o => o.id === orderId);
     if (order) {
       const item = order.items.find(i => i.id === itemId);
@@ -149,7 +248,7 @@ export const useOrderStore = defineStore('order', () => {
         item.status = status;
         order.updatedAt = now;
         order.updatedBy = operator;
-        
+
         if (status === 'rewash') {
           item.rewashCount += 1;
           rewashStore.addRecord({
@@ -159,12 +258,23 @@ export const useOrderStore = defineStore('order', () => {
             operator,
             remark: `第${item.rewashCount}次返洗`
           });
+
+          if (!newBatchId) {
+            const batch = batchStore.createBatch(
+              item.washType,
+              operator,
+              `返洗批次-${WASH_TYPE_LABELS[item.washType] || item.washType}`
+            );
+            newBatchId = batch.id;
+          }
         }
-        
+
         if (newBatchId) {
           item.batchId = newBatchId;
+          order.currentBatchId = newBatchId;
+          batchStore.syncBatchData(newBatchId);
         }
-        
+
         addStatusHistory(orderId, itemId, oldStatus, status, operator, remark);
         updateOrderStatusFromItems(orderId);
       }
