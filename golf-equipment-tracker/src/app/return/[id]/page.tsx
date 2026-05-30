@@ -44,6 +44,12 @@ export default function ReturnInspectionPage() {
     "其他损坏",
   ];
 
+  const missingKeywords = ["缺失", "丢失", "少了", "没了", "不见", "找不到"];
+  const checkIsMissing = (issues: string[], custom: string) => {
+    if (issues.includes("配件缺失")) return true;
+    return missingKeywords.some((kw) => custom.includes(kw));
+  };
+
   const record = borrowRecords.find((r) => r.id === params.id) || null;
   const existingInspection = record ? returnInspections.find(
     (ri) => ri.borrowRecordId === record.id
@@ -92,9 +98,10 @@ export default function ReturnInspectionPage() {
   const handleSubmit = () => {
     const hasCompensation = compensationAmount && parseFloat(compensationAmount) > 0;
     const hasIssues = selectedIssues.length > 0 || customIssue.trim() || hasCompensation;
+    const isMissing = checkIsMissing(selectedIssues, customIssue);
     const result: ReviewResult = !hasIssues
       ? "accepted"
-      : selectedIssues.includes("配件缺失")
+      : isMissing
       ? "missing_parts"
       : "damaged";
 
@@ -137,6 +144,7 @@ export default function ReturnInspectionPage() {
   const currentInspection = inspection || (step === "result" ? (() => {
     const hasComp = compensationAmount && parseFloat(compensationAmount) > 0;
     const hasIssuesTemp = selectedIssues.length > 0 || customIssue.trim() || hasComp;
+    const isMissingTemp = checkIsMissing(selectedIssues, customIssue);
     return {
       id: `ri_temp`,
       borrowRecordId: record.id,
@@ -144,7 +152,7 @@ export default function ReturnInspectionPage() {
       inspectorName: currentUser.name,
       inspectionDate: new Date().toISOString().slice(0, 16).replace("T", " "),
       overallCondition,
-      result: (!hasIssuesTemp ? "accepted" : selectedIssues.includes("配件缺失") ? "missing_parts" : "damaged") as ReviewResult,
+      result: (!hasIssuesTemp ? "accepted" : isMissingTemp ? "missing_parts" : "damaged") as ReviewResult,
       issuesFound: [...selectedIssues, customIssue].filter(Boolean),
       compensationAmount: compensationAmount ? parseFloat(compensationAmount) : undefined,
       compensationReason: compensationReason || undefined,
@@ -239,7 +247,7 @@ export default function ReturnInspectionPage() {
               />
             </div>
 
-            {selectedIssues.length > 0 && (
+            {(selectedIssues.length > 0 || customIssue.trim()) && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   赔偿处理
