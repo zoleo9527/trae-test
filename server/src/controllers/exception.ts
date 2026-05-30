@@ -5,6 +5,7 @@ import { CreateExceptionRequest, ExceptionFilters, ProcessExceptionRequest } fro
 export async function getExceptions(req: Request, res: Response) {
   const filters: ExceptionFilters = {
     member_id: req.query.member_id ? parseInt(req.query.member_id as string) : undefined,
+    member_name_like: req.query.member_name_like as string,
     type: req.query.type as string,
     status: req.query.status as string,
     created_by: req.query.created_by ? parseInt(req.query.created_by as string) : undefined,

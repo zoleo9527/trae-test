@@ -3,7 +3,7 @@ import db from './index';
 export function migrateData() {
   console.log('开始数据迁移修复...');
 
-  const migrationVersion = '20260531_v1';
+  const migrationVersion = '20260531_v2';
   const existingVersion = db.prepare('SELECT value FROM configs WHERE key = ?').get('migration_version') as { value: string } | undefined;
 
   if (existingVersion && existingVersion.value >= migrationVersion) {
@@ -13,6 +13,8 @@ export function migrateData() {
 
   const tx = db.transaction(() => {
     const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const twoDaysAgo = new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0];
 
     console.log('1. 修复今日预约状态...');
     const todayBookings = db.prepare(`
@@ -59,22 +61,67 @@ export function migrateData() {
     const fixTxSourceId = db.prepare(`
       UPDATE wallet_transactions
       SET source_id = CASE
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 1 THEN 1
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 2 THEN 2
-        WHEN remark LIKE '%球道消费 - 2.5小时%' AND member_id = 3 THEN 3
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 1 AND id = 9 THEN 4
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 4 THEN 5
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 5 THEN 6
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 10 THEN 7
-        WHEN remark LIKE '%球道消费 - 2小时%' AND member_id = 2 AND id = 13 THEN 8
+        WHEN id = 7 THEN 1
+        WHEN id = 8 THEN 2
+        WHEN id = 9 THEN 3
+        WHEN id = 10 THEN 4
+        WHEN id = 11 THEN 5
+        WHEN id = 12 THEN 6
+        WHEN id = 13 THEN 7
+        WHEN id = 14 THEN 8
         ELSE source_id
       END
-      WHERE source = 'booking' AND source_id IS NULL
+      WHERE source = 'booking' AND source_id IS NULL AND id BETWEEN 7 AND 14
     `);
     const fixResult = fixTxSourceId.run();
     console.log(`  修复了 ${fixResult.changes} 条交易的 source_id`);
 
-    console.log('3. 修复异常工单关联...');
+    console.log('3. 修复交易 created_at 时间戳...');
+    const fixTxCreatedAt = db.prepare(`
+      UPDATE wallet_transactions SET created_at = CASE
+        WHEN id = 1 THEN ?
+        WHEN id = 2 THEN ?
+        WHEN id = 3 THEN ?
+        WHEN id = 4 THEN ?
+        WHEN id = 5 THEN ?
+        WHEN id = 6 THEN ?
+        WHEN id = 7 THEN ?
+        WHEN id = 8 THEN ?
+        WHEN id = 9 THEN ?
+        WHEN id = 10 THEN ?
+        WHEN id = 11 THEN ?
+        WHEN id = 12 THEN ?
+        WHEN id = 13 THEN ?
+        WHEN id = 14 THEN ?
+        WHEN id = 15 THEN ?
+        WHEN id = 16 THEN ?
+        WHEN id = 17 THEN ?
+        ELSE created_at
+      END
+      WHERE id BETWEEN 1 AND 17
+    `);
+    const createdAtResult = fixTxCreatedAt.run(
+      `${twoDaysAgo} 10:30:00`,
+      `${twoDaysAgo} 11:15:00`,
+      `${twoDaysAgo} 14:00:00`,
+      `${yesterday} 09:45:00`,
+      `${yesterday} 15:20:00`,
+      `${yesterday} 10:30:00`,
+      `${twoDaysAgo} 11:00:00`,
+      `${twoDaysAgo} 11:55:00`,
+      `${twoDaysAgo} 16:25:00`,
+      `${yesterday} 10:25:00`,
+      `${yesterday} 12:55:00`,
+      `${yesterday} 16:50:00`,
+      `${yesterday} 18:00:00`,
+      `${today} 10:55:00`,
+      `${yesterday} 14:55:00`,
+      `${yesterday} 13:30:00`,
+      `${yesterday} 18:15:00`
+    );
+    console.log(`  修复了 ${createdAtResult.changes} 条交易的 created_at`);
+
+    console.log('4. 修复异常工单关联...');
 
     const disputeTx = db.prepare(`
       SELECT id FROM wallet_transactions
@@ -84,15 +131,15 @@ export function migrateData() {
 
     const disputeBooking = db.prepare(`
       SELECT id FROM bookings
-      WHERE member_id = 8 AND booking_date = (SELECT DATE('now', '-1 day'))
+      WHERE member_id = 8 AND booking_date = ?
       ORDER BY id ASC LIMIT 1
-    `).get() as { id: number } | undefined;
+    `).get(yesterday) as { id: number } | undefined;
 
     const damageBooking = db.prepare(`
       SELECT id FROM bookings
-      WHERE member_id = 9 AND booking_date = (SELECT DATE('now', '-1 day'))
+      WHERE member_id = 9 AND booking_date = ?
       ORDER BY id ASC LIMIT 1
-    `).get() as { id: number } | undefined;
+    `).get(yesterday) as { id: number } | undefined;
 
     const damageEquipRecord = db.prepare(`
       SELECT id, damage_fee FROM equipment_records
@@ -113,12 +160,12 @@ export function migrateData() {
         console.log('  为器材损坏创建赔偿交易...');
         const damageFee = damageEquipRecord.damage_fee;
         const insertDamageTx = db.prepare(`
-          INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status)
-          VALUES (?, ?, 'consume', ?, ?, 0, 'equipment', NULL, 4, ?, 'pending')
+          INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status, created_at)
+          VALUES (?, ?, 'consume', ?, ?, 0, 'equipment', ?, 4, ?, 'pending', ?)
         `);
-        const result = insertDamageTx.run(9, 9, damageFee, damageFee, `器材损坏赔偿 - 一号木杆杆头划痕`);
+        const result = insertDamageTx.run(9, 9, damageFee, damageFee, damageEquipRecord.id, `器材损坏赔偿 - 一号木杆杆头划痕`, `${yesterday} 12:00:00`);
         damageTxId = result.lastInsertRowid as number;
-        console.log(`  创建赔偿交易，ID=${damageTxId}，金额=${damageFee}`);
+        console.log(`  创建赔偿交易，ID=${damageTxId}，金额=${damageFee}，关联器材记录=${damageEquipRecord.id}`);
 
         const updateWallet = db.prepare(`
           UPDATE wallets
@@ -130,6 +177,9 @@ export function migrateData() {
       } else {
         damageTxId = existingDamageTx.id;
         console.log(`  赔偿交易已存在，ID=${damageTxId}`);
+        const updateDamageTx = db.prepare(`UPDATE wallet_transactions SET source_id = ? WHERE id = ?`);
+        updateDamageTx.run(damageEquipRecord.id, damageTxId);
+        console.log(`  更新赔偿交易 source_id = ${damageEquipRecord.id}`);
       }
     }
 
@@ -151,8 +201,8 @@ export function migrateData() {
 
     const bookingErrorBooking = db.prepare(`
       SELECT id FROM bookings
-      WHERE member_id = 5 AND booking_date = (SELECT DATE('now', '-1 day')) AND start_time = '15:00'
-    `).get() as { id: number } | undefined;
+      WHERE member_id = 5 AND booking_date = ? AND start_time = '15:00'
+    `).get(yesterday) as { id: number } | undefined;
 
     if (bookingErrorBooking) {
       updateException.run(null, bookingErrorBooking.id, 3);

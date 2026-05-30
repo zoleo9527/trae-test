@@ -199,42 +199,43 @@ export function initDatabase() {
 
   console.log('数据库初始化完成');
 
+  console.log('开始回填节假日数据（幂等 INSERT OR IGNORE）...');
+  const insertHoliday = db.prepare(`
+    INSERT OR IGNORE INTO holidays (holiday_date, name, type, coefficient)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const holidays = [
+    ['2026-01-01', '元旦', 'public', 1.5],
+    ['2026-01-29', '春节', 'public', 1.5],
+    ['2026-01-30', '春节', 'public', 1.5],
+    ['2026-01-31', '春节', 'public', 1.5],
+    ['2026-02-01', '春节', 'public', 1.5],
+    ['2026-02-02', '春节', 'public', 1.5],
+    ['2026-02-03', '春节', 'public', 1.5],
+    ['2026-04-04', '清明节', 'public', 1.5],
+    ['2026-04-05', '清明节', 'public', 1.5],
+    ['2026-05-01', '劳动节', 'public', 1.5],
+    ['2026-05-02', '劳动节', 'public', 1.5],
+    ['2026-05-03', '劳动节', 'public', 1.5],
+    ['2026-05-30', '端午节', 'public', 1.5],
+    ['2026-05-31', '端午节', 'public', 1.5],
+    ['2026-10-01', '国庆节', 'public', 1.5],
+    ['2026-10-02', '国庆节', 'public', 1.5],
+    ['2026-10-03', '国庆节', 'public', 1.5],
+    ['2026-10-04', '国庆节', 'public', 1.5],
+    ['2026-10-05', '国庆节', 'public', 1.5],
+    ['2026-10-06', '国庆节', 'public', 1.5],
+    ['2026-10-07', '国庆节', 'public', 1.5],
+    ['2026-06-19', '场地维护日', 'special', 2.0]
+  ];
+
+  let inserted = 0;
+  holidays.forEach(h => {
+    const result = insertHoliday.run(h[0], h[1], h[2], h[3]);
+    if (result.changes > 0) inserted++;
+  });
+
   const holidayCount = db.prepare('SELECT COUNT(*) as count FROM holidays').get() as { count: number };
-  if (holidayCount.count === 0) {
-    console.log('开始回填节假日数据...');
-    const insertHoliday = db.prepare(`
-      INSERT OR IGNORE INTO holidays (holiday_date, name, type, coefficient)
-      VALUES (?, ?, ?, ?)
-    `);
-
-    const holidays = [
-      ['2026-01-01', '元旦', 'public', 1.5],
-      ['2026-01-29', '春节', 'public', 1.5],
-      ['2026-01-30', '春节', 'public', 1.5],
-      ['2026-01-31', '春节', 'public', 1.5],
-      ['2026-02-01', '春节', 'public', 1.5],
-      ['2026-02-02', '春节', 'public', 1.5],
-      ['2026-02-03', '春节', 'public', 1.5],
-      ['2026-04-04', '清明节', 'public', 1.5],
-      ['2026-04-05', '清明节', 'public', 1.5],
-      ['2026-05-01', '劳动节', 'public', 1.5],
-      ['2026-05-02', '劳动节', 'public', 1.5],
-      ['2026-05-03', '劳动节', 'public', 1.5],
-      ['2026-05-30', '端午节', 'public', 1.5],
-      ['2026-05-31', '端午节', 'public', 1.5],
-      ['2026-10-01', '国庆节', 'public', 1.5],
-      ['2026-10-02', '国庆节', 'public', 1.5],
-      ['2026-10-03', '国庆节', 'public', 1.5],
-      ['2026-10-04', '国庆节', 'public', 1.5],
-      ['2026-10-05', '国庆节', 'public', 1.5],
-      ['2026-10-06', '国庆节', 'public', 1.5],
-      ['2026-10-07', '国庆节', 'public', 1.5],
-      ['2026-06-19', '场地维护日', 'special', 2.0]
-    ];
-
-    holidays.forEach(h => insertHoliday.run(h[0], h[1], h[2], h[3]));
-    console.log('✅ 节假日数据回填完成，共 22 条');
-  } else {
-    console.log(`✅ 节假日数据已存在（${holidayCount.count} 条），跳过回填`);
-  }
+  console.log(`✅ 节假日数据处理完成：新增 ${inserted} 条，总计 ${holidayCount.count} 条`);
 }

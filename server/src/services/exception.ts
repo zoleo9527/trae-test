@@ -4,6 +4,7 @@ import { buildWhereClause, getClientIp, logAudit } from '../utils';
 
 export interface ExceptionFilters {
   member_id?: number;
+  member_name_like?: string;
   type?: string;
   status?: string;
   created_by?: number;
@@ -34,7 +35,7 @@ export function getExceptions(filters: ExceptionFilters): PaginatedResponse<Exce
   const pageSize = filters.pageSize || 20;
   const offset = (page - 1) * pageSize;
 
-  const { clause, params } = buildWhereClause({
+  const baseWhere: Record<string, any> = {
     'e.member_id': filters.member_id,
     'e.type': filters.type,
     'e.status': filters.status,
@@ -42,9 +43,19 @@ export function getExceptions(filters: ExceptionFilters): PaginatedResponse<Exce
     'e.handled_by': filters.handled_by,
     'e.created_at_start': filters.created_at_start,
     'e.created_at_end': filters.created_at_end
-  });
+  };
 
-  const countStmt = db.prepare(`SELECT COUNT(*) as total FROM exceptions e ${clause}`);
+  if (filters.member_name_like) {
+    baseWhere['m.name_like'] = filters.member_name_like;
+  }
+
+  const { clause, params } = buildWhereClause(baseWhere);
+
+  const countStmt = db.prepare(`
+    SELECT COUNT(*) as total FROM exceptions e
+    LEFT JOIN members m ON e.member_id = m.id
+    ${clause}
+  `);
   const { total } = countStmt.get(...params) as { total: number };
 
   const exStmt = db.prepare(`

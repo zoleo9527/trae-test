@@ -112,8 +112,8 @@ export async function seedSampleData() {
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
     const insertTx = db.prepare(`
-      INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 'matched')
+      INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'matched', ?)
     `);
 
     const insertBooking = db.prepare(`
@@ -131,6 +131,8 @@ export async function seedSampleData() {
       const walletId = memberId;
       const amount = 1000 * (i + 1);
       const giftAmount = amount * 0.1;
+      const rechargeDate = i < 3 ? formatDate(twoDaysAgo) : formatDate(yesterday);
+      const rechargeTime = i < 3 ? ['10:30', '11:15', '14:00'][i] : ['09:45', '15:20'][i - 3];
 
       insertTx.run(
         walletId,
@@ -140,8 +142,10 @@ export async function seedSampleData() {
         amount,
         giftAmount,
         'recharge',
+        null,
         4,
-        `会员充值${amount}元，赠送${giftAmount}元`
+        `会员充值${amount}元，赠送${giftAmount}元`,
+        `${rechargeDate} ${rechargeTime}:00`
       );
     }
 
@@ -178,6 +182,7 @@ export async function seedSampleData() {
       const bookingId = result.lastInsertRowid as number;
 
       if (index < 8 && booking.memberId) {
+        const txTime = booking.complete ? `${booking.date} ${booking.complete}:00` : `${booking.date} ${booking.start}:00`;
         insertTx.run(
           booking.memberId,
           booking.memberId,
@@ -188,7 +193,8 @@ export async function seedSampleData() {
           'booking',
           bookingId,
           4,
-          `球道消费 - ${booking.duration / 60}小时`
+          `球道消费 - ${booking.duration / 60}小时`,
+          txTime
         );
       }
 
@@ -225,8 +231,8 @@ export async function seedSampleData() {
     `);
 
     const insertTxCustom = db.prepare(`
-      INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark, reconciliation_status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertEquipRecordCustom = db.prepare(`
@@ -242,7 +248,8 @@ export async function seedSampleData() {
 
     const disputeTx = insertTxCustom.run(
       8, 8, 'consume', 160, 144, 16, 'booking', disputeBookingId, 4,
-      '球道消费 - 2小时（实际仅1小时，金额有误）', 'mismatched'
+      '球道消费 - 2小时（实际仅1小时，金额有误）', 'mismatched',
+      `${formatDate(yesterday)} 14:55:00`
     );
     const disputeTxId = disputeTx.lastInsertRowid as number;
 
@@ -253,12 +260,14 @@ export async function seedSampleData() {
 
     insertTxCustom.run(
       4, 4, 'consume', 120, 108, 12, 'manual', null, 4,
-      '手动扣费（金额存疑）', 'mismatched'
+      '手动扣费（金额存疑）', 'mismatched',
+      `${formatDate(yesterday)} 13:30:00`
     );
 
     insertTxCustom.run(
       3, 3, 'refund', 200, 180, 20, 'adjustment', null, 4,
-      '退款 - 预约时间冲突补偿', 'matched'
+      '退款 - 预约时间冲突补偿', 'matched',
+      `${formatDate(yesterday)} 18:15:00`
     );
 
     const fengBooking = insertBookingCustom.run(
@@ -269,19 +278,22 @@ export async function seedSampleData() {
 
     insertTxCustom.run(
       9, 9, 'consume', 160, 144, 16, 'booking', fengBookingId, 4,
-      '球道消费 - 2小时', 'matched'
+      '球道消费 - 2小时', 'matched',
+      `${formatDate(yesterday)} 11:55:00`
     );
 
-    insertEquipRecordCustom.run(
+    const damageEquipRecord = insertEquipRecordCustom.run(
       1, 9, fengBookingId, 4,
       `${formatDate(yesterday)} 10:05`, 4,
       `${formatDate(yesterday)} 11:55`,
       'damaged', '杆头有明显划痕，疑似碰撞造成', 200
     );
+    const damageEquipRecordId = damageEquipRecord.lastInsertRowid as number;
 
     const damageTx = insertTxCustom.run(
-      9, 9, 'consume', 200, 200, 0, 'equipment', null, 4,
-      '器材损坏赔偿 - 一号木杆杆头划痕', 'pending'
+      9, 9, 'consume', 200, 200, 0, 'equipment', damageEquipRecordId, 4,
+      '器材损坏赔偿 - 一号木杆杆头划痕', 'pending',
+      `${formatDate(yesterday)} 12:00:00`
     );
     const damageTxId = damageTx.lastInsertRowid as number;
 
