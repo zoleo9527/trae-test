@@ -118,9 +118,28 @@ func CreateBooking(c *fiber.Ctx) error {
 
 	if req.ScheduleID != "" {
 		parsedScheduleID, err := uuid.Parse(req.ScheduleID)
-		if err == nil {
-			scheduleID = &parsedScheduleID
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "无效的排班ID"})
 		}
+
+		var schedule models.CoachSchedule
+		if err := database.DB.Where("id = ?", parsedScheduleID).First(&schedule).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "排班不存在"})
+		}
+		if schedule.Status != "published" {
+			return c.Status(400).JSON(fiber.Map{"error": "排班未发布，无法预约"})
+		}
+		if schedule.BookedCount >= schedule.Capacity {
+			return c.Status(400).JSON(fiber.Map{"error": "排班预约已满"})
+		}
+		if coachID != nil && schedule.CoachID != *coachID {
+			return c.Status(400).JSON(fiber.Map{"error": "所选教练与排班教练不一致"})
+		}
+		if coachID == nil {
+			coachID = &schedule.CoachID
+			coachName = schedule.CoachName
+		}
+		scheduleID = &parsedScheduleID
 	}
 
 	booking := models.Booking{

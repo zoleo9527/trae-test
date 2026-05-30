@@ -1,16 +1,34 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { equipmentApi } from '$lib/api/client';
-	import type { Equipment, EquipmentRental } from '$lib/types';
+	import { equipmentApi, bookingApi, memberApi } from '$lib/api/client';
+	import type { Equipment, EquipmentRental, Booking, Member } from '$lib/types';
 	import { auth } from '$lib/stores/auth';
 	import dayjs from 'dayjs';
 
 	let equipment: Equipment[] = [];
 	let rentals: EquipmentRental[] = [];
+	let bookings: Booking[] = [];
+	let members: Member[] = [];
 	let loading = true;
 	let activeTab = 'list';
 	let statusFilter = '';
 	let categoryFilter = '';
+
+	let showBorrowModal = false;
+	let showReturnModal = false;
+	let selectedEquipment: Equipment | null = null;
+	let selectedRental: EquipmentRental | null = null;
+
+	let borrowForm = {
+		bookingId: '',
+		memberId: ''
+	};
+
+	let returnForm = {
+		conditionIn: 'good',
+		damageReported: false,
+		damageNote: ''
+	};
 
 	$: categories = [...new Set(equipment.map(e => e.category))];
 	$: filteredEquipment = equipment.filter(e => {
@@ -19,13 +37,16 @@
 		return matchesStatus && matchesCategory;
 	});
 	$: activeRentals = rentals.filter(r => !r.returnedAt);
+	$: availableBookings = bookings.filter(b => b.status === 'checked_in');
 	$: canManage = $auth.user?.role === 'reception' || $auth.user?.role === 'venue_manager';
 
 	onMount(async () => {
 		try {
-			[equipment, rentals] = await Promise.all([
+			[equipment, rentals, bookings, members] = await Promise.all([
 				equipmentApi.list(),
-				equipmentApi.listRentals()
+				equipmentApi.listRentals(),
+				bookingApi.list(),
+				memberApi.list()
 			]);
 		} finally {
 			loading = false;
@@ -34,6 +55,11 @@
 
 	function formatDateTime(date: string) {
 		return dayjs(date).format('MM-DD HH:mm');
+	}
+
+	function getMemberName(memberId: string) {
+		const member = members.find(m => m.id === memberId);
+		return member ? member.name : memberId;
 	}
 
 	function getStatusColor(status: string) {
@@ -71,6 +97,87 @@
 			case 'fair': return '一般';
 			case 'damaged': return '损坏';
 			default: return condition;
+		}
+	}
+
+	function openBorrowModal(equipment: Equipment) {
+		selectedEquipment = equipment;
+		borrowForm = {
+			bookingId: availableBookings[0]?.id || '',
+			memberId: availableBookings[0]?.memberId || ''
+		};
+		showBorrowModal = true;
+	}
+
+	$: if (borrowForm.bookingId) {
+		const booking = bookings.find(b => b.id === borrowForm.bookingId);
+		if (booking) {
+			borrowForm.memberId = booking.memberId;
+		}
+	}
+
+	function openReturnModalFromEquipment(equipment: Equipment) {
+		const rental = activeRentals.find(r => r.equipmentId === equipment.id);
+		if (rental) {
+			openReturnModal(rental);
+		}
+	}
+
+	function openReturnModal(rental: EquipmentRental) {
+		selectedRental = rental;
+		returnForm = {
+			conditionIn: 'good',
+			damageReported: false,
+			damageNote: ''
+		};
+		showReturnModal = true;
+	}
+
+	async function handleBorrow() {
+		if (!selectedEquipment || !borrowForm.bookingId) {
+			alert('请选择关联预约');
+			return;
+		}
+
+		try {
+			await equipmentApi.borrow(selectedEquipment.id, {
+				bookingId: borrowForm.bookingId,
+				memberId: borrowForm.memberId
+			});
+
+			showBorrowModal = false;
+			selectedEquipment = null;
+			[equipment, rentals] = await Promise.all([
+				equipmentApi.list(),
+				equipmentApi.listRentals()
+			]);
+		} catch (e: any) {
+			alert(e.message || '借出失败');
+		}
+	}
+
+	async function handleReturn() {
+		if (!selectedRental) return;
+
+		try {
+			await equipmentApi.return(selectedRental.equipmentId, {
+				conditionIn: returnForm.conditionIn,
+				damageReported: returnForm.damageReported,
+				damageNote: returnForm.damageNote
+			});
+
+			showReturnModal = false;
+			selectedRental = null;
+			[equipment, rentals] = await Promise.all([
+				equipmentApi.list(),
+				equipmentApi.listRentals()
+			]);
+
+			if (returnForm.damageReported) {
+				alert('器材损坏，已自动提醒创建异常单');
+			}
+		} catch (e: any) {
+			alert(e.message || '归还失败');
 		}
 	}
 </script>
@@ -183,9 +290,13 @@
 								{#if canManage}
 									<td>
 										{#if item.status === 'available'}
-											<button class="btn btn-outline text-sm">借出</button>
+											<button class="btn btn-outline text-sm" on:click={() => openBorrowModal(item)}>
+												借出
+											</button>
 										{:else if item.status === 'in_use'}
-											<button class="btn btn-primary text-sm">归还</button>
+											<button class="btn btn-primary text-sm" on:click={() => openReturnModalFromEquipment(item)}>
+												归还
+											</button>
 										{/if}
 									</td>
 								{/if}
@@ -222,7 +333,7 @@
 									<span class="font-medium text-gray-900">{rental.equipmentName}</span>
 								</td>
 								<td>
-									{rental.memberId}
+									{getMemberName(rental.memberId)}
 								</td>
 								<td>{formatDateTime(rental.rentedAt)}</td>
 								<td>
@@ -233,7 +344,9 @@
 								<td>¥{rental.fee.toFixed(2)}</td>
 								{#if canManage}
 									<td>
-										<button class="btn btn-primary text-sm">归还</button>
+										<button class="btn btn-primary text-sm" on:click={() => openReturnModal(rental)}>
+											归还
+										</button>
 									</td>
 								{/if}
 							</tr>
@@ -244,3 +357,127 @@
 		</div>
 	{/if}
 </div>
+
+{#if showBorrowModal && selectedEquipment}
+	<div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" on:click={() => showBorrowModal = false}>
+		<div class="bg-white rounded-2xl w-full max-w-md" on:click|stopPropagation>
+			<div class="p-6 border-b border-gray-200">
+				<div class="flex items-center justify-between">
+					<h2 class="text-xl font-bold text-gray-900">借出器材</h2>
+					<button class="p-2 hover:bg-gray-100 rounded-lg" on:click={() => showBorrowModal = false}>
+						<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<line x1="18" y1="6" x2="6" y2="18" />
+							<line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+			</div>
+
+			<div class="p-6 space-y-4">
+				<div class="bg-gray-50 rounded-lg p-4">
+					<p class="text-sm text-gray-500">器材</p>
+					<p class="font-medium text-gray-900">{selectedEquipment.name} - {selectedEquipment.brand}</p>
+					<p class="text-sm text-gray-500">日租金：¥{selectedEquipment.dailyRate.toFixed(2)}</p>
+				</div>
+
+				<div>
+					<label class="label">关联预约 <span class="text-red-500">*</span></label>
+					<select class="select" bind:value={borrowForm.bookingId}>
+						<option value="">请选择预约</option>
+						{#each availableBookings as booking}
+							<option value={booking.id}>
+								{booking.memberName} - {booking.bayNumber} ({dayjs(booking.startAt).format('HH:mm')}-{dayjs(booking.endAt).format('HH:mm')})
+							</option>
+						{/each}
+					</select>
+					{#if availableBookings.length === 0}
+						<p class="text-xs text-gray-400 mt-1">当前没有进行中的预约</p>
+					{/if}
+				</div>
+
+				<div>
+					<label class="label">会员</label>
+					<select class="select" bind:value={borrowForm.memberId}>
+						<option value="">请选择会员</option>
+						{#each members as member}
+							<option value={member.id}>{member.name} - {member.phone}</option>
+						{/each}
+					</select>
+				</div>
+			</div>
+
+			<div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+				<button class="btn btn-secondary" on:click={() => showBorrowModal = false}>
+					取消
+				</button>
+				<button class="btn btn-primary" on:click={handleBorrow} disabled={!borrowForm.bookingId}>
+					确认借出
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showReturnModal && selectedRental}
+	<div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" on:click={() => showReturnModal = false}>
+		<div class="bg-white rounded-2xl w-full max-w-md" on:click|stopPropagation>
+			<div class="p-6 border-b border-gray-200">
+				<div class="flex items-center justify-between">
+					<h2 class="text-xl font-bold text-gray-900">归还器材</h2>
+					<button class="p-2 hover:bg-gray-100 rounded-lg" on:click={() => showReturnModal = false}>
+						<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<line x1="18" y1="6" x2="6" y2="18" />
+							<line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+			</div>
+
+			<div class="p-6 space-y-4">
+				<div class="bg-gray-50 rounded-lg p-4">
+					<p class="text-sm text-gray-500">器材</p>
+					<p class="font-medium text-gray-900">{selectedRental.equipmentName}</p>
+					<p class="text-sm text-gray-500">
+						借出时间：{formatDateTime(selectedRental.rentedAt)}
+					</p>
+					<p class="text-sm text-gray-500">
+						借出成色：{getConditionLabel(selectedRental.conditionOut)}
+					</p>
+				</div>
+
+				<div>
+					<label class="label">归还成色 <span class="text-red-500">*</span></label>
+					<select class="select" bind:value={returnForm.conditionIn}>
+						<option value="new">全新</option>
+						<option value="good">良好</option>
+						<option value="fair">一般</option>
+						<option value="damaged">损坏</option>
+					</select>
+				</div>
+
+				<div>
+					<label class="label">
+						<input type="checkbox" bind:checked={returnForm.damageReported} class="mr-2" />
+						有损坏需要记录
+					</label>
+				</div>
+
+				{#if returnForm.damageReported || returnForm.conditionIn === 'damaged'}
+					<div>
+						<label class="label">损坏说明</label>
+						<textarea class="input" rows="3" placeholder="请描述损坏情况..." bind:value={returnForm.damageNote}></textarea>
+					</div>
+				{/if}
+			</div>
+
+			<div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+				<button class="btn btn-secondary" on:click={() => showReturnModal = false}>
+					取消
+				</button>
+				<button class="btn btn-primary" on:click={handleReturn}>
+					确认归还
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

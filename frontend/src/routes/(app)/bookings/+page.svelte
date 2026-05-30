@@ -34,6 +34,8 @@
 		remark: ''
 	};
 
+	let currentModalDate = '';
+
 	$: filteredBookings = bookings.filter(b => {
 		const matchesStatus = !statusFilter || b.status === statusFilter;
 		const matchesDate = !dateFilter || dayjs(b.startAt).format('YYYY-MM-DD') === dateFilter;
@@ -52,20 +54,31 @@
 
 	onMount(async () => {
 		try {
-			[bookings, members, coaches, bays, schedules] = await Promise.all([
+			[bookings, members, coaches, bays] = await Promise.all([
 				bookingApi.list(),
 				memberApi.list(),
 				coachApi.list(),
-				bookingApi.listBays(),
-				coachApi.listSchedules({ date: newBooking.date })
+				bookingApi.listBays()
 			]);
 		} finally {
 			loading = false;
 		}
 	});
 
-	$: if (newBooking.date && showBookingModal) {
+	$: if (newBooking.date && showBookingModal && newBooking.date !== currentModalDate) {
+		currentModalDate = newBooking.date;
 		loadSchedulesForDate();
+	}
+
+	$: if (newBooking.scheduleId) {
+		const schedule = availableSchedules.find(s => s.id === newBooking.scheduleId);
+		if (schedule && schedule.coachId !== newBooking.coachId) {
+			newBooking.coachId = schedule.coachId;
+			newBooking.startTime = dayjs(schedule.startAt).format('HH:mm');
+			newBooking.endTime = dayjs(schedule.endAt).format('HH:mm');
+		}
+	} else if (newBooking.coachId && !newBooking.scheduleId) {
+		// 保持不变，允许手动选择教练
 	}
 
 	async function loadSchedulesForDate() {
@@ -99,6 +112,8 @@
 
 		const startAt = dayjs(`${newBooking.date}T${newBooking.startTime}`).toISOString();
 		const endAt = dayjs(`${newBooking.date}T${newBooking.endTime}`).toISOString();
+		const selectedScheduleId = newBooking.scheduleId;
+		const selectedDate = newBooking.date;
 
 		try {
 			await bookingApi.create({
@@ -117,8 +132,8 @@
 			showBookingModal = false;
 			resetBookingForm();
 			bookings = await bookingApi.list();
-			if (newBooking.scheduleId) {
-				schedules = await coachApi.listSchedules({ date: newBooking.date });
+			if (selectedScheduleId) {
+				schedules = await coachApi.listSchedules({ date: selectedDate });
 			}
 		} catch (e: any) {
 			alert(e.message || '创建预约失败');

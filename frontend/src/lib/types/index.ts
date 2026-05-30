@@ -187,6 +187,7 @@ export interface CreateBookingRequest {
 	memberId: string;
 	bayId: string;
 	coachId?: string;
+	scheduleId?: string;
 	startAt: string;
 	endAt: string;
 	guestCount: number;
