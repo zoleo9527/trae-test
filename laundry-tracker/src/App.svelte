@@ -42,20 +42,29 @@
   }
 
   async function quickHandover(order: Order) {
+    const now = Date.now()
+
     if (order.status !== 'completed') {
+      await db.processRecords.where('orderId').equals(order.id).and(r => r.stage === 5).modify({
+        endTime: now
+      })
+
+      await db.processRecords.add({
+        id: generateId(),
+        orderId: order.id,
+        stage: 6,
+        stageName: '质检通过',
+        startTime: now,
+        endTime: now,
+        operator: '系统',
+        notes: '扫码快速交接，质检通过',
+        createdAt: now
+      })
+
       await db.orders.update(order.id, {
         status: 'completed',
         currentStage: 6,
-        updatedAt: Date.now()
-      })
-
-      await db.timelineEvents.add({
-        id: generateId(),
-        type: 'order',
-        referenceId: order.id,
-        action: '质检通过',
-        description: '质检完成，进入已完成状态待出库',
-        timestamp: Date.now()
+        updatedAt: now
       })
     }
 
@@ -64,25 +73,29 @@
       type: 'out' as const,
       orderIds: [order.id],
       storeId: order.storeId,
-      timestamp: Date.now()
+      timestamp: now,
+      status: 'confirmed' as const,
+      notes: '扫码快速交接'
     }
+
+    await db.processRecords.add({
+      id: generateId(),
+      orderId: order.id,
+      stage: 8,
+      stageName: '交接出库',
+      startTime: now,
+      endTime: now,
+      operator: '系统',
+      notes: '门店已签收',
+      createdAt: now
+    })
 
     await db.handoverRecords.add(handover)
     await db.orders.update(order.id, {
       status: 'delivered',
       currentStage: 8,
-      deliveredAt: Date.now(),
-      updatedAt: Date.now()
-    })
-
-    await db.timelineEvents.add({
-      id: generateId(),
-      type: 'handover',
-      referenceId: handover.id,
-      action: '快速交接出库',
-      description: `${stores.find(s => s.id === order.storeId)?.name || '门店'} - ${order.customerName}`,
-      timestamp: Date.now(),
-      metadata: { orderId: order.id }
+      deliveredAt: now,
+      updatedAt: now
     })
 
     await refreshData()

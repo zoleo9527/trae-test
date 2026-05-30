@@ -50,37 +50,88 @@
   async function createHandover() {
     if (selectedOrderIds.length === 0 || !selectedStoreId) return
 
+    const now = Date.now()
+    const isConfirmed = true
+
     const handover: HandoverRecord = {
       id: generateId(),
       type: handoverType,
       orderIds: [...selectedOrderIds],
       storeId: selectedStoreId,
-      timestamp: Date.now(),
+      status: isConfirmed ? 'confirmed' : 'pending',
+      timestamp: now,
+      confirmedAt: isConfirmed ? now : undefined,
       notes: handoverNotes || undefined
     }
 
     await db.handoverRecords.add(handover)
 
     for (const orderId of selectedOrderIds) {
-      const newStatus = handoverType === 'out' ? 'delivered' : 'sorting'
-      const newStage = handoverType === 'out' ? 8 : 1
-      
-      await db.orders.update(orderId, {
-        status: newStatus as any,
-        currentStage: newStage,
-        deliveredAt: handoverType === 'out' ? Date.now() : undefined,
-        updatedAt: Date.now()
-      })
+      const order = orders.find(o => o.id === orderId)
+      if (!order) continue
 
-      await db.timelineEvents.add({
-        id: generateId(),
-        type: 'handover',
-        referenceId: handover.id,
-        action: handoverType === 'out' ? '门店交接出库' : '门店送厂入库',
-        description: `${getStoreName(selectedStoreId)} - ${orders.find(o => o.id === orderId)?.customerName || ''}`,
-        timestamp: Date.now(),
-        metadata: { orderId }
-      })
+      if (handoverType === 'out') {
+        if (order.status !== 'completed') {
+          await db.processRecords.where('orderId').equals(orderId).and(r => r.stage === 5).modify({
+            endTime: now
+          })
+
+          await db.processRecords.add({
+            id: generateId(),
+            orderId,
+            stage: 6,
+            stageName: '质检通过',
+            startTime: now,
+            endTime: now,
+            operator: '系统',
+            notes: handoverNotes || '批量交接，质检通过',
+            createdAt: now
+          })
+
+          await db.orders.update(orderId, {
+            status: 'completed',
+            currentStage: 6,
+            updatedAt: now
+          })
+        }
+
+        await db.processRecords.add({
+          id: generateId(),
+          orderId,
+          stage: 8,
+          stageName: '交接出库',
+          startTime: now,
+          endTime: now,
+          operator: '系统',
+          notes: handoverNotes || '门店已签收',
+          createdAt: now
+        })
+
+        await db.orders.update(orderId, {
+          status: 'delivered',
+          currentStage: 8,
+          deliveredAt: now,
+          updatedAt: now
+        })
+      } else {
+        await db.processRecords.add({
+          id: generateId(),
+          orderId,
+          stage: 0,
+          stageName: '门店送厂',
+          startTime: now,
+          endTime: now,
+          operator: '系统',
+          notes: handoverNotes || '门店交接入库',
+          createdAt: now
+        })
+
+        await db.orders.update(orderId, {
+          status: 'sorting',
+          currentStage: 1,
+          updatedAt: now
+        })
+      }
     }
 
     showCreateHandover = false
@@ -125,12 +176,12 @@
 
   <div class="stats-row">
     <div class="stat-item">
-      <div class="stat-number">{handoverRecords.filter(r => r.type === 'out').length}</div>
-      <div class="stat-label">已出库交接</div>
+      <div class="stat-number">{handoverRecords.filter(r => r.type === 'out' && r.status === 'confirmed').length}</div>
+      <div class="stat-label">已确认出库</div>
     </div>
-    <div class="stat-item">
-      <div class="stat-number">{handoverRecords.filter(r => r.type === 'in').length}</div>
-      <div class="stat-label">已入库交接</div>
+    <div class="stat-item warning">
+      <div class="stat-number">{handoverRecords.filter(r => r.status === 'pending').length}</div>
+      <div class="stat-label">待门店确认</div>
     </div>
     <div class="stat-item">
       <div class="stat-number">{orders.filter(o => o.status === 'completed').length}</div>
@@ -154,6 +205,7 @@
       <table>
         <thead>
           <tr>
+            <th>状态</th>
             <th>交接类型</th>
             <th>门店</th>
             <th>订单数量</th>
@@ -167,7 +219,12 @@
           {#each handoverRecords.filter(r => !selectedStoreId || r.storeId === selectedStoreId) as record}
             <tr>
               <td>
-                <span class="badge {record.type === 'out' ? 'badge-success' : 'badge-primary'}">
+                <span class="badge {record.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">
+                  {record.status === 'confirmed' ? '已确认' : '待确认'}
+                </span>
+              </td>
+              <td>
+                <span class="badge {record.type === 'out' ? 'badge-primary' : 'badge-info'}">
                   {getHandoverTypeLabel(record.type)}
                 </span>
               </td>
@@ -333,6 +390,15 @@
     border-radius: var(--radius-lg);
     text-align: center;
     box-shadow: var(--shadow);
+  }
+
+  .stat-item.warning {
+    background: rgba(245, 158, 11, 0.05);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+
+  .stat-item.warning .stat-number {
+    color: var(--warning);
   }
 
   .stat-number {

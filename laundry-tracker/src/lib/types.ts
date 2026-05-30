@@ -115,8 +115,10 @@ export interface HandoverRecord {
   type: 'in' | 'out'
   orderIds: string[]
   storeId: string
+  status: 'pending' | 'confirmed'
   operator?: string
   timestamp: number
+  confirmedAt?: number
   signature?: string
   notes?: string
 }

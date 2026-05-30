@@ -134,24 +134,54 @@ export function generateSampleProcessRecords(orders: Order[]): ProcessRecord[] {
   const records: ProcessRecord[] = []
   
   orders.forEach(order => {
-    const maxStage = order.currentStage >= 6 ? 6 : order.currentStage
+    const hasRewash = order.totalRewashCount > 0
+    const rewashOffset = hasRewash ? order.totalRewashCount * 7200000 : 0
     
-    for (let s = 0; s <= maxStage; s++) {
-      if (s >= 7) continue
-      
-      const hasRewash = order.totalRewashCount > 0
-      const stageOffset = hasRewash ? order.totalRewashCount * 3600000 : 0
+    for (let s = 0; s <= 5; s++) {
+      if (s <= order.currentStage) {
+        records.push({
+          id: generateId(),
+          orderId: order.id,
+          stage: s,
+          stageName: s === 5 ? '质检中' : STAGES[s].name,
+          operator: sampleUsers[(s + 1) % sampleUsers.length].name,
+          startTime: order.receivedAt + (s * 1800000) + rewashOffset,
+          endTime: s < order.currentStage && s < 5 ? order.receivedAt + ((s + 1) * 1800000) + rewashOffset : 
+                   (s === 5 && order.currentStage >= 6 ? order.receivedAt + ((s + 1) * 1800000) + rewashOffset : undefined),
+          createdAt: order.receivedAt + (s * 1800000) + rewashOffset
+        })
+      }
+    }
+    
+    if (order.currentStage >= 6) {
+      const qcEndTime = order.receivedAt + (6 * 1800000) + rewashOffset
       
       records.push({
         id: generateId(),
         orderId: order.id,
-        stage: s,
-        stageName: STAGES[s].name,
-        operator: sampleUsers[(s + 1) % sampleUsers.length].name,
-        startTime: order.receivedAt + (s * 1800000) + stageOffset,
-        endTime: s < order.currentStage && s < 6 ? order.receivedAt + ((s + 1) * 1800000) + stageOffset : 
-                 (s === 6 && order.currentStage >= 6 ? order.receivedAt + ((s + 1) * 1800000) + stageOffset : undefined),
-        createdAt: order.receivedAt + (s * 1800000) + stageOffset
+        stage: 6,
+        stageName: '质检通过',
+        operator: sampleUsers[1].name,
+        startTime: qcEndTime,
+        endTime: qcEndTime,
+        notes: hasRewash ? '复检通过，含返洗记录' : '质检通过',
+        createdAt: qcEndTime
+      })
+    }
+    
+    if (order.currentStage >= 8 && order.status === 'delivered') {
+      const deliverTime = order.deliveredAt || (order.receivedAt + (8 * 1800000) + rewashOffset)
+      
+      records.push({
+        id: generateId(),
+        orderId: order.id,
+        stage: 8,
+        stageName: '交接出库',
+        operator: sampleUsers[4].name,
+        startTime: deliverTime,
+        endTime: deliverTime,
+        notes: hasRewash ? '含返洗异常单，已确认' : '门店已签收',
+        createdAt: deliverTime
       })
     }
   })
@@ -367,7 +397,9 @@ export function generateSampleHandoverRecords(orders: Order[]): HandoverRecord[]
         type: 'out',
         orderIds: storeOrders.map(o => o.id),
         storeId,
+        status: 'confirmed',
         timestamp: Date.now() - timeOffset,
+        confirmedAt: Date.now() - timeOffset + 300000,
         notes: hasProblem ? '含返洗异常单，已与门店确认' : '日常交接'
       })
       timeOffset += 3600000
@@ -384,6 +416,7 @@ export function generateSampleHandoverRecords(orders: Order[]): HandoverRecord[]
         type: 'out',
         orderIds: pendingDelivery.map(o => o.id),
         storeId: sampleStores[1].id,
+        status: 'pending',
         timestamp: Date.now() - 1800000,
         notes: '待门店确认接收'
       })
