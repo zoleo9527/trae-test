@@ -274,13 +274,17 @@ export async function cancelRegistration(req: AuthRequest, res: Response) {
       return forbidden(res, '只能取消自己的报名记录');
     }
 
-    if (existing.status === RegistrationStatus.CANCELLED) {
-      return error(res, '报名已取消', 400);
+    const cancellableStatuses: RegistrationStatus[] = [
+      RegistrationStatus.PENDING,
+      RegistrationStatus.APPROVED,
+    ];
+
+    if (!cancellableStatuses.includes(existing.status)) {
+      return error(res, '当前状态不允许取消', 400);
     }
 
-    if (existing.status === RegistrationStatus.CHECKED_IN) {
-      return error(res, '已签到，无法取消', 400);
-    }
+    const shouldDecrement = existing.status === RegistrationStatus.PENDING ||
+      existing.status === RegistrationStatus.APPROVED;
 
     const registration = await prisma.$transaction(async (tx) => {
       const reg = await tx.registration.update({
@@ -292,12 +296,25 @@ export async function cancelRegistration(req: AuthRequest, res: Response) {
         },
       });
 
-      await tx.activity.update({
-        where: { id: existing.activityId },
-        data: { currentParticipants: { decrement: 1 } },
-      });
+      if (shouldDecrement) {
+        await tx.activity.update({
+          where: { id: existing.activityId },
+          data: { currentParticipants: { decrement: 1 } },
+        });
+      }
 
       return reg;
+    });
+
+    await createAuditLog({
+      module: LogModule.REGISTRATION,
+      action: LogAction.CANCEL,
+      recordId: registration.id,
+      recordType: 'Registration',
+      beforeState: { status: existing.status },
+      afterState: { status: registration.status, cancelReason },
+      remark: `取消报名: ${cancelReason || '无原因'}`,
+      user: req.user,
     });
 
     return success(res, registration, '取消成功');

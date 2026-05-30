@@ -53,7 +53,7 @@ export function notFound(res: Response, message: string = '资源不存在') {
   return error(res, message, 404);
 }
 
-export function serverError(res: Response, error: any) {
-  console.error('Server Error:', error);
-  return error(res, '服务器内部错误', 500, error.message);
+export function serverError(res: Response, err: any) {
+  console.error('Server Error:', err);
+  return error(res, '服务器内部错误', 500, err.message);
 }
