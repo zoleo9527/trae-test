@@ -247,11 +247,13 @@ const roleFilteredOverdue = computed(() => {
 const todoList = computed(() => {
   const todos = []
   const role = userStore.currentRole
+  const overdueCount = roleFilteredOverdueScheduleCount.value
 
-  if (roleFilteredOverdueScheduleCount > 0) {
+  if (overdueCount > 0) {
+    const titleSuffix = role === 'operator' ? '您负责的排班逾期未处理' : '个排班逾期未处理'
     todos.push({
       type: 'danger', icon: 'Warning', priority: 'danger', time: '紧急',
-      title: `${roleFilteredOverdueScheduleCount}个排班逾期未处理`,
+      title: role === 'operator' ? `${overdueCount}个${titleSuffix}` : `${overdueCount}${titleSuffix}`,
       desc: role === 'operator' ? '请及时处理您负责的逾期排班' : '请及时标记缺勤或补签到',
       action: 'checkin'
     })

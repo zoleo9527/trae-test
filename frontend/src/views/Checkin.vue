@@ -41,7 +41,7 @@
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card class="stat-card" v-if="canViewOverdue">
+        <el-card class="stat-card" v-if="overdueSchedules.length > 0">
           <div class="stat-content">
             <div class="stat-icon overdue">
               <el-icon :size="28"><Warning /></el-icon>
@@ -129,7 +129,7 @@
       </el-table>
     </el-card>
 
-    <el-card class="overdue-card" v-if="canViewOverdue && overdueSchedules.length > 0">
+    <el-card class="overdue-card" v-if="overdueSchedules.length > 0">
       <template #header>
         <div class="card-header warning">
           <el-icon><WarningFilled /></el-icon>
@@ -311,7 +311,6 @@ const missedForm = ref({
 
 const role = computed(() => userStore.currentRole)
 
-const canViewOverdue = computed(() => role.value === 'director' || role.value === 'coordinator')
 const canCheckIn = computed(() => role.value === 'director' || role.value === 'coordinator' || role.value === 'operator')
 const canMarkMissed = computed(() => role.value === 'director' || role.value === 'coordinator')
 
