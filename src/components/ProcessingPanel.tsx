@@ -9,7 +9,7 @@ import { useOrderStore } from '@/store/useOrderStore';
 import { useRoleStore } from '@/store/useRoleStore';
 import { useBatchStore } from '@/store/useBatchStore';
 import {
-  STATUS_LABELS, ROLE_LABELS, DAMAGE_POSITIONS, REWASH_REASONS, WASH_TYPES,
+  STATUS_LABELS, ROLE_LABELS, DAMAGE_POSITIONS, REWASH_REASONS, WASH_TYPES, REJECT_SOURCE_LABELS,
   type Order, type DamageRecord, type RewashRecord
 } from '@/types';
 import { mockDamageRecords, mockRewashRecords } from '@/data/mockData';
@@ -28,11 +28,13 @@ const formatDateTime = (isoString: string) => {
 const MODE_LABELS: Record<string, string> = {
   sort: '分拣指派',
   inspect: '质检处理',
-  damage: '污损记录',
+  damage: '污损赔付处理',
   rewash: '返洗处理',
   handover: '门店交接',
   verify: '回单核验',
-  rejected_review: '退回审核',
+  rejected_review: '门店退回审核',
+  rejected_damage_review: '污损赔付审核',
+  rejected_store_resubmit: '门店重新交接',
 };
 
 export default function ProcessingPanel() {
@@ -127,6 +129,16 @@ export default function ProcessingPanel() {
     handleClose();
   };
 
+  const handleDamageRejectToFactory = () => {
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'rejected' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const, rejectSource: 'damage_claim' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    handleClose();
+  };
+
   const handleMarkRewash = () => {
     if (!rewashReason || !rewashDesc) return;
     addRewashRecord({
@@ -187,7 +199,7 @@ export default function ProcessingPanel() {
     });
     const updatedOrders = orders.map((o) =>
       o.id === orderId
-        ? { ...o, status: 'rejected' as const, updatedAt: now, assignedTo: 'factory_manager' as const }
+        ? { ...o, status: 'rejected' as const, updatedAt: now, assignedTo: 'factory_manager' as const, rejectSource: 'store_receipt' as const }
         : o
     );
     setOrders(updatedOrders);
@@ -195,6 +207,51 @@ export default function ProcessingPanel() {
   };
 
   const renderMainContent = () => {
+    if ((mode === 'rejected_review' || mode === 'rejected_damage_review') && currentRole !== 'factory_manager') {
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+            <XCircle className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <h3 className="font-medium text-slate-700">无处理权限</h3>
+            <p className="text-sm text-slate-500 mt-1">该订单为{order?.rejectSource ? REJECT_SOURCE_LABELS[order.rejectSource] : '退回'}，需厂长审核</p>
+            <p className="text-xs text-slate-400 mt-2">当前责任人：{order?.assignedTo ? ROLE_LABELS[order.assignedTo] : '未指派'}</p>
+          </div>
+        </div>
+      );
+    }
+    if (mode === 'sort' && currentRole !== 'factory_manager') {
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+            <XCircle className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <h3 className="font-medium text-slate-700">无处理权限</h3>
+            <p className="text-sm text-slate-500 mt-1">分拣指派需厂长操作</p>
+          </div>
+        </div>
+      );
+    }
+    if (mode === 'inspect' && currentRole !== 'inspector') {
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+            <XCircle className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <h3 className="font-medium text-slate-700">无处理权限</h3>
+            <p className="text-sm text-slate-500 mt-1">质检处理需质检员操作</p>
+          </div>
+        </div>
+      );
+    }
+    if ((mode === 'verify' || mode === 'handover' || mode === 'rejected_store_resubmit') && currentRole !== 'store_handler') {
+      return (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+            <XCircle className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+            <h3 className="font-medium text-slate-700">无处理权限</h3>
+            <p className="text-sm text-slate-500 mt-1">回单核验/交接需门店交接操作</p>
+          </div>
+        </div>
+      );
+    }
     switch (mode) {
       case 'sort':
         return (
@@ -912,7 +969,7 @@ export default function ProcessingPanel() {
               </div>
             )}
 
-            <div className="space-y-3">
+            {orderReceipt && orderReceipt.isRejected && (
               <button
                 onClick={() => {
                   const updatedOrders = orders.map((o) =>
@@ -928,22 +985,159 @@ export default function ProcessingPanel() {
                 <CheckCircle className="w-4 h-4" />
                 重新交接
               </button>
+            )}
+            <button
+              onClick={() => {
+                const updatedOrders = orders.map((o) =>
+                  o.id === orderId
+                    ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                    : o
+                );
+                setOrders(updatedOrders);
+                handleClose();
+              }}
+              className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-purple-500 text-white hover:bg-purple-600"
+            >
+              <RotateCcw className="w-4 h-4" />
+              退回质检重检
+            </button>
+          </div>
+        );
+
+      case 'rejected_damage_review':
+        return (
+          <div className="space-y-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                污损赔付审核
+              </h3>
+              <p className="text-sm text-red-700">
+                该订单存在污损问题，请厂长审核处理
+              </p>
+            </div>
+
+            {orderDamageRecords.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-slate-700 mb-3">污损记录</h4>
+                {orderDamageRecords.map((record: DamageRecord) => (
+                  <div key={record.id} className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <MapPin className="w-4 h-4 text-red-500" />
+                      <span className="text-sm font-medium text-red-700">{record.position}</span>
+                      <span className="text-xs text-red-400 ml-auto">{record.id}</span>
+                    </div>
+                    <p className="text-sm text-red-600 mb-3">{record.description}</p>
+                    <img src={record.imageUrl} alt="" className="rounded-lg w-full h-40 object-cover" />
+                    <p className="text-xs text-red-400 mt-3">
+                      {record.recordedBy} · {formatDateTime(record.recordedAt)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {orderRewashRecords.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-slate-700 mb-3">返洗记录</h4>
+                {orderRewashRecords.map((record: RewashRecord, index: number) => (
+                  <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs bg-orange-200 text-orange-700 px-2 py-0.5 rounded">
+                        第 {index + 1} 次
+                      </span>
+                      <RotateCcw className="w-4 h-4 text-orange-500" />
+                      <span className="text-sm font-medium text-orange-700">{record.reason}</span>
+                    </div>
+                    <p className="text-sm text-orange-600">{record.description}</p>
+                    <p className="text-xs text-orange-400 mt-2">
+                      质检员 · {formatDateTime(record.createdAt)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-3">
               <button
                 onClick={() => {
                   const updatedOrders = orders.map((o) =>
                     o.id === orderId
-                      ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                      ? { ...o, status: 'handover' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
                       : o
                   );
                   setOrders(updatedOrders);
                   handleClose();
                 }}
-                className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-purple-500 text-white hover:bg-purple-600"
+                className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-emerald-500 text-white hover:bg-emerald-600"
+              >
+                <CheckCircle className="w-4 h-4" />
+                赔付后放行
+              </button>
+              <button
+                onClick={() => {
+                  const updatedOrders = orders.map((o) =>
+                    o.id === orderId
+                      ? { ...o, status: 'rewashing' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                      : o
+                  );
+                  setOrders(updatedOrders);
+                  handleClose();
+                }}
+                className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-orange-500 text-white hover:bg-orange-600"
               >
                 <RotateCcw className="w-4 h-4" />
-                退回质检重检
+                安排返洗修复
               </button>
             </div>
+          </div>
+        );
+
+      case 'rejected_store_resubmit':
+        return (
+          <div className="space-y-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h3 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                门店重新交接
+              </h3>
+              <p className="text-sm text-amber-700">
+                厂长审核通过，请确认交接
+              </p>
+            </div>
+
+            {orderReceipt && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-slate-700 mb-2">历史回单</h4>
+                <p className="text-sm text-slate-600">
+                  {orderReceipt.isRejected ? '已退回' : '未核验'}
+                </p>
+                {orderReceipt.rejectReason && (
+                  <p className="text-sm text-slate-600 mt-1">退回原因：{orderReceipt.rejectReason}</p>
+                )}
+                {orderReceipt.verifiedAt && (
+                  <p className="text-xs text-slate-400 mt-2">
+                    {orderReceipt.verifiedBy || '门店交接员'} · {formatDateTime(orderReceipt.verifiedAt)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                const updatedOrders = orders.map((o) =>
+                  o.id === orderId
+                    ? { ...o, status: 'verifying' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+                    : o
+                );
+                setOrders(updatedOrders);
+                handleClose();
+              }}
+              className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-cyan-500 text-white hover:bg-cyan-600"
+            >
+              <Send className="w-4 h-4" />
+              确认进入核验
+            </button>
           </div>
         );
 
@@ -973,8 +1167,20 @@ export default function ProcessingPanel() {
             <div className="p-6 border-b border-slate-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    {MODE_LABELS[mode || '']}
+                  <span className={cn(
+                    'text-xs font-medium px-2 py-1 rounded',
+                    mode === 'rejected_review' ? 'text-red-600 bg-red-50' :
+                    mode === 'rejected_damage_review' ? 'text-rose-600 bg-rose-50' :
+                    mode === 'rejected_store_resubmit' ? 'text-amber-600 bg-amber-50' :
+                    'text-amber-600 bg-amber-50'
+                  )}>
+                    {order?.rejectSource ? (
+                      <span className="flex items-center gap-1">
+                        {REJECT_SOURCE_LABELS[order.rejectSource]}
+                      </span>
+                    ) : (
+                      MODE_LABELS[mode || '']
+                    )}
                   </span>
                   <h2 className="text-lg font-bold text-slate-800 mt-2">{order.orderNo}</h2>
                 </div>

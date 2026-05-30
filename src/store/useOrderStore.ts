@@ -9,7 +9,7 @@ interface OrderState {
   receipts: Receipt[];
   overdueCount: number;
   setOrders: (orders: Order[]) => void;
-  updateOrderStatus: (orderId: string, status: Order['status'], assignedTo?: Order['assignedTo']) => void;
+  updateOrderStatus: (orderId: string, status: Order['status'], assignedTo?: Order['assignedTo'], rejectSource?: Order['rejectSource']) => void;
   addDamageRecord: (record: Omit<DamageRecord, 'id' | 'recordedAt'>) => void;
   addRewashRecord: (record: Omit<RewashRecord, 'id' | 'createdAt' | 'rewashCompletedAt'>) => void;
   updateRewashStatus: (rewashId: string, status: RewashRecord['status']) => void;
@@ -25,11 +25,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   setOrders: (orders) => set({ orders, overdueCount: orders.filter((o) => o.isOverdue).length }),
 
-  updateOrderStatus: (orderId, status, assignedTo) =>
+  updateOrderStatus: (orderId, status, assignedTo, rejectSource) =>
     set((state) => ({
       orders: state.orders.map((o) =>
         o.id === orderId
-          ? { ...o, status, updatedAt: new Date().toISOString(), ...(assignedTo && { assignedTo }) }
+          ? {
+              ...o,
+              status,
+              updatedAt: new Date().toISOString(),
+              ...(assignedTo && { assignedTo }),
+              ...(rejectSource !== undefined && { rejectSource }),
+            }
           : o
       ),
     })),

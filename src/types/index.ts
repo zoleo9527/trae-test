@@ -12,6 +12,8 @@ export type OrderStatus =
 
 export type Role = 'factory_manager' | 'inspector' | 'store_handler';
 
+export type RejectSource = 'store_receipt' | 'damage_claim' | 'quality_inspect';
+
 export interface Order {
   id: string;
   orderNo: string;
@@ -27,6 +29,7 @@ export interface Order {
   deadlineAt: string;
   isOverdue: boolean;
   isUrgent: boolean;
+  rejectSource?: RejectSource;
 }
 
 export interface Batch {
@@ -82,7 +85,7 @@ export interface ActivityLog {
 export interface ProcessingContext {
   orderId: string | null;
   isOpen: boolean;
-  mode: 'inspect' | 'damage' | 'rewash' | 'handover' | 'verify' | 'sort' | 'rejected_review' | null;
+  mode: 'inspect' | 'damage' | 'rewash' | 'handover' | 'verify' | 'sort' | 'rejected_review' | 'rejected_damage_review' | 'rejected_store_resubmit' | null;
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -93,9 +96,15 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   handover: '待交接',
   verifying: '核验中',
   completed: '已完成',
-  rejected: '已驳回',
+  rejected: '已退回',
   rewashing: '返洗中',
   damage_claim: '污损赔付',
+};
+
+export const REJECT_SOURCE_LABELS: Record<RejectSource, string> = {
+  store_receipt: '门店回单退回',
+  damage_claim: '污损赔付退回',
+  quality_inspect: '质检问题退回',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

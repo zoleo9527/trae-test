@@ -64,7 +64,13 @@ export const mockOrders: Order[] = [
     id: 'ORD-010', orderNo: 'XJ20250528-003', storeName: '三里屯店',
     customerName: '郑磊', garmentType: '衬衫', garmentDesc: '粉色丝绸衬衫',
     status: 'rejected', assignedTo: 'factory_manager', batchId: 'BAT-004',
-    createdAt: d(3), updatedAt: h(3), deadlineAt: h(0), isOverdue: true, isUrgent: true,
+    createdAt: d(3), updatedAt: h(3), deadlineAt: h(0), isOverdue: true, isUrgent: true, rejectSource: 'store_receipt',
+  },
+  {
+    id: 'ORD-016', orderNo: 'XJ20250527-009', storeName: '朝阳门店',
+    customerName: '冯强', garmentType: '西装', garmentDesc: '深蓝色西装套装',
+    status: 'rejected', assignedTo: 'factory_manager', batchId: 'BAT-004',
+    createdAt: d(4), updatedAt: h(2), deadlineAt: h(8), isOverdue: false, isUrgent: false, rejectSource: 'damage_claim',
   },
   {
     id: 'ORD-011', orderNo: 'XJ20250530-005', storeName: '西单店',
@@ -117,7 +123,7 @@ export const mockBatches: Batch[] = [
   {
     id: 'BAT-004', batchNo: 'PC20250528-01', washType: '特殊处理',
     washStartTime: d(3), washEndTime: d(2), status: 'completed',
-    orderIds: ['ORD-008', 'ORD-010'],
+    orderIds: ['ORD-008', 'ORD-010', 'ORD-016'],
   },
   {
     id: 'BAT-005', batchNo: 'PC20250530-03', washType: '手洗',
@@ -137,7 +143,13 @@ export const mockDamageRecords: DamageRecord[] = [
     id: 'DMG-002', orderId: 'ORD-010', position: '前襟',
     description: '前襟纽扣缺失一颗，布料有拉扯痕迹',
     imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=close+up+of+damaged+shirt+front+with+missing+button+and+fabric+pulled+product+photo&image_size=square',
-    recordedAt: h(3), recordedBy: '质检员-李明',
+    recordedAt: h(8), recordedBy: '质检员-李明',
+  },
+  {
+    id: 'DMG-003', orderId: 'ORD-016', position: '下摆',
+    description: '西装下摆有明显撕裂，约3cm长的破损',
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=close+up+of+torn+suit+hem+with+3cm+rip+on+dark+fabric+product+inspection+photo&image_size=square',
+    recordedAt: h(2), recordedBy: '质检员-李明',
   },
 ];
 
@@ -179,4 +191,5 @@ export const mockActivityLogs: ActivityLog[] = [
   { id: 'LOG-008', orderId: 'ORD-014', action: '收衣登记', operator: '门店-张姐', role: 'store_handler', timestamp: h(3), detail: '朝阳门店新收衣物：红色晚礼服' },
   { id: 'LOG-009', orderId: 'ORD-001', action: '分拣等待', operator: '系统', role: 'factory_manager', timestamp: h(2), detail: '国贸旗舰店西装已入库，等待分拣指派' },
   { id: 'LOG-010', orderId: 'ORD-015', action: '开始洗涤', operator: '厂长-赵工', role: 'factory_manager', timestamp: h(4), detail: '蚕丝被+枕套进入手洗批次 PC20250530-03' },
+  { id: 'LOG-011', orderId: 'ORD-016', action: '污损退回', operator: '质检员-李明', role: 'inspector', timestamp: h(2), detail: '西装下摆撕裂，需厂长审核赔付' },
 ];

@@ -38,7 +38,8 @@ export default function Pipeline() {
     filteredOrders.filter((o) => o.status === status);
 
   const handleCardClick = (orderId: string, status: OrderStatus) => {
-    let mode: 'sort' | 'inspect' | 'handover' | 'verify' | 'damage' | 'rewash' | 'rejected_review';
+    let mode: 'sort' | 'inspect' | 'handover' | 'verify' | 'damage' | 'rewash' | 'rejected_review' | 'rejected_damage_review' | 'rejected_store_resubmit';
+    const order = orders.find((o) => o.id === orderId);
     switch (status) {
       case 'collected':
       case 'sorting':
@@ -61,14 +62,18 @@ export default function Pipeline() {
         mode = 'damage';
         break;
       case 'rejected': {
-        const order = orders.find((o) => o.id === orderId);
+        const rejectSource = order?.rejectSource;
         const receipt = receipts.find((r) => r.orderId === orderId);
-        if (receipt?.isRejected) {
+        if (rejectSource === 'store_receipt' && receipt?.isRejected) {
           mode = 'rejected_review';
-        } else if (order?.assignedTo === 'factory_manager') {
-          mode = 'damage';
+        } else if (rejectSource === 'damage_claim') {
+          mode = 'rejected_damage_review';
+        } else if (rejectSource === 'quality_inspect') {
+          mode = 'rewash';
+        } else if (receipt?.isRejected) {
+          mode = 'rejected_review';
         } else {
-          mode = 'rejected_review';
+          mode = 'rejected_damage_review';
         }
         break;
       }

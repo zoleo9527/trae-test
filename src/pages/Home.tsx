@@ -47,7 +47,7 @@ export default function Home() {
   const recentLogs = mockActivityLogs.slice(0, 8);
 
   const todoItems = myOrders
-    .filter((o) => !['completed', 'rejected'].includes(o.status))
+    .filter((o) => o.status !== 'completed')
     .slice(0, 6)
     .sort((a, b) => {
       if (a.isUrgent && !b.isUrgent) return -1;
@@ -152,10 +152,13 @@ export default function Home() {
                   case 'damage_claim':
                     return 'damage';
                   case 'rejected': {
+                    const rejectSource = order.rejectSource;
                     const receipt = receipts.find((r) => r.orderId === order.id);
+                    if (rejectSource === 'store_receipt' && receipt?.isRejected) return 'rejected_review';
+                    if (rejectSource === 'damage_claim') return 'rejected_damage_review';
+                    if (rejectSource === 'quality_inspect') return 'rewash';
                     if (receipt?.isRejected) return 'rejected_review';
-                    if (order.assignedTo === 'factory_manager') return 'damage';
-                    return 'rejected_review';
+                    return 'rejected_damage_review';
                   }
                   default:
                     return 'inspect';
@@ -167,10 +170,11 @@ export default function Home() {
                   animate={{ opacity: [0.8, 1, 0.8] }}
                   transition={{ duration: 2, repeat: Infinity }}
                   onClick={() => {
-                    if (order.assignedTo === currentRole) {
-                      openProcessing(order.id, getProcessingMode());
-                    }
-                  }}
+                  if (order.assignedTo === currentRole) {
+                    openProcessing(order.id, getProcessingMode());
+                  }
+                }}
+                style={{ opacity: order.assignedTo === currentRole ? 1 : 0.6 }}
                   className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-3 cursor-pointer hover:bg-white/30 transition-colors"
                 >
                   <p className="text-white font-medium text-sm">{order.orderNo}</p>
@@ -219,10 +223,13 @@ export default function Home() {
                     case 'damage_claim':
                       return 'damage';
                     case 'rejected': {
+                      const rejectSource = order.rejectSource;
                       const receipt = receipts.find((r) => r.orderId === order.id);
+                      if (rejectSource === 'store_receipt' && receipt?.isRejected) return 'rejected_review';
+                      if (rejectSource === 'damage_claim') return 'rejected_damage_review';
+                      if (rejectSource === 'quality_inspect') return 'rewash';
                       if (receipt?.isRejected) return 'rejected_review';
-                      if (order.assignedTo === 'factory_manager') return 'damage';
-                      return 'rejected_review';
+                      return 'rejected_damage_review';
                     }
                     default:
                       return 'inspect';
