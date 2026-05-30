@@ -8,6 +8,7 @@ from .serializers import (
     ActivityRegistrationSerializer, VolunteerFeedbackSerializer
 )
 from apps.common.permissions import IsManager, IsVolunteer
+from apps.common.views import filter_by_venue
 
 
 class ActivityCategoryViewSet(viewsets.ModelViewSet):
@@ -17,9 +18,12 @@ class ActivityCategoryViewSet(viewsets.ModelViewSet):
 
 
 class ActivityViewSet(viewsets.ModelViewSet):
-    queryset = Activity.objects.select_related('venue', 'organizer').all()
     serializer_class = ActivitySerializer
     permission_classes = [IsManager]
+
+    def get_queryset(self):
+        qs = Activity.objects.select_related('venue', 'organizer').all()
+        return filter_by_venue(qs, self.request.user, 'venue_id')
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -40,6 +44,9 @@ class ActivityViewSet(viewsets.ModelViewSet):
         except ActivityRegistration.DoesNotExist:
             return Response({'error': '未找到报名记录'}, status=status.HTTP_404_NOT_FOUND)
 
+        if registration.status != RegistrationStatus.APPROVED:
+            return Response({'error': '只有已审核通过的报名可以签到'}, status=status.HTTP_400_BAD_REQUEST)
+
         if activity.is_need_checkin and activity.checkin_code and checkin_code != activity.checkin_code:
             return Response({'error': '签到码错误'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -53,9 +60,16 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
 
 class ActivityRegistrationViewSet(viewsets.ModelViewSet):
-    queryset = ActivityRegistration.objects.select_related('activity', 'user').all()
     serializer_class = ActivityRegistrationSerializer
-    permission_classes = [IsVolunteer]
+    permission_classes = [IsVolunteer | IsManager]
+
+    def get_queryset(self):
+        qs = ActivityRegistration.objects.select_related('activity', 'user').all()
+        user = self.request.user
+        qs = filter_by_venue(qs, user, 'activity__venue_id')
+        if user.role not in ['admin', 'manager']:
+            qs = qs.filter(user=user)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -109,9 +123,16 @@ class ActivityRegistrationViewSet(viewsets.ModelViewSet):
 
 
 class VolunteerFeedbackViewSet(viewsets.ModelViewSet):
-    queryset = VolunteerFeedback.objects.select_related('activity', 'volunteer', 'handler').all()
     serializer_class = VolunteerFeedbackSerializer
-    permission_classes = [IsVolunteer]
+    permission_classes = [IsVolunteer | IsManager]
+
+    def get_queryset(self):
+        qs = VolunteerFeedback.objects.select_related('activity', 'volunteer', 'handler').all()
+        user = self.request.user
+        qs = filter_by_venue(qs, user, 'activity__venue_id')
+        if user.role not in ['admin', 'manager']:
+            qs = qs.filter(volunteer=user)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(volunteer=self.request.user)

@@ -4,15 +4,25 @@ from rest_framework.response import Response
 from .models import RepairTicket, RepairStatus, RepairLog
 from .serializers import RepairTicketSerializer, RepairTicketListSerializer, RepairLogSerializer
 from .services import RepairFlowService
-from apps.common.permissions import IsManager, IsMaintenance, IsOwnerOrManager
+from apps.common.permissions import IsManager, IsMaintenance, IsOwnerOrManager, IsInspector
+from apps.common.views import filter_by_venue
 
 
 class RepairTicketViewSet(viewsets.ModelViewSet):
-    queryset = RepairTicket.objects.select_related(
-        'venue', 'device', 'area', 'reporter', 'assignee'
-    ).all()
     serializer_class = RepairTicketSerializer
-    permission_classes = [IsManager | IsOwnerOrManager]
+    permission_classes = [IsManager | IsMaintenance | IsInspector | IsOwnerOrManager]
+
+    def get_queryset(self):
+        qs = RepairTicket.objects.select_related(
+            'venue', 'device', 'area', 'reporter', 'assignee'
+        ).all()
+        user = self.request.user
+        qs = filter_by_venue(qs, user, 'venue_id')
+        if user.role == 'maintenance':
+            qs = qs.filter(assignee=user) | qs.filter(status__in=['pending', 'assigned'])
+        elif user.role not in ['admin', 'manager']:
+            qs = qs.filter(reporter=user)
+        return qs.distinct()
 
     def get_serializer_class(self):
         if self.action == 'list':

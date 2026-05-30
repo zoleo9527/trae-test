@@ -10,62 +10,71 @@ from apps.activities.models import ActivityRegistration, RegistrationStatus, Vol
 from apps.borrowing.models import BorrowRecord, BorrowStatus
 
 
+def get_user_venue_ids(user):
+    if user.role == 'admin':
+        return None
+    user_venues_qs = getattr(user, 'venues', None)
+    if user_venues_qs is not None:
+        return list(user_venues_qs.values_list('venue_id', flat=True))
+    return []
+
+
+def filter_by_venue(queryset, user, venue_field='venue_id'):
+    venue_ids = get_user_venue_ids(user)
+    if venue_ids is None:
+        return queryset
+    if venue_ids:
+        return queryset.filter(**{f'{venue_field}__in': venue_ids})
+    return queryset.none()
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     user = request.user
-    user_venues = user.venues.values_list('venue_id', flat=True) if hasattr(user, 'venues') else []
+
+    inspection_qs = filter_by_venue(InspectionRecord.objects.all(), user)
+    repair_qs = filter_by_venue(RepairTicket.objects.all(), user)
 
     inspection_stats = {
-        'pending_review': InspectionRecord.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'pending_review': inspection_qs.filter(
             status__in=[InspectionStatus.SUBMITTED, InspectionStatus.REVIEWING]
         ).count(),
-        'rejected': InspectionRecord.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'rejected': inspection_qs.filter(
             status=InspectionStatus.REJECTED
         ).count(),
-        'needs_review': InspectionRecord.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'needs_review': inspection_qs.filter(
             status=InspectionStatus.NEEDS_REVIEW
         ).count(),
-        'completed': InspectionRecord.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'completed': inspection_qs.filter(
             status=InspectionStatus.COMPLETED
         ).count(),
     }
 
     repair_stats = {
-        'pending': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'pending': repair_qs.filter(
             status=RepairStatus.PENDING
         ).count(),
-        'in_progress': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'in_progress': repair_qs.filter(
             status__in=[RepairStatus.ASSIGNED, RepairStatus.IN_PROGRESS]
         ).count(),
-        'needs_confirm': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'needs_confirm': repair_qs.filter(
             status=RepairStatus.NEEDS_CONFIRM
         ).count(),
-        'rejected': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'rejected': repair_qs.filter(
             status=RepairStatus.REJECTED
         ).count(),
-        'completed': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'completed': repair_qs.filter(
             status=RepairStatus.COMPLETED
         ).count(),
-        'overdue': RepairTicket.objects.filter(
-            venue_id__in=user_venues if user_venues else Q(),
+        'overdue': repair_qs.filter(
             is_overdue=True
         ).exclude(status=RepairStatus.COMPLETED).count(),
     }
 
     pending_items = []
 
-    pending_inspections = InspectionRecord.objects.filter(
-        venue_id__in=user_venues if user_venues else Q(),
+    pending_inspections = inspection_qs.filter(
         status__in=[InspectionStatus.SUBMITTED, InspectionStatus.REVIEWING, InspectionStatus.NEEDS_REVIEW]
     ).select_related('venue', 'inspector')[:10]
 
@@ -81,8 +90,7 @@ def dashboard_stats(request):
             'created_at': item.created_at,
         })
 
-    pending_repairs = RepairTicket.objects.filter(
-        venue_id__in=user_venues if user_venues else Q(),
+    pending_repairs = repair_qs.filter(
         status__in=[RepairStatus.PENDING, RepairStatus.ASSIGNED, RepairStatus.IN_PROGRESS, RepairStatus.NEEDS_CONFIRM]
     ).select_related('venue', 'reporter')[:10]
 

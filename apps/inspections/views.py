@@ -8,25 +8,42 @@ from .serializers import (
     InspectionPlanSerializer, CheckItemSerializer, InspectionItemResultSerializer
 )
 from .services import InspectionFlowService
-from apps.common.permissions import IsInspector, IsManager
+from apps.common.permissions import IsInspector, IsManager, IsOwnerOrManager
+from apps.common.views import filter_by_venue
 
 
 class InspectionPlanViewSet(viewsets.ModelViewSet):
-    queryset = InspectionPlan.objects.select_related('venue').all()
     serializer_class = InspectionPlanSerializer
     permission_classes = [IsManager]
 
+    def get_queryset(self):
+        qs = InspectionPlan.objects.select_related('venue').all()
+        return filter_by_venue(qs, self.request.user, 'venue_id')
+
 
 class CheckItemViewSet(viewsets.ModelViewSet):
-    queryset = CheckItem.objects.select_related('plan').all()
     serializer_class = CheckItemSerializer
     permission_classes = [IsManager]
 
+    def get_queryset(self):
+        plan_id = self.request.query_params.get('plan_id')
+        qs = CheckItem.objects.select_related('plan').all()
+        if plan_id:
+            qs = qs.filter(plan_id=plan_id)
+        return filter_by_venue(qs, self.request.user, 'plan__venue_id')
+
 
 class InspectionRecordViewSet(viewsets.ModelViewSet):
-    queryset = InspectionRecord.objects.select_related('venue', 'inspector', 'reviewer').all()
     serializer_class = InspectionRecordSerializer
     permission_classes = [IsInspector]
+
+    def get_queryset(self):
+        qs = InspectionRecord.objects.select_related('venue', 'inspector', 'reviewer').all()
+        user = self.request.user
+        qs = filter_by_venue(qs, user, 'venue_id')
+        if user.role == 'inspector':
+            qs = qs.filter(inspector=user) | qs.filter(status__in=['submitted', 'reviewing', 'needs_review'])
+        return qs.distinct()
 
     def get_serializer_class(self):
         if self.action == 'list':

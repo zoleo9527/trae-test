@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from apps.venues.models import Venue, VenueArea
 from apps.devices.models import Device
 from apps.inspections.models import InspectionPlan, CheckItem, CheckItemCategory
+from apps.users.models import UserVenue
 
 User = get_user_model()
 
@@ -70,6 +71,23 @@ class Command(BaseCommand):
             })
 
         self.stdout.write(self.style.SUCCESS('Venues created'))
+
+        self.stdout.write('Creating user-venue associations...')
+        venue_users = [
+            (manager, venue1, True),
+            (manager, venue2, False),
+            (inspector, venue1, True),
+            (inspector, venue2, False),
+            (maintenance, venue1, True),
+            (maintenance, venue2, False),
+            (volunteer, venue1, True),
+            (reader, venue1, True),
+        ]
+        for user, venue, is_default in venue_users:
+            UserVenue.objects.get_or_create(
+                user=user, venue=venue, defaults={'is_default': is_default})
+
+        self.stdout.write(self.style.SUCCESS('User-venue associations created'))
 
         self.stdout.write('Creating venue areas...')
         areas_data = [
