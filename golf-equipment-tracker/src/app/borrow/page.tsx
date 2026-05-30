@@ -6,13 +6,9 @@ import { Plus, Search, Filter, X, Check, ChevronDown } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
-import {
-  mockBorrowRecords,
-  mockEquipment,
-  getCategoryLabel,
-} from "@/lib/mockData";
+import { getCategoryLabel } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
-import type { BorrowRecord, BorrowStatus } from "@/types";
+import type { BorrowStatus } from "@/types";
 
 const statusOptions: { value: BorrowStatus | "all"; label: string }[] = [
   { value: "all", label: "全部状态" },
@@ -27,8 +23,7 @@ const statusOptions: { value: BorrowStatus | "all"; label: string }[] = [
 export default function BorrowPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoading, setIsLoading, currentUser, canApprove, canViewAllRecords } = useApp();
-  const [records, setRecords] = useState<BorrowRecord[]>([]);
+  const { isLoading, setIsLoading, currentUser, canApprove, canViewAllRecords, borrowRecords, updateBorrowStatus } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<BorrowStatus | "all">(
     (searchParams.get("filter") as BorrowStatus) || "all"
@@ -38,20 +33,19 @@ export default function BorrowPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => {
-      const filter = searchParams.get("filter") as BorrowStatus;
-      if (filter) {
-        setStatusFilter(filter);
-      }
-      setIsLoading(false);
-    }, 300);
+    const filter = searchParams.get("filter") as BorrowStatus;
+    if (filter) {
+      setStatusFilter(filter);
+    }
+    const timer = setTimeout(() => setIsLoading(false), 300);
+    return () => clearTimeout(timer);
   }, [searchParams, setIsLoading]);
 
   const roleFilteredRecords = canViewAllRecords
-    ? mockBorrowRecords
+    ? borrowRecords
     : currentUser.role === "coach"
-    ? mockBorrowRecords.filter((r) => r.applicantId === currentUser.id)
-    : mockBorrowRecords;
+    ? borrowRecords.filter((r) => r.applicantId === currentUser.id)
+    : borrowRecords;
 
   const filteredRecords = roleFilteredRecords.filter((record) => {
     const matchesSearch =
@@ -63,17 +57,24 @@ export default function BorrowPage() {
   });
 
   const handleApprove = (id: string) => {
-    const updated = records.map((r) =>
-      r.id === id ? { ...r, status: "approved" as BorrowStatus } : r
-    );
-    setRecords(updated);
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    updateBorrowStatus(id, {
+      status: "active",
+      approvedBy: currentUser.id,
+      approvedByName: currentUser.name,
+      approvedAt: now,
+    });
   };
 
   const handleReject = (id: string) => {
-    const updated = records.map((r) =>
-      r.id === id ? { ...r, status: "rejected" as BorrowStatus } : r
-    );
-    setRecords(updated);
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    updateBorrowStatus(id, {
+      status: "rejected",
+      rejectedBy: currentUser.id,
+      rejectedByName: currentUser.name,
+      rejectedAt: now,
+      rejectedReason: "经审批驳回",
+    });
   };
 
   if (isLoading) {

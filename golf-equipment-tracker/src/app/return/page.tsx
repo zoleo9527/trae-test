@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Search, Filter, ChevronDown, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { mockBorrowRecords, getCategoryLabel } from "@/lib/mockData";
+import { getCategoryLabel } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
 import type { BorrowStatus } from "@/types";
 
@@ -19,17 +19,25 @@ const statusOptions: { value: BorrowStatus | "all"; label: string }[] = [
 
 export default function ReturnPage() {
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canProcessReturns, canViewAllRecords } = useApp();
+  const searchParams = useSearchParams();
+  const { isLoading, setIsLoading, currentUser, canProcessReturns, canViewAllRecords, borrowRecords } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<BorrowStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<BorrowStatus | "all">(
+    (searchParams.get("filter") as BorrowStatus) || "all"
+  );
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 300);
-  }, [setIsLoading]);
+    const filter = searchParams.get("filter") as BorrowStatus;
+    if (filter) {
+      setStatusFilter(filter);
+    }
+    const timer = setTimeout(() => setIsLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, [searchParams, setIsLoading]);
 
-  const allReturnableRecords = mockBorrowRecords.filter(
+  const allReturnableRecords = borrowRecords.filter(
     (r) => r.status === "active" || r.status === "needs_review" || r.status === "returned"
   );
 

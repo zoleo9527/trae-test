@@ -28,8 +28,7 @@ const statusOptions = [
 
 export default function RecordsPage() {
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canViewAllRecords, error, setError } = useApp();
-  const [records, setRecords] = useState<any[]>([]);
+  const { isLoading, setIsLoading, currentUser, canViewAllRecords, error, setError, borrowRecords } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -37,17 +36,15 @@ export default function RecordsPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => {
-      setRecords(mockBorrowRecords);
-      setIsLoading(false);
-    }, 300);
+    const timer = setTimeout(() => setIsLoading(false), 300);
+    return () => clearTimeout(timer);
   }, [setIsLoading]);
 
   const roleFilteredRecords = canViewAllRecords
-    ? records
+    ? borrowRecords
     : currentUser.role === "coach"
-    ? records.filter((r) => r.applicantId === currentUser.id)
-    : records;
+    ? borrowRecords.filter((r) => r.applicantId === currentUser.id)
+    : borrowRecords;
 
   const filteredRecords = roleFilteredRecords.filter((record) => {
     const matchesSearch =

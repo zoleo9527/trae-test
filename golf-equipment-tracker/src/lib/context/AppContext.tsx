@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
-import type { User, UserRole } from "@/types";
-import { mockUsers } from "@/lib/mockData";
+import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import type { User, UserRole, BorrowRecord, ReturnInspection } from "@/types";
+import { mockUsers, mockBorrowRecords, mockReturnInspections } from "@/lib/mockData";
 
 interface AppContextType {
   currentUser: User;
@@ -16,6 +16,10 @@ interface AppContextType {
   canHandleDisputes: boolean;
   canViewAllRecords: boolean;
   canProcessReturns: boolean;
+  borrowRecords: BorrowRecord[];
+  returnInspections: ReturnInspection[];
+  updateBorrowStatus: (id: string, updates: Partial<BorrowRecord>) => void;
+  addReturnInspection: (inspection: ReturnInspection) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -24,6 +28,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentUser, setCurrentUser] = useState<User>(mockUsers[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>(mockBorrowRecords);
+  const [returnInspections, setReturnInspections] = useState<ReturnInspection[]>(mockReturnInspections);
 
   const switchRole = (role: UserRole) => {
     const user = mockUsers.find((u) => u.role === role);
@@ -36,6 +42,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const canHandleDisputes = currentUser.role === "manager";
   const canViewAllRecords = currentUser.role === "manager";
   const canProcessReturns = currentUser.role === "reception" || currentUser.role === "manager";
+
+  const updateBorrowStatus = useCallback((id: string, updates: Partial<BorrowRecord>) => {
+    setBorrowRecords((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString().slice(0, 16).replace("T", " ") } : r))
+    );
+  }, []);
+
+  const addReturnInspection = useCallback((inspection: ReturnInspection) => {
+    setReturnInspections((prev) => [...prev, inspection]);
+  }, []);
 
   return (
     <AppContext.Provider
@@ -51,6 +67,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         canHandleDisputes,
         canViewAllRecords,
         canProcessReturns,
+        borrowRecords,
+        returnInspections,
+        updateBorrowStatus,
+        addReturnInspection,
       }}
     >
       {children}

@@ -16,22 +16,26 @@ import { PendingList } from "@/components/dashboard/PendingList";
 import { ReviewCaseCard } from "@/components/dashboard/ReviewCaseCard";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
-import {
-  mockDashboardStats,
-  mockBorrowRecords,
-  mockReviewCases,
-} from "@/lib/mockData";
+import { mockReviewCases } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isLoading, setIsLoading } = useApp();
-  const [stats, setStats] = useState(mockDashboardStats);
-  const [pendingRecords, setPendingRecords] = useState(mockBorrowRecords.filter(r => r.status === "pending"));
-  const [activeRecords, setActiveRecords] = useState(mockBorrowRecords.filter(r => r.status === "active"));
-  const [rejectedRecords, setRejectedRecords] = useState(mockBorrowRecords.filter(r => r.status === "rejected"));
-  const [overdueRecords, setOverdueRecords] = useState(mockBorrowRecords.filter(r => r.status === "overdue"));
-  const [needsReviewRecords, setNeedsReviewRecords] = useState(mockBorrowRecords.filter(r => r.status === "needs_review"));
+  const { isLoading, setIsLoading, borrowRecords } = useApp();
+
+  const stats = {
+    pendingBorrows: borrowRecords.filter(r => r.status === "pending").length,
+    activeBorrows: borrowRecords.filter(r => r.status === "active").length,
+    overdueBorrows: borrowRecords.filter(r => r.status === "overdue").length,
+    rejectedToday: borrowRecords.filter(r => r.status === "rejected").length,
+    needsReview: borrowRecords.filter(r => r.status === "needs_review").length,
+    openCases: mockReviewCases.filter(c => c.status === "open" || c.status === "investigating").length,
+  };
+
+  const pendingRecords = borrowRecords.filter(r => r.status === "pending");
+  const overdueRecords = borrowRecords.filter(r => r.status === "overdue");
+  const needsReviewRecords = borrowRecords.filter(r => r.status === "needs_review");
+  const rejectedRecords = borrowRecords.filter(r => r.status === "rejected");
 
   useEffect(() => {
     setIsLoading(true);

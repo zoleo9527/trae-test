@@ -16,20 +16,14 @@ import {
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import {
-  mockBorrowRecords,
-  mockReturnInspections,
-  getCategoryLabel,
-} from "@/lib/mockData";
+import { getCategoryLabel } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
-import type { ReviewResult } from "@/types";
+import type { ReviewResult, ReturnInspection } from "@/types";
 
 export default function ReturnInspectionPage() {
   const params = useParams();
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canProcessReturns, error, setError } = useApp();
-  const [record, setRecord] = useState<any>(null);
-  const [inspection, setInspection] = useState<any>(null);
+  const { isLoading, setIsLoading, currentUser, canProcessReturns, error, setError, borrowRecords, returnInspections, updateBorrowStatus, addReturnInspection } = useApp();
   const [step, setStep] = useState<"check" | "result">("check");
   const [overallCondition, setOverallCondition] = useState<
     "excellent" | "good" | "fair" | "poor"
@@ -50,21 +44,23 @@ export default function ReturnInspectionPage() {
     "其他损坏",
   ];
 
+  const record = borrowRecords.find((r) => r.id === params.id) || null;
+  const existingInspection = record ? returnInspections.find(
+    (ri) => ri.borrowRecordId === record.id
+  ) : null;
+
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => {
-      const found = mockBorrowRecords.find((r) => r.id === params.id);
-      const foundInspection = mockReturnInspections.find(
-        (ri) => ri.borrowRecordId === params.id
-      );
-      setRecord(found || null);
-      setInspection(foundInspection || null);
-      if (foundInspection) {
+    const timer = setTimeout(() => {
+      if (existingInspection) {
         setStep("result");
       }
       setIsLoading(false);
     }, 300);
-  }, [params.id, setIsLoading]);
+    return () => clearTimeout(timer);
+  }, [existingInspection, setIsLoading]);
+
+  const inspection = existingInspection;
 
   if (isLoading) {
     return <LoadingState message="加载验收信息..." />;
@@ -101,12 +97,14 @@ export default function ReturnInspectionPage() {
         ? "missing_parts"
         : "damaged";
 
-    const newInspection = {
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+    const newInspection: ReturnInspection = {
       id: `ri_${Date.now()}`,
       borrowRecordId: record.id,
       inspectorId: currentUser.id,
       inspectorName: currentUser.name,
-      inspectionDate: new Date().toISOString().slice(0, 16).replace("T", " "),
+      inspectionDate: now,
       overallCondition,
       result,
       issuesFound: [...selectedIssues, customIssue].filter(Boolean),
@@ -120,7 +118,14 @@ export default function ReturnInspectionPage() {
       createdAt: new Date().toISOString(),
     };
 
-    setInspection(newInspection);
+    addReturnInspection(newInspection);
+
+    const hasIssues = selectedIssues.length > 0 || customIssue.trim();
+    updateBorrowStatus(record.id, {
+      status: hasIssues ? "needs_review" : "returned",
+      actualReturnDate: now,
+    });
+
     setStep("result");
   };
 
@@ -129,6 +134,23 @@ export default function ReturnInspectionPage() {
       prev.includes(issue) ? prev.filter((i) => i !== issue) : [...prev, issue]
     );
   };
+
+  const currentInspection = inspection || (step === "result" ? {
+    id: `ri_temp`,
+    borrowRecordId: record.id,
+    inspectorId: currentUser.id,
+    inspectorName: currentUser.name,
+    inspectionDate: new Date().toISOString().slice(0, 16).replace("T", " "),
+    overallCondition,
+    result: (selectedIssues.length === 0 ? "accepted" : selectedIssues.includes("配件缺失") ? "missing_parts" : "damaged") as ReviewResult,
+    issuesFound: [...selectedIssues, customIssue].filter(Boolean),
+    compensationAmount: compensationAmount ? parseFloat(compensationAmount) : undefined,
+    compensationReason: compensationReason || undefined,
+    notes,
+    depositReturned,
+    depositReturnAmount: depositReturned ? record.depositAmount - (parseFloat(compensationAmount) || 0) : 0,
+    createdAt: new Date().toISOString(),
+  } : null);
 
   return (
     <div className="space-y-6">
@@ -147,7 +169,7 @@ export default function ReturnInspectionPage() {
         </div>
       </div>
 
-      {step === "check" && (
+      {step === "check" && !inspection && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -343,7 +365,7 @@ export default function ReturnInspectionPage() {
         </div>
       )}
 
-      {step === "result" && inspection && (
+      {step === "result" && currentInspection && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-6">
@@ -356,11 +378,14 @@ export default function ReturnInspectionPage() {
                     验收完成
                   </h3>
                   <p className="text-green-700 mt-1">
-                    {inspection.result === "accepted"
+                    {currentInspection.result === "accepted"
                       ? "器材完好，验收通过"
-                      : inspection.result === "damaged"
+                      : currentInspection.result === "damaged"
                       ? "发现损坏，已记录赔偿"
                       : "配件缺失，需进一步处理"}
+                  </p>
+                  <p className="text-sm text-green-600 mt-2">
+                    借用记录状态已更新为: {record.status === "needs_review" ? "待回查" : "已归还"}
                   </p>
                 </div>
               </div>
@@ -377,7 +402,7 @@ export default function ReturnInspectionPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">验收人</p>
-                    <p className="text-gray-900">{inspection.inspectorName}</p>
+                    <p className="text-gray-900">{currentInspection.inspectorName}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-3">
@@ -386,7 +411,7 @@ export default function ReturnInspectionPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">验收时间</p>
-                    <p className="text-gray-900">{inspection.inspectionDate}</p>
+                    <p className="text-gray-900">{currentInspection.inspectionDate}</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-3">
@@ -396,11 +421,11 @@ export default function ReturnInspectionPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-500">整体状况</p>
                     <p className="text-gray-900">
-                      {inspection.overallCondition === "excellent"
+                      {currentInspection.overallCondition === "excellent"
                         ? "优秀"
-                        : inspection.overallCondition === "good"
+                        : currentInspection.overallCondition === "good"
                         ? "良好"
-                        : inspection.overallCondition === "fair"
+                        : currentInspection.overallCondition === "fair"
                         ? "一般"
                         : "较差"}
                     </p>
@@ -413,8 +438,8 @@ export default function ReturnInspectionPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-500">押金退还</p>
                     <p className="text-gray-900">
-                      {inspection.depositReturned
-                        ? `¥${inspection.depositReturnAmount}`
+                      {currentInspection.depositReturned
+                        ? `¥${currentInspection.depositReturnAmount}`
                         : "未退还"}
                     </p>
                   </div>
@@ -422,7 +447,7 @@ export default function ReturnInspectionPage() {
               </div>
             </div>
 
-            {inspection.issuesFound.length > 0 && (
+            {currentInspection.issuesFound.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center mb-4">
                   <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2" />
@@ -431,21 +456,21 @@ export default function ReturnInspectionPage() {
                   </h3>
                 </div>
                 <ul className="space-y-2">
-                  {inspection.issuesFound.map((issue: string, index: number) => (
+                  {currentInspection.issuesFound.map((issue: string, index: number) => (
                     <li key={index} className="flex items-center text-gray-700">
                       <span className="w-2 h-2 bg-yellow-400 rounded-full mr-3" />
                       {issue}
                     </li>
                   ))}
                 </ul>
-                {inspection.compensationAmount && (
+                {currentInspection.compensationAmount && (
                   <div className="mt-4 p-4 bg-red-50 rounded-lg">
                     <p className="text-sm text-red-600">
-                      赔偿金额: ¥{inspection.compensationAmount}
+                      赔偿金额: ¥{currentInspection.compensationAmount}
                     </p>
-                    {inspection.compensationReason && (
+                    {currentInspection.compensationReason && (
                       <p className="text-sm text-red-500 mt-1">
-                        原因: {inspection.compensationReason}
+                        原因: {currentInspection.compensationReason}
                       </p>
                     )}
                   </div>
@@ -453,12 +478,12 @@ export default function ReturnInspectionPage() {
               </div>
             )}
 
-            {inspection.notes && (
+            {currentInspection.notes && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   验收备注
                 </h3>
-                <p className="text-gray-600">{inspection.notes}</p>
+                <p className="text-gray-600">{currentInspection.notes}</p>
               </div>
             )}
           </div>
@@ -480,6 +505,10 @@ export default function ReturnInspectionPage() {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">借用人</span>
                   <span>{record.borrowerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">当前状态</span>
+                  <StatusBadge status={record.status} />
                 </div>
               </div>
             </div>

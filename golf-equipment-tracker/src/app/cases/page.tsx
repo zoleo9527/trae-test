@@ -61,7 +61,7 @@ const typeLabels = {
 
 export default function CasesPage() {
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canHandleDisputes, canViewAllRecords } = useApp();
+  const { isLoading, setIsLoading, currentUser, canHandleDisputes, canViewAllRecords, borrowRecords } = useApp();
   const [cases, setCases] = useState<ReviewCase[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -69,10 +69,11 @@ export default function CasesPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setCases(mockReviewCases);
       setIsLoading(false);
     }, 300);
+    return () => clearTimeout(timer);
   }, [setIsLoading]);
 
   const roleFilteredCases = canViewAllRecords

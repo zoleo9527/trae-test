@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { mockReviewCases, mockBorrowRecords } from "@/lib/mockData";
+import { mockReviewCases } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
 
 const statusColors = {
@@ -40,7 +40,7 @@ const typeLabels = {
 export default function CaseDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canHandleDisputes, error, setError } = useApp();
+  const { isLoading, setIsLoading, currentUser, canHandleDisputes, error, setError, borrowRecords } = useApp();
   const [caseItem, setCaseItem] = useState<any>(null);
   const [newComment, setNewComment] = useState("");
 
@@ -80,7 +80,7 @@ export default function CaseDetailPage() {
     );
   }
 
-  const relatedBorrows = mockBorrowRecords.filter((b) =>
+  const relatedBorrows = borrowRecords.filter((b) =>
     caseItem.relatedBorrowIds?.includes(b.id)
   );
 

@@ -20,7 +20,6 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
-  mockBorrowRecords,
   mockBookings,
   mockStoredValueRecords,
   mockEquipment,
@@ -32,19 +31,17 @@ import type { BorrowStatus } from "@/types";
 export default function BorrowDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isLoading, setIsLoading, canApprove, error, setError } = useApp();
-  const [record, setRecord] = useState<any>(null);
+  const { isLoading, setIsLoading, canApprove, error, setError, currentUser, borrowRecords, updateBorrowStatus } = useApp();
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
+  const record = borrowRecords.find((r) => r.id === params.id) || null;
+
   useEffect(() => {
     setIsLoading(true);
-    setTimeout(() => {
-      const found = mockBorrowRecords.find((r) => r.id === params.id);
-      setRecord(found || null);
-      setIsLoading(false);
-    }, 300);
-  }, [params.id, setIsLoading]);
+    const timer = setTimeout(() => setIsLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, [setIsLoading]);
 
   if (isLoading) {
     return <LoadingState message="加载借用详情..." />;
@@ -80,16 +77,27 @@ export default function BorrowDetailPage() {
   );
 
   const handleApprove = () => {
-    setRecord({ ...record, status: "approved" as BorrowStatus });
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    updateBorrowStatus(record.id, {
+      status: "active",
+      approvedBy: currentUser.id,
+      approvedByName: currentUser.name,
+      approvedAt: now,
+    });
   };
 
   const handleReject = () => {
-    setRecord({
-      ...record,
-      status: "rejected" as BorrowStatus,
-      rejectedReason: rejectReason,
+    if (!rejectReason.trim()) return;
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    updateBorrowStatus(record.id, {
+      status: "rejected",
+      rejectedBy: currentUser.id,
+      rejectedByName: currentUser.name,
+      rejectedAt: now,
+      rejectedReason: rejectReason.trim(),
     });
     setShowRejectModal(false);
+    setRejectReason("");
   };
 
   return (
@@ -345,6 +353,17 @@ export default function BorrowDetailPage() {
                   </div>
                 </div>
               )}
+              {record.rejectedAt && (
+                <div className="flex items-start space-x-3">
+                  <div className="w-2 h-2 bg-red-500 rounded-full mt-2" />
+                  <div>
+                    <p className="text-sm text-gray-900">驳回申请</p>
+                    <p className="text-xs text-gray-500">
+                      {record.rejectedByName} · {record.rejectedAt}
+                    </p>
+                  </div>
+                </div>
+              )}
               {record.actualReturnDate && (
                 <div className="flex items-start space-x-3">
                   <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
@@ -379,7 +398,7 @@ export default function BorrowDetailPage() {
             </div>
             <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
               <button
-                onClick={() => setShowRejectModal(false)}
+                onClick={() => { setShowRejectModal(false); setRejectReason(""); }}
                 className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
               >
                 取消
