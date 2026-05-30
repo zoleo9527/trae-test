@@ -92,7 +92,8 @@ export const bookingApi = {
 			method: 'POST',
 			body: JSON.stringify(data)
 		}),
-	listAllExceptions: (): Promise<Exception[]> => request('/exceptions')
+	listAllExceptions: (): Promise<Exception[]> => request('/exceptions'),
+	listBays: (): Promise<Bay[]> => request('/bays')
 };
 
 export const coachApi = {
@@ -113,6 +114,10 @@ export const coachApi = {
 		request(`/coaches/schedules/${id}`, {
 			method: 'PUT',
 			body: JSON.stringify(data)
+		}),
+	cancelSchedule: (id: string): Promise<CoachSchedule> =>
+		request(`/coaches/schedules/${id}`, {
+			method: 'DELETE'
 		})
 };
 

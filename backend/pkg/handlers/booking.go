@@ -6,10 +6,19 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"golf-range/pkg/database"
 	"golf-range/pkg/middleware"
 	"golf-range/pkg/models"
 )
+
+func ListBays(c *fiber.Ctx) error {
+	var bays []models.Bay
+	if err := database.DB.Where("status = ?", "active").Order("bay_number").Find(&bays).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "查询打位失败"})
+	}
+	return c.JSON(bays)
+}
 
 func ListBookings(c *fiber.Ctx) error {
 	status := c.Query("status")
@@ -95,6 +104,7 @@ func CreateBooking(c *fiber.Ctx) error {
 
 	var coachID *uuid.UUID
 	var coachName string
+	var scheduleID *uuid.UUID
 	if req.CoachID != "" {
 		parsedCoachID, err := uuid.Parse(req.CoachID)
 		if err == nil {
@@ -106,10 +116,18 @@ func CreateBooking(c *fiber.Ctx) error {
 		}
 	}
 
+	if req.ScheduleID != "" {
+		parsedScheduleID, err := uuid.Parse(req.ScheduleID)
+		if err == nil {
+			scheduleID = &parsedScheduleID
+		}
+	}
+
 	booking := models.Booking{
 		MemberID:        memberID,
 		BayID:           bayID,
 		CoachID:         coachID,
+		ScheduleID:      scheduleID,
 		MemberName:      member.Name,
 		MemberPhone:     member.Phone,
 		BayNumber:       bay.BayNumber,
@@ -134,6 +152,15 @@ func CreateBooking(c *fiber.Ctx) error {
 	if err := tx.Create(&booking).Error; err != nil {
 		tx.Rollback()
 		return c.Status(500).JSON(fiber.Map{"error": "创建预约失败"})
+	}
+
+	if scheduleID != nil {
+		if err := tx.Model(&models.CoachSchedule{}).
+			Where("id = ?", scheduleID).
+			UpdateColumn("booked_count", gorm.Expr("booked_count + 1")).Error; err != nil {
+			tx.Rollback()
+			return c.Status(500).JSON(fiber.Map{"error": "更新排班预约数失败"})
+		}
 	}
 
 	if req.PaymentMethod == "wallet" {

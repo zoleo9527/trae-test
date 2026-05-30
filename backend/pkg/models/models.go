@@ -319,6 +319,7 @@ type CreateBookingRequest struct {
 	MemberID        string    `json:"memberId"`
 	BayID           string    `json:"bayId"`
 	CoachID         string    `json:"coachId,omitempty"`
+	ScheduleID      string    `json:"scheduleId,omitempty"`
 	StartAt         time.Time `json:"startAt"`
 	EndAt           time.Time `json:"endAt"`
 	GuestCount      int       `json:"guestCount"`

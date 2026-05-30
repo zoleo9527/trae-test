@@ -11,6 +11,18 @@
 	let dateFilter = dayjs().format('YYYY-MM-DD');
 	let coachFilter = '';
 
+	let showScheduleModal = false;
+	let editingSchedule: CoachSchedule | null = null;
+	let scheduleForm = {
+		coachId: '',
+		date: dayjs().format('YYYY-MM-DD'),
+		startAt: '',
+		endAt: '',
+		type: '普通教学',
+		capacity: 4,
+		remark: ''
+	};
+
 	$: filteredSchedules = schedules.filter(s => {
 		const matchesDate = !dateFilter || dayjs(s.date).format('YYYY-MM-DD') === dateFilter;
 		const matchesCoach = !coachFilter || s.coachId === coachFilter;
@@ -29,6 +41,14 @@
 			loading = false;
 		}
 	});
+
+	async function loadSchedules() {
+		schedules = await coachApi.listSchedules({ date: dateFilter, coachId: coachFilter });
+	}
+
+	$: if (dateFilter || coachFilter) {
+		loadSchedules();
+	}
 
 	function formatTime(date: string) {
 		return dayjs(date).format('HH:mm');
@@ -51,6 +71,80 @@
 			default: return status;
 		}
 	}
+
+	function openCreateModal() {
+		editingSchedule = null;
+		scheduleForm = {
+			coachId: coaches[0]?.id || '',
+			date: dayjs().format('YYYY-MM-DD'),
+			startAt: '09:00',
+			endAt: '11:00',
+			type: '普通教学',
+			capacity: 4,
+			remark: ''
+		};
+		showScheduleModal = true;
+	}
+
+	function openEditModal(schedule: CoachSchedule) {
+		editingSchedule = schedule;
+		scheduleForm = {
+			coachId: schedule.coachId,
+			date: dayjs(schedule.date).format('YYYY-MM-DD'),
+			startAt: formatTime(schedule.startAt),
+			endAt: formatTime(schedule.endAt),
+			type: schedule.type,
+			capacity: schedule.capacity,
+			remark: schedule.remark || ''
+		};
+		showScheduleModal = true;
+	}
+
+	async function handleSaveSchedule() {
+		if (!scheduleForm.coachId) {
+			alert('请选择教练');
+			return;
+		}
+
+		try {
+			const startAt = dayjs(`${scheduleForm.date}T${scheduleForm.startAt}`).toISOString();
+			const endAt = dayjs(`${scheduleForm.date}T${scheduleForm.endAt}`).toISOString();
+
+			const data = {
+				coachId: scheduleForm.coachId,
+				date: scheduleForm.date,
+				startAt,
+				endAt,
+				type: scheduleForm.type,
+				capacity: scheduleForm.capacity,
+				remark: scheduleForm.remark || undefined
+			};
+
+			if (editingSchedule) {
+				await coachApi.updateSchedule(editingSchedule.id, data);
+			} else {
+				await coachApi.createSchedule(data);
+			}
+
+			showScheduleModal = false;
+			schedules = await coachApi.listSchedules({ date: dateFilter, coachId: coachFilter });
+		} catch (e: any) {
+			alert(e.message || '保存失败');
+		}
+	}
+
+	async function handleCancelSchedule(schedule: CoachSchedule) {
+		if (!confirm(`确定要取消 "${schedule.coachName} - ${schedule.type}" 的排班吗？`)) {
+			return;
+		}
+
+		try {
+			await coachApi.cancelSchedule(schedule.id);
+			schedules = await coachApi.listSchedules({ date: dateFilter, coachId: coachFilter });
+		} catch (e: any) {
+			alert(e.message || '取消失败');
+		}
+	}
 </script>
 
 <div class="space-y-6">
@@ -60,7 +154,7 @@
 			<p class="text-gray-500">查看和管理教练排班表</p>
 		</div>
 		{#if canEdit}
-			<button class="btn btn-primary">
+			<button class="btn btn-primary" on:click={openCreateModal}>
 				+ 新建排班
 			</button>
 		{/if}
@@ -157,10 +251,14 @@
 							</div>
 						{/if}
 
-						{#if canEdit}
+						{#if canEdit && schedule.status !== 'cancelled'}
 							<div class="mt-4 flex gap-2">
-								<button class="btn btn-outline text-sm flex-1">编辑</button>
-								<button class="btn btn-secondary text-sm flex-1">取消排班</button>
+								<button class="btn btn-outline text-sm flex-1" on:click={() => openEditModal(schedule)}>
+									编辑
+								</button>
+								<button class="btn btn-secondary text-sm flex-1" on:click={() => handleCancelSchedule(schedule)}>
+									取消排班
+								</button>
 							</div>
 						{/if}
 					</div>
@@ -169,3 +267,80 @@
 		</div>
 	{/if}
 </div>
+
+{#if showScheduleModal}
+	<div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" on:click={() => showScheduleModal = false}>
+		<div class="bg-white rounded-2xl w-full max-w-lg" on:click|stopPropagation>
+			<div class="p-6 border-b border-gray-200">
+				<div class="flex items-center justify-between">
+					<h2 class="text-xl font-bold text-gray-900">
+						{editingSchedule ? '编辑排班' : '新建排班'}
+					</h2>
+					<button class="p-2 hover:bg-gray-100 rounded-lg" on:click={() => showScheduleModal = false}>
+						<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<line x1="18" y1="6" x2="6" y2="18" />
+							<line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+			</div>
+
+			<div class="p-6 space-y-4">
+				<div>
+					<label class="label">教练 <span class="text-red-500">*</span></label>
+					<select class="select" bind:value={scheduleForm.coachId}>
+						<option value="">请选择教练</option>
+						{#each coaches as coach}
+							<option value={coach.id}>{coach.name}</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="grid grid-cols-3 gap-4">
+					<div>
+						<label class="label">日期 <span class="text-red-500">*</span></label>
+						<input type="date" class="input" bind:value={scheduleForm.date} />
+					</div>
+					<div>
+						<label class="label">开始时间 <span class="text-red-500">*</span></label>
+						<input type="time" class="input" bind:value={scheduleForm.startAt} />
+					</div>
+					<div>
+						<label class="label">结束时间 <span class="text-red-500">*</span></label>
+						<input type="time" class="input" bind:value={scheduleForm.endAt} />
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-4">
+					<div>
+						<label class="label">排班类型</label>
+						<select class="select" bind:value={scheduleForm.type}>
+							<option value="普通教学">普通教学</option>
+							<option value="VIP一对一">VIP一对一</option>
+							<option value="团体课程">团体课程</option>
+							<option value="赛前集训">赛前集训</option>
+						</select>
+					</div>
+					<div>
+						<label class="label">最大容量</label>
+						<input type="number" class="input" min="1" bind:value={scheduleForm.capacity} />
+					</div>
+				</div>
+
+				<div>
+					<label class="label">备注</label>
+					<textarea class="input" rows="2" placeholder="可选备注..." bind:value={scheduleForm.remark}></textarea>
+				</div>
+			</div>
+
+			<div class="p-6 border-t border-gray-200 flex gap-3 justify-end">
+				<button class="btn btn-secondary" on:click={() => showScheduleModal = false}>
+					取消
+				</button>
+				<button class="btn btn-primary" on:click={handleSaveSchedule}>
+					{editingSchedule ? '保存修改' : '创建排班'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

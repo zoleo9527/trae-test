@@ -39,6 +39,8 @@ func main() {
 	users := api.Group("/users")
 	users.Get("/", handlers.ListUsers)
 
+	api.Get("/bays", handlers.ListBays)
+
 	bookings := api.Group("/bookings")
 	bookings.Get("/", handlers.ListBookings)
 	bookings.Get("/:id", handlers.GetBooking)
@@ -55,6 +57,7 @@ func main() {
 	coaches.Get("/schedules", handlers.ListSchedules)
 	coaches.Post("/schedules", handlers.CreateSchedule)
 	coaches.Put("/schedules/:id", handlers.UpdateSchedule)
+	coaches.Delete("/schedules/:id", handlers.CancelSchedule)
 
 	equipment := api.Group("/equipment")
 	equipment.Get("/", handlers.ListEquipment)

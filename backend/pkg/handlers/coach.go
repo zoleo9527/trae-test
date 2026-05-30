@@ -104,3 +104,28 @@ func UpdateSchedule(c *fiber.Ctx) error {
 
 	return c.JSON(schedule)
 }
+
+func CancelSchedule(c *fiber.Ctx) error {
+	id := c.Params("id")
+	scheduleID, err := uuid.Parse(id)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "无效的排班ID"})
+	}
+
+	var schedule models.CoachSchedule
+	if err := database.DB.Where("id = ?", scheduleID).First(&schedule).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "排班不存在"})
+	}
+
+	oldStatus := schedule.Status
+	schedule.Status = "cancelled"
+	schedule.UpdatedAt = time.Now()
+
+	if err := database.DB.Save(&schedule).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "取消排班失败"})
+	}
+
+	middleware.CreateAuditLog(c, "取消排班", "schedule", schedule.ID, oldStatus, "cancelled", nil, nil)
+
+	return c.JSON(schedule)
+}
