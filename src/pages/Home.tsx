@@ -134,26 +134,47 @@ export default function Home() {
             <span className="text-white font-semibold">超时预警 - {overdueOrders.length} 笔订单已超时</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {overdueOrders.map((order) => (
-              <motion.div
-                key={order.id}
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                onClick={() => {
-                  if (order.assignedTo === currentRole) {
-                    openProcessing(order.id, currentRole === 'inspector' ? 'inspect' : currentRole === 'store_handler' ? 'verify' : 'sort');
-                  }
-                }}
-                className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-3 cursor-pointer hover:bg-white/30 transition-colors"
-              >
-                <p className="text-white font-medium text-sm">{order.orderNo}</p>
-                <p className="text-white/80 text-xs mt-1">{order.storeName} · {order.garmentType}</p>
-                <p className="text-white/70 text-xs mt-1 flex items-center gap-1">
-                  <Clock3 className="w-3 h-3" />
-                  已超时 {getHoursDiff(order.deadlineAt)} 小时
-                </p>
-              </motion.div>
-            ))}
+            {overdueOrders.map((order) => {
+              const getProcessingMode = () => {
+                switch (order.status) {
+                  case 'collected':
+                  case 'sorting':
+                    return 'sort' as const;
+                  case 'washing':
+                  case 'inspecting':
+                  case 'rewashing':
+                    return 'inspect' as const;
+                  case 'handover':
+                    return 'handover' as const;
+                  case 'verifying':
+                  case 'damage_claim':
+                  case 'rejected':
+                    return 'verify' as const;
+                  default:
+                    return 'inspect' as const;
+                }
+              };
+              return (
+                <motion.div
+                  key={order.id}
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  onClick={() => {
+                    if (order.assignedTo === currentRole) {
+                      openProcessing(order.id, getProcessingMode());
+                    }
+                  }}
+                  className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-lg px-4 py-3 cursor-pointer hover:bg-white/30 transition-colors"
+                >
+                  <p className="text-white font-medium text-sm">{order.orderNo}</p>
+                  <p className="text-white/80 text-xs mt-1">{order.storeName} · {order.garmentType}</p>
+                  <p className="text-white/70 text-xs mt-1 flex items-center gap-1">
+                    <Clock3 className="w-3 h-3" />
+                    已超时 {getHoursDiff(order.deadlineAt)} 小时
+                  </p>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       )}
@@ -173,18 +194,34 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
-              {todoItems.map((order, index) => (
+              {todoItems.map((order, index) => {
+                const getProcessingMode = () => {
+                  switch (order.status) {
+                    case 'collected':
+                    case 'sorting':
+                      return 'sort' as const;
+                    case 'washing':
+                    case 'inspecting':
+                    case 'rewashing':
+                      return 'inspect' as const;
+                    case 'handover':
+                      return 'handover' as const;
+                    case 'verifying':
+                    case 'damage_claim':
+                    case 'rejected':
+                      return 'verify' as const;
+                    default:
+                      return 'inspect' as const;
+                  }
+                };
+                return (
                 <motion.div
                   key={order.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
                   onClick={() => {
-                    const mode = order.status === 'sorting' ? 'sort' :
-                                order.status === 'inspecting' ? 'inspect' :
-                                order.status === 'handover' ? 'handover' :
-                                order.status === 'verifying' ? 'verify' : 'inspect';
-                    openProcessing(order.id, mode);
+                    openProcessing(order.id, getProcessingMode());
                   }}
                   className={cn(
                     'flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md',
@@ -215,7 +252,8 @@ export default function Home() {
                   </div>
                   <ArrowRight className="w-5 h-5 text-slate-300" />
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           )}
         </motion.div>

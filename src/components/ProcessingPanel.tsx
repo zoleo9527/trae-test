@@ -34,8 +34,8 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 export default function ProcessingPanel() {
-  const { orderId, isOpen, mode, closeProcessing } = useProcessingStore();
-  const { orders, setOrders } = useOrderStore();
+  const { orderId, isOpen, mode, closeProcessing, openProcessing } = useProcessingStore();
+  const { orders, setOrders, damageRecords, rewashRecords, addDamageRecord, addRewashRecord, updateReceipt } = useOrderStore();
   const { currentRole } = useRoleStore();
   const [activeTab, setActiveTab] = useState<'main' | 'history' | 'evidence'>('main');
   const [damagePosition, setDamagePosition] = useState('');
@@ -46,12 +46,30 @@ export default function ProcessingPanel() {
   const [verifyPassed, setVerifyPassed] = useState<boolean | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [inspectSubMode, setInspectSubMode] = useState<'pass' | 'rewash' | 'damage' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const order = orders.find((o) => o.id === orderId);
-  const damageRecords = mockDamageRecords.filter((d) => d.orderId === orderId);
-  const rewashRecords = mockRewashRecords.filter((r) => r.orderId === orderId);
+  const orderDamageRecords = damageRecords.filter((d) => d.orderId === orderId);
+  const orderRewashRecords = rewashRecords.filter((r) => r.orderId === orderId);
   const batch = order?.batchId ? mockBatches.find((b) => b.id === order.batchId) : null;
+
+  const resetFormState = () => {
+    setInspectSubMode(null);
+    setDamagePosition('');
+    setDamageDesc('');
+    setRewashReason('');
+    setRewashDesc('');
+    setSelectedBatch('');
+    setVerifyPassed(null);
+    setRejectReason('');
+    setUploadedImages([]);
+  };
+
+  const handleClose = () => {
+    resetFormState();
+    closeProcessing();
+  };
 
   if (!order) return null;
 
@@ -88,24 +106,37 @@ export default function ProcessingPanel() {
 
   const handleMarkDamage = () => {
     if (!damagePosition || !damageDesc) return;
+    addDamageRecord({
+      orderId: orderId!,
+      position: damagePosition,
+      description: damageDesc,
+      imageUrl: uploadedImages[0] || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=laundry+garment+damage+inspection+photo&image_size=square',
+      recordedBy: `质检员-${currentRole === 'inspector' ? '当前' : '系统'}`,
+    });
     const updatedOrders = orders.map((o) =>
       o.id === orderId
         ? { ...o, status: 'damage_claim' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
         : o
     );
     setOrders(updatedOrders);
-    closeProcessing();
+    handleClose();
   };
 
   const handleMarkRewash = () => {
     if (!rewashReason || !rewashDesc) return;
+    addRewashRecord({
+      orderId: orderId!,
+      reason: rewashReason,
+      description: rewashDesc,
+      status: 'rewashing',
+    });
     const updatedOrders = orders.map((o) =>
       o.id === orderId
         ? { ...o, status: 'rewashing' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
         : o
     );
     setOrders(updatedOrders);
-    closeProcessing();
+    handleClose();
   };
 
   const handleHandover = () => {
@@ -121,25 +152,39 @@ export default function ProcessingPanel() {
   const handleVerify = (passed: boolean) => {
     setVerifyPassed(passed);
     if (passed) {
+      updateReceipt(orderId!, {
+        isVerified: true,
+        verifiedAt: new Date().toISOString(),
+        verifiedBy: `门店-${currentRole === 'store_handler' ? '当前' : '系统'}`,
+        isRejected: false,
+        rejectReason: null,
+      });
       const updatedOrders = orders.map((o) =>
         o.id === orderId
           ? { ...o, status: 'completed' as const, updatedAt: new Date().toISOString() }
           : o
       );
       setOrders(updatedOrders);
-      setTimeout(() => closeProcessing(), 1500);
+      setTimeout(() => handleClose(), 1500);
     }
   };
 
   const handleReject = () => {
     if (!rejectReason) return;
+    updateReceipt(orderId!, {
+      isVerified: false,
+      verifiedAt: null,
+      verifiedBy: null,
+      isRejected: true,
+      rejectReason: rejectReason,
+    });
     const updatedOrders = orders.map((o) =>
       o.id === orderId
         ? { ...o, status: 'rejected' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
         : o
     );
     setOrders(updatedOrders);
-    closeProcessing();
+    handleClose();
   };
 
   const renderMainContent = () => {
@@ -189,6 +234,164 @@ export default function ProcessingPanel() {
         );
 
       case 'inspect':
+        if (inspectSubMode === 'rewash') {
+          return (
+            <div className="space-y-6">
+              <button
+                onClick={() => setInspectSubMode(null)}
+                className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+              >
+                ← 返回质检选择
+              </button>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">返洗原因</label>
+                  <div className="space-y-2">
+                    {REWASH_REASONS.map((reason) => (
+                      <button
+                        key={reason}
+                        onClick={() => setRewashReason(reason)}
+                        className={cn(
+                          'w-full p-3 rounded-lg border text-left transition-all',
+                          rewashReason === reason
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-slate-200 hover:border-slate-300'
+                        )}
+                      >
+                        <span className={cn(
+                          'text-sm',
+                          rewashReason === reason ? 'text-orange-700 font-medium' : 'text-slate-600'
+                        )}>
+                          {reason}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">详细说明</label>
+                  <textarea
+                    value={rewashDesc}
+                    onChange={(e) => setRewashDesc(e.target.value)}
+                    placeholder="请描述具体问题..."
+                    className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleMarkRewash}
+                disabled={!rewashReason || !rewashDesc}
+                className={cn(
+                  'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                  rewashReason && rewashDesc
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                )}
+              >
+                <RotateCcw className="w-4 h-4" />
+                确认返洗
+              </button>
+            </div>
+          );
+        }
+
+        if (inspectSubMode === 'damage') {
+          return (
+            <div className="space-y-6">
+              <button
+                onClick={() => setInspectSubMode(null)}
+                className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+              >
+                ← 返回质检选择
+              </button>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    拍照取证
+                  </label>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
+                  >
+                    <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                    <p className="text-sm text-slate-500">点击上传或拍照</p>
+                    <p className="text-xs text-slate-400 mt-1">支持多张图片</p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  {uploadedImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      {uploadedImages.map((img, i) => (
+                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden">
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    污损位置
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAMAGE_POSITIONS.map((pos) => (
+                      <button
+                        key={pos}
+                        onClick={() => setDamagePosition(pos)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-sm transition-all',
+                          damagePosition === pos
+                            ? 'bg-red-500 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        )}
+                      >
+                        {pos}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">污损描述</label>
+                  <textarea
+                    value={damageDesc}
+                    onChange={(e) => setDamageDesc(e.target.value)}
+                    placeholder="请详细描述污损情况..."
+                    className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleMarkDamage}
+                disabled={!damagePosition || !damageDesc}
+                className={cn(
+                  'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                  damagePosition && damageDesc
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                )}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                确认污损记录
+              </button>
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-6">
             <div className="space-y-4">
@@ -211,7 +414,7 @@ export default function ProcessingPanel() {
                 <h4 className="text-sm font-medium text-slate-600 mb-3">标记问题</h4>
                 <div className="space-y-3">
                   <button
-                    onClick={() => {}}
+                    onClick={() => setInspectSubMode('rewash')}
                     className="w-full p-4 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-all flex items-center gap-3"
                   >
                     <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center">
@@ -224,7 +427,7 @@ export default function ProcessingPanel() {
                   </button>
 
                   <button
-                    onClick={() => {}}
+                    onClick={() => setInspectSubMode('damage')}
                     className="w-full p-4 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 transition-all flex items-center gap-3"
                   >
                     <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
@@ -538,7 +741,7 @@ export default function ProcessingPanel() {
                   <h2 className="text-lg font-bold text-slate-800 mt-2">{order.orderNo}</h2>
                 </div>
                 <button
-                  onClick={closeProcessing}
+                  onClick={handleClose}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-slate-500" />
@@ -627,10 +830,10 @@ export default function ProcessingPanel() {
 
               {activeTab === 'evidence' && (
                 <div className="space-y-6">
-                  {damageRecords.length > 0 && (
+                  {orderDamageRecords.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-slate-700 mb-3">污损记录</h4>
-                      {damageRecords.map((record: DamageRecord) => (
+                      {orderDamageRecords.map((record: DamageRecord) => (
                         <div key={record.id} className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
                           <div className="flex items-center gap-2 mb-2">
                             <MapPin className="w-4 h-4 text-red-500" />
@@ -646,10 +849,10 @@ export default function ProcessingPanel() {
                     </div>
                   )}
 
-                  {rewashRecords.length > 0 && (
+                  {orderRewashRecords.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-slate-700 mb-3">返洗记录</h4>
-                      {rewashRecords.map((record: RewashRecord) => (
+                      {orderRewashRecords.map((record: RewashRecord) => (
                         <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-2">
                             <RotateCcw className="w-4 h-4 text-orange-500" />
@@ -662,7 +865,7 @@ export default function ProcessingPanel() {
                     </div>
                   )}
 
-                  {damageRecords.length === 0 && rewashRecords.length === 0 && (
+                  {orderDamageRecords.length === 0 && orderRewashRecords.length === 0 && (
                     <div className="text-center py-12 text-slate-400">
                       <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>暂无证据记录</p>

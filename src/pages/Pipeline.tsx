@@ -38,12 +38,30 @@ export default function Pipeline() {
     filteredOrders.filter((o) => o.status === status);
 
   const handleCardClick = (orderId: string, status: OrderStatus) => {
-    const mode = status === 'sorting' ? 'sort' :
-                status === 'inspecting' ? 'inspect' :
-                status === 'handover' ? 'handover' :
-                status === 'verifying' ? 'verify' :
-                status === 'rewashing' ? 'rewash' :
-                status === 'damage_claim' ? 'damage' : 'inspect';
+    let mode: 'sort' | 'inspect' | 'handover' | 'verify' | 'damage' | 'rewash';
+    switch (status) {
+      case 'collected':
+      case 'sorting':
+        mode = 'sort';
+        break;
+      case 'washing':
+      case 'inspecting':
+      case 'rewashing':
+        mode = 'inspect';
+        break;
+      case 'handover':
+        mode = 'handover';
+        break;
+      case 'verifying':
+      case 'rejected':
+      case 'damage_claim':
+        mode = 'verify';
+        break;
+      case 'completed':
+        return;
+      default:
+        mode = 'inspect';
+    }
     openProcessing(orderId, mode);
   };
 
