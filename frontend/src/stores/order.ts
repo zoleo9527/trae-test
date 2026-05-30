@@ -103,6 +103,8 @@ export const useOrderStore = defineStore('order', () => {
     const rewashStore = useRewashStore();
     const batchStore = useBatchStore();
 
+    const affectedBatchIds = new Set<string>();
+
     if (status === 'sorted') {
       const itemsByWashType: Record<string, { orderId: string; item: ClothingItem }[]> = {};
 
@@ -110,6 +112,7 @@ export const useOrderStore = defineStore('order', () => {
         const order = orders.value.find(o => o.id === orderId);
         if (!order) return;
         order.items.forEach(item => {
+          if (item.batchId) affectedBatchIds.add(item.batchId);
           const wt = item.washType;
           if (!itemsByWashType[wt]) itemsByWashType[wt] = [];
           itemsByWashType[wt].push({ orderId, item });
@@ -124,12 +127,12 @@ export const useOrderStore = defineStore('order', () => {
           remark || `${WASH_TYPE_LABELS[wt] || wt}分拣批次`
         );
         batchIdByWashType[wt] = batch.id;
+        affectedBatchIds.add(batch.id);
       });
 
       orderIds.forEach(orderId => {
         const order = orders.value.find(o => o.id === orderId);
         if (!order) return;
-        const oldStatus = order.status;
         let primaryBatchId = '';
 
         order.items.forEach(item => {
@@ -150,10 +153,6 @@ export const useOrderStore = defineStore('order', () => {
         order.currentBatchId = primaryBatchId;
       });
 
-      Object.values(batchIdByWashType).forEach(batchId => {
-        batchStore.syncBatchData(batchId);
-      });
-
     } else if (status === 'rewash') {
       const itemsByWashType: Record<string, { orderId: string; item: ClothingItem }[]> = {};
 
@@ -161,6 +160,7 @@ export const useOrderStore = defineStore('order', () => {
         const order = orders.value.find(o => o.id === orderId);
         if (!order) return;
         order.items.forEach(item => {
+          if (item.batchId) affectedBatchIds.add(item.batchId);
           const wt = item.washType;
           if (!itemsByWashType[wt]) itemsByWashType[wt] = [];
           itemsByWashType[wt].push({ orderId, item });
@@ -175,6 +175,7 @@ export const useOrderStore = defineStore('order', () => {
           `返洗批次-${WASH_TYPE_LABELS[wt] || wt}`
         );
         batchIdByWashType[wt] = batch.id;
+        affectedBatchIds.add(batch.id);
       });
 
       orderIds.forEach(orderId => {
@@ -210,16 +211,10 @@ export const useOrderStore = defineStore('order', () => {
         order.updatedBy = operator;
         order.currentBatchId = primaryBatchId;
       });
-
-      Object.values(batchIdByWashType).forEach(batchId => {
-        batchStore.syncBatchData(batchId);
-      });
-
     } else {
       orderIds.forEach(orderId => {
         const order = orders.value.find(o => o.id === orderId);
         if (!order) return;
-        const oldStatus = order.status;
 
         order.items.forEach(item => {
           const oldItemStatus = item.status;
@@ -233,6 +228,10 @@ export const useOrderStore = defineStore('order', () => {
       });
     }
 
+    affectedBatchIds.forEach(batchId => {
+      batchStore.syncBatchData(batchId);
+    });
+
     clearSelection();
   }
 
@@ -245,6 +244,8 @@ export const useOrderStore = defineStore('order', () => {
       const item = order.items.find(i => i.id === itemId);
       if (item) {
         const oldStatus = item.status;
+        const oldBatchId = item.batchId;
+
         item.status = status;
         order.updatedAt = now;
         order.updatedBy = operator;
@@ -272,8 +273,10 @@ export const useOrderStore = defineStore('order', () => {
         if (newBatchId) {
           item.batchId = newBatchId;
           order.currentBatchId = newBatchId;
-          batchStore.syncBatchData(newBatchId);
         }
+
+        if (oldBatchId) batchStore.syncBatchData(oldBatchId);
+        if (newBatchId) batchStore.syncBatchData(newBatchId);
 
         addStatusHistory(orderId, itemId, oldStatus, status, operator, remark);
         updateOrderStatusFromItems(orderId);

@@ -15,7 +15,7 @@ export const useSettlementStore = defineStore('settlement', () => {
   }>>(new Map());
 
   function getConfirmationKey(storeId: string, month: string) {
-    return `${storeId}:${month}`;
+    return `settle:${storeId}:${month}`;
   }
 
   function getSettlementByStoreAndMonth(storeId: string, month: string) {
@@ -29,6 +29,22 @@ export const useSettlementStore = defineStore('settlement', () => {
       settlementConfirmations.value.set(key, { status: 'draft' });
     }
     return settlementConfirmations.value.get(key)!;
+  }
+
+  function parseSettlementId(id: string) {
+    const parts = id.split(':');
+    if (parts.length >= 3 && parts[0] === 'settle') {
+      const month = parts[parts.length - 1];
+      const storeId = parts.slice(1, -1).join(':');
+      return { storeId, month };
+    }
+    const legacyParts = id.replace('settle-', '').split('-');
+    if (legacyParts.length >= 3) {
+      const month = `${legacyParts[legacyParts.length - 2]}-${legacyParts[legacyParts.length - 1]}`;
+      const storeId = legacyParts.slice(0, -2).join('-');
+      return { storeId, month };
+    }
+    return { storeId: '', month: '' };
   }
 
   function calculateMonthStats(month: string) {
@@ -131,7 +147,7 @@ export const useSettlementStore = defineStore('settlement', () => {
         const settlementStatus = confirmation?.status || 'draft';
 
         dynamicSettlements.push({
-          id: `settle-${storeId}-${m}`,
+          id: `settle:${storeId}:${m}`,
           month: m,
           storeId,
           storeName,
@@ -154,10 +170,8 @@ export const useSettlementStore = defineStore('settlement', () => {
   }
 
   function confirmFactorySettlement(id: string, operator: string) {
-    const parts = id.replace('settle-', '').split('-');
-    if (parts.length < 2) return;
-    const storeId = parts[0];
-    const month = parts.slice(1).join('-');
+    const { storeId, month } = parseSettlementId(id);
+    if (!storeId || !month) return;
 
     const confirmation = ensureConfirmation(storeId, month);
     if (!confirmation.factoryConfirmedBy) {
@@ -172,10 +186,8 @@ export const useSettlementStore = defineStore('settlement', () => {
   }
 
   function confirmStoreSettlement(id: string, operator: string) {
-    const parts = id.replace('settle-', '').split('-');
-    if (parts.length < 2) return;
-    const storeId = parts[0];
-    const month = parts.slice(1).join('-');
+    const { storeId, month } = parseSettlementId(id);
+    if (!storeId || !month) return;
 
     const confirmation = ensureConfirmation(storeId, month);
     if (!confirmation.storeConfirmedBy) {
