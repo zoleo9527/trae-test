@@ -108,6 +108,10 @@ export async function getFeedbackDetail(req: AuthRequest, res: Response) {
       return notFound(res, '反馈不存在');
     }
 
+    if (req.user!.role === 'VOLUNTEER' && feedback.volunteerId !== req.user!.userId) {
+      return forbidden(res, '只能查看自己的反馈');
+    }
+
     return success(res, feedback, '获取成功');
   } catch (err) {
     return serverError(res, err);

@@ -9,4 +9,9 @@ export function withPagination<T extends z.ZodRawShape>(filterSchema: z.ZodObjec
   return paginationSchema.merge(filterSchema);
 }
 
+export const queryBoolean = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v === 'true'));
+
 export type PaginationInput = z.infer<typeof paginationSchema>;

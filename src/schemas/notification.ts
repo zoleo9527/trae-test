@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { withPagination } from './common';
+import { withPagination, queryBoolean } from './common';
 
 export const sendNotificationSchema = z.object({
   type: z.enum([
@@ -20,8 +20,8 @@ export const sendNotificationSchema = z.object({
 
 export const notificationFilterSchema = z.object({
   type: z.string().optional(),
-  isRead: z.coerce.boolean().optional(),
-  isSent: z.coerce.boolean().optional(),
+  isRead: queryBoolean,
+  isSent: queryBoolean,
   recipientId: z.string().optional(),
   keyword: z.string().optional(),
 });

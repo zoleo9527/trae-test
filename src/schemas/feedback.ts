@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { withPagination } from './common';
+import { withPagination, queryBoolean } from './common';
 
 export const createFeedbackSchema = z.object({
   activityId: z.string().min(1, '活动ID不能为空'),
@@ -14,7 +14,7 @@ export const resolveFeedbackSchema = z.object({
 export const feedbackFilterSchema = z.object({
   activityId: z.string().optional(),
   volunteerId: z.string().optional(),
-  isResolved: z.coerce.boolean().optional(),
+  isResolved: queryBoolean,
   keyword: z.string().optional(),
 });
 

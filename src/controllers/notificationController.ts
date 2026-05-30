@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
-import { success, error, notFound, serverError, paginated } from '../utils/response';
+import { success, error, notFound, forbidden, serverError, paginated } from '../utils/response';
 import { createAuditLog } from '../services/auditLog';
 import { LogAction, LogModule } from '@prisma/client';
 import { SendNotificationInput } from '../schemas/notification';
@@ -115,6 +115,10 @@ export async function getNotificationDetail(req: AuthRequest, res: Response) {
 
     if (!notification) {
       return notFound(res, '通知不存在');
+    }
+
+    if (req.user!.role === 'VOLUNTEER' && notification.recipientId !== req.user!.userId) {
+      return forbidden(res, '只能查看自己的通知');
     }
 
     return success(res, notification, '获取成功');

@@ -400,6 +400,167 @@ async function main() {
 
   console.log('审计日志创建完成');
 
+  await Promise.all([
+    prisma.notification.upsert({
+      where: { id: 'notif-001' },
+      update: {},
+      create: {
+        id: 'notif-001',
+        type: 'REGISTRATION_APPROVED',
+        title: '报名审核通过',
+        content: `您报名的「${activity1.title}」已通过审核，请按时参加。`,
+        recipientId: volunteer1.id,
+        recipientPhone: volunteer1.phone!,
+        sentById: activityOperator.id,
+        isSent: true,
+        isRead: true,
+        readAt: addDays(now, -2),
+        sendAttempts: 1,
+        lastAttemptAt: addDays(now, -3),
+        relatedRecordId: reg4.id,
+        relatedRecordType: 'Registration',
+      },
+    }),
+    prisma.notification.upsert({
+      where: { id: 'notif-002' },
+      update: {},
+      create: {
+        id: 'notif-002',
+        type: 'ACTIVITY_REMINDER',
+        title: '活动即将开始提醒',
+        content: `您报名的「${activity1.title}」将于本周六14:00开始，请提前15分钟到场签到。`,
+        recipientId: volunteer1.id,
+        recipientPhone: volunteer1.phone!,
+        sentById: activityOperator.id,
+        isSent: true,
+        isRead: false,
+        sendAttempts: 1,
+        lastAttemptAt: addDays(now, -1),
+        relatedRecordId: reg4.id,
+        relatedRecordType: 'Registration',
+      },
+    }),
+    prisma.notification.upsert({
+      where: { id: 'notif-003' },
+      update: {},
+      create: {
+        id: 'notif-003',
+        type: 'REGISTRATION_REJECTED',
+        title: '报名未通过',
+        content: `您报名的「${activity2.title}」未通过审核，原因：活动名额已满，且该用户已报名过同类型活动。`,
+        recipientId: 'rejected-user-001',
+        recipientPhone: '13900005678',
+        sentById: activityOperator.id,
+        isSent: true,
+        isRead: false,
+        sendAttempts: 1,
+        lastAttemptAt: now,
+        relatedRecordId: reg7.id,
+        relatedRecordType: 'Registration',
+      },
+    }),
+    prisma.notification.upsert({
+      where: { id: 'notif-004' },
+      update: {},
+      create: {
+        id: 'notif-004',
+        type: 'ACTIVITY_REMINDER',
+        title: '逾期提醒（发送失败）',
+        content: `您报名的「${activity3.title}」已结束，但此提醒因系统原因延迟发送。`,
+        recipientId: volunteer3.id,
+        recipientPhone: volunteer3.phone!,
+        sentById: activityOperator.id,
+        isSent: false,
+        isRead: false,
+        sendAttempts: 3,
+        lastAttemptAt: addDays(now, -1),
+        relatedRecordId: reg3.id,
+        relatedRecordType: 'Registration',
+      },
+    }),
+    prisma.notification.upsert({
+      where: { id: 'notif-005' },
+      update: {},
+      create: {
+        id: 'notif-005',
+        type: 'CHECK_IN_SUCCESS',
+        title: '签到成功通知',
+        content: `您已成功签到「${activity3.title}」，感谢参与！`,
+        recipientId: volunteer1.id,
+        recipientPhone: volunteer1.phone!,
+        sentById: volunteerCoordinator.id,
+        isSent: true,
+        isRead: true,
+        readAt: addDays(now, -1),
+        sendAttempts: 1,
+        lastAttemptAt: addDays(now, -1),
+        relatedRecordId: 'checkin-001',
+        relatedRecordType: 'CheckInRecord',
+      },
+    }),
+  ]);
+
+  console.log('通知记录创建完成');
+
+  await Promise.all([
+    prisma.volunteerFeedback.upsert({
+      where: { id: 'fb-001' },
+      update: {},
+      create: {
+        id: 'fb-001',
+        activityId: activity3.id,
+        volunteerId: volunteer1.id,
+        content: '书法培训非常专业，老师讲解细致，场地安排也很合理，希望下次还能参加。',
+        rating: 5,
+        isResolved: true,
+        resolverId: volunteerCoordinator.id,
+        resolvedAt: addDays(now, -1),
+        resolution: '感谢反馈，已记录好评，下次优先通知您。',
+      },
+    }),
+    prisma.volunteerFeedback.upsert({
+      where: { id: 'fb-002' },
+      update: {},
+      create: {
+        id: 'fb-002',
+        activityId: activity3.id,
+        volunteerId: volunteer2.id,
+        content: '活动时间偏短，11:30结束时很多人还没练完，建议延长到12:00或者减少学员人数。',
+        rating: 3,
+        isResolved: true,
+        resolverId: volunteerCoordinator.id,
+        resolvedAt: addDays(now, -1),
+        resolution: '已反馈给活动运营，下期培训将调整为9:00-12:00并控制人数在15人。',
+      },
+    }),
+    prisma.volunteerFeedback.upsert({
+      where: { id: 'fb-003' },
+      update: {},
+      create: {
+        id: 'fb-003',
+        activityId: activity3.id,
+        volunteerId: volunteer3.id,
+        content: '签到系统那天扫码很慢，排了好久的队，建议增加签到入口或者提前发二维码。',
+        rating: 2,
+        isResolved: false,
+      },
+    }),
+    prisma.volunteerFeedback.upsert({
+      where: { id: 'fb-004' },
+      update: {},
+      create: {
+        id: 'fb-004',
+        activityId: activity1.id,
+        volunteerId: volunteer2.id,
+        content: '报名后一直没收到确认通知，直到活动前一天才收到提醒，差点错过。',
+        rating: 2,
+        isResolved: false,
+      },
+    }),
+  ]);
+
+  console.log('志愿者反馈创建完成');
+
   console.log('
 ============================================
   种子数据创建完成！
