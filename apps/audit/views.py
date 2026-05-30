@@ -1,10 +1,12 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils import timezone
 from .models import AuditLog, Notification, OverdueReminder
 from .serializers import AuditLogSerializer, NotificationSerializer, OverdueReminderSerializer
 from apps.common.permissions import IsAdmin, IsManager
+from apps.common.views import filter_by_venue
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -16,15 +18,27 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
-    queryset = Notification.objects.select_related('recipient', 'sender').all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
         if user.role in ['admin', 'manager']:
-            return Notification.objects.all()
-        return Notification.objects.filter(recipient=user)
+            return Notification.objects.select_related('recipient', 'sender').all()
+        return Notification.objects.filter(recipient=user).select_related('recipient', 'sender')
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.user.role not in ['admin', 'manager'] and obj.recipient != request.user:
+            self.permission_denied(request, message='没有权限操作此通知')
+        if request.method in ['PUT', 'PATCH', 'DELETE']:
+            if request.user.role not in ['admin', 'manager']:
+                self.permission_denied(request, message='没有权限修改此通知')
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsManager()]
+        return super().get_permissions()
 
     @action(detail=False, methods=['get'])
     def unread(self, request):
@@ -51,9 +65,26 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
 
 class OverdueReminderViewSet(viewsets.ModelViewSet):
-    queryset = OverdueReminder.objects.all()
     serializer_class = OverdueReminderSerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = OverdueReminder.objects.select_related('venue', 'assignee').all()
+        user = self.request.user
+        qs = filter_by_venue(qs, user, 'venue_id')
+        if user.role not in ['admin', 'manager']:
+            qs = qs.filter(assignee=user)
+        return qs
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.user.role not in ['admin', 'manager'] and obj.assignee != request.user:
+            self.permission_denied(request, message='没有权限操作此提醒')
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsManager()]
+        return super().get_permissions()
 
     @action(detail=True, methods=['post'])
     def handle(self, request, pk=None):

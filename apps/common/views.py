@@ -8,6 +8,8 @@ from apps.inspections.models import InspectionRecord, InspectionStatus
 from apps.repairs.models import RepairTicket, RepairStatus
 from apps.activities.models import ActivityRegistration, RegistrationStatus, VolunteerFeedback
 from apps.borrowing.models import BorrowRecord, BorrowStatus
+from apps.audit.models import Notification, OverdueReminder
+from apps.audit.services import OverdueReminderService
 
 
 def get_user_venue_ids(user):
@@ -72,6 +74,13 @@ def dashboard_stats(request):
         ).exclude(status=RepairStatus.COMPLETED).count(),
     }
 
+    notification_stats = {
+        'unread_count': Notification.objects.filter(recipient=user, is_read=False).count(),
+        'urgent_count': Notification.objects.filter(recipient=user, is_read=False, is_urgent=True).count(),
+    }
+
+    overdue_stats = OverdueReminderService.get_dashboard_overdue_stats(user)
+
     pending_items = []
 
     pending_inspections = inspection_qs.filter(
@@ -106,7 +115,22 @@ def dashboard_stats(request):
             'created_at': item.created_at,
         })
 
-    pending_items.sort(key=lambda x: x['created_at'], reverse=True)
+    overdue_reminders = OverdueReminderService.get_user_overdue_reminders(user)[:10]
+    for item in overdue_reminders:
+        pending_items.append({
+            'type': 'overdue',
+            'id': item.id,
+            'title': f'[{item.get_type_display()}] {item.related_object_repr}',
+            'status': 'overdue',
+            'status_display': f'逾期{item.overdue_days}天',
+            'venue': item.venue.name if item.venue else '',
+            'creator': item.assignee.username if item.assignee else '',
+            'created_at': item.created_at,
+            'overdue_days': item.overdue_days,
+            'is_urgent': item.overdue_days >= 3,
+        })
+
+    pending_items.sort(key=lambda x: (x.get('is_urgent', False), x['created_at']), reverse=True)
 
     my_tasks = []
     if user.role == 'inspector':
@@ -139,11 +163,30 @@ def dashboard_stats(request):
                 'created_at': item.created_at,
             })
 
-    my_tasks.sort(key=lambda x: x['created_at'], reverse=True)
+    if user.role in ['reader', 'volunteer', 'inspector', 'maintenance']:
+        my_overdue = OverdueReminder.objects.filter(
+            assignee=user,
+            is_handled=False
+        ).select_related('venue')[:10]
+        for item in my_overdue:
+            my_tasks.append({
+                'type': 'overdue',
+                'id': item.id,
+                'title': f'[{item.get_type_display()}] {item.related_object_repr}',
+                'status': 'overdue',
+                'status_display': f'逾期{item.overdue_days}天',
+                'created_at': item.created_at,
+                'overdue_days': item.overdue_days,
+                'is_urgent': item.overdue_days >= 3,
+            })
+
+    my_tasks.sort(key=lambda x: (x.get('is_urgent', False), x['created_at']), reverse=True)
 
     return Response({
         'inspection_stats': inspection_stats,
         'repair_stats': repair_stats,
+        'notification_stats': notification_stats,
+        'overdue_stats': overdue_stats,
         'pending_items': pending_items[:15],
         'my_tasks': my_tasks,
     })
