@@ -21,7 +21,6 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   mockBookings,
-  mockStoredValueRecords,
   getCategoryLabel,
 } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
@@ -38,7 +37,7 @@ interface TraceResult {
 export default function TracePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoading, setIsLoading, error, setError, borrowRecords, returnInspections } = useApp();
+  const { isLoading, setIsLoading, error, setError, borrowRecords, returnInspections, storedValueRecords } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [searching, setSearching] = useState(false);
   const [traceResult, setTraceResult] = useState<TraceResult | null>(null);
@@ -78,7 +77,7 @@ export default function TracePage() {
           b.id.toLowerCase().includes(t)
       );
 
-      const matchedStoredValues = mockStoredValueRecords.filter(
+      const matchedStoredValues = storedValueRecords.filter(
         (sv) =>
           sv.memberName.toLowerCase().includes(t) ||
           sv.id.toLowerCase().includes(t)

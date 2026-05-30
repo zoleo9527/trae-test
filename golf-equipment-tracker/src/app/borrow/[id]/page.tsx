@@ -21,7 +21,6 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
   mockBookings,
-  mockStoredValueRecords,
   mockEquipment,
   getCategoryLabel,
 } from "@/lib/mockData";
@@ -31,7 +30,7 @@ import type { BorrowStatus } from "@/types";
 export default function BorrowDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isLoading, setIsLoading, canApprove, error, setError, currentUser, borrowRecords, updateBorrowStatus } = useApp();
+  const { isLoading, setIsLoading, canApprove, error, setError, currentUser, borrowRecords, storedValueRecords, updateBorrowStatus } = useApp();
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -72,7 +71,7 @@ export default function BorrowDetailPage() {
 
   const relatedBooking = mockBookings.find((b) => b.id === record.bookingId);
   const relatedEquipment = mockEquipment.find((e) => e.id === record.equipmentId);
-  const relatedStoredValue = mockStoredValueRecords.find(
+  const relatedStoredValue = storedValueRecords.filter(
     (sv) => sv.relatedId === record.id
   );
 
@@ -208,38 +207,42 @@ export default function BorrowDetailPage() {
             </div>
           )}
 
-          {relatedStoredValue && (
+          {relatedStoredValue.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-4">
                 <Wallet className="w-5 h-5 text-blue-600 mr-2" />
                 <h3 className="text-lg font-semibold text-gray-900">储值扣减记录</h3>
               </div>
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">类型</p>
-                    <p className="text-gray-900">
-                      {relatedStoredValue.type === "consume" ? "消费" : relatedStoredValue.type}
-                    </p>
+              <div className="space-y-3">
+                {relatedStoredValue.map((sv) => (
+                  <div key={sv.id} className="bg-blue-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">类型</p>
+                        <p className="text-gray-900">
+                          {sv.type === "consume" ? "消费" : sv.type}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">金额</p>
+                        <p className="text-red-600 font-medium">-¥{sv.amount}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">扣减前余额</p>
+                        <p className="text-gray-900">¥{sv.balanceBefore}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">扣减后余额</p>
+                        <p className="text-gray-900">¥{sv.balanceAfter}</p>
+                      </div>
+                    </div>
+                    {sv.relatedNote && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        备注: {sv.relatedNote}
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">金额</p>
-                    <p className="text-red-600 font-medium">-¥{relatedStoredValue.amount}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">扣减前余额</p>
-                    <p className="text-gray-900">¥{relatedStoredValue.balanceBefore}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">扣减后余额</p>
-                    <p className="text-gray-900">¥{relatedStoredValue.balanceAfter}</p>
-                  </div>
-                </div>
-                {relatedStoredValue.relatedNote && (
-                  <p className="text-sm text-gray-500 mt-2">
-                    备注: {relatedStoredValue.relatedNote}
-                  </p>
-                )}
+                ))}
               </div>
             </div>
           )}

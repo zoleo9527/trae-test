@@ -18,12 +18,12 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { getCategoryLabel } from "@/lib/mockData";
 import { useApp } from "@/lib/context/AppContext";
-import type { ReviewResult, ReturnInspection } from "@/types";
+import type { ReviewResult, ReturnInspection, StoredValueRecord } from "@/types";
 
 export default function ReturnInspectionPage() {
   const params = useParams();
   const router = useRouter();
-  const { isLoading, setIsLoading, currentUser, canProcessReturns, error, setError, borrowRecords, returnInspections, updateBorrowStatus, addReturnInspection } = useApp();
+  const { isLoading, setIsLoading, currentUser, canProcessReturns, error, setError, borrowRecords, returnInspections, storedValueRecords, updateBorrowStatus, addReturnInspection, addStoredValueRecord } = useApp();
   const [step, setStep] = useState<"check" | "result">("check");
   const [overallCondition, setOverallCondition] = useState<
     "excellent" | "good" | "fair" | "poor"
@@ -131,6 +131,35 @@ export default function ReturnInspectionPage() {
       status: hasIssues ? "needs_review" : "returned",
       actualReturnDate: now,
     });
+
+    if (hasCompensation) {
+      const amount = parseFloat(compensationAmount);
+      const memberRecords = storedValueRecords.filter(
+        (sv) => sv.memberId === record.borrowerId
+      );
+      const latestBalance =
+        memberRecords.length > 0
+          ? Math.max(...memberRecords.map((sv) => sv.balanceAfter))
+          : 0;
+
+      const svRecord: StoredValueRecord = {
+        id: `sv_${Date.now()}`,
+        memberId: record.borrowerId,
+        memberName: record.borrowerName,
+        type: "consume",
+        amount,
+        balanceBefore: latestBalance,
+        balanceAfter: Math.max(0, latestBalance - amount),
+        relatedType: "equipment",
+        relatedId: record.id,
+        relatedNote: `${record.equipmentName}赔偿扣减`,
+        operatorId: currentUser.id,
+        operatorName: currentUser.name,
+        notes: compensationReason || undefined,
+        createdAt: now,
+      };
+      addStoredValueRecord(svRecord);
+    }
 
     setStep("result");
   };

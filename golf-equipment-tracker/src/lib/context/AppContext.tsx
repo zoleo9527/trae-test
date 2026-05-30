@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import type { User, UserRole, BorrowRecord, ReturnInspection } from "@/types";
-import { mockUsers, mockBorrowRecords, mockReturnInspections } from "@/lib/mockData";
+import type { User, UserRole, BorrowRecord, ReturnInspection, StoredValueRecord } from "@/types";
+import { mockUsers, mockBorrowRecords, mockReturnInspections, mockStoredValueRecords } from "@/lib/mockData";
 
 interface AppContextType {
   currentUser: User;
@@ -18,8 +18,10 @@ interface AppContextType {
   canProcessReturns: boolean;
   borrowRecords: BorrowRecord[];
   returnInspections: ReturnInspection[];
+  storedValueRecords: StoredValueRecord[];
   updateBorrowStatus: (id: string, updates: Partial<BorrowRecord>) => void;
   addReturnInspection: (inspection: ReturnInspection) => void;
+  addStoredValueRecord: (record: StoredValueRecord) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -30,6 +32,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [error, setError] = useState<string | null>(null);
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>(mockBorrowRecords);
   const [returnInspections, setReturnInspections] = useState<ReturnInspection[]>(mockReturnInspections);
+  const [storedValueRecords, setStoredValueRecords] = useState<StoredValueRecord[]>(mockStoredValueRecords);
 
   const switchRole = (role: UserRole) => {
     const user = mockUsers.find((u) => u.role === role);
@@ -53,6 +56,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setReturnInspections((prev) => [...prev, inspection]);
   }, []);
 
+  const addStoredValueRecord = useCallback((record: StoredValueRecord) => {
+    setStoredValueRecords((prev) => [...prev, record]);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -69,8 +76,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         canProcessReturns,
         borrowRecords,
         returnInspections,
+        storedValueRecords,
         updateBorrowStatus,
         addReturnInspection,
+        addStoredValueRecord,
       }}
     >
       {children}
