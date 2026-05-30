@@ -31,12 +31,24 @@ export const useFeedbackStore = defineStore('feedback', () => {
     return { total, pending, processing, resolved, overdue }
   })
 
+  const typeDistribution = computed(() => {
+    const map = {}
+    feedbacks.value.forEach(f => {
+      map[f.type] = (map[f.type] || 0) + 1
+    })
+    return Object.entries(map).map(([name, value]) => ({ name, value }))
+  })
+
   const getFeedbacksByType = (type) => {
     return feedbacks.value.filter(f => f.type === type)
   }
 
   const getFeedbacksBySchedule = (scheduleId) => {
     return feedbacks.value.filter(f => f.scheduleId === scheduleId)
+  }
+
+  const getFeedbacksByHandler = (role) => {
+    return feedbacks.value.filter(f => f.currentHandler === role)
   }
 
   function addFeedback(feedback) {
@@ -121,18 +133,48 @@ export const useFeedbackStore = defineStore('feedback', () => {
     return false
   }
 
+  function getRecentEvents(limit = 10) {
+    const events = []
+    feedbacks.value.forEach(f => {
+      f.history.forEach(h => {
+        events.push({
+          user: h.operator,
+          action: actionLabel(h.action),
+          target: f.title,
+          type: actionTimelineType(h.action),
+          time: h.time,
+          sortKey: h.time
+        })
+      })
+    })
+    return events.sort((a, b) => b.sortKey.localeCompare(a.sortKey)).slice(0, limit)
+  }
+
+  function actionLabel(action) {
+    const map = { '创建': '提交了反馈', '转派': '转派了反馈', '解决': '解决了反馈', '备注': '备注了反馈' }
+    return map[action] || action
+  }
+
+  function actionTimelineType(action) {
+    const map = { '创建': 'primary', '转派': 'warning', '解决': 'success', '备注': 'info' }
+    return map[action] || ''
+  }
+
   return {
     feedbacks,
     pendingFeedbacks,
     processingFeedbacks,
     resolvedFeedbacks,
     statistics,
+    typeDistribution,
     getFeedbacksByType,
     getFeedbacksBySchedule,
+    getFeedbacksByHandler,
     addFeedback,
     updateFeedback,
     transferFeedback,
     resolveFeedback,
-    addRemark
+    addRemark,
+    getRecentEvents
   }
 })

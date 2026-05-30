@@ -25,7 +25,7 @@ export const mockSchedules = [
     checkOutTime: null,
     createdBy: '李协调',
     createdAt: today.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['提前5分钟到岗，状态良好']
+    remarks: ['[前3天 09:30] 李协调: 提前5分钟到岗，状态良好']
   },
   {
     id: 2,
@@ -41,7 +41,7 @@ export const mockSchedules = [
     checkOutTime: null,
     createdBy: '李协调',
     createdAt: today.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['周末故事会活动协助']
+    remarks: ['[前2天 14:00] 李协调: 周末故事会活动协助']
   },
   {
     id: 3,
@@ -58,7 +58,15 @@ export const mockSchedules = [
     createdBy: '李协调',
     createdAt: today.subtract(4, 'day').format('YYYY-MM-DD HH:mm:ss'),
     missedRemark: '家中有事临时请假，未及时通知',
-    remarks: ['已联系志愿者，下次排班注意提醒']
+    missedAt: today.subtract(1, 'day').format('YYYY-MM-DD') + ' 13:00:00',
+    missedBy: '李协调',
+    needMakeup: true,
+    makeupStatus: 'pending',
+    makeupAssignedTo: 'coordinator',
+    remarks: [
+      '[前3天 09:00] 李协调: 安排巡馆检查',
+      '[前1天 13:00] 李协调 标记缺勤（需补班）: 家中有事临时请假，未及时通知'
+    ]
   },
   {
     id: 4,
@@ -74,7 +82,7 @@ export const mockSchedules = [
     checkOutTime: today.subtract(1, 'day').format('YYYY-MM-DD') + ' 17:05:00',
     createdBy: '李协调',
     createdAt: today.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['发现二楼消防通道有杂物，已记录反馈']
+    remarks: ['[前5天 10:00] 李协调: 发现二楼消防通道有杂物，已记录反馈']
   },
   {
     id: 5,
@@ -90,7 +98,7 @@ export const mockSchedules = [
     checkOutTime: null,
     createdBy: '李协调',
     createdAt: today.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['儿童节特别活动']
+    remarks: ['[前1天 09:00] 李协调: 儿童节特别活动']
   },
   {
     id: 6,
@@ -122,7 +130,7 @@ export const mockSchedules = [
     checkOutTime: today.subtract(2, 'day').format('YYYY-MM-DD') + ' 12:10:00',
     createdBy: '李协调',
     createdAt: today.subtract(6, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['服务态度好，读者表扬']
+    remarks: ['[前6天 09:00] 李协调: 服务态度好，读者表扬']
   },
   {
     id: 8,
@@ -138,7 +146,7 @@ export const mockSchedules = [
     checkOutTime: today.subtract(5, 'day').format('YYYY-MM-DD') + ' 17:00:00',
     createdBy: '李协调',
     createdAt: today.subtract(8, 'day').format('YYYY-MM-DD HH:mm:ss'),
-    remarks: ['最后一次值班，后续暂停']
+    remarks: ['[前8天 14:00] 李协调: 最后一次值班，后续暂停']
   }
 ]
 

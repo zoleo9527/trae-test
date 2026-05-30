@@ -4,7 +4,7 @@
       <el-col :span="4">
         <el-card class="stat-card" @click="activeTab = 'all'" :class="{ active: activeTab === 'all' }">
           <div class="stat-content">
-            <div class="stat-value">{{ feedbackStore.statistics.total }}</div>
+            <div class="stat-value">{{ visibleFeedbacksTotal }}</div>
             <div class="stat-label">全部反馈</div>
           </div>
         </el-card>
@@ -12,16 +12,16 @@
       <el-col :span="4">
         <el-card class="stat-card danger" @click="activeTab = 'pending'" :class="{ active: activeTab === 'pending' }">
           <div class="stat-content">
-            <div class="stat-value">{{ feedbackStore.statistics.pending }}</div>
+            <div class="stat-value">{{ visiblePending }}</div>
             <div class="stat-label">待处理</div>
-            <el-badge :value="feedbackStore.statistics.overdue" class="overdue-badge" :hidden="feedbackStore.statistics.overdue === 0">逾期</el-badge>
+            <el-badge :value="visibleOverdue" class="overdue-badge" :hidden="visibleOverdue === 0">逾期</el-badge>
           </div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card warning" @click="activeTab = 'processing'" :class="{ active: activeTab === 'processing' }">
           <div class="stat-content">
-            <div class="stat-value">{{ feedbackStore.statistics.processing }}</div>
+            <div class="stat-value">{{ visibleProcessing }}</div>
             <div class="stat-label">处理中</div>
           </div>
         </el-card>
@@ -29,7 +29,7 @@
       <el-col :span="4">
         <el-card class="stat-card success" @click="activeTab = 'resolved'" :class="{ active: activeTab === 'resolved' }">
           <div class="stat-content">
-            <div class="stat-value">{{ feedbackStore.statistics.resolved }}</div>
+            <div class="stat-value">{{ visibleResolved }}</div>
             <div class="stat-label">已解决</div>
           </div>
         </el-card>
@@ -69,7 +69,7 @@
               <el-option label="读者反馈" value="读者反馈" />
               <el-option label="其他" value="其他" />
             </el-select>
-            <el-button type="primary" size="small" @click="handleCreate">
+            <el-button type="primary" size="small" @click="handleCreate" v-if="canCreateFeedback">
               <el-icon><Plus /></el-icon>
               新建反馈
             </el-button>
@@ -128,7 +128,7 @@
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleViewDetail(row)">详情</el-button>
             <el-button
-              v-if="row.status !== 'resolved' && row.currentHandler === currentRole"
+              v-if="canResolve(row)"
               type="success"
               link
               size="small"
@@ -137,7 +137,7 @@
               解决
             </el-button>
             <el-button
-              v-if="row.status !== 'resolved'"
+              v-if="canTransfer(row)"
               type="warning"
               link
               size="small"
@@ -145,7 +145,7 @@
             >
               转派
             </el-button>
-            <el-button type="info" link size="small" @click="handleAddRemark(row)">备注</el-button>
+            <el-button type="info" link size="small" @click="handleAddRemark(row)" v-if="canRemark(row)">备注</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -208,13 +208,13 @@
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
         <el-button
-          v-if="currentFeedback?.status !== 'resolved' && currentFeedback?.currentHandler === currentRole"
+          v-if="canResolve(currentFeedback)"
           type="success"
           @click="handleResolve(currentFeedback)"
         >
           标记解决
         </el-button>
-        <el-button v-if="currentFeedback?.status !== 'resolved'" type="warning" @click="handleTransfer(currentFeedback)">
+        <el-button v-if="canTransfer(currentFeedback)" type="warning" @click="handleTransfer(currentFeedback)">
           转派处理
         </el-button>
       </template>
@@ -370,6 +370,28 @@ const createForm = ref({
 
 const currentRole = computed(() => userStore.currentRole)
 
+const canCreateFeedback = computed(() => {
+  return currentRole.value === 'director' || currentRole.value === 'coordinator' || currentRole.value === 'operator'
+})
+
+const visibleFeedbacks = computed(() => {
+  if (currentRole.value === 'director') return feedbackStore.feedbacks
+  return feedbackStore.feedbacks.filter(f => f.currentHandler === currentRole.value || f.creatorName === userStore.currentUser?.name)
+})
+
+const visibleFeedbacksTotal = computed(() => visibleFeedbacks.value.length)
+
+const visiblePending = computed(() => visibleFeedbacks.value.filter(f => f.status === 'pending').length)
+
+const visibleProcessing = computed(() => visibleFeedbacks.value.filter(f => f.status === 'processing').length)
+
+const visibleResolved = computed(() => visibleFeedbacks.value.filter(f => f.status === 'resolved').length)
+
+const visibleOverdue = computed(() => visibleFeedbacks.value.filter(f => {
+  if (f.status === 'resolved') return false
+  return dayjs().diff(dayjs(f.createdAt), 'hour') > 24
+}).length)
+
 const myPendingCount = computed(() => {
   return feedbackStore.feedbacks.filter(f => 
     f.status !== 'resolved' && f.currentHandler === currentRole.value
@@ -378,7 +400,7 @@ const myPendingCount = computed(() => {
 
 const todayNewCount = computed(() => {
   const today = dayjs().format('YYYY-MM-DD')
-  return feedbackStore.feedbacks.filter(f => f.createdAt.startsWith(today)).length
+  return visibleFeedbacks.value.filter(f => f.createdAt.startsWith(today)).length
 })
 
 const recentSchedules = computed(() => {
@@ -388,7 +410,7 @@ const recentSchedules = computed(() => {
 })
 
 const filteredFeedbacks = computed(() => {
-  let result = [...feedbackStore.feedbacks]
+  let result = [...visibleFeedbacks.value]
   
   if (activeTab.value !== 'all') {
     result = result.filter(f => f.status === activeTab.value)
@@ -400,6 +422,25 @@ const filteredFeedbacks = computed(() => {
   
   return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 })
+
+function canResolve(row) {
+  if (!row || row.status === 'resolved') return false
+  if (currentRole.value === 'director') return true
+  return row.currentHandler === currentRole.value
+}
+
+function canTransfer(row) {
+  if (!row || row.status === 'resolved') return false
+  if (currentRole.value === 'director') return true
+  if (currentRole.value === 'coordinator') return true
+  return row.currentHandler === currentRole.value
+}
+
+function canRemark(row) {
+  if (!row) return false
+  if (currentRole.value === 'director') return true
+  return row.currentHandler === currentRole.value || row.creatorName === userStore.currentUser?.name
+}
 
 function getHandlerTagType(handler) {
   const types = {

@@ -8,8 +8,8 @@
               <el-icon :size="28"><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ scheduleStore.statistics.pending }}</div>
-              <div class="stat-label">待签到</div>
+              <div class="stat-value">{{ visiblePendingCount }}</div>
+              <div class="stat-label">{{ rolePendingLabel }}</div>
             </div>
           </div>
         </el-card>
@@ -41,7 +41,7 @@
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card class="stat-card">
+        <el-card class="stat-card" v-if="canViewOverdue">
           <div class="stat-content">
             <div class="stat-icon overdue">
               <el-icon :size="28"><Warning /></el-icon>
@@ -49,6 +49,17 @@
             <div class="stat-info">
               <div class="stat-value">{{ overdueSchedules.length }}</div>
               <div class="stat-label">逾期未处理</div>
+            </div>
+          </div>
+        </el-card>
+        <el-card class="stat-card" v-else>
+          <div class="stat-content">
+            <div class="stat-icon completed">
+              <el-icon :size="28"><CircleCheck /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ scheduleStore.statistics.completed }}</div>
+              <div class="stat-label">已完成</div>
             </div>
           </div>
         </el-card>
@@ -84,7 +95,7 @@
             {{ row.checkInTime || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right" v-if="canCheckIn">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'pending'"
@@ -105,7 +116,7 @@
               签退
             </el-button>
             <el-button
-              v-if="row.status === 'pending'"
+              v-if="row.status === 'pending' && canMarkMissed"
               type="danger"
               size="small"
               @click="handleMarkMissed(row)"
@@ -118,7 +129,7 @@
       </el-table>
     </el-card>
 
-    <el-card class="overdue-card" v-if="overdueSchedules.length > 0">
+    <el-card class="overdue-card" v-if="canViewOverdue && overdueSchedules.length > 0">
       <template #header>
         <div class="card-header warning">
           <el-icon><WarningFilled /></el-icon>
@@ -149,8 +160,8 @@
         </el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleCheckIn(row)">补签到</el-button>
-            <el-button type="danger" size="small" @click="handleMarkMissed(row)">标记缺勤</el-button>
+            <el-button type="primary" size="small" @click="handleCheckIn(row)" v-if="canCheckIn">补签到</el-button>
+            <el-button type="danger" size="small" @click="handleMarkMissed(row)" v-if="canMarkMissed">标记缺勤</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -224,6 +235,12 @@
             <el-radio :value="false">否</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="补班负责人" v-if="missedForm.needMakeup">
+          <el-select v-model="missedForm.makeupAssignedTo" placeholder="选择补班负责人" style="width: 100%">
+            <el-option label="志愿者协调" value="coordinator" />
+            <el-option label="馆长" value="director" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="missedDialogVisible = false">取消</el-button>
@@ -246,10 +263,20 @@
         <el-descriptions-item v-if="currentSchedule.missedRemark" label="缺勤原因" :span="2">
           <el-tag type="danger">{{ currentSchedule.missedRemark }}</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item v-if="currentSchedule.needMakeup" label="补班状态" :span="2">
+          <el-tag :type="currentSchedule.makeupStatus === 'pending' ? 'warning' : 'success'" size="small">
+            {{ currentSchedule.makeupStatus === 'pending' ? '待安排' : '已安排' }}
+          </el-tag>
+          <span v-if="currentSchedule.makeupAssignedTo" style="margin-left: 8px; color: #909399">
+            负责人：{{ { director: '馆长', coordinator: '志愿者协调', operator: '活动运营' }[currentSchedule.makeupAssignedTo] || currentSchedule.makeupAssignedTo }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="currentSchedule.missedBy" label="缺勤标记人" :span="2">
+          {{ currentSchedule.missedBy }}
+        </el-descriptions-item>
         <el-descriptions-item label="历史备注" :span="2">
           <div v-if="currentSchedule.remarks && currentSchedule.remarks.length > 0">
             <div v-for="(remark, index) in currentSchedule.remarks" :key="index" class="remark-item">
-              <el-icon size="12" color="#409EFF"><ChatDotRound /></el-icon>
               <span>{{ remark }}</span>
             </div>
           </div>
@@ -265,9 +292,11 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { useScheduleStore } from '@/stores/schedule'
+import { useUserStore } from '@/stores/user'
 import { scheduleStatusMap } from '@/mock/data'
 
 const scheduleStore = useScheduleStore()
+const userStore = useUserStore()
 
 const historyDate = ref(dayjs().subtract(1, 'day').format('YYYY-MM-DD'))
 const missedDialogVisible = ref(false)
@@ -276,10 +305,29 @@ const currentSchedule = ref(null)
 const missedForm = ref({
   volunteerName: '',
   remark: '',
-  needMakeup: false
+  needMakeup: false,
+  makeupAssignedTo: 'coordinator'
+})
+
+const role = computed(() => userStore.currentRole)
+
+const canViewOverdue = computed(() => role.value === 'director' || role.value === 'coordinator')
+const canCheckIn = computed(() => role.value === 'director' || role.value === 'coordinator' || role.value === 'operator')
+const canMarkMissed = computed(() => role.value === 'director' || role.value === 'coordinator')
+
+const visiblePendingCount = computed(() => {
+  if (role.value === 'operator') return scheduleStore.todaySchedules.filter(s => s.status === 'pending').length
+  return scheduleStore.statistics.pending
+})
+
+const rolePendingLabel = computed(() => {
+  return role.value === 'operator' ? '今日待签到' : '待签到'
 })
 
 const todaySchedules = computed(() => {
+  if (role.value === 'operator') {
+    return scheduleStore.todaySchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  }
   return scheduleStore.todaySchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
 })
 
@@ -316,7 +364,8 @@ function handleMarkMissed(row) {
   missedForm.value = {
     volunteerName: row.volunteerName,
     remark: '',
-    needMakeup: false
+    needMakeup: false,
+    makeupAssignedTo: 'coordinator'
   }
   missedDialogVisible.value = true
 }
@@ -326,7 +375,13 @@ function confirmMarkMissed() {
     ElMessage.warning('请输入缺勤原因')
     return
   }
-  scheduleStore.markAsMissed(currentSchedule.value.id, missedForm.value.remark)
+  const operatorName = userStore.currentUser?.name || '系统'
+  scheduleStore.markAsMissed(
+    currentSchedule.value.id,
+    missedForm.value.remark,
+    missedForm.value.needMakeup,
+    operatorName
+  )
   ElMessage.success('已标记为缺勤')
   missedDialogVisible.value = false
 }
@@ -380,6 +435,10 @@ function handleViewDetail(row) {
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
 }
 
+.stat-icon.completed {
+  background: linear-gradient(135deg, #67C23A 0%, #409EFF 100%);
+}
+
 .stat-info {
   flex: 1;
 }
@@ -409,11 +468,12 @@ function handleViewDetail(row) {
 
 .remark-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 4px 0;
   font-size: 13px;
   color: #606266;
+  line-height: 1.5;
 }
 
 .text-muted {

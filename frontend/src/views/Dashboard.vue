@@ -15,7 +15,7 @@
             </div>
           </div>
           <div class="stat-footer">
-            <span class="stat-trend up"><el-icon><Top /></el-icon>本周+3</span>
+            <span class="stat-trend up"><el-icon><Top /></el-icon>本周{{ weekScheduleCount }}次</span>
             <span class="stat-more">查看详情 →</span>
           </div>
         </el-card>
@@ -25,8 +25,8 @@
           <div class="stat-content">
             <div class="stat-icon"><el-icon :size="28"><Clock /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-value">{{ scheduleStore.statistics.pending }}</div>
-              <div class="stat-label">待签到</div>
+              <div class="stat-value">{{ roleFilteredPending }}</div>
+              <div class="stat-label">{{ rolePendingLabel }}</div>
             </div>
           </div>
           <div class="stat-footer">
@@ -42,13 +42,13 @@
           <div class="stat-content">
             <div class="stat-icon"><el-icon :size="28"><ChatDotRound /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-value">{{ feedbackStore.statistics.pending }}</div>
-              <div class="stat-label">待处理反馈</div>
+              <div class="stat-value">{{ roleFilteredFeedbackPending }}</div>
+              <div class="stat-label">{{ roleFeedbackLabel }}</div>
             </div>
           </div>
           <div class="stat-footer">
-            <span class="stat-trend warning" v-if="feedbackStore.statistics.overdue > 0">
-              <el-icon><Warning /></el-icon>{{ feedbackStore.statistics.overdue }}个超时
+            <span class="stat-trend warning" v-if="roleFilteredOverdue > 0">
+              <el-icon><Warning /></el-icon>{{ roleFilteredOverdue }}个超时
             </span>
             <span class="stat-more">去处理 →</span>
           </div>
@@ -59,12 +59,12 @@
           <div class="stat-content">
             <div class="stat-icon"><el-icon :size="28"><User /></el-icon></div>
             <div class="stat-info">
-              <div class="stat-value">6</div>
+              <div class="stat-value">{{ activeVolunteerCount }}</div>
               <div class="stat-label">活跃志愿者</div>
             </div>
           </div>
           <div class="stat-footer">
-            <span class="stat-trend up"><el-icon><Top /></el-icon>累计586小时</span>
+            <span class="stat-trend up"><el-icon><Top /></el-icon>累计{{ totalServiceHours }}小时</span>
             <span class="stat-more">查看更多 →</span>
           </div>
         </el-card>
@@ -118,11 +118,11 @@
           <template #header>
             <div class="card-header">
               <span>最近动态</span>
-              <el-link type="primary">查看全部</el-link>
+              <el-tag type="info" size="small">共{{ mergedActivities.length }}条</el-tag>
             </div>
           </template>
           <el-timeline>
-            <el-timeline-item v-for="(activity, index) in recentActivities" :key="index" :type="activity.type" :timestamp="activity.time">
+            <el-timeline-item v-for="(activity, index) in mergedActivities" :key="index" :type="activity.type" :timestamp="activity.time">
               <div class="activity-item">
                 <span class="activity-user">{{ activity.user }}</span>
                 <span class="activity-action">{{ activity.action }}</span>
@@ -151,9 +151,11 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
+import dayjs from 'dayjs'
 import { useScheduleStore } from '@/stores/schedule'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useUserStore } from '@/stores/user'
+import { mockVolunteers } from '@/mock/data'
 
 const router = useRouter()
 const scheduleStore = useScheduleStore()
@@ -189,26 +191,84 @@ const roleWelcomeDesc = computed(() => {
   return descs[userStore.currentRole] || ''
 })
 
+const activeVolunteerCount = computed(() => {
+  return mockVolunteers.filter(v => v.status === 'active').length
+})
+
+const totalServiceHours = computed(() => {
+  return mockVolunteers.reduce((sum, v) => sum + v.totalHours, 0)
+})
+
+const weekScheduleCount = computed(() => {
+  const startOfWeek = dayjs().startOf('week')
+  const endOfWeek = dayjs().endOf('week')
+  return scheduleStore.schedules.filter(s => {
+    const d = dayjs(s.date)
+    return d.isAfter(startOfWeek.subtract(1, 'day')) && d.isBefore(endOfWeek.add(1, 'day'))
+  }).length
+})
+
+const roleFilteredPending = computed(() => {
+  const role = userStore.currentRole
+  if (role === 'director') return scheduleStore.statistics.pending
+  if (role === 'coordinator') return scheduleStore.statistics.pending
+  return scheduleStore.todaySchedules.filter(s => s.status === 'pending').length
+})
+
+const rolePendingLabel = computed(() => {
+  return userStore.currentRole === 'operator' ? '今日待签到' : '待签到'
+})
+
+const roleFilteredFeedbackPending = computed(() => {
+  const role = userStore.currentRole
+  if (role === 'director') return feedbackStore.statistics.pending + feedbackStore.statistics.processing
+  return feedbackStore.feedbacks.filter(f => f.status !== 'resolved' && f.currentHandler === role).length
+})
+
+const roleFeedbackLabel = computed(() => {
+  return userStore.currentRole === 'director' ? '未关闭反馈' : '待我处理'
+})
+
+const roleFilteredOverdue = computed(() => {
+  const role = userStore.currentRole
+  if (role === 'director') return feedbackStore.statistics.overdue
+  return feedbackStore.feedbacks.filter(f => {
+    if (f.status === 'resolved') return false
+    if (f.currentHandler !== role) return false
+    return dayjs().diff(dayjs(f.createdAt), 'hour') > 24
+  }).length
+})
+
 const todoList = computed(() => {
   const todos = []
-  if (scheduleStore.overdueSchedules.length > 0) {
-    todos.push({
-      type: 'danger', icon: 'Warning', priority: 'danger', time: '紧急',
-      title: `${scheduleStore.overdueSchedules.length}个排班逾期未处理`,
-      desc: '请及时标记缺勤或补签到',
-      action: 'checkin'
-    })
+  const role = userStore.currentRole
+
+  if (role === 'director' || role === 'coordinator') {
+    if (scheduleStore.overdueSchedules.length > 0) {
+      todos.push({
+        type: 'danger', icon: 'Warning', priority: 'danger', time: '紧急',
+        title: `${scheduleStore.overdueSchedules.length}个排班逾期未处理`,
+        desc: '请及时标记缺勤或补签到',
+        action: 'checkin'
+      })
+    }
   }
-  if (feedbackStore.statistics.overdue > 0) {
+
+  const overdueFeedbacks = role === 'director'
+    ? feedbackStore.feedbacks.filter(f => f.status !== 'resolved' && dayjs().diff(dayjs(f.createdAt), 'hour') > 24)
+    : feedbackStore.feedbacks.filter(f => f.status !== 'resolved' && f.currentHandler === role && dayjs().diff(dayjs(f.createdAt), 'hour') > 24)
+
+  if (overdueFeedbacks.length > 0) {
     todos.push({
       type: 'warning', icon: 'ChatDotRound', priority: 'warning', time: '超时',
-      title: `${feedbackStore.statistics.overdue}条反馈超时未处理`,
+      title: `${overdueFeedbacks.length}条反馈超时未处理`,
       desc: '请优先处理超时反馈',
       action: 'feedback'
     })
   }
-  const myPending = feedbackStore.feedbacks.filter(f => 
-    f.status !== 'resolved' && f.currentHandler === userStore.currentRole
+
+  const myPending = feedbackStore.feedbacks.filter(f =>
+    f.status !== 'resolved' && f.currentHandler === role
   )
   if (myPending.length > 0) {
     todos.push({
@@ -218,15 +278,29 @@ const todoList = computed(() => {
       action: 'feedback'
     })
   }
+
+  if (role === 'coordinator') {
+    const makeupPending = scheduleStore.schedules.filter(s => s.makeupStatus === 'pending')
+    if (makeupPending.length > 0) {
+      todos.push({
+        type: 'warning', icon: 'RefreshRight', priority: 'warning', time: `${makeupPending.length}人`,
+        title: '待安排补班',
+        desc: `有${makeupPending.length}位志愿者需要安排补班`,
+        action: 'schedule'
+      })
+    }
+  }
+
   return todos
 })
 
-const recentActivities = ref([
-  { user: '王芳', action: '提交了反馈', target: '自助借还机故障', type: 'primary', time: '10:30' },
-  { user: '李协调', action: '转派反馈给', target: '活动运营', type: 'warning', time: '11:00' },
-  { user: '赵强', action: '完成了', target: '巡馆检查排班', type: 'success', time: '17:05' },
-  { user: '张明', action: '签到成功', target: '借阅引导班次', type: 'primary', time: '08:55' }
-])
+const mergedActivities = computed(() => {
+  const scheduleEvents = scheduleStore.getRecentEvents(5)
+  const feedbackEvents = feedbackStore.getRecentEvents(5)
+  return [...scheduleEvents, ...feedbackEvents]
+    .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+    .slice(0, 8)
+})
 
 function navigateTo(page) {
   router.push(`/${page}`)
@@ -236,28 +310,32 @@ function handleTodoClick(item) {
   if (item.action) navigateTo(item.action)
 }
 
-function initTrendChart() {
-  if (!chartTrend.value) return
-  trendChart = echarts.init(chartTrend.value)
-  const option = {
+function buildTrendOption() {
+  const trend = chartPeriod.value === 'week' ? scheduleStore.weeklyTrend : scheduleStore.monthlyTrend
+  return {
     tooltip: { trigger: 'axis' },
     legend: { data: ['排班长次', '签到人次', '完成班次'] },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
+    xAxis: { type: 'category', boundaryGap: false, data: trend.labels },
     yAxis: { type: 'value' },
     series: [
-      { name: '排班长次', type: 'line', smooth: true, data: [8, 12, 10, 15, 14, 18, 16], areaStyle: { opacity: 0.3 } },
-      { name: '签到人次', type: 'line', smooth: true, data: [7, 11, 10, 14, 13, 17, 15], areaStyle: { opacity: 0.3 } },
-      { name: '完成班次', type: 'line', smooth: true, data: [7, 10, 9, 13, 12, 16, 14], areaStyle: { opacity: 0.3 } }
+      { name: '排班长次', type: 'line', smooth: true, data: trend.days.map(d => d.total), areaStyle: { opacity: 0.3 } },
+      { name: '签到人次', type: 'line', smooth: true, data: trend.days.map(d => d.checkedIn), areaStyle: { opacity: 0.3 } },
+      { name: '完成班次', type: 'line', smooth: true, data: trend.days.map(d => d.completed), areaStyle: { opacity: 0.3 } }
     ]
   }
-  trendChart.setOption(option)
 }
 
-function initPieChart() {
-  if (!chartPie.value) return
-  pieChart = echarts.init(chartPie.value)
-  const option = {
+function initTrendChart() {
+  if (!chartTrend.value) return
+  trendChart = echarts.init(chartTrend.value)
+  trendChart.setOption(buildTrendOption())
+}
+
+function buildPieOption() {
+  const typeColors = { '设备问题': '#F56C6C', '环境问题': '#E6A23C', '排班问题': '#409EFF', '读者反馈': '#67C23A', '其他': '#909399' }
+  const dist = feedbackStore.typeDistribution
+  return {
     tooltip: { trigger: 'item' },
     legend: { orient: 'vertical', left: 'left' },
     series: [{
@@ -268,16 +346,15 @@ function initPieChart() {
       label: { show: false },
       emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
       labelLine: { show: false },
-      data: [
-        { value: 2, name: '设备问题', itemStyle: { color: '#F56C6C' } },
-        { value: 1, name: '环境问题', itemStyle: { color: '#E6A23C' } },
-        { value: 1, name: '排班问题', itemStyle: { color: '#409EFF' } },
-        { value: 1, name: '读者反馈', itemStyle: { color: '#67C23A' } },
-        { value: 1, name: '其他', itemStyle: { color: '#909399' } }
-      ]
+      data: dist.map(d => ({ value: d.value, name: d.name, itemStyle: { color: typeColors[d.name] || '#909399' } }))
     }]
   }
-  pieChart.setOption(option)
+}
+
+function initPieChart() {
+  if (!chartPie.value) return
+  pieChart = echarts.init(chartPie.value)
+  pieChart.setOption(buildPieOption())
 }
 
 onMounted(() => {
@@ -288,8 +365,18 @@ onMounted(() => {
 })
 
 watch(chartPeriod, () => {
-  if (trendChart) trendChart.resize()
+  if (trendChart) {
+    trendChart.setOption(buildTrendOption())
+  }
 })
+
+watch(() => scheduleStore.schedules, () => {
+  if (trendChart) trendChart.setOption(buildTrendOption())
+}, { deep: true })
+
+watch(() => feedbackStore.feedbacks, () => {
+  if (pieChart) pieChart.setOption(buildPieOption())
+}, { deep: true })
 </script>
 
 <style scoped>
