@@ -63,7 +63,7 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD-010', orderNo: 'XJ20250528-003', storeName: '三里屯店',
     customerName: '郑磊', garmentType: '衬衫', garmentDesc: '粉色丝绸衬衫',
-    status: 'rejected', assignedTo: 'store_handler', batchId: 'BAT-004',
+    status: 'rejected', assignedTo: 'factory_manager', batchId: 'BAT-004',
     createdAt: d(3), updatedAt: h(3), deadlineAt: h(0), isOverdue: true, isUrgent: true,
   },
   {
@@ -160,7 +160,7 @@ export const mockReceipts: Receipt[] = [
   },
   {
     id: 'RCT-003', orderId: 'ORD-010', isVerified: false,
-    verifiedAt: null, verifiedBy: null, isRejected: true, rejectReason: '衣物有新污渍，非送洗时存在',
+    verifiedAt: h(3), verifiedBy: '门店-王姐', isRejected: true, rejectReason: '衣物有新污渍，非送洗时存在',
   },
   {
     id: 'RCT-004', orderId: 'ORD-005', isVerified: false,

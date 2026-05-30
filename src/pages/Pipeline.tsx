@@ -20,7 +20,7 @@ const PIPELINE_STATUSES: OrderStatus[] = [
 const SPECIAL_STATUSES: OrderStatus[] = ['completed', 'rejected', 'rewashing', 'damage_claim'];
 
 export default function Pipeline() {
-  const { orders } = useOrderStore();
+  const { orders, receipts } = useOrderStore();
   const { currentRole } = useRoleStore();
   const { openProcessing } = useProcessingStore();
   const [filterMy, setFilterMy] = useState(false);
@@ -38,7 +38,7 @@ export default function Pipeline() {
     filteredOrders.filter((o) => o.status === status);
 
   const handleCardClick = (orderId: string, status: OrderStatus) => {
-    let mode: 'sort' | 'inspect' | 'handover' | 'verify' | 'damage' | 'rewash';
+    let mode: 'sort' | 'inspect' | 'handover' | 'verify' | 'damage' | 'rewash' | 'rejected_review';
     switch (status) {
       case 'collected':
       case 'sorting':
@@ -60,9 +60,18 @@ export default function Pipeline() {
       case 'damage_claim':
         mode = 'damage';
         break;
-      case 'rejected':
-        mode = 'verify';
+      case 'rejected': {
+        const order = orders.find((o) => o.id === orderId);
+        const receipt = receipts.find((r) => r.orderId === orderId);
+        if (receipt?.isRejected) {
+          mode = 'rejected_review';
+        } else if (order?.assignedTo === 'factory_manager') {
+          mode = 'damage';
+        } else {
+          mode = 'rejected_review';
+        }
         break;
+      }
       case 'completed':
         return;
       default:

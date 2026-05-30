@@ -4,7 +4,7 @@ import { Clock, AlertTriangle, CheckCircle, RotateCcw, ArrowRight, Clock3 } from
 import { useOrderStore } from '@/store/useOrderStore';
 import { useRoleStore } from '@/store/useRoleStore';
 import { useProcessingStore } from '@/store/useProcessingStore';
-import { STATUS_LABELS, ROLE_LABELS, type ActivityLog } from '@/types';
+import { STATUS_LABELS, ROLE_LABELS, type ActivityLog, type ProcessingContext } from '@/types';
 import { mockActivityLogs } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ const getHoursDiff = (isoString: string) => {
 };
 
 export default function Home() {
-  const { orders } = useOrderStore();
+  const { orders, receipts } = useOrderStore();
   const { currentRole } = useRoleStore();
   const { openProcessing } = useProcessingStore();
   const [activeTab, setActiveTab] = useState<'all' | 'mine'>('mine');
@@ -135,26 +135,30 @@ export default function Home() {
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {overdueOrders.map((order) => {
-              const getProcessingMode = () => {
+              const getProcessingMode = (): ProcessingContext['mode'] => {
                 switch (order.status) {
                   case 'collected':
                   case 'sorting':
-                    return 'sort' as const;
+                    return 'sort';
                   case 'washing':
                   case 'inspecting':
-                    return 'inspect' as const;
+                    return 'inspect';
                   case 'rewashing':
-                    return 'rewash' as const;
+                    return 'rewash';
                   case 'handover':
-                    return 'handover' as const;
+                    return 'handover';
                   case 'verifying':
-                    return 'verify' as const;
+                    return 'verify';
                   case 'damage_claim':
-                    return 'damage' as const;
-                  case 'rejected':
-                    return 'verify' as const;
+                    return 'damage';
+                  case 'rejected': {
+                    const receipt = receipts.find((r) => r.orderId === order.id);
+                    if (receipt?.isRejected) return 'rejected_review';
+                    if (order.assignedTo === 'factory_manager') return 'damage';
+                    return 'rejected_review';
+                  }
                   default:
-                    return 'inspect' as const;
+                    return 'inspect';
                 }
               };
               return (
@@ -198,26 +202,30 @@ export default function Home() {
           ) : (
             <div className="space-y-3">
               {todoItems.map((order, index) => {
-                const getProcessingMode = () => {
+                const getProcessingMode = (): ProcessingContext['mode'] => {
                   switch (order.status) {
                     case 'collected':
                     case 'sorting':
-                      return 'sort' as const;
+                      return 'sort';
                     case 'washing':
                     case 'inspecting':
-                      return 'inspect' as const;
+                      return 'inspect';
                     case 'rewashing':
-                      return 'rewash' as const;
+                      return 'rewash';
                     case 'handover':
-                      return 'handover' as const;
+                      return 'handover';
                     case 'verifying':
-                      return 'verify' as const;
+                      return 'verify';
                     case 'damage_claim':
-                      return 'damage' as const;
-                    case 'rejected':
-                      return 'verify' as const;
+                      return 'damage';
+                    case 'rejected': {
+                      const receipt = receipts.find((r) => r.orderId === order.id);
+                      if (receipt?.isRejected) return 'rejected_review';
+                      if (order.assignedTo === 'factory_manager') return 'damage';
+                      return 'rejected_review';
+                    }
                     default:
-                      return 'inspect' as const;
+                      return 'inspect';
                   }
                 };
                 return (

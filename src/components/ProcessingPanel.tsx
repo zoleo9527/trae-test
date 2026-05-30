@@ -32,11 +32,12 @@ const MODE_LABELS: Record<string, string> = {
   rewash: '返洗处理',
   handover: '门店交接',
   verify: '回单核验',
+  rejected_review: '退回审核',
 };
 
 export default function ProcessingPanel() {
   const { orderId, isOpen, mode, closeProcessing, openProcessing } = useProcessingStore();
-  const { orders, setOrders, damageRecords, rewashRecords, receipts, addDamageRecord, addRewashRecord, updateReceipt } = useOrderStore();
+  const { orders, setOrders, damageRecords, rewashRecords, receipts, addDamageRecord, addRewashRecord, updateReceipt, updateRewashStatus } = useOrderStore();
   const { batches, addOrderToBatch } = useBatchStore();
   const { currentRole } = useRoleStore();
   const [activeTab, setActiveTab] = useState<'main' | 'history' | 'evidence'>('main');
@@ -175,16 +176,18 @@ export default function ProcessingPanel() {
 
   const handleReject = () => {
     if (!rejectReason) return;
+    const now = new Date().toISOString();
+    const operatorLabel = `门店-${currentRole === 'store_handler' ? '当前' : '系统'}`;
     updateReceipt(orderId!, {
       isVerified: false,
-      verifiedAt: null,
-      verifiedBy: null,
+      verifiedAt: now,
+      verifiedBy: operatorLabel,
       isRejected: true,
       rejectReason: rejectReason,
     });
     const updatedOrders = orders.map((o) =>
       o.id === orderId
-        ? { ...o, status: 'rejected' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
+        ? { ...o, status: 'rejected' as const, updatedAt: now, assignedTo: 'factory_manager' as const }
         : o
     );
     setOrders(updatedOrders);
@@ -645,6 +648,10 @@ export default function ProcessingPanel() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => {
+                    const activeRewash = orderRewashRecords.find((r) => r.status === 'rewashing');
+                    if (activeRewash) {
+                      updateRewashStatus(activeRewash.id, 'completed');
+                    }
                     const updatedOrders = orders.map((o) =>
                       o.id === orderId
                         ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
@@ -659,7 +666,19 @@ export default function ProcessingPanel() {
                   完成返洗
                 </button>
                 <button
-                  onClick={() => setInspectSubMode(null)}
+                  onClick={() => {
+                    const activeRewash = orderRewashRecords.find((r) => r.status === 'rewashing');
+                    if (activeRewash) {
+                      updateRewashStatus(activeRewash.id, 'completed');
+                    }
+                    const updatedOrders = orders.map((o) =>
+                      o.id === orderId
+                        ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                        : o
+                    );
+                    setOrders(updatedOrders);
+                    handleClose();
+                  }}
                   className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300"
                 >
                   <CheckCircle className="w-4 h-4" />
@@ -850,6 +869,84 @@ export default function ProcessingPanel() {
           </div>
         );
 
+      case 'rejected_review':
+        return (
+          <div className="space-y-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                <XCircle className="w-4 h-4" />
+                门店退回审核
+              </h3>
+              <p className="text-sm text-red-700">
+                门店已退回此订单，请审核处理
+              </p>
+            </div>
+
+            {orderReceipt && orderReceipt.isRejected && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-slate-700 mb-2">退回原因</h4>
+                <p className="text-sm text-slate-600">{orderReceipt.rejectReason}</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  {orderReceipt.verifiedBy || '门店交接员'} · {orderReceipt.verifiedAt ? formatDateTime(orderReceipt.verifiedAt) : '时间未知'}
+                </p>
+              </div>
+            )}
+
+            {orderDamageRecords.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-slate-700 mb-3">关联污损记录</h4>
+                {orderDamageRecords.map((record: DamageRecord) => (
+                  <div key={record.id} className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MapPin className="w-4 h-4 text-red-500" />
+                      <span className="text-sm font-medium text-red-700">{record.position}</span>
+                      <span className="text-xs text-red-400 ml-auto">{record.id}</span>
+                    </div>
+                    <p className="text-sm text-red-600">{record.description}</p>
+                    <img src={record.imageUrl} alt="" className="mt-3 rounded-lg w-full h-32 object-cover" />
+                    <p className="text-xs text-red-400 mt-2">
+                      {record.recordedBy} · {formatDateTime(record.recordedAt)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  const updatedOrders = orders.map((o) =>
+                    o.id === orderId
+                      ? { ...o, status: 'handover' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+                      : o
+                  );
+                  setOrders(updatedOrders);
+                  handleClose();
+                }}
+                className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-emerald-500 text-white hover:bg-emerald-600"
+              >
+                <CheckCircle className="w-4 h-4" />
+                重新交接
+              </button>
+              <button
+                onClick={() => {
+                  const updatedOrders = orders.map((o) =>
+                    o.id === orderId
+                      ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                      : o
+                  );
+                  setOrders(updatedOrders);
+                  handleClose();
+                }}
+                className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-purple-500 text-white hover:bg-purple-600"
+              >
+                <RotateCcw className="w-4 h-4" />
+                退回质检重检
+              </button>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -956,9 +1053,91 @@ export default function ProcessingPanel() {
                       <p className="text-xs text-slate-400 mt-1">门店交接员 · {order.storeName}</p>
                     </div>
                   </div>
+
+                  {order.batchId && (
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                        <div className="w-px flex-1 bg-slate-200 mt-1" />
+                      </div>
+                      <div className="flex-1 pb-6">
+                        <p className="text-sm font-medium text-slate-700">分拣入批</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {batch ? `${batch.batchNo} (${batch.washType})` : order.batchId}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">厂长 · 分拣指派</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {orderRewashRecords.map((record: RewashRecord, index: number) => (
+                    <div key={record.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-orange-500" />
+                        <div className="w-px flex-1 bg-slate-200 mt-1" />
+                      </div>
+                      <div className="flex-1 pb-6">
+                        <p className="text-sm font-medium text-slate-700">返洗登记（第 {index + 1} 次）</p>
+                        <p className="text-xs text-slate-500 mt-1">{record.reason}：{record.description}</p>
+                        <p className="text-xs text-slate-400 mt-1">质检员 · {formatDateTime(record.createdAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {orderDamageRecords.map((record: DamageRecord) => (
+                    <div key={record.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        <div className="w-px flex-1 bg-slate-200 mt-1" />
+                      </div>
+                      <div className="flex-1 pb-6">
+                        <p className="text-sm font-medium text-slate-700">污损记录（{record.position}）</p>
+                        <p className="text-xs text-slate-500 mt-1">{record.description}</p>
+                        <p className="text-xs text-slate-400 mt-1">{record.recordedBy} · {formatDateTime(record.recordedAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {orderReceipt && orderReceipt.isRejected && orderReceipt.rejectReason && (
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-red-600" />
+                        <div className="w-px flex-1 bg-slate-200 mt-1" />
+                      </div>
+                      <div className="flex-1 pb-6">
+                        <p className="text-sm font-medium text-red-700">门店退回</p>
+                        <p className="text-xs text-slate-500 mt-1">{orderReceipt.rejectReason}</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {orderReceipt.verifiedBy || '门店交接员'} · {orderReceipt.verifiedAt ? formatDateTime(orderReceipt.verifiedAt) : '时间未知'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {orderReceipt && orderReceipt.isVerified && (
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <div className="w-px flex-1 bg-slate-200 mt-1" />
+                      </div>
+                      <div className="flex-1 pb-6">
+                        <p className="text-sm font-medium text-emerald-700">核验通过</p>
+                        <p className="text-xs text-slate-500 mt-1">回单已完成</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {orderReceipt.verifiedBy || '门店交接员'} · {orderReceipt.verifiedAt ? formatDateTime(orderReceipt.verifiedAt) : '时间未知'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-3">
                     <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      <div className={cn(
+                        'w-3 h-3 rounded-full',
+                        order.status === 'completed' ? 'bg-emerald-500' :
+                        order.status === 'rejected' ? 'bg-red-500' :
+                        'bg-amber-500'
+                      )} />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-slate-700">当前状态：{STATUS_LABELS[order.status]}</p>
@@ -976,15 +1155,13 @@ export default function ProcessingPanel() {
                       <h4 className="text-sm font-medium text-slate-700 mb-3">回单退回记录</h4>
                       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-3">
-                          <XCircle className="w-4 h-4 text-slate-500" />
-                          <span className="text-sm font-medium text-slate-700">门店退回</span>
+                          <XCircle className="w-4 h-4 text-red-500" />
+                          <span className="text-sm font-medium text-red-700">门店退回</span>
                         </div>
                         <p className="text-sm text-slate-600">{orderReceipt.rejectReason}</p>
-                        {orderReceipt.verifiedAt && (
-                          <p className="text-xs text-slate-400 mt-3">
-                            {orderReceipt.verifiedBy || '门店交接员'} · {formatDateTime(orderReceipt.verifiedAt)}
-                          </p>
-                        )}
+                        <p className="text-xs text-slate-400 mt-3">
+                          {orderReceipt.verifiedBy || '门店交接员'} · {orderReceipt.verifiedAt ? formatDateTime(orderReceipt.verifiedAt) : '时间未知'}
+                        </p>
                       </div>
                     </div>
                   )}

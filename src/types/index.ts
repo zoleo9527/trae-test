@@ -82,7 +82,7 @@ export interface ActivityLog {
 export interface ProcessingContext {
   orderId: string | null;
   isOpen: boolean;
-  mode: 'inspect' | 'damage' | 'rewash' | 'handover' | 'verify' | 'sort' | null;
+  mode: 'inspect' | 'damage' | 'rewash' | 'handover' | 'verify' | 'sort' | 'rejected_review' | null;
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
