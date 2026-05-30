@@ -105,6 +105,7 @@ export type ComplaintStatus = 'pending' | 'investigating' | 'approved' | 'reject
 export interface Complaint {
   id: string;
   orderId: string;
+  itemId?: string;
   orderNo: string;
   storeName: string;
   customerName: string;

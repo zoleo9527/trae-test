@@ -283,6 +283,14 @@ function viewComplaintDetail(row: Complaint) {
   handlerForm.compensation = row.approvedCompensation || row.requestedCompensation;
 }
 
+function refreshSelectedComplaint() {
+  if (!selectedComplaint.value) return;
+  const updated = complaintStore.getComplaintById(selectedComplaint.value.id);
+  if (updated) {
+    selectedComplaint.value = { ...updated };
+  }
+}
+
 function handleApprove() {
   if (!selectedComplaint.value) return;
   complaintStore.updateComplaintStatus(
@@ -292,7 +300,8 @@ function handleApprove() {
     handlerForm.remark,
     handlerForm.compensation
   );
-  ElMessage.success('已同意赔付');
+  refreshSelectedComplaint();
+  ElMessage.success('已同意赔付，订单已恢复为待交付状态');
 }
 
 function handleReject() {
@@ -304,7 +313,8 @@ function handleReject() {
     handlerForm.remark,
     0
   );
-  ElMessage.success('已拒绝赔付');
+  refreshSelectedComplaint();
+  ElMessage.success('已拒绝赔付，订单已恢复为待交付状态');
 }
 
 function handleInvestigate() {
@@ -315,6 +325,7 @@ function handleInvestigate() {
     userStore.currentUser.name,
     handlerForm.remark
   );
+  refreshSelectedComplaint();
   ElMessage.success('已开始调查');
 }
 </script>

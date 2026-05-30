@@ -306,6 +306,7 @@ export const useOrderStore = defineStore('order', () => {
     clearSelection,
     batchUpdateStatus,
     updateOrderItemStatus,
-    setFilters
+    setFilters,
+    addStatusHistory
   };
 });

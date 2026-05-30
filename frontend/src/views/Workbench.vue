@@ -100,7 +100,7 @@
               <el-button
                 size="small"
                 type="primary"
-                :disabled="orderStore.selectedOrderIds.length === 0"
+                :disabled="orderStore.selectedOrderIds.length === 0 || userStore.isStoreManager"
                 @click="showBatchModal('sorted')"
               >
                 批量分拣
@@ -108,7 +108,7 @@
               <el-button
                 size="small"
                 type="success"
-                :disabled="orderStore.selectedOrderIds.length === 0"
+                :disabled="orderStore.selectedOrderIds.length === 0 || userStore.isStoreManager"
                 @click="showBatchModal('ready')"
               >
                 批量质检通过
@@ -116,11 +116,16 @@
               <el-button
                 size="small"
                 type="warning"
-                :disabled="orderStore.selectedOrderIds.length === 0"
+                :disabled="orderStore.selectedOrderIds.length === 0 || userStore.isStoreManager"
                 @click="showBatchModal('rewash')"
               >
                 批量返洗
               </el-button>
+            </div>
+            <div v-if="userStore.isStoreManager" class="mt-2">
+              <p class="text-xs text-gray-500">
+                * 门店经理仅可查看订单和交接回单，分拣/质检/返洗请联系质检员操作
+              </p>
             </div>
           </div>
 

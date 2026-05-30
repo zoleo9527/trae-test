@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Complaint, ComplaintStatus } from '@/types';
+import type { Complaint, ComplaintStatus, OrderStatus } from '@/types';
 import { mockComplaints } from '@/data/mockData';
 import { useOrderStore } from './order';
 import dayjs from 'dayjs';
@@ -21,26 +21,63 @@ export const useComplaintStore = defineStore('complaint', () => {
 
   function updateComplaintStatus(id: string, status: ComplaintStatus, handler: string, handlerRemark?: string, approvedCompensation?: number) {
     const complaint = complaints.value.find(c => c.id === id);
-    if (complaint) {
-      complaint.status = status;
-      complaint.handler = handler;
-      if (handlerRemark) {
-        complaint.handlerRemark = handlerRemark;
-      }
-      if (approvedCompensation !== undefined) {
-        complaint.approvedCompensation = approvedCompensation;
-      }
-      if (status === 'resolved' || status === 'approved' || status === 'rejected') {
-        complaint.resolvedAt = dayjs().format('YYYY-MM-DD HH:mm');
-      }
+    if (!complaint) return;
 
-      if ((status === 'approved' || status === 'resolved') && approvedCompensation && approvedCompensation > 0) {
-        const orderStore = useOrderStore();
-        const order = orderStore.getOrderById(complaint.orderId);
-        if (order && order.status !== 'complaint') {
-          orderStore.batchUpdateStatus([order.id], 'complaint', handler, `客诉赔付 ¥${approvedCompensation}`);
-        }
+    const isClosing = status === 'approved' || status === 'rejected' || status === 'resolved';
+
+    complaint.status = status;
+    complaint.handler = handler;
+    if (handlerRemark) {
+      complaint.handlerRemark = handlerRemark;
+    }
+    if (approvedCompensation !== undefined) {
+      complaint.approvedCompensation = approvedCompensation;
+    }
+    if (isClosing) {
+      complaint.resolvedAt = dayjs().format('YYYY-MM-DD HH:mm');
+    }
+
+    const orderStore = useOrderStore();
+    const order = orderStore.getOrderById(complaint.orderId);
+    if (!order) return;
+
+    if (status === 'investigating') {
+      if (order.status !== 'complaint') {
+        orderStore.batchUpdateStatus([order.id], 'complaint', handler, handlerRemark || '客诉调查中');
       }
+      return;
+    }
+
+    if (isClosing) {
+      const hasCompensation = (status === 'approved' || status === 'resolved') && approvedCompensation && approvedCompensation > 0;
+      const targetStatus: OrderStatus = hasCompensation ? 'ready' : 'ready';
+
+      order.items.forEach(item => {
+        if (complaint.itemId && item.id !== complaint.itemId) return;
+        const oldStatus = item.status;
+        item.status = targetStatus;
+        orderStore.addStatusHistory(
+          order.id,
+          item.id,
+          oldStatus,
+          targetStatus,
+          handler,
+          `客诉${status === 'approved' ? '赔付结案' : status === 'rejected' ? '拒赔结案' : '结案'}${hasCompensation ? `，赔付 ¥${approvedCompensation}` : ''}${handlerRemark ? `：${handlerRemark}` : ''}`
+        );
+      });
+
+      order.status = targetStatus;
+      order.updatedAt = dayjs().format('YYYY-MM-DD HH:mm');
+      order.updatedBy = handler;
+
+      orderStore.addStatusHistory(
+        order.id,
+        undefined,
+        'complaint',
+        targetStatus,
+        handler,
+        `客诉${status === 'approved' ? '赔付结案' : status === 'rejected' ? '拒赔结案' : '结案'}${hasCompensation ? `，赔付 ¥${approvedCompensation}` : ''}${handlerRemark ? `：${handlerRemark}` : ''}`
+      );
     }
   }
 
