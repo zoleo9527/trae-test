@@ -6,7 +6,6 @@
   export let orders: Order[]
   export let stores: Store[]
   export let onRefresh: () => void
-  export let onSelectOrder: (order: Order) => void
 
   let handoverRecords: HandoverRecord[] = []
   let showCreateHandover = false

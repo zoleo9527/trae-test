@@ -318,7 +318,6 @@
         orders={orders} 
         stores={stores} 
         onRefresh={refreshData} 
-        onSelectOrder={(order) => selectedOrder = order}
       />
     </div>
   {/if}

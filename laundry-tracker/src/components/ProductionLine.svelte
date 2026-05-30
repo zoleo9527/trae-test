@@ -26,7 +26,7 @@
     if (selectedOrderIds.includes(orderId)) {
       selectedOrderIds = selectedOrderIds.filter(id => id !== orderId)
     } else {
-      selectedOrderIds.push(orderId)
+      selectedOrderIds = [...selectedOrderIds, orderId]
     }
   }
 

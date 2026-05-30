@@ -4,6 +4,18 @@
   import { formatDateTime, formatDuration, getStatusLabel, getStatusBadgeClass, formatOrderNo, getPriorityLabel, getPriorityBadgeClass, generateId, getIssueTypeLabel } from '../lib/utils'
   import type { Order, ProcessRecord, RewashRecord, Issue, HandoverRecord, TimelineEvent } from '../lib/types'
 
+  interface TimelineItem {
+    id: string
+    timestamp: number
+    type: 'process-start' | 'process-end' | 'rewash' | 'rewash-complete' | 'issue' | 'handover' | 'order'
+    icon: string
+    dotClass: string
+    title: string
+    description?: string
+    duration?: string
+    operator?: string
+  }
+
   export let order: Order
   export let onClose: () => void
   export let onUpdated: () => void
@@ -12,7 +24,7 @@
   let rewashRecords: RewashRecord[] = []
   let issues: Issue[] = []
   let handoverRecords: HandoverRecord[] = []
-  let timelineEvents: TimelineEvent[] = []
+  let timelineItems: TimelineItem[] = []
   let activeTab: 'timeline' | 'items' | 'issues' = 'timeline'
   let showAdvance = false
   let nextStageNotes = ''
@@ -25,51 +37,117 @@
     const allHandover = await db.handoverRecords.orderBy('timestamp').reverse().toArray()
     handoverRecords = allHandover.filter(h => h.orderIds.includes(order.id))
     
-    const allEvents = await db.timelineEvents.orderBy('timestamp').reverse().toArray()
-    timelineEvents = allEvents.filter(e => 
-      e.referenceId === order.id || 
-      (e.type === 'handover' && handoverRecords.some(h => h.id === e.referenceId)) ||
-      (e.type === 'rewash' && rewashRecords.some(r => r.id === e.referenceId))
-    )
+    buildTimeline()
+  }
+
+  function buildTimeline() {
+    const items: TimelineItem[] = []
+
+    items.push({
+      id: `order-create-${order.id}`,
+      timestamp: order.receivedAt,
+      type: 'order',
+      icon: '📥',
+      dotClass: 'success',
+      title: '订单创建',
+      description: `来自${getStoreName(order.storeId)}`
+    })
+
+    processRecords.forEach(record => {
+      items.push({
+        id: `process-start-${record.id}`,
+        timestamp: record.startTime,
+        type: 'process-start',
+        icon: '⏳',
+        dotClass: record.endTime ? 'success' : 'active',
+        title: `${record.stageName} - 开始`,
+        description: record.notes
+      })
+
+      if (record.endTime) {
+        items.push({
+          id: `process-end-${record.id}`,
+          timestamp: record.endTime,
+          type: 'process-end',
+          icon: '✅',
+          dotClass: 'success',
+          title: `${record.stageName} - 完成`,
+          duration: formatDuration(record.startTime, record.endTime),
+          operator: record.operator
+        })
+      }
+    })
+
+    rewashRecords.forEach(record => {
+      items.push({
+        id: `rewash-${record.id}`,
+        timestamp: record.detectedAt,
+        type: 'rewash',
+        icon: '🔄',
+        dotClass: 'warning',
+        title: `返洗登记（第 ${record.rewashCount} 次）`,
+        description: `类型：${getIssueTypeLabel(record.issueType)}<br>原因：${record.reason}${record.notes ? `<br>备注：${record.notes}` : ''}`
+      })
+
+      if (record.resolved && record.resolvedAt) {
+        items.push({
+          id: `rewash-complete-${record.id}`,
+          timestamp: record.resolvedAt,
+          type: 'rewash-complete',
+          icon: '✅',
+          dotClass: 'success',
+          title: `返洗完成（第 ${record.rewashCount} 次）`,
+          description: '返洗处理完成，进入复检阶段',
+          operator: record.operator
+        })
+      }
+    })
+
+    issues.forEach(issue => {
+      items.push({
+        id: `issue-${issue.id}`,
+        timestamp: issue.reportedAt,
+        type: 'issue',
+        icon: '⚠️',
+        dotClass: 'danger',
+        title: `问题上报：${issue.title}`,
+        description: issue.description,
+        operator: issue.reportedBy
+      })
+
+      if (issue.status === 'resolved' && issue.resolvedAt) {
+        items.push({
+          id: `issue-resolved-${issue.id}`,
+          timestamp: issue.resolvedAt,
+          type: 'issue',
+          icon: '✅',
+          dotClass: 'success',
+          title: `问题解决：${issue.title}`,
+          description: issue.resolution,
+          operator: issue.resolvedBy
+        })
+      }
+    })
+
+    handoverRecords.forEach(record => {
+      items.push({
+        id: `handover-${record.id}`,
+        timestamp: record.timestamp,
+        type: 'handover',
+        icon: record.type === 'out' ? '📤' : '�',
+        dotClass: 'primary',
+        title: record.type === 'out' ? '交接出库' : '门店送厂',
+        description: `门店：${getStoreName(record.storeId)}${record.notes ? `<br>备注：${record.notes}` : ''}`
+      })
+    })
+
+    timelineItems = items.sort((a, b) => b.timestamp - a.timestamp)
   }
 
   loadRelatedData()
 
   function getStoreName(storeId: string): string {
     return sampleStores.find(s => s.id === storeId)?.name || '-'
-  }
-
-  function getEventDotClass(event: TimelineEvent): string {
-    switch (event.type) {
-      case 'order':
-        return event.action.includes('推进') ? 'active' : 'success'
-      case 'issue':
-        return 'danger'
-      case 'rewash':
-        return event.action.includes('完成') ? 'success' : 'warning'
-      case 'handover':
-        return 'primary'
-      default:
-        return 'success'
-    }
-  }
-
-  function getEventIcon(event: TimelineEvent): string {
-    switch (event.type) {
-      case 'order':
-        if (event.action.includes('创建')) return '📥'
-        if (event.action.includes('推进')) return '➡️'
-        if (event.action.includes('质检')) return '✅'
-        return '📋'
-      case 'issue':
-        return '⚠️'
-      case 'rewash':
-        return event.action.includes('完成') ? '✅' : '🔄'
-      case 'handover':
-        return event.action.includes('出库') ? '📤' : '📥'
-      default:
-        return '📌'
-    }
   }
 
   async function advanceStage() {
@@ -97,16 +175,6 @@
       status: nextStatus as any,
       currentStage: nextStage,
       updatedAt: Date.now()
-    })
-
-    await db.timelineEvents.add({
-      id: generateId(),
-      type: 'order',
-      referenceId: order.id,
-      action: '工序推进',
-      description: `从 ${STAGES[order.currentStage]?.name || ''} 进入 ${nextStageName}`,
-      timestamp: Date.now(),
-      metadata: { notes: nextStageNotes || undefined }
     })
 
     order.currentStage = nextStage
@@ -174,23 +242,28 @@
     <div class="modal-body modal-body-scroll">
       {#if activeTab === 'timeline'}
         <div class="timeline">
-          {#each timelineEvents as event}
+          {#each timelineItems as item}
             <div class="timeline-item">
-              <div class="timeline-dot {getEventDotClass(event)}"></div>
+              <div class="timeline-dot {item.dotClass}"></div>
               <div class="timeline-content">
-                <div class="timeline-title">{getEventIcon(event)} {event.action}</div>
-                <div class="timeline-time">{formatDateTime(event.timestamp)}</div>
-                {#if event.description}
-                  <div class="timeline-desc">{event.description}</div>
+                <div class="timeline-title">{item.icon} {item.title}</div>
+                <div class="timeline-time">{formatDateTime(item.timestamp)}</div>
+                {#if item.description}
+                  <div class="timeline-desc">{@html item.description}</div>
                 {/if}
-                {#if event.operator}
-                  <div class="text-sm text-gray-500 mt-1">操作人：{event.operator}</div>
+                {#if item.duration}
+                  <div class="timeline-duration">
+                    ⏱️ 耗时：{item.duration}
+                  </div>
+                {/if}
+                {#if item.operator}
+                  <div class="text-sm text-gray-500 mt-1">操作人：{item.operator}</div>
                 {/if}
               </div>
             </div>
           {/each}
 
-          {#if timelineEvents.length === 0}
+          {#if timelineItems.length === 0}
             <div class="empty-state small">
               <div class="empty-title">暂无流程记录</div>
             </div>
@@ -456,6 +529,13 @@
     background: rgba(16, 185, 129, 0.1);
     border-radius: var(--radius);
     color: var(--success);
+  }
+
+  .timeline-duration {
+    margin-top: 0.5rem;
+    font-size: 12px;
+    color: var(--primary);
+    font-weight: 500;
   }
 
   .section-title {

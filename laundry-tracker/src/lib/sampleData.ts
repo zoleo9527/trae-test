@@ -71,8 +71,19 @@ export function generateSampleOrders(): Order[] {
   for (let i = 0; i < 12; i++) {
     const id = generateId()
     const customer = customers[i % customers.length]
-    const statusIndex = i % statuses.length
     const store = sampleStores[i % sampleStores.length]
+    
+    let statusIndex = i % statuses.length
+    let rewashCount = i === 3 ? 2 : i === 7 ? 1 : 0
+    
+    if (rewashCount > 0 && i % 3 === 0) {
+      statusIndex = 8
+    } else if (rewashCount > 0 && i % 3 === 1) {
+      statusIndex = 6
+    }
+    
+    const status = statuses[statusIndex]
+    const deliveredAt = status === 'delivered' ? Date.now() - (i * 1800000) : undefined
     
     orders.push({
       id,
@@ -81,12 +92,13 @@ export function generateSampleOrders(): Order[] {
       customerName: customer.name,
       customerPhone: customer.phone,
       items: createClothingItems(id, Math.floor(Math.random() * 5) + 1),
-      status: statuses[statusIndex],
+      status,
       priority: ['normal', 'urgent', 'vip'][Math.floor(Math.random() * 3)] as any,
       receivedAt: Date.now() - (i * 3600000),
       estimatedDelivery: Date.now() + (86400000 * 2),
+      deliveredAt,
       currentStage: statusIndex,
-      totalRewashCount: i === 3 ? 2 : i === 7 ? 1 : 0,
+      totalRewashCount: rewashCount,
       createdAt: Date.now() - (i * 3600000),
       updatedAt: Date.now()
     })
@@ -122,16 +134,24 @@ export function generateSampleProcessRecords(orders: Order[]): ProcessRecord[] {
   const records: ProcessRecord[] = []
   
   orders.forEach(order => {
-    for (let s = 0; s <= order.currentStage && s < 6; s++) {
+    const maxStage = order.currentStage >= 6 ? 6 : order.currentStage
+    
+    for (let s = 0; s <= maxStage; s++) {
+      if (s >= 7) continue
+      
+      const hasRewash = order.totalRewashCount > 0
+      const stageOffset = hasRewash ? order.totalRewashCount * 3600000 : 0
+      
       records.push({
         id: generateId(),
         orderId: order.id,
         stage: s,
         stageName: STAGES[s].name,
         operator: sampleUsers[(s + 1) % sampleUsers.length].name,
-        startTime: order.receivedAt + (s * 1800000),
-        endTime: s < order.currentStage ? order.receivedAt + ((s + 1) * 1800000) : undefined,
-        createdAt: order.receivedAt + (s * 1800000)
+        startTime: order.receivedAt + (s * 1800000) + stageOffset,
+        endTime: s < order.currentStage && s < 6 ? order.receivedAt + ((s + 1) * 1800000) + stageOffset : 
+                 (s === 6 && order.currentStage >= 6 ? order.receivedAt + ((s + 1) * 1800000) + stageOffset : undefined),
+        createdAt: order.receivedAt + (s * 1800000) + stageOffset
       })
     }
   })
@@ -145,16 +165,21 @@ export function generateSampleRewashRecords(orders: Order[]): RewashRecord[] {
   
   rewashOrders.forEach((order, idx) => {
     for (let i = 0; i < order.totalRewashCount; i++) {
+      const isLastRewash = i === order.totalRewashCount - 1
+      const isCompletedOrder = order.status === 'completed' || order.status === 'delivered'
+      
       records.push({
         id: generateId(),
         orderId: order.id,
         itemId: order.items[i]?.id,
         reason: ['残留污渍未洗净', '衣物有异味', '衣物褶皱严重', '色泽不均'][idx % 4],
         issueType: ['stain', 'other', 'damage', 'color_fade'][idx % 4] as any,
-        detectedAt: Date.now() - ((idx + 1) * 3600000),
+        detectedAt: Date.now() - ((idx + 1) * 3600000) - (i * 7200000),
         detectedBy: sampleUsers[1].name,
         rewashCount: i + 1,
-        resolved: false,
+        resolved: isCompletedOrder && isLastRewash,
+        resolvedAt: isCompletedOrder && isLastRewash ? Date.now() - ((idx) * 3600000) - (i * 7200000) + 3600000 : undefined,
+        operator: isCompletedOrder && isLastRewash ? sampleUsers[3].name : undefined,
         notes: idx === 0 ? '需要特别注意领口污渍' : undefined
       })
     }
@@ -322,17 +347,47 @@ export async function loadSampleData(): Promise<void> {
 
 export function generateSampleHandoverRecords(orders: Order[]): HandoverRecord[] {
   const deliveredOrders = orders.filter(o => o.status === 'delivered')
+  const completedOrders = orders.filter(o => o.status === 'completed')
   const records: HandoverRecord[] = []
   
   if (deliveredOrders.length > 0) {
-    records.push({
-      id: generateId(),
-      type: 'out',
-      orderIds: deliveredOrders.slice(0, 2).map(o => o.id),
-      storeId: sampleStores[0].id,
-      timestamp: Date.now() - 86400000,
-      notes: '日常交接'
+    const storeGroups = new Map<string, Order[]>()
+    deliveredOrders.forEach(order => {
+      const group = storeGroups.get(order.storeId) || []
+      group.push(order)
+      storeGroups.set(order.storeId, group)
     })
+    
+    let timeOffset = 86400000
+    storeGroups.forEach((storeOrders, storeId) => {
+      const hasProblem = storeOrders.some(o => o.totalRewashCount > 0)
+      
+      records.push({
+        id: generateId(),
+        type: 'out',
+        orderIds: storeOrders.map(o => o.id),
+        storeId,
+        timestamp: Date.now() - timeOffset,
+        notes: hasProblem ? '含返洗异常单，已与门店确认' : '日常交接'
+      })
+      timeOffset += 3600000
+    })
+  }
+  
+  if (completedOrders.length > 0) {
+    const pendingDelivery = completedOrders.filter(o => 
+      !deliveredOrders.some(d => d.id === o.id)
+    )
+    if (pendingDelivery.length > 0) {
+      records.push({
+        id: generateId(),
+        type: 'out',
+        orderIds: pendingDelivery.map(o => o.id),
+        storeId: sampleStores[1].id,
+        timestamp: Date.now() - 1800000,
+        notes: '待门店确认接收'
+      })
+    }
   }
   
   return records
