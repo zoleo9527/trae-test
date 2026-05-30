@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DIRECTOR
+  ACTIVITY_OPERATOR
+  VOLUNTEER_COORDINATOR
+  VOLUNTEER
+}
+
+enum ActivityStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum CheckInStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  MANUAL
+}
+
+enum LogAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  CANCEL
+  CHECK_IN
+  CHECK_OUT
+  REMIND
+  EXPORT
+  SUPPLEMENT
+}
+
+enum LogModule {
+  ACTIVITY
+  REGISTRATION
+  CHECK_IN
+  USER
+  NOTIFICATION
+}
+
+enum NotificationType {
+  REGISTRATION_APPROVED
+  REGISTRATION_REJECTED
+  ACTIVITY_REMINDER
+  CHECK_IN_SUCCESS
+  VOLUNTEER_FEEDBACK
+  SYSTEM_ALERT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String
+  phone     String?  @unique
+  email     String?  @unique
+  role      Role
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdActivities    Activity[]         @relation("ActivityCreator")
+  updatedActivities    Activity[]         @relation("ActivityUpdater")
+  managedRegistrations Registration[]     @relation("RegistrationManager")
+  handledCheckIns      CheckInRecord[]    @relation("CheckInHandler")
+  sentNotifications    Notification[]     @relation("NotificationSender")
+  createdLogs          OperationLog[]     @relation("LogCreator")
+  volunteerFeedbacks   VolunteerFeedback[]
+  idempotentRequests   IdempotentRequest[]
+}
+
+model Library {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  address     String
+  managerId   String?
+  phone       String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  manager   User?      @relation(fields: [managerId], references: [id])
+  activities Activity[]
+}
+
+model Activity {
+  id                String   @id @default(uuid())
+  title             String
+  description       String
+  libraryId         String
+  location          String
+  maxParticipants   Int
+  currentParticipants Int    @default(0)
+  startTime         DateTime
+  endTime           DateTime
+  registrationStart DateTime
+  registrationEnd   DateTime
+  status            ActivityStatus @default(DRAFT)
+  coverImage        String?
+  tags              String[]
+  requirements      String?
+  notes             String?
+  createdById       String
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  library         Library             @relation(fields: [libraryId], references: [id])
+  createdBy       User                @relation("ActivityCreator", fields: [createdById], references: [id])
+  updatedBy       User?               @relation("ActivityUpdater", fields: [updatedById], references: [id])
+  registrations   Registration[]
+  checkInRecords  CheckInRecord[]
+  operationLogs   OperationLog[]
+  notifications   Notification[]
+  volunteerFeedbacks VolunteerFeedback[]
+}
+
+model Registration {
+  id              String   @id @default(uuid())
+  activityId      String
+  userId          String
+  userName        String
+  userPhone       String
+  idCardNumber    String?
+  status          RegistrationStatus @default(PENDING)
+  registrationTime DateTime @default(now())
+  isSupplement    Boolean  @default(false)
+  supplementReason String?
+  supplementById  String?
+  supplementTime  DateTime?
+  rejectReason    String?
+  rejectById      String?
+  rejectTime      DateTime?
+  cancelReason    String?
+  cancelTime      DateTime?
+  checkInId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  idempotencyKey  String?  @unique
+  activity        Activity             @relation(fields: [activityId], references: [id])
+  checkIn         CheckInRecord?       @relation(fields: [checkInId], references: [id])
+  managedBy       User?                @relation("RegistrationManager", fields: [supplementById], references: [id])
+  operationLogs   OperationLog[]
+  notifications   Notification[]
+
+  @@unique([activityId, userId])
+}
+
+model CheckInRecord {
+  id              String   @id @default(uuid())
+  activityId      String
+  registrationId  String?
+  userName        String
+  userPhone       String
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  status          CheckInStatus @default(PENDING)
+  checkInMethod   String
+  handledById     String?
+  failureReason   String?
+  manualRemark    String?
+  evidenceImage   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  activity        Activity          @relation(fields: [activityId], references: [id])
+  registration    Registration?     @relation(fields: [registrationId], references: [id])
+  handledBy       User?             @relation("CheckInHandler", fields: [handledById], references: [id])
+  operationLogs   OperationLog[]
+}
+
+model OperationLog {
+  id            String     @id @default(uuid())
+  module        LogModule
+  action        LogAction
+  recordId      String
+  recordType    String
+  beforeState   Json?
+  afterState    Json?
+  remark        String?
+  evidenceData  Json?
+  ipAddress     String?
+  userAgent     String?
+  createdById   String
+  createdAt     DateTime   @default(now())
+
+  createdBy     User       @relation("LogCreator", fields: [createdById], references: [id])
+  activity      Activity?  @relation(fields: [recordId], references: [id])
+}
+
+model Notification {
+  id              String           @id @default(uuid())
+  type            NotificationType
+  title           String
+  content         String
+  recipientId     String
+  recipientPhone  String?
+  sentById        String?
+  isRead          Boolean          @default(false)
+  isSent          Boolean          @default(false)
+  sendAttempts    Int              @default(0)
+  lastAttemptAt   DateTime?
+  readAt          DateTime?
+  relatedRecordId String?
+  relatedRecordType String?
+  createdAt       DateTime         @default(now())
+
+  sentBy          User?            @relation("NotificationSender", fields: [sentById], references: [id])
+}
+
+model VolunteerFeedback {
+  id          String   @id @default(uuid())
+  activityId  String
+  volunteerId String
+  content     String
+  rating      Int?
+  isResolved  Boolean  @default(false)
+  resolverId  String?
+  resolvedAt  DateTime?
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activity    Activity @relation(fields: [activityId], references: [id])
+  volunteer   User     @relation(fields: [volunteerId], references: [id])
+}
+
+model IdempotentRequest {
+  id           String   @id @default(uuid())
+  idempotencyKey String @unique
+  userId       String
+  path         String
+  method       String
+  requestBody  Json?
+  responseData Json?
+  statusCode   Int
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  user         User     @relation(fields: [userId], references: [id])
+}
