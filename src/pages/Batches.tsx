@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Package, Clock, CheckCircle, Loader2, ChevronRight, FileText } from 'lucide-react';
 import { useOrderStore } from '@/store/useOrderStore';
-import { mockBatches } from '@/data/mockData';
+import { useBatchStore } from '@/store/useBatchStore';
 import { STATUS_LABELS } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -25,18 +25,19 @@ const getDuration = (start: string, end: string | null) => {
 
 export default function Batches() {
   const { orders } = useOrderStore();
-  const [selectedBatch, setSelectedBatch] = useState<string | null>(mockBatches[0]?.id || null);
+  const { batches } = useBatchStore();
+  const [selectedBatch, setSelectedBatch] = useState<string | null>(batches[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'washing' | 'completed'>('all');
 
-  const filteredBatches = mockBatches.filter((b) => {
+  const filteredBatches = batches.filter((b) => {
     if (filterStatus !== 'all' && b.status !== filterStatus) return false;
     if (searchQuery && !b.batchNo.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !b.washType.includes(searchQuery)) return false;
     return true;
   });
 
-  const currentBatch = mockBatches.find((b) => b.id === selectedBatch);
+  const currentBatch = batches.find((b) => b.id === selectedBatch);
   const batchOrders = currentBatch
     ? orders.filter((o) => currentBatch.orderIds.includes(o.id))
     : [];

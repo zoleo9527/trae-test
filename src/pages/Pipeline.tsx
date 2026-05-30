@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Filter, Search } from 'lucide-react';
-import { useOrderStore } from '@/store/useOrderStore';
-import { useRoleStore } from '@/store/useRoleStore';
-import { useProcessingStore } from '@/store/useProcessingStore';
 import OrderCard from '@/components/OrderCard';
-import { STATUS_LABELS, STATUS_COLORS, type OrderStatus } from '@/types';
 import { cn } from '@/lib/utils';
+import { useOrderStore } from '@/store/useOrderStore';
+import { useProcessingStore } from '@/store/useProcessingStore';
+import { useRoleStore } from '@/store/useRoleStore';
+import { STATUS_COLORS, STATUS_LABELS, type OrderStatus } from '@/types';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Filter, Search } from 'lucide-react';
+import { useState } from 'react';
 
 const PIPELINE_STATUSES: OrderStatus[] = [
   'collected',
@@ -46,15 +46,21 @@ export default function Pipeline() {
         break;
       case 'washing':
       case 'inspecting':
-      case 'rewashing':
         mode = 'inspect';
+        break;
+      case 'rewashing':
+        mode = 'rewash';
         break;
       case 'handover':
         mode = 'handover';
         break;
       case 'verifying':
-      case 'rejected':
+        mode = 'verify';
+        break;
       case 'damage_claim':
+        mode = 'damage';
+        break;
+      case 'rejected':
         mode = 'verify';
         break;
       case 'completed':

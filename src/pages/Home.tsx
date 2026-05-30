@@ -142,12 +142,15 @@ export default function Home() {
                     return 'sort' as const;
                   case 'washing':
                   case 'inspecting':
-                  case 'rewashing':
                     return 'inspect' as const;
+                  case 'rewashing':
+                    return 'rewash' as const;
                   case 'handover':
                     return 'handover' as const;
                   case 'verifying':
+                    return 'verify' as const;
                   case 'damage_claim':
+                    return 'damage' as const;
                   case 'rejected':
                     return 'verify' as const;
                   default:
@@ -202,12 +205,15 @@ export default function Home() {
                       return 'sort' as const;
                     case 'washing':
                     case 'inspecting':
-                    case 'rewashing':
                       return 'inspect' as const;
+                    case 'rewashing':
+                      return 'rewash' as const;
                     case 'handover':
                       return 'handover' as const;
                     case 'verifying':
+                      return 'verify' as const;
                     case 'damage_claim':
+                      return 'damage' as const;
                     case 'rejected':
                       return 'verify' as const;
                     default:

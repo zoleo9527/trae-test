@@ -7,11 +7,12 @@ import {
 import { useProcessingStore } from '@/store/useProcessingStore';
 import { useOrderStore } from '@/store/useOrderStore';
 import { useRoleStore } from '@/store/useRoleStore';
+import { useBatchStore } from '@/store/useBatchStore';
 import {
   STATUS_LABELS, ROLE_LABELS, DAMAGE_POSITIONS, REWASH_REASONS, WASH_TYPES,
   type Order, type DamageRecord, type RewashRecord
 } from '@/types';
-import { mockDamageRecords, mockRewashRecords, mockBatches } from '@/data/mockData';
+import { mockDamageRecords, mockRewashRecords } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 
 const formatDateTime = (isoString: string) => {
@@ -35,7 +36,8 @@ const MODE_LABELS: Record<string, string> = {
 
 export default function ProcessingPanel() {
   const { orderId, isOpen, mode, closeProcessing, openProcessing } = useProcessingStore();
-  const { orders, setOrders, damageRecords, rewashRecords, addDamageRecord, addRewashRecord, updateReceipt } = useOrderStore();
+  const { orders, setOrders, damageRecords, rewashRecords, receipts, addDamageRecord, addRewashRecord, updateReceipt } = useOrderStore();
+  const { batches, addOrderToBatch } = useBatchStore();
   const { currentRole } = useRoleStore();
   const [activeTab, setActiveTab] = useState<'main' | 'history' | 'evidence'>('main');
   const [damagePosition, setDamagePosition] = useState('');
@@ -52,7 +54,8 @@ export default function ProcessingPanel() {
   const order = orders.find((o) => o.id === orderId);
   const orderDamageRecords = damageRecords.filter((d) => d.orderId === orderId);
   const orderRewashRecords = rewashRecords.filter((r) => r.orderId === orderId);
-  const batch = order?.batchId ? mockBatches.find((b) => b.id === order.batchId) : null;
+  const orderReceipt = receipts.find((r) => r.orderId === orderId);
+  const batch = order?.batchId ? batches.find((b) => b.id === order.batchId) : null;
 
   const resetFormState = () => {
     setInspectSubMode(null);
@@ -85,13 +88,14 @@ export default function ProcessingPanel() {
 
   const handleSort = () => {
     if (!selectedBatch) return;
+    addOrderToBatch(selectedBatch, orderId!);
     const updatedOrders = orders.map((o) =>
       o.id === orderId
-        ? { ...o, status: 'washing' as const, batchId: selectedBatch, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
+        ? { ...o, status: 'washing' as const, batchId: selectedBatch, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
         : o
     );
     setOrders(updatedOrders);
-    closeProcessing();
+    handleClose();
   };
 
   const handleInspectPass = () => {
@@ -195,7 +199,7 @@ export default function ProcessingPanel() {
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-700">选择洗涤批次</label>
               <div className="space-y-2">
-                {mockBatches.filter((b) => b.status !== 'completed').map((b) => (
+                {batches.filter((b) => b.status !== 'completed').map((b) => (
                   <button
                     key={b.id}
                     onClick={() => setSelectedBatch(b.id)}
@@ -445,8 +449,73 @@ export default function ProcessingPanel() {
         );
 
       case 'damage':
+        if (orderDamageRecords.length > 0) {
+          return (
+            <div className="space-y-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  污损赔付处理
+                </h3>
+                <p className="text-sm text-red-700">
+                  该订单已有 {orderDamageRecords.length} 条污损记录，请厂长审核处理
+                </p>
+              </div>
+              {orderDamageRecords.map((record: DamageRecord) => (
+                <div key={record.id} className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin className="w-4 h-4 text-red-500" />
+                    <span className="text-sm font-medium text-red-700">{record.position}</span>
+                    <span className="text-xs text-red-400 ml-auto">{record.id}</span>
+                  </div>
+                  <p className="text-sm text-red-600 mb-3">{record.description}</p>
+                  <img src={record.imageUrl} alt="" className="rounded-lg w-full h-40 object-cover" />
+                  <p className="text-xs text-red-400 mt-3">
+                    {record.recordedBy} · {formatDateTime(record.recordedAt)}
+                  </p>
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    const updatedOrders = orders.map((o) =>
+                      o.id === orderId
+                        ? { ...o, status: 'rejected' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+                        : o
+                    );
+                    setOrders(updatedOrders);
+                    handleClose();
+                  }}
+                  className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600"
+                >
+                  <XCircle className="w-4 h-4" />
+                  退回门店
+                </button>
+                <button
+                  onClick={() => {
+                    const updatedOrders = orders.map((o) =>
+                      o.id === orderId
+                        ? { ...o, status: 'handover' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+                        : o
+                    );
+                    setOrders(updatedOrders);
+                    handleClose();
+                  }}
+                  className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-emerald-500 text-white hover:bg-emerald-600"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  赔付后放行
+                </button>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h3 className="font-medium text-red-800 mb-2">污损登记</h3>
+              <p className="text-sm text-red-700">发现衣物存在污损，请记录并拍照留证</p>
+            </div>
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -532,8 +601,80 @@ export default function ProcessingPanel() {
         );
 
       case 'rewash':
+        if (orderRewashRecords.length > 0) {
+          const latestRewash = orderRewashRecords[orderRewashRecords.length - 1];
+          return (
+            <div className="space-y-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h3 className="font-medium text-orange-800 mb-2 flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4" />
+                  返洗处理
+                </h3>
+                <p className="text-sm text-orange-700">
+                  该订单处于返洗状态，当前是第 {orderRewashRecords.length} 次返洗
+                </p>
+              </div>
+              {orderRewashRecords.map((record: RewashRecord, index: number) => (
+                <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs bg-orange-200 text-orange-700 px-2 py-1 rounded">
+                      第 {index + 1} 次
+                    </span>
+                    <span className="text-sm font-medium text-orange-700">{record.reason}</span>
+                    <span className={cn(
+                      'text-xs px-2 py-1 rounded ml-auto',
+                      record.status === 'rewashing' ? 'bg-blue-100 text-blue-700' :
+                      record.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-slate-100 text-slate-600'
+                    )}>
+                      {record.status === 'rewashing' ? '返洗中' :
+                       record.status === 'completed' ? '已完成' : '待处理'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-orange-600 mb-3">{record.description}</p>
+                  <p className="text-xs text-orange-400">
+                    登记时间：{formatDateTime(record.createdAt)}
+                  </p>
+                  {record.rewashCompletedAt && (
+                    <p className="text-xs text-orange-400">
+                      完成时间：{formatDateTime(record.rewashCompletedAt)}
+                    </p>
+                  )}
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    const updatedOrders = orders.map((o) =>
+                      o.id === orderId
+                        ? { ...o, status: 'inspecting' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+                        : o
+                    );
+                    setOrders(updatedOrders);
+                    handleClose();
+                  }}
+                  className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-orange-500 text-white hover:bg-orange-600"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  完成返洗
+                </button>
+                <button
+                  onClick={() => setInspectSubMode(null)}
+                  className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-slate-200 text-slate-700 hover:bg-slate-300"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  进入质检
+                </button>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <h3 className="font-medium text-orange-800 mb-2">返洗登记</h3>
+              <p className="text-sm text-orange-700">衣物洗涤不合格，需要重新洗涤</p>
+            </div>
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">返洗原因</label>
@@ -830,6 +971,24 @@ export default function ProcessingPanel() {
 
               {activeTab === 'evidence' && (
                 <div className="space-y-6">
+                  {orderReceipt && orderReceipt.isRejected && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-3">回单退回记录</h4>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <XCircle className="w-4 h-4 text-slate-500" />
+                          <span className="text-sm font-medium text-slate-700">门店退回</span>
+                        </div>
+                        <p className="text-sm text-slate-600">{orderReceipt.rejectReason}</p>
+                        {orderReceipt.verifiedAt && (
+                          <p className="text-xs text-slate-400 mt-3">
+                            {orderReceipt.verifiedBy || '门店交接员'} · {formatDateTime(orderReceipt.verifiedAt)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {orderDamageRecords.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-slate-700 mb-3">污损记录</h4>
@@ -838,6 +997,7 @@ export default function ProcessingPanel() {
                           <div className="flex items-center gap-2 mb-2">
                             <MapPin className="w-4 h-4 text-red-500" />
                             <span className="text-sm font-medium text-red-700">{record.position}</span>
+                            <span className="text-xs text-red-400 ml-auto">{record.id}</span>
                           </div>
                           <p className="text-sm text-red-600">{record.description}</p>
                           <img src={record.imageUrl} alt="" className="mt-3 rounded-lg w-full h-40 object-cover" />
@@ -852,20 +1012,26 @@ export default function ProcessingPanel() {
                   {orderRewashRecords.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-slate-700 mb-3">返洗记录</h4>
-                      {orderRewashRecords.map((record: RewashRecord) => (
-                        <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      {orderRewashRecords.map((record: RewashRecord, index: number) => (
+                        <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-3">
                           <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs bg-orange-200 text-orange-700 px-2 py-0.5 rounded">
+                              第 {index + 1} 次
+                            </span>
                             <RotateCcw className="w-4 h-4 text-orange-500" />
                             <span className="text-sm font-medium text-orange-700">{record.reason}</span>
                           </div>
                           <p className="text-sm text-orange-600">{record.description}</p>
-                          <p className="text-xs text-orange-400 mt-2">{formatDateTime(record.createdAt)}</p>
+                          <p className="text-xs text-orange-400 mt-2">
+                            登记：{formatDateTime(record.createdAt)}
+                            {record.rewashCompletedAt && ` | 完成：${formatDateTime(record.rewashCompletedAt)}`}
+                          </p>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {orderDamageRecords.length === 0 && orderRewashRecords.length === 0 && (
+                  {orderDamageRecords.length === 0 && orderRewashRecords.length === 0 && (!orderReceipt || !orderReceipt.isRejected) && (
                     <div className="text-center py-12 text-slate-400">
                       <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>暂无证据记录</p>
