@@ -90,12 +90,13 @@ export default function ReturnInspectionPage() {
   }
 
   const handleSubmit = () => {
-    const result: ReviewResult =
-      selectedIssues.length === 0
-        ? "accepted"
-        : selectedIssues.includes("配件缺失")
-        ? "missing_parts"
-        : "damaged";
+    const hasCompensation = compensationAmount && parseFloat(compensationAmount) > 0;
+    const hasIssues = selectedIssues.length > 0 || customIssue.trim() || hasCompensation;
+    const result: ReviewResult = !hasIssues
+      ? "accepted"
+      : selectedIssues.includes("配件缺失")
+      ? "missing_parts"
+      : "damaged";
 
     const now = new Date().toISOString().slice(0, 16).replace("T", " ");
 
@@ -119,8 +120,6 @@ export default function ReturnInspectionPage() {
     };
 
     addReturnInspection(newInspection);
-
-    const hasIssues = selectedIssues.length > 0 || customIssue.trim();
     updateBorrowStatus(record.id, {
       status: hasIssues ? "needs_review" : "returned",
       actualReturnDate: now,
@@ -135,22 +134,26 @@ export default function ReturnInspectionPage() {
     );
   };
 
-  const currentInspection = inspection || (step === "result" ? {
-    id: `ri_temp`,
-    borrowRecordId: record.id,
-    inspectorId: currentUser.id,
-    inspectorName: currentUser.name,
-    inspectionDate: new Date().toISOString().slice(0, 16).replace("T", " "),
-    overallCondition,
-    result: (selectedIssues.length === 0 ? "accepted" : selectedIssues.includes("配件缺失") ? "missing_parts" : "damaged") as ReviewResult,
-    issuesFound: [...selectedIssues, customIssue].filter(Boolean),
-    compensationAmount: compensationAmount ? parseFloat(compensationAmount) : undefined,
-    compensationReason: compensationReason || undefined,
-    notes,
-    depositReturned,
-    depositReturnAmount: depositReturned ? record.depositAmount - (parseFloat(compensationAmount) || 0) : 0,
-    createdAt: new Date().toISOString(),
-  } : null);
+  const currentInspection = inspection || (step === "result" ? (() => {
+    const hasComp = compensationAmount && parseFloat(compensationAmount) > 0;
+    const hasIssuesTemp = selectedIssues.length > 0 || customIssue.trim() || hasComp;
+    return {
+      id: `ri_temp`,
+      borrowRecordId: record.id,
+      inspectorId: currentUser.id,
+      inspectorName: currentUser.name,
+      inspectionDate: new Date().toISOString().slice(0, 16).replace("T", " "),
+      overallCondition,
+      result: (!hasIssuesTemp ? "accepted" : selectedIssues.includes("配件缺失") ? "missing_parts" : "damaged") as ReviewResult,
+      issuesFound: [...selectedIssues, customIssue].filter(Boolean),
+      compensationAmount: compensationAmount ? parseFloat(compensationAmount) : undefined,
+      compensationReason: compensationReason || undefined,
+      notes,
+      depositReturned,
+      depositReturnAmount: depositReturned ? record.depositAmount - (parseFloat(compensationAmount) || 0) : 0,
+      createdAt: new Date().toISOString(),
+    };
+  })() : null);
 
   return (
     <div className="space-y-6">
