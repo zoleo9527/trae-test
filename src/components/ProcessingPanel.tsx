@@ -1,0 +1,679 @@
+import { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  X, Camera, MapPin, Clock, AlertTriangle, CheckCircle, RotateCcw,
+  Send, Package, User, FileText, Store, Upload, Check, XCircle
+} from 'lucide-react';
+import { useProcessingStore } from '@/store/useProcessingStore';
+import { useOrderStore } from '@/store/useOrderStore';
+import { useRoleStore } from '@/store/useRoleStore';
+import {
+  STATUS_LABELS, ROLE_LABELS, DAMAGE_POSITIONS, REWASH_REASONS, WASH_TYPES,
+  type Order, type DamageRecord, type RewashRecord
+} from '@/types';
+import { mockDamageRecords, mockRewashRecords, mockBatches } from '@/data/mockData';
+import { cn } from '@/lib/utils';
+
+const formatDateTime = (isoString: string) => {
+  return new Date(isoString).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const MODE_LABELS: Record<string, string> = {
+  sort: '分拣指派',
+  inspect: '质检处理',
+  damage: '污损记录',
+  rewash: '返洗处理',
+  handover: '门店交接',
+  verify: '回单核验',
+};
+
+export default function ProcessingPanel() {
+  const { orderId, isOpen, mode, closeProcessing } = useProcessingStore();
+  const { orders, setOrders } = useOrderStore();
+  const { currentRole } = useRoleStore();
+  const [activeTab, setActiveTab] = useState<'main' | 'history' | 'evidence'>('main');
+  const [damagePosition, setDamagePosition] = useState('');
+  const [damageDesc, setDamageDesc] = useState('');
+  const [rewashReason, setRewashReason] = useState('');
+  const [rewashDesc, setRewashDesc] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('');
+  const [verifyPassed, setVerifyPassed] = useState<boolean | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const order = orders.find((o) => o.id === orderId);
+  const damageRecords = mockDamageRecords.filter((d) => d.orderId === orderId);
+  const rewashRecords = mockRewashRecords.filter((r) => r.orderId === orderId);
+  const batch = order?.batchId ? mockBatches.find((b) => b.id === order.batchId) : null;
+
+  if (!order) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newImages = Array.from(files).map(() =>
+        `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=laundry+garment+inspection+photo+close+up+high+quality&image_size=square`
+      );
+      setUploadedImages([...uploadedImages, ...newImages]);
+    }
+  };
+
+  const handleSort = () => {
+    if (!selectedBatch) return;
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'washing' as const, batchId: selectedBatch, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const handleInspectPass = () => {
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'handover' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const handleMarkDamage = () => {
+    if (!damagePosition || !damageDesc) return;
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'damage_claim' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const handleMarkRewash = () => {
+    if (!rewashReason || !rewashDesc) return;
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'rewashing' as const, updatedAt: new Date().toISOString(), assignedTo: 'inspector' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const handleHandover = () => {
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'verifying' as const, updatedAt: new Date().toISOString(), assignedTo: 'store_handler' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const handleVerify = (passed: boolean) => {
+    setVerifyPassed(passed);
+    if (passed) {
+      const updatedOrders = orders.map((o) =>
+        o.id === orderId
+          ? { ...o, status: 'completed' as const, updatedAt: new Date().toISOString() }
+          : o
+      );
+      setOrders(updatedOrders);
+      setTimeout(() => closeProcessing(), 1500);
+    }
+  };
+
+  const handleReject = () => {
+    if (!rejectReason) return;
+    const updatedOrders = orders.map((o) =>
+      o.id === orderId
+        ? { ...o, status: 'rejected' as const, updatedAt: new Date().toISOString(), assignedTo: 'factory_manager' as const }
+        : o
+    );
+    setOrders(updatedOrders);
+    closeProcessing();
+  };
+
+  const renderMainContent = () => {
+    switch (mode) {
+      case 'sort':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-700">选择洗涤批次</label>
+              <div className="space-y-2">
+                {mockBatches.filter((b) => b.status !== 'completed').map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => setSelectedBatch(b.id)}
+                    className={cn(
+                      'w-full p-4 rounded-lg border text-left transition-all',
+                      selectedBatch === b.id
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-slate-800">{b.batchNo}</p>
+                        <p className="text-sm text-slate-500">{b.washType} · {b.orderIds.length} 件衣物</p>
+                      </div>
+                      {selectedBatch === b.id && <Check className="w-5 h-5 text-amber-500" />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleSort}
+              disabled={!selectedBatch}
+              className={cn(
+                'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                selectedBatch
+                  ? 'bg-amber-500 text-white hover:bg-amber-600'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              <Send className="w-4 h-4" />
+              确认分拣并进入洗涤
+            </button>
+          </div>
+        );
+
+      case 'inspect':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-medium text-slate-700">质检结果</h3>
+
+              <button
+                onClick={handleInspectPass}
+                className="w-full p-4 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-all flex items-center gap-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-emerald-700">质检通过</p>
+                  <p className="text-sm text-emerald-600">衣物洗涤合格，进入门店交接</p>
+                </div>
+              </button>
+
+              <div className="border-t border-slate-200 pt-4">
+                <h4 className="text-sm font-medium text-slate-600 mb-3">标记问题</h4>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {}}
+                    className="w-full p-4 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-all flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center">
+                      <RotateCcw className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium text-orange-700">需要返洗</p>
+                      <p className="text-sm text-orange-600">污渍未清、色泽不均等问题</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {}}
+                    className="w-full p-4 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 transition-all flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium text-red-700">发现污损</p>
+                      <p className="text-sm text-red-600">褪色、破损、变形等问题</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'damage':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  拍照取证
+                </label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
+                >
+                  <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                  <p className="text-sm text-slate-500">点击上传或拍照</p>
+                  <p className="text-xs text-slate-400 mt-1">支持多张图片</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                {uploadedImages.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {uploadedImages.map((img, i) => (
+                      <div key={i} className="relative aspect-square rounded-lg overflow-hidden">
+                        <img src={img} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  污损位置
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {DAMAGE_POSITIONS.map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => setDamagePosition(pos)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-full text-sm transition-all',
+                        damagePosition === pos
+                          ? 'bg-red-500 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      )}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">污损描述</label>
+                <textarea
+                  value={damageDesc}
+                  onChange={(e) => setDamageDesc(e.target.value)}
+                  placeholder="请详细描述污损情况..."
+                  className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleMarkDamage}
+              disabled={!damagePosition || !damageDesc}
+              className={cn(
+                'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                damagePosition && damageDesc
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              确认污损记录
+            </button>
+          </div>
+        );
+
+      case 'rewash':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">返洗原因</label>
+                <div className="space-y-2">
+                  {REWASH_REASONS.map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setRewashReason(reason)}
+                      className={cn(
+                        'w-full p-3 rounded-lg border text-left transition-all',
+                        rewashReason === reason
+                          ? 'border-orange-500 bg-orange-50'
+                          : 'border-slate-200 hover:border-slate-300'
+                      )}
+                    >
+                      <span className={cn(
+                        'text-sm',
+                        rewashReason === reason ? 'text-orange-700 font-medium' : 'text-slate-600'
+                      )}>
+                        {reason}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">详细说明</label>
+                <textarea
+                  value={rewashDesc}
+                  onChange={(e) => setRewashDesc(e.target.value)}
+                  placeholder="请描述具体问题..."
+                  className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleMarkRewash}
+              disabled={!rewashReason || !rewashDesc}
+              className={cn(
+                'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                rewashReason && rewashDesc
+                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              <RotateCcw className="w-4 h-4" />
+              确认返洗
+            </button>
+          </div>
+        );
+
+      case 'handover':
+        return (
+          <div className="space-y-6">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+              <h3 className="font-medium text-cyan-800 mb-2">交接确认</h3>
+              <p className="text-sm text-cyan-700">
+                确认衣物已打包完毕，准备送往 {order.storeName}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <span className="text-sm text-slate-600">订单编号</span>
+                <span className="font-mono text-sm text-slate-800">{order.orderNo}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <span className="text-sm text-slate-600">衣物类型</span>
+                <span className="text-sm text-slate-800">{order.garmentType}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <span className="text-sm text-slate-600">所属门店</span>
+                <span className="text-sm text-slate-800">{order.storeName}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleHandover}
+              className="w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-cyan-500 text-white hover:bg-cyan-600"
+            >
+              <Send className="w-4 h-4" />
+              确认送出
+            </button>
+          </div>
+        );
+
+      case 'verify':
+        return (
+          <div className="space-y-6">
+            {verifyPassed === null ? (
+              <>
+                <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                  <h3 className="font-medium text-teal-800 mb-2">门店核验</h3>
+                  <p className="text-sm text-teal-700">
+                    请核对收到的衣物是否与订单一致
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" defaultChecked />
+                    <span className="text-sm text-slate-700">衣物数量正确</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" defaultChecked />
+                    <span className="text-sm text-slate-700">衣物无新增污渍</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" defaultChecked />
+                    <span className="text-sm text-slate-700">洗涤效果符合预期</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleVerify(true)}
+                    className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-emerald-500 text-white hover:bg-emerald-600"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    核验通过
+                  </button>
+                  <button
+                    onClick={() => handleVerify(false)}
+                    className="py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    申请退回
+                  </button>
+                </div>
+              </>
+            ) : verifyPassed ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-12"
+              >
+                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-emerald-700">核验通过</h3>
+                <p className="text-sm text-emerald-600 mt-1">回单已完成</p>
+              </motion.div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">退回原因</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="请详细说明退回原因..."
+                    className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                    rows={4}
+                  />
+                </div>
+                <button
+                  onClick={handleReject}
+                  disabled={!rejectReason}
+                  className={cn(
+                    'w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2',
+                    rejectReason
+                      ? 'bg-red-500 text-white hover:bg-red-600'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  )}
+                >
+                  <XCircle className="w-4 h-4" />
+                  确认退回
+                </button>
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeProcessing}
+            className="fixed inset-0 bg-black/30 z-40"
+          />
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            className="fixed right-0 top-0 h-full w-[480px] bg-white shadow-2xl z-50 flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                    {MODE_LABELS[mode || '']}
+                  </span>
+                  <h2 className="text-lg font-bold text-slate-800 mt-2">{order.orderNo}</h2>
+                </div>
+                <button
+                  onClick={closeProcessing}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex border-b border-slate-200">
+              {[{ key: 'main', label: '处理' }, { key: 'history', label: '流转记录' }, { key: 'evidence', label: '证据链' }].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                  className={cn(
+                    'flex-1 py-3 text-sm font-medium transition-all border-b-2',
+                    activeTab === tab.key
+                      ? 'border-amber-500 text-amber-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeTab === 'main' && (
+                <div className="space-y-6">
+                  <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-600">{order.garmentDesc}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Store className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-600">{order.storeName}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-600">{order.customerName}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Package className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-600">
+                        当前状态：{STATUS_LABELS[order.status]}
+                      </span>
+                    </div>
+                    {batch && (
+                      <div className="flex items-center gap-3">
+                        <Package className="w-4 h-4 text-slate-400" />
+                        <span className="text-sm text-slate-600">
+                          批次：{batch.batchNo} ({batch.washType})
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {renderMainContent()}
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <div className="w-px flex-1 bg-slate-200 mt-1" />
+                    </div>
+                    <div className="flex-1 pb-6">
+                      <p className="text-sm font-medium text-slate-700">收衣登记</p>
+                      <p className="text-xs text-slate-500 mt-1">{formatDateTime(order.createdAt)}</p>
+                      <p className="text-xs text-slate-400 mt-1">门店交接员 · {order.storeName}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">当前状态：{STATUS_LABELS[order.status]}</p>
+                      <p className="text-xs text-slate-500 mt-1">{formatDateTime(order.updatedAt)}</p>
+                      <p className="text-xs text-slate-400 mt-1">{ROLE_LABELS[order.assignedTo]}处理中</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'evidence' && (
+                <div className="space-y-6">
+                  {damageRecords.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-3">污损记录</h4>
+                      {damageRecords.map((record: DamageRecord) => (
+                        <div key={record.id} className="bg-red-50 border border-red-200 rounded-lg p-4 mb-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="w-4 h-4 text-red-500" />
+                            <span className="text-sm font-medium text-red-700">{record.position}</span>
+                          </div>
+                          <p className="text-sm text-red-600">{record.description}</p>
+                          <img src={record.imageUrl} alt="" className="mt-3 rounded-lg w-full h-40 object-cover" />
+                          <p className="text-xs text-red-400 mt-2">
+                            {record.recordedBy} · {formatDateTime(record.recordedAt)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {rewashRecords.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-3">返洗记录</h4>
+                      {rewashRecords.map((record: RewashRecord) => (
+                        <div key={record.id} className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <RotateCcw className="w-4 h-4 text-orange-500" />
+                            <span className="text-sm font-medium text-orange-700">{record.reason}</span>
+                          </div>
+                          <p className="text-sm text-orange-600">{record.description}</p>
+                          <p className="text-xs text-orange-400 mt-2">{formatDateTime(record.createdAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {damageRecords.length === 0 && rewashRecords.length === 0 && (
+                    <div className="text-center py-12 text-slate-400">
+                      <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>暂无证据记录</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
