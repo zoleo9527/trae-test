@@ -2,6 +2,55 @@ import db from '../db';
 import { PaginatedResponse, Wallet, WalletTransaction } from '../types';
 import { buildWhereClause, getClientIp, logAudit } from '../utils';
 
+function getConfigRules() {
+  const stmt = db.prepare("SELECT * FROM configs WHERE key = 'rules'");
+  const result = stmt.get() as { value: string } | undefined;
+
+  if (!result) {
+    return {
+      deduct_priority: 'gift_first' as const,
+      holiday_coefficient: 1.5,
+      weekend_coefficient: 1.2,
+      gift_validity_days: 365,
+      recharge_gift_rules: [
+        { threshold: 1000, gift_percent: 10 },
+        { threshold: 3000, gift_percent: 15 },
+        { threshold: 5000, gift_percent: 20 },
+        { threshold: 10000, gift_percent: 30 }
+      ],
+      member_discount: {
+        normal: 1.0,
+        silver: 0.95,
+        gold: 0.9,
+        diamond: 0.85
+      }
+    };
+  }
+
+  try {
+    return JSON.parse(result.value);
+  } catch {
+    return {
+      deduct_priority: 'gift_first' as const,
+      holiday_coefficient: 1.5,
+      weekend_coefficient: 1.2,
+      gift_validity_days: 365,
+      recharge_gift_rules: [
+        { threshold: 1000, gift_percent: 10 },
+        { threshold: 3000, gift_percent: 15 },
+        { threshold: 5000, gift_percent: 20 },
+        { threshold: 10000, gift_percent: 30 }
+      ],
+      member_discount: {
+        normal: 1.0,
+        silver: 0.95,
+        gold: 0.9,
+        diamond: 0.85
+      }
+    };
+  }
+}
+
 export interface TransactionFilters {
   member_id?: number;
   member_name_like?: string;
@@ -81,6 +130,19 @@ export function getWalletByMemberId(memberId: number): Wallet | undefined {
   return stmt.get(memberId) as Wallet | undefined;
 }
 
+export function calculateGiftAmount(amount: number): number {
+  const config = getConfigRules();
+  const rules = [...config.recharge_gift_rules].sort((a, b) => b.threshold - a.threshold);
+
+  for (const rule of rules) {
+    if (amount >= rule.threshold) {
+      return Math.floor(amount * rule.gift_percent / 100);
+    }
+  }
+
+  return 0;
+}
+
 export function recharge(req: any, operatorId: number, data: RechargeRequest) {
   const tx = db.transaction(() => {
     const wallet = getWalletByMemberId(data.member_id);
@@ -88,7 +150,7 @@ export function recharge(req: any, operatorId: number, data: RechargeRequest) {
       throw new Error('会员账户不存在');
     }
 
-    const giftAmount = data.gift_amount || 0;
+    const giftAmount = calculateGiftAmount(data.amount);
 
     db.prepare(`
       UPDATE wallets
@@ -145,9 +207,8 @@ export function deduct(req: any, operatorId: number, data: DeductRequest) {
       throw new Error('余额不足');
     }
 
-    const configStmt = db.prepare("SELECT value FROM configs WHERE key = 'deduct_priority'");
-    const config = configStmt.get() as { value: string } | undefined;
-    const priority = config?.value || 'gift_first';
+    const config = getConfigRules();
+    const priority = config.deduct_priority;
 
     let giftDeduct = 0;
     let principalDeduct = 0;

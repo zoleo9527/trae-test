@@ -2,6 +2,52 @@ import db from '../db';
 import { Equipment, EquipmentRecord, PaginatedResponse } from '../types';
 import { buildWhereClause, getClientIp, logAudit } from '../utils';
 
+function createException(req: any, operatorId: number, data: {
+  member_id?: number;
+  type: string;
+  title: string;
+  description: string;
+  related_transaction_id?: number;
+  related_booking_id?: number;
+}) {
+  const tx = db.transaction(() => {
+    let memberId = data.member_id;
+
+    if (!memberId && data.related_transaction_id) {
+      const txRecord = db.prepare('SELECT member_id FROM wallet_transactions WHERE id = ?').get(data.related_transaction_id) as { member_id: number } | undefined;
+      if (txRecord) {
+        memberId = txRecord.member_id;
+      }
+    }
+
+    if (!memberId && data.related_booking_id) {
+      const booking = db.prepare('SELECT member_id FROM bookings WHERE id = ?').get(data.related_booking_id) as { member_id: number } | undefined;
+      if (booking) {
+        memberId = booking.member_id;
+      }
+    }
+
+    const insertEx = db.prepare(`
+      INSERT INTO exceptions (member_id, type, title, description, related_transaction_id, related_booking_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = insertEx.run(
+      memberId || null,
+      data.type,
+      data.title,
+      data.description,
+      data.related_transaction_id || null,
+      data.related_booking_id || null,
+      operatorId
+    );
+
+    return result.lastInsertRowid as number;
+  });
+
+  return tx();
+}
+
 export interface EquipmentRecordFilters {
   member_id?: number;
   equipment_id?: number;
@@ -158,6 +204,8 @@ export function returnEquipment(req: any, operatorId: number, data: ReturnReques
       `).run(record.equipment_id);
     }
 
+    let damageTxId: number | undefined;
+
     if (data.damage_fee && data.damage_fee > 0 && record.member_id) {
       const walletStmt = db.prepare('SELECT * FROM wallets WHERE member_id = ?');
       const wallet = walletStmt.get(record.member_id) as any;
@@ -168,10 +216,12 @@ export function returnEquipment(req: any, operatorId: number, data: ReturnReques
         WHERE member_id = ?
       `).run(data.damage_fee, record.member_id);
 
-      db.prepare(`
+      const insertTx = db.prepare(`
         INSERT INTO wallet_transactions (wallet_id, member_id, type, amount, principal_amount, gift_amount, source, source_id, operator_id, remark)
         VALUES (?, ?, 'consume', ?, ?, 0, 'equipment_damage', ?, ?, ?)
-      `).run(
+      `);
+
+      const txResult = insertTx.run(
         wallet.id,
         record.member_id,
         data.damage_fee,
@@ -180,6 +230,29 @@ export function returnEquipment(req: any, operatorId: number, data: ReturnReques
         operatorId,
         data.damage_remark || '器材损坏赔偿'
       );
+
+      damageTxId = txResult.lastInsertRowid as number;
+    }
+
+    if ((data.return_status === 'damaged' || data.return_status === 'lost') && record.member_id) {
+      const equipment = db.prepare('SELECT * FROM equipments WHERE id = ?').get(record.equipment_id) as Equipment;
+      const typeMap = {
+        damaged: 'equipment_damage',
+        lost: 'equipment_loss'
+      };
+      const titleMap = {
+        damaged: `器材损坏 - ${equipment.name}`,
+        lost: `器材遗失 - ${equipment.name}`
+      };
+
+      createException(req, operatorId, {
+        member_id: record.member_id,
+        type: typeMap[data.return_status],
+        title: titleMap[data.return_status],
+        description: `${data.damage_remark || '无详细描述'}，赔偿金额：${data.damage_fee || 0}元`,
+        related_transaction_id: damageTxId,
+        related_booking_id: record.booking_id
+      });
     }
 
     logAudit(

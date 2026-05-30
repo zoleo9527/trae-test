@@ -83,13 +83,29 @@ export function getExceptionById(id: number): (Exception & { member_name: string
 
 export function createException(req: any, operatorId: number, data: CreateExceptionRequest) {
   const tx = db.transaction(() => {
+    let memberId = data.member_id;
+
+    if (!memberId && data.related_transaction_id) {
+      const txRecord = db.prepare('SELECT member_id FROM wallet_transactions WHERE id = ?').get(data.related_transaction_id) as { member_id: number } | undefined;
+      if (txRecord) {
+        memberId = txRecord.member_id;
+      }
+    }
+
+    if (!memberId && data.related_booking_id) {
+      const booking = db.prepare('SELECT member_id FROM bookings WHERE id = ?').get(data.related_booking_id) as { member_id: number } | undefined;
+      if (booking) {
+        memberId = booking.member_id;
+      }
+    }
+
     const insertEx = db.prepare(`
       INSERT INTO exceptions (member_id, type, title, description, evidence_screenshot, related_transaction_id, related_booking_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = insertEx.run(
-      data.member_id || null,
+      memberId || null,
       data.type,
       data.title,
       data.description,

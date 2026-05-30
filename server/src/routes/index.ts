@@ -23,12 +23,14 @@ router.post('/members', authMiddleware, memberController.createMember);
 router.get('/members/:id/timeline', authMiddleware, memberController.getMemberTimeline);
 
 router.get('/wallet/transactions', authMiddleware, walletController.getTransactions);
+router.get('/wallet/calculate-gift', authMiddleware, walletController.calculateGift);
 router.post('/wallet/recharge', authMiddleware, roleMiddleware(['reception', 'manager']), walletController.recharge);
 router.post('/wallet/deduct', authMiddleware, roleMiddleware(['reception', 'manager']), walletController.deduct);
 
 router.get('/bays', authMiddleware, bookingController.getBays);
 router.get('/bays/status', authMiddleware, bookingController.getBayStatus);
 router.get('/bookings', authMiddleware, bookingController.getBookings);
+router.get('/bookings/calculate', authMiddleware, bookingController.calculateBookingAmount);
 router.get('/bookings/:id', authMiddleware, bookingController.getBookingById);
 router.post('/bookings', authMiddleware, bookingController.createBooking);
 router.put('/bookings/:id/checkin', authMiddleware, bookingController.checkinBooking);

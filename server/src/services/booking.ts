@@ -3,6 +3,65 @@ import { Bay, Booking, PaginatedResponse } from '../types';
 import { buildWhereClause, getClientIp, logAudit } from '../utils';
 import { deduct } from './wallet';
 
+function getConfigRules() {
+  const stmt = db.prepare("SELECT * FROM configs WHERE key = 'rules'");
+  const result = stmt.get() as { value: string } | undefined;
+
+  if (!result) {
+    return {
+      deduct_priority: 'gift_first' as const,
+      holiday_coefficient: 1.5,
+      weekend_coefficient: 1.2,
+      gift_validity_days: 365,
+      recharge_gift_rules: [
+        { threshold: 1000, gift_percent: 10 },
+        { threshold: 3000, gift_percent: 15 },
+        { threshold: 5000, gift_percent: 20 },
+        { threshold: 10000, gift_percent: 30 }
+      ],
+      member_discount: {
+        normal: 1.0,
+        silver: 0.95,
+        gold: 0.9,
+        diamond: 0.85
+      }
+    };
+  }
+
+  try {
+    return JSON.parse(result.value);
+  } catch {
+    return {
+      deduct_priority: 'gift_first' as const,
+      holiday_coefficient: 1.5,
+      weekend_coefficient: 1.2,
+      gift_validity_days: 365,
+      recharge_gift_rules: [
+        { threshold: 1000, gift_percent: 10 },
+        { threshold: 3000, gift_percent: 15 },
+        { threshold: 5000, gift_percent: 20 },
+        { threshold: 10000, gift_percent: 30 }
+      ],
+      member_discount: {
+        normal: 1.0,
+        silver: 0.95,
+        gold: 0.9,
+        diamond: 0.85
+      }
+    };
+  }
+}
+
+function getMemberById(id: number) {
+  const stmt = db.prepare(`
+    SELECT m.*, w.id as wallet_id, w.principal_balance, w.gift_balance, w.frozen_balance
+    FROM members m
+    LEFT JOIN wallets w ON m.id = w.member_id
+    WHERE m.id = ?
+  `);
+  return stmt.get(id);
+}
+
 export interface BookingFilters {
   member_id?: number;
   member_name_like?: string;
@@ -29,6 +88,69 @@ export interface CreateBookingRequest {
 export function getBays(): Bay[] {
   const stmt = db.prepare('SELECT * FROM bays ORDER BY bay_number');
   return stmt.all() as Bay[];
+}
+
+function isWeekend(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+export interface CalculationResult {
+  base_amount: number;
+  discount_amount: number;
+  coefficient_amount: number;
+  final_amount: number;
+  discount_rate: number;
+  coefficient: number;
+  member_type: string;
+  is_weekend: boolean;
+  is_holiday: boolean;
+}
+
+export function calculateBookingAmount(
+  bayId: number,
+  bookingDate: string,
+  durationMinutes: number,
+  memberType: string = 'normal'
+): CalculationResult {
+  const bay = db.prepare('SELECT * FROM bays WHERE id = ?').get(bayId) as Bay | undefined;
+  if (!bay) {
+    throw new Error('球道不存在');
+  }
+
+  const config = getConfigRules();
+  const hourlyRate = bay.hourly_rate;
+  const durationHours = durationMinutes / 60;
+
+  const baseAmount = hourlyRate * durationHours;
+
+  const discountRate = config.member_discount[memberType as keyof typeof config.member_discount] || 1.0;
+  const discountAmount = baseAmount * discountRate;
+
+  let coefficient = 1.0;
+  const weekend = isWeekend(bookingDate);
+  const holiday = false;
+
+  if (holiday) {
+    coefficient = config.holiday_coefficient;
+  } else if (weekend) {
+    coefficient = config.weekend_coefficient;
+  }
+
+  const finalAmount = Math.round(discountAmount * coefficient * 100) / 100;
+
+  return {
+    base_amount: Math.round(baseAmount * 100) / 100,
+    discount_amount: Math.round(discountAmount * 100) / 100,
+    coefficient_amount: finalAmount,
+    final_amount: finalAmount,
+    discount_rate: discountRate,
+    coefficient: coefficient,
+    member_type: memberType,
+    is_weekend: weekend,
+    is_holiday: holiday
+  };
 }
 
 export function getBookings(filters: BookingFilters): PaginatedResponse<Booking & { member_name: string; bay_name: string; creator_name: string }> {
@@ -84,6 +206,21 @@ export function getBookingById(id: number): (Booking & { member_name: string; ba
 
 export function createBooking(req: any, operatorId: number, data: CreateBookingRequest) {
   const tx = db.transaction(() => {
+    let memberType = 'normal';
+    if (data.member_id) {
+      const member = getMemberById(data.member_id);
+      if (member) {
+        memberType = member.member_type;
+      }
+    }
+
+    const calculation = calculateBookingAmount(
+      data.bay_id,
+      data.booking_date,
+      data.duration_minutes,
+      memberType
+    );
+
     const insertBooking = db.prepare(`
       INSERT INTO bookings (member_id, bay_id, booking_date, start_time, end_time, duration_minutes, total_amount, status, created_by, remark)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'booked', ?, ?)
@@ -96,7 +233,7 @@ export function createBooking(req: any, operatorId: number, data: CreateBookingR
       data.start_time,
       data.end_time,
       data.duration_minutes,
-      data.total_amount,
+      calculation.final_amount,
       operatorId,
       data.remark || null
     );
@@ -132,13 +269,36 @@ export function checkinBooking(req: any, operatorId: number, bookingId: number) 
       throw new Error('预约状态不正确');
     }
 
-    if (booking.member_id && booking.total_amount > 0) {
+    let memberType = 'normal';
+    if (booking.member_id) {
+      const member = getMemberById(booking.member_id);
+      if (member) {
+        memberType = member.member_type;
+      }
+    }
+
+    const calculation = calculateBookingAmount(
+      booking.bay_id,
+      booking.booking_date,
+      booking.duration_minutes,
+      memberType
+    );
+
+    if (calculation.final_amount !== booking.total_amount) {
+      db.prepare(`
+        UPDATE bookings
+        SET total_amount = ?
+        WHERE id = ?
+      `).run(calculation.final_amount, bookingId);
+    }
+
+    if (booking.member_id && calculation.final_amount > 0) {
       deduct(req, operatorId, {
         member_id: booking.member_id,
-        amount: booking.total_amount,
+        amount: calculation.final_amount,
         source: 'booking',
         source_id: bookingId,
-        remark: `球道消费 - ${booking.bay_name}`
+        remark: `球道消费 - ${booking.bay_name}（${calculation.discount_rate < 1 ? `${(calculation.discount_rate * 10).toFixed(0)}折` : '无折扣'}${calculation.coefficient > 1 ? `，${calculation.coefficient}倍费率` : ''}）`
       });
     }
 

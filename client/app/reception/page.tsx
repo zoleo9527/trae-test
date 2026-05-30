@@ -57,6 +57,19 @@ export default function ReceptionPage() {
   const [activeRecords, setActiveRecords] = useState<EquipmentRecord[]>([]);
   const [memberBookings, setMemberBookings] = useState<Booking[]>([]);
   const [memberEquipRecords, setMemberEquipRecords] = useState<EquipmentRecord[]>([]);
+  const [equipmentFilter, setEquipmentFilter] = useState('');
+  const [calculatedGift, setCalculatedGift] = useState({ amount: 0, gift_amount: 0, total: 0 });
+  const [bookingCalc, setBookingCalc] = useState<{
+    base_amount: number;
+    discount_amount: number;
+    coefficient_amount: number;
+    final_amount: number;
+    discount_rate: number;
+    coefficient: number;
+    member_type: string;
+    is_weekend: boolean;
+    is_holiday: boolean;
+  } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -78,8 +91,8 @@ export default function ReceptionPage() {
         api.get<(Bay & { current_booking?: Booking | null })[]>('/bays/status'),
         api.get<{ items: WalletTransaction[] }>(`/wallet/transactions?created_at_start=${today}&created_at_end=${today}&pageSize=10`),
         api.get<Equipment[]>('/equipment'),
-        api.get<{ items: WalletTransaction[] }>(`/wallet/transactions?type=recharge&created_at_start=${today}&created_at_end=${today}&pageSize=100`),
-        api.get<{ items: WalletTransaction[]; total: number }>(`/wallet/transactions?type=consume&created_at_start=${today}&created_at_end=${today}&pageSize=1`),
+        api.get<{ items: WalletTransaction[] }>(`/wallet/transactions?type=recharge&created_at_start=${today}&created_at_end=${today}&pageSize=1000`),
+        api.get<{ items: WalletTransaction[]; total: number }>(`/wallet/transactions?type=consume&created_at_start=${today}&created_at_end=${today}&pageSize=1000`),
         api.get<{ items: EquipmentRecord[] }>('/equipment/records?return_status=null&pageSize=50'),
       ]);
 
@@ -95,10 +108,21 @@ export default function ReceptionPage() {
       if (consumeRes.success) {
         const consumeItems = consumeRes.data?.items || [];
         setTodayConsumeTotal(consumeItems.reduce((sum, tx) => sum + tx.amount, 0));
-        setTodayConsumeCount(consumeRes.data?.total || 0);
+        setTodayConsumeCount(consumeItems.length);
       }
     } catch (e) {
       console.error('Load data error:', e);
+    }
+  };
+
+  const refreshMember = async (memberId: number) => {
+    try {
+      const res = await api.get<Member>(`/members/${memberId}`);
+      if (res.success && res.data) {
+        setSelectedMember(res.data);
+      }
+    } catch (e) {
+      console.error('Refresh member error:', e);
     }
   };
 
@@ -144,6 +168,10 @@ export default function ReceptionPage() {
     try {
       await api.put(`/bookings/${bookingId}/checkin`);
       loadData();
+      if (selectedMember) {
+        refreshMember(selectedMember.id);
+        loadMemberData(selectedMember.id);
+      }
     } catch (e: any) {
       alert(e.response?.data?.message || '操作失败');
     }
@@ -175,12 +203,28 @@ export default function ReceptionPage() {
     }
   };
 
-  const calculateGift = (amount: number) => {
-    if (amount >= 5000) return amount * 0.15;
-    if (amount >= 2000) return amount * 0.10;
-    if (amount >= 1000) return amount * 0.05;
-    return 0;
+  const handleCalculateGift = async (amount: number) => {
+    if (amount <= 0) {
+      setCalculatedGift({ amount: 0, gift_amount: 0, total: 0 });
+      return;
+    }
+    try {
+      const res = await api.get<{ amount: number; gift_amount: number; total: number }>(`/wallet/calculate-gift?amount=${amount}`);
+      if (res.success && res.data) {
+        setCalculatedGift(res.data);
+      }
+    } catch (e) {
+      console.error('Calculate gift error:', e);
+    }
   };
+
+  useEffect(() => {
+    if (showRechargeModal && rechargeForm.amount > 0) {
+      handleCalculateGift(rechargeForm.amount);
+    } else {
+      setCalculatedGift({ amount: 0, gift_amount: 0, total: 0 });
+    }
+  }, [rechargeForm.amount, showRechargeModal]);
 
   const handleRecharge = async () => {
     if (!selectedMember) {
@@ -195,12 +239,15 @@ export default function ReceptionPage() {
       await api.post('/wallet/recharge', {
         member_id: selectedMember.id,
         amount: rechargeForm.amount,
-        gift_amount: calculateGift(rechargeForm.amount),
         remark: rechargeForm.remark || undefined,
       });
       setShowRechargeModal(false);
       setRechargeForm({ amount: 0, remark: '' });
       loadData();
+      if (selectedMember) {
+        refreshMember(selectedMember.id);
+        loadMemberData(selectedMember.id);
+      }
       alert('充值成功');
     } catch (e: any) {
       alert(e.response?.data?.message || '充值失败');
@@ -218,12 +265,54 @@ export default function ReceptionPage() {
       setShowReturnModal(false);
       setReturnForm({ record_id: 0, return_status: 'normal', damage_remark: '', damage_fee: 0 });
       loadData();
-      if (selectedMember) loadMemberData(selectedMember.id);
+      if (selectedMember) {
+        refreshMember(selectedMember.id);
+        loadMemberData(selectedMember.id);
+      }
       alert('归还成功');
     } catch (e: any) {
       alert(e.response?.data?.message || '操作失败');
     }
   };
+
+  const handleCalculateBooking = async () => {
+    if (!bookingForm.bay_id || !bookingForm.start_time || !bookingForm.end_time || !selectedMember) {
+      setBookingCalc(null);
+      return;
+    }
+
+    const startHour = parseInt(bookingForm.start_time.split(':')[0]);
+    const endHour = parseInt(bookingForm.end_time.split(':')[0]);
+    const duration = (endHour - startHour) * 60;
+
+    if (duration <= 0) {
+      setBookingCalc(null);
+      return;
+    }
+
+    try {
+      const res = await api.get<{
+        base_amount: number;
+        discount_amount: number;
+        coefficient_amount: number;
+        final_amount: number;
+        discount_rate: number;
+        coefficient: number;
+        member_type: string;
+        is_weekend: boolean;
+        is_holiday: boolean;
+      }>(`/bookings/calculate?bay_id=${bookingForm.bay_id}&booking_date=${bookingForm.booking_date}&duration_minutes=${duration}&member_type=${selectedMember.member_type}`);
+      if (res.success && res.data) {
+        setBookingCalc(res.data);
+      }
+    } catch (e) {
+      console.error('Calculate booking error:', e);
+    }
+  };
+
+  useEffect(() => {
+    handleCalculateBooking();
+  }, [bookingForm.bay_id, bookingForm.booking_date, bookingForm.start_time, bookingForm.end_time, selectedMember]);
 
   const handleCreateBooking = async () => {
     if (!selectedMember) {
@@ -235,7 +324,6 @@ export default function ReceptionPage() {
       return;
     }
     try {
-      const bay = bays.find((b) => b.id === parseInt(bookingForm.bay_id));
       const startHour = parseInt(bookingForm.start_time.split(':')[0]);
       const endHour = parseInt(bookingForm.end_time.split(':')[0]);
       const duration = (endHour - startHour) * 60;
@@ -246,11 +334,12 @@ export default function ReceptionPage() {
         start_time: bookingForm.start_time,
         end_time: bookingForm.end_time,
         duration_minutes: duration,
-        total_amount: bay ? bay.hourly_rate * (duration / 60) : 0,
       });
       setShowBookingModal(false);
       setBookingForm({ bay_id: '', booking_date: new Date().toISOString().split('T')[0], start_time: '', end_time: '' });
+      setBookingCalc(null);
       loadData();
+      if (selectedMember) loadMemberData(selectedMember.id);
       alert('预约创建成功');
     } catch (e: any) {
       alert(e.response?.data?.message || '创建失败');
@@ -541,8 +630,26 @@ export default function ReceptionPage() {
 
                   {activeTab === 'equipment' && (
                     <div className="space-y-4">
+                      <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="搜索器材名称..."
+                          value={equipmentFilter}
+                          onChange={(e) => setEquipmentFilter(e.target.value)}
+                          className="input-field pl-9 py-2 text-sm w-full"
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {equipments.slice(0, 8).map((eq) => (
+                        {equipments
+                          .filter((eq) =>
+                            equipmentFilter
+                              ? eq.name.toLowerCase().includes(equipmentFilter.toLowerCase()) ||
+                                eq.category.toLowerCase().includes(equipmentFilter.toLowerCase())
+                              : true
+                          )
+                          .slice(0, 8)
+                          .map((eq) => (
                           <div
                             key={eq.id}
                             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -732,6 +839,38 @@ export default function ReceptionPage() {
                   />
                 </div>
               </div>
+
+              {bookingCalc && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">基础费用</span>
+                    <span className="font-medium">{formatCurrency(bookingCalc.base_amount)}</span>
+                  </div>
+                  {bookingCalc.discount_rate < 1 && (
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-600">会员折扣</span>
+                      <span className="font-medium text-blue-600">
+                        {(bookingCalc.discount_rate * 10).toFixed(0)}折 -{formatCurrency(bookingCalc.base_amount - bookingCalc.discount_amount)}
+                      </span>
+                    </div>
+                  )}
+                  {bookingCalc.coefficient > 1 && (
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-600">
+                        {bookingCalc.is_holiday ? '节假日' : bookingCalc.is_weekend ? '周末' : ''}系数 x{bookingCalc.coefficient}
+                      </span>
+                      <span className="font-medium text-amber-600">
+                        +{formatCurrency(bookingCalc.coefficient_amount - bookingCalc.discount_amount)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm mt-2 pt-2 border-t border-blue-200">
+                    <span className="text-gray-600">应收金额</span>
+                    <span className="font-bold text-blue-700 text-lg">{formatCurrency(bookingCalc.final_amount)}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowBookingModal(false)} className="flex-1 btn-secondary">
                   取消
@@ -770,19 +909,19 @@ export default function ReceptionPage() {
                   placeholder="请输入充值金额"
                 />
               </div>
-              {rechargeForm.amount > 0 && (
+              {calculatedGift.amount > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">充值金额</span>
-                    <span className="font-medium">{formatCurrency(rechargeForm.amount)}</span>
+                    <span className="font-medium">{formatCurrency(calculatedGift.amount)}</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1">
                     <span className="text-gray-600">赠送金额</span>
-                    <span className="font-medium text-green-600">{formatCurrency(calculateGift(rechargeForm.amount))}</span>
+                    <span className="font-medium text-green-600">{formatCurrency(calculatedGift.gift_amount)}</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1 pt-1 border-t border-green-200">
                     <span className="text-gray-600">实际到账</span>
-                    <span className="font-bold text-green-700">{formatCurrency(rechargeForm.amount + calculateGift(rechargeForm.amount))}</span>
+                    <span className="font-bold text-green-700">{formatCurrency(calculatedGift.total)}</span>
                   </div>
                 </div>
               )}

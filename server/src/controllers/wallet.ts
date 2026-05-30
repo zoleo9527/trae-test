@@ -84,3 +84,32 @@ export async function deduct(req: Request, res: Response) {
     });
   }
 }
+
+export async function calculateGift(req: Request, res: Response) {
+  const { amount } = req.query;
+
+  if (!amount || parseFloat(amount as string) <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: '充值金额不能为空且必须大于0'
+    });
+  }
+
+  try {
+    const giftAmount = walletService.calculateGiftAmount(parseFloat(amount as string));
+    res.json({
+      success: true,
+      message: '计算成功',
+      data: {
+        amount: parseFloat(amount as string),
+        gift_amount: giftAmount,
+        total: parseFloat(amount as string) + giftAmount
+      }
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+}

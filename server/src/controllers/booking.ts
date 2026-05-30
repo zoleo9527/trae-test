@@ -57,10 +57,10 @@ export async function createBooking(req: Request, res: Response) {
 
   const data: CreateBookingRequest = req.body;
 
-  if (!data.bay_id || !data.booking_date || !data.start_time || !data.end_time || !data.duration_minutes || !data.total_amount) {
+  if (!data.bay_id || !data.booking_date || !data.start_time || !data.end_time || !data.duration_minutes) {
     return res.status(400).json({
       success: false,
-      message: '球道ID、预约日期、开始时间、结束时间、时长、总金额不能为空'
+      message: '球道ID、预约日期、开始时间、结束时间、时长不能为空'
     });
   }
 
@@ -130,4 +130,35 @@ export async function getBayStatus(req: Request, res: Response) {
     message: '获取成功',
     data: bays
   });
+}
+
+export async function calculateBookingAmount(req: Request, res: Response) {
+  const { bay_id, booking_date, duration_minutes, member_type } = req.query;
+
+  if (!bay_id || !booking_date || !duration_minutes) {
+    return res.status(400).json({
+      success: false,
+      message: '球道ID、预约日期、时长不能为空'
+    });
+  }
+
+  try {
+    const result = bookingService.calculateBookingAmount(
+      parseInt(bay_id as string),
+      booking_date as string,
+      parseInt(duration_minutes as string),
+      (member_type as string) || 'normal'
+    );
+
+    res.json({
+      success: true,
+      message: '计算成功',
+      data: result
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
 }
