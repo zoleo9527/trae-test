@@ -1,13 +1,22 @@
 import { Response } from 'express';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
-import { success, error, notFound, serverError, paginated } from '../utils/response';
+import { success, error, notFound, forbidden, serverError, paginated } from '../utils/response';
 import { createAuditLog } from '../services/auditLog';
 import { LogAction, LogModule, CheckInStatus, RegistrationStatus } from '@prisma/client';
 
 export async function createCheckIn(req: AuthRequest, res: Response) {
   try {
     if (!req.user) return;
+
+    const isCoordinator =
+      req.user.role === 'DIRECTOR' ||
+      req.user.role === 'VOLUNTEER_COORDINATOR' ||
+      req.user.role === 'ACTIVITY_OPERATOR';
+
+    if (!isCoordinator) {
+      return forbidden(res, '仅志愿者协调、活动运营或馆长可执行签到');
+    }
 
     const { activityId, registrationId, userName, userPhone, checkInMethod, evidenceImage, manualRemark } = req.body;
 
@@ -19,9 +28,8 @@ export async function createCheckIn(req: AuthRequest, res: Response) {
       return notFound(res, '活动不存在');
     }
 
-    let registration = null;
     if (registrationId) {
-      registration = await prisma.registration.findUnique({
+      const registration = await prisma.registration.findUnique({
         where: { id: registrationId },
       });
 
@@ -106,16 +114,29 @@ export async function manualCheckIn(req: AuthRequest, res: Response) {
       return notFound(res, '活动不存在');
     }
 
-    let registration = null;
     if (registrationId) {
-      registration = await prisma.registration.findUnique({
+      const registration = await prisma.registration.findUnique({
         where: { id: registrationId },
       });
 
-      if (registration && registration.status === RegistrationStatus.CHECKED_IN) {
+      if (!registration) {
+        return notFound(res, '报名记录不存在');
+      }
+
+      if (registration.activityId !== activityId) {
+        return error(res, '报名记录不属于该活动', 400);
+      }
+
+      if (registration.status === RegistrationStatus.CHECKED_IN) {
         return error(res, '已签到，请勿重复签到', 400);
       }
+
+      if (registration.status !== RegistrationStatus.APPROVED) {
+        return error(res, '报名未通过审核，无法人工签到', 400);
+      }
     }
+
+    const beforeState: any = registrationId ? { registrationStatus: 'APPROVED' } : null;
 
     const checkIn = await prisma.$transaction(async (tx) => {
       const record = await tx.checkInRecord.create({
@@ -137,7 +158,7 @@ export async function manualCheckIn(req: AuthRequest, res: Response) {
         },
       });
 
-      if (registrationId && registration) {
+      if (registrationId) {
         await tx.registration.update({
           where: { id: registrationId },
           data: {
@@ -155,6 +176,7 @@ export async function manualCheckIn(req: AuthRequest, res: Response) {
       action: LogAction.CHECK_IN,
       recordId: checkIn.id,
       recordType: 'CheckInRecord',
+      beforeState,
       afterState: checkIn,
       remark: `人工签到: ${manualRemark}`,
       evidenceData: { evidenceImage, manualRemark },
@@ -247,14 +269,15 @@ export async function markNoShow(req: AuthRequest, res: Response) {
 
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
+      include: { activity: { select: { id: true, title: true } } },
     });
 
     if (!registration) {
       return notFound(res, '报名记录不存在');
     }
 
-    if (registration.status === RegistrationStatus.CHECKED_IN) {
-      return error(res, '已签到，无法标记为未到', 400);
+    if (registration.status !== RegistrationStatus.APPROVED) {
+      return error(res, '只有已审批的报名才能标记为未到', 400);
     }
 
     const updated = await prisma.registration.update({

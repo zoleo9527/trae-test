@@ -6,6 +6,8 @@ import checkInRoutes from './checkin';
 import libraryRoutes from './library';
 import logRoutes from './log';
 import exportRoutes from './export';
+import notificationRoutes from './notification';
+import feedbackRoutes from './feedback';
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.use('/checkins', checkInRoutes);
 router.use('/libraries', libraryRoutes);
 router.use('/logs', logRoutes);
 router.use('/export', exportRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/feedbacks', feedbackRoutes);
 
 export default router;

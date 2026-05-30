@@ -16,7 +16,7 @@ router.use(authenticate);
 
 router.get('/', validateQuery(checkInListQuerySchema), getCheckInList);
 router.get('/:id', getCheckInDetail);
-router.post('/', validateBody(createCheckInSchema), createCheckIn);
+router.post('/', requireVolunteerCoordinator, validateBody(createCheckInSchema), createCheckIn);
 router.post('/manual', requireVolunteerCoordinator, validateBody(manualCheckInSchema), manualCheckIn);
 router.post('/no-show/:registrationId', requireVolunteerCoordinator, markNoShow);
 
