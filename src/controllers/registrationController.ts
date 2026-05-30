@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../types';
-import { success, error, notFound, serverError, paginated } from '../utils/response';
+import { success, error, notFound, forbidden, serverError, paginated } from '../utils/response';
 import { createAuditLog } from '../services/auditLog';
 import { LogAction, LogModule, RegistrationStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,7 +10,8 @@ export async function createRegistration(req: AuthRequest, res: Response) {
   try {
     if (!req.user) return;
 
-    const { activityId, userId, userName, userPhone, idCardNumber } = req.body;
+    const userId = req.user.userId;
+    const { activityId, userName, userPhone, idCardNumber } = req.body;
     const idempotencyKey = req.headers['x-idempotency-key'] as string || uuidv4();
 
     const activity = await prisma.activity.findUnique({
@@ -211,15 +212,24 @@ export async function rejectRegistration(req: AuthRequest, res: Response) {
       return error(res, '只有待审核状态才能驳回', 400);
     }
 
-    const registration = await prisma.registration.update({
-      where: { id },
-      data: {
-        status: RegistrationStatus.REJECTED,
-        rejectReason,
-        rejectById: req.user.userId,
-        rejectTime: new Date(),
-      },
-      include: { activity: { select: { id: true, title: true } } },
+    const registration = await prisma.$transaction(async (tx) => {
+      const reg = await tx.registration.update({
+        where: { id },
+        data: {
+          status: RegistrationStatus.REJECTED,
+          rejectReason,
+          rejectById: req.user!.userId,
+          rejectTime: new Date(),
+        },
+        include: { activity: { select: { id: true, title: true } } },
+      });
+
+      await tx.activity.update({
+        where: { id: existing.activityId },
+        data: { currentParticipants: { decrement: 1 } },
+      });
+
+      return reg;
     });
 
     await createAuditLog({
@@ -241,6 +251,8 @@ export async function rejectRegistration(req: AuthRequest, res: Response) {
 
 export async function cancelRegistration(req: AuthRequest, res: Response) {
   try {
+    if (!req.user) return;
+
     const { id } = req.params;
     const { cancelReason } = req.body;
 
@@ -251,6 +263,15 @@ export async function cancelRegistration(req: AuthRequest, res: Response) {
 
     if (!existing) {
       return notFound(res, '报名记录不存在');
+    }
+
+    const canCancel =
+      req.user.role === 'DIRECTOR' ||
+      req.user.role === 'ACTIVITY_OPERATOR' ||
+      existing.userId === req.user.userId;
+
+    if (!canCancel) {
+      return forbidden(res, '只能取消自己的报名记录');
     }
 
     if (existing.status === RegistrationStatus.CANCELLED) {

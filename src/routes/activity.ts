@@ -10,14 +10,13 @@ import {
 } from '../controllers/activityController';
 import { authenticate, requireActivityOperator } from '../middleware/auth';
 import { validateBody, validateQuery } from '../middleware/validate';
-import { createActivitySchema, updateActivitySchema } from '../schemas/activity';
-import { paginationSchema } from '../schemas/common';
+import { createActivitySchema, updateActivitySchema, activityListQuerySchema } from '../schemas/activity';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/', validateQuery(paginationSchema), getActivityList);
+router.get('/', validateQuery(activityListQuerySchema), getActivityList);
 router.get('/:id', getActivityDetail);
 router.get('/:id/stats', getActivityStats);
 router.post('/', requireActivityOperator, validateBody(createActivitySchema), createActivity);

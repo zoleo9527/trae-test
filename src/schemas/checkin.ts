@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { withPagination } from './common';
 
 export const createCheckInSchema = z.object({
   activityId: z.string().min(1, '活动ID不能为空'),
@@ -25,6 +26,9 @@ export const checkInFilterSchema = z.object({
   keyword: z.string().optional(),
 });
 
+export const checkInListQuerySchema = withPagination(checkInFilterSchema);
+
 export type CreateCheckInInput = z.infer<typeof createCheckInSchema>;
 export type ManualCheckInInput = z.infer<typeof manualCheckInSchema>;
 export type CheckInFilterInput = z.infer<typeof checkInFilterSchema>;
+export type CheckInListQueryInput = z.infer<typeof checkInListQuerySchema>;

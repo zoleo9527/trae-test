@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { withPagination } from './common';
 
 export const createActivitySchema = z.object({
   title: z.string().min(1, '活动标题不能为空'),
@@ -26,6 +27,9 @@ export const activityFilterSchema = z.object({
   endDate: z.coerce.date().optional(),
 });
 
+export const activityListQuerySchema = withPagination(activityFilterSchema);
+
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type UpdateActivityInput = z.infer<typeof updateActivitySchema>;
 export type ActivityFilterInput = z.infer<typeof activityFilterSchema>;
+export type ActivityListQueryInput = z.infer<typeof activityListQuerySchema>;

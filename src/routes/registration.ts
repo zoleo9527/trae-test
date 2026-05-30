@@ -15,14 +15,14 @@ import {
   createRegistrationSchema,
   rejectRegistrationSchema,
   supplementRegistrationSchema,
+  registrationListQuerySchema,
 } from '../schemas/registration';
-import { paginationSchema } from '../schemas/common';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/', validateQuery(paginationSchema), getRegistrationList);
+router.get('/', validateQuery(registrationListQuerySchema), getRegistrationList);
 router.get('/:id', getRegistrationDetail);
 router.post('/', idempotent, validateBody(createRegistrationSchema), createRegistration);
 router.post('/:id/approve', requireActivityOperator, approveRegistration);
