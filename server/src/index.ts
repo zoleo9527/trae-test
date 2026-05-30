@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import morgan from 'morgan';
 import { initDatabase } from './db/init';
+import { migrateData } from './db/migrate';
 import { seedSampleData } from './db/seed';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import routes from './routes';
@@ -41,6 +42,7 @@ async function startServer() {
     initDefaultConfig();
 
     await seedSampleData();
+    migrateData();
 
     app.listen(PORT, () => {
       console.log(`🚀 服务器运行在 http://localhost:${PORT}`);

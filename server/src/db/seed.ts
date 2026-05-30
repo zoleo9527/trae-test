@@ -118,7 +118,7 @@ export async function seedSampleData() {
 
     const insertBooking = db.prepare(`
       INSERT INTO bookings (member_id, bay_id, booking_date, start_time, end_time, duration_minutes, total_amount, status, checkin_operator_id, checkin_at, complete_operator_id, completed_at, created_by, remark)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', 4, ?, 4, ?, 4, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?)
     `);
 
     const insertEquipRecord = db.prepare(`
@@ -146,16 +146,16 @@ export async function seedSampleData() {
     }
 
     const normalBookings = [
-      { memberId: 1, bayId: 20, date: formatDate(twoDaysAgo), start: '09:00', end: '11:00', duration: 120, amount: 400, checkin: '09:05', complete: '11:00' },
-      { memberId: 2, bayId: 1, date: formatDate(twoDaysAgo), start: '10:00', end: '12:00', duration: 120, amount: 160, checkin: '10:02', complete: '11:55' },
-      { memberId: 3, bayId: 21, date: formatDate(twoDaysAgo), start: '14:00', end: '16:30', duration: 150, amount: 375, checkin: '14:00', complete: '16:25' },
-      { memberId: 1, bayId: 20, date: formatDate(yesterday), start: '08:30', end: '10:30', duration: 120, amount: 400, checkin: '08:35', complete: '10:25' },
-      { memberId: 4, bayId: 5, date: formatDate(yesterday), start: '11:00', end: '13:00', duration: 120, amount: 160, checkin: '11:05', complete: '12:55' },
-      { memberId: 5, bayId: 22, date: formatDate(yesterday), start: '15:00', end: '17:00', duration: 120, amount: 300, checkin: '15:10', complete: '16:50' },
-      { memberId: 10, bayId: 23, date: formatDate(yesterday), start: '16:00', end: '18:00', duration: 120, amount: 400, checkin: '16:05', complete: '18:00' },
-      { memberId: 2, bayId: 2, date: formatDate(today), start: '09:00', end: '11:00', duration: 120, amount: 160, checkin: '09:00', complete: '10:55' },
-      { memberId: 6, bayId: 10, date: formatDate(today), start: '10:00', end: '11:30', duration: 90, amount: 120, checkin: '10:05', complete: null },
-      { memberId: 7, bayId: 15, date: formatDate(today), start: '14:00', end: '15:30', duration: 90, amount: 120, checkin: null, complete: null }
+      { memberId: 1, bayId: 20, date: formatDate(twoDaysAgo), start: '09:00', end: '11:00', duration: 120, amount: 400, checkin: '09:05', complete: '11:00', status: 'completed' },
+      { memberId: 2, bayId: 1, date: formatDate(twoDaysAgo), start: '10:00', end: '12:00', duration: 120, amount: 160, checkin: '10:02', complete: '11:55', status: 'completed' },
+      { memberId: 3, bayId: 21, date: formatDate(twoDaysAgo), start: '14:00', end: '16:30', duration: 150, amount: 375, checkin: '14:00', complete: '16:25', status: 'completed' },
+      { memberId: 1, bayId: 20, date: formatDate(yesterday), start: '08:30', end: '10:30', duration: 120, amount: 400, checkin: '08:35', complete: '10:25', status: 'completed' },
+      { memberId: 4, bayId: 5, date: formatDate(yesterday), start: '11:00', end: '13:00', duration: 120, amount: 160, checkin: '11:05', complete: '12:55', status: 'completed' },
+      { memberId: 5, bayId: 22, date: formatDate(yesterday), start: '15:00', end: '17:00', duration: 120, amount: 300, checkin: '15:10', complete: '16:50', status: 'completed' },
+      { memberId: 10, bayId: 23, date: formatDate(yesterday), start: '16:00', end: '18:00', duration: 120, amount: 400, checkin: '16:05', complete: '18:00', status: 'completed' },
+      { memberId: 2, bayId: 2, date: formatDate(today), start: '09:00', end: '11:00', duration: 120, amount: 160, checkin: '09:00', complete: '10:55', status: 'completed' },
+      { memberId: 6, bayId: 10, date: formatDate(today), start: '10:00', end: '11:30', duration: 90, amount: 120, checkin: '10:05', complete: null, status: 'checked_in' },
+      { memberId: 7, bayId: 15, date: formatDate(today), start: '14:00', end: '15:30', duration: 90, amount: 120, checkin: null, complete: null, status: 'booked' }
     ];
 
     normalBookings.forEach((booking, index) => {
@@ -167,7 +167,10 @@ export async function seedSampleData() {
         booking.end,
         booking.duration,
         booking.amount,
-        `${booking.date} ${booking.checkin || ''}`,
+        booking.status,
+        booking.checkin ? 4 : null,
+        booking.checkin ? `${booking.date} ${booking.checkin}` : null,
+        booking.complete ? 4 : null,
         booking.complete ? `${booking.date} ${booking.complete}` : null,
         index < 8 ? `正常消费，${booking.duration / 60}小时` : null
       );
@@ -183,6 +186,7 @@ export async function seedSampleData() {
           booking.amount * 0.9,
           booking.amount * 0.1,
           'booking',
+          bookingId,
           4,
           `球道消费 - ${booking.duration / 60}小时`
         );
@@ -236,10 +240,11 @@ export async function seedSampleData() {
     );
     const disputeBookingId = disputeBooking.lastInsertRowid as number;
 
-    insertTxCustom.run(
+    const disputeTx = insertTxCustom.run(
       8, 8, 'consume', 160, 144, 16, 'booking', disputeBookingId, 4,
       '球道消费 - 2小时（实际仅1小时，金额有误）', 'mismatched'
     );
+    const disputeTxId = disputeTx.lastInsertRowid as number;
 
     insertBookingCustom.run(
       8, 7, formatDate(yesterday), '16:00', '18:00', 120, 160,
@@ -274,6 +279,12 @@ export async function seedSampleData() {
       'damaged', '杆头有明显划痕，疑似碰撞造成', 200
     );
 
+    const damageTx = insertTxCustom.run(
+      9, 9, 'consume', 200, 200, 0, 'equipment', null, 4,
+      '器材损坏赔偿 - 一号木杆杆头划痕', 'pending'
+    );
+    const damageTxId = damageTx.lastInsertRowid as number;
+
     insertEquipRecordCustom.run(
       2, 6, 9, 4,
       `${formatDate(today)} 10:05`,
@@ -291,8 +302,8 @@ export async function seedSampleData() {
       '储值扣减金额异常',
       '会员郑小刚反映昨日打球扣减金额与实际消费不符，系统扣减160元，但实际只打了1小时应扣80元。',
       '/evidence/dispute_001.jpg',
-      12,
-      5,
+      disputeTxId,
+      disputeBookingId,
       'processing',
       4,
       1,
@@ -306,8 +317,8 @@ export async function seedSampleData() {
       '归还球杆发现损坏',
       '会员冯雅婷归还一号木杆时发现杆头有划痕，疑似使用中碰撞造成。',
       '/evidence/damage_001.jpg',
-      null,
-      7,
+      damageTxId,
+      fengBookingId,
       'pending',
       4,
       null,
