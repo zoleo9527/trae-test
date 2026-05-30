@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f7fa;
+}
+
+.status-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.el-table .warning-row {
+  --el-table-tr-bg-color: #fef0f0;
+}
+
+.el-table .info-row {
+  --el-table-tr-bg-color: #f4f4f5;
+}
+
+.history-timeline .el-timeline-item__timestamp {
+  color: #909399;
+}
+
+.sidebar-menu-item {
+  transition: all 0.2s ease;
+}
+
+.sidebar-menu-item:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.sidebar-menu-item.active {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-right: 3px solid #3b82f6;
+}
+
+.card-hover {
+  transition: all 0.2s ease;
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
