@@ -30,8 +30,8 @@
             </div>
           </div>
           <div class="stat-footer">
-            <span class="stat-trend warning" v-if="scheduleStore.overdueSchedules.length > 0">
-              <el-icon><Warning /></el-icon>{{ scheduleStore.overdueSchedules.length }}个逾期
+            <span class="stat-trend warning" v-if="roleFilteredOverdueScheduleCount > 0">
+              <el-icon><Warning /></el-icon>{{ roleFilteredOverdueScheduleCount }}个逾期
             </span>
             <span class="stat-more">立即处理 →</span>
           </div>
@@ -211,11 +211,17 @@ const roleFilteredPending = computed(() => {
   const role = userStore.currentRole
   if (role === 'director') return scheduleStore.statistics.pending
   if (role === 'coordinator') return scheduleStore.statistics.pending
-  return scheduleStore.todaySchedules.filter(s => s.status === 'pending').length
+  return scheduleStore.operatorPendingCount
 })
 
 const rolePendingLabel = computed(() => {
   return userStore.currentRole === 'operator' ? '今日待签到' : '待签到'
+})
+
+const roleFilteredOverdueScheduleCount = computed(() => {
+  const role = userStore.currentRole
+  if (role === 'operator') return scheduleStore.operatorOverdueSchedules.length
+  return scheduleStore.overdueSchedules.length
 })
 
 const roleFilteredFeedbackPending = computed(() => {
@@ -242,15 +248,13 @@ const todoList = computed(() => {
   const todos = []
   const role = userStore.currentRole
 
-  if (role === 'director' || role === 'coordinator') {
-    if (scheduleStore.overdueSchedules.length > 0) {
-      todos.push({
-        type: 'danger', icon: 'Warning', priority: 'danger', time: '紧急',
-        title: `${scheduleStore.overdueSchedules.length}个排班逾期未处理`,
-        desc: '请及时标记缺勤或补签到',
-        action: 'checkin'
-      })
-    }
+  if (roleFilteredOverdueScheduleCount > 0) {
+    todos.push({
+      type: 'danger', icon: 'Warning', priority: 'danger', time: '紧急',
+      title: `${roleFilteredOverdueScheduleCount}个排班逾期未处理`,
+      desc: role === 'operator' ? '请及时处理您负责的逾期排班' : '请及时标记缺勤或补签到',
+      action: 'checkin'
+    })
   }
 
   const overdueFeedbacks = role === 'director'

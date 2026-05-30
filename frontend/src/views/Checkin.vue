@@ -21,7 +21,7 @@
               <el-icon :size="28"><SuccessFilled /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ scheduleStore.statistics.checkedIn }}</div>
+              <div class="stat-value">{{ roleFilteredStats.checkedIn }}</div>
               <div class="stat-label">已签到</div>
             </div>
           </div>
@@ -34,7 +34,7 @@
               <el-icon :size="28"><CloseBold /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ scheduleStore.statistics.missed }}</div>
+              <div class="stat-value">{{ roleFilteredStats.missed }}</div>
               <div class="stat-label">缺勤</div>
             </div>
           </div>
@@ -58,7 +58,7 @@
               <el-icon :size="28"><CircleCheck /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ scheduleStore.statistics.completed }}</div>
+              <div class="stat-value">{{ roleFilteredStats.completed }}</div>
               <div class="stat-label">已完成</div>
             </div>
           </div>
@@ -315,8 +315,12 @@ const canViewOverdue = computed(() => role.value === 'director' || role.value ==
 const canCheckIn = computed(() => role.value === 'director' || role.value === 'coordinator' || role.value === 'operator')
 const canMarkMissed = computed(() => role.value === 'director' || role.value === 'coordinator')
 
+const roleFilteredStats = computed(() => {
+  return scheduleStore.roleFilteredStatistics(role.value)
+})
+
 const visiblePendingCount = computed(() => {
-  if (role.value === 'operator') return scheduleStore.todaySchedules.filter(s => s.status === 'pending').length
+  if (role.value === 'operator') return scheduleStore.operatorPendingCount
   return scheduleStore.statistics.pending
 })
 
@@ -325,28 +329,17 @@ const rolePendingLabel = computed(() => {
 })
 
 const todaySchedules = computed(() => {
-  if (role.value === 'operator') {
-    return scheduleStore.todaySchedules
-      .filter(s => s.type === '活动协助' || s.type === '读者服务')
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-  }
-  return scheduleStore.todaySchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
+  return scheduleStore.filterByRole(scheduleStore.todaySchedules, role.value)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
 })
 
 const overdueSchedules = computed(() => {
-  if (role.value === 'operator') {
-    return scheduleStore.overdueSchedules
-      .filter(s => s.type === '活动协助' || s.type === '读者服务')
-  }
-  return scheduleStore.overdueSchedules
+  return scheduleStore.filterByRole(scheduleStore.overdueSchedules, role.value)
 })
 
 const historySchedules = computed(() => {
   const all = scheduleStore.getSchedulesByDate(historyDate.value)
-  if (role.value === 'operator') {
-    return all.filter(s => s.type === '活动协助' || s.type === '读者服务')
-  }
-  return all
+  return scheduleStore.filterByRole(all, role.value)
 })
 
 function getOverdueTime(row) {

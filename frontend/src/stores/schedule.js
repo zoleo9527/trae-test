@@ -84,6 +84,47 @@ export const useScheduleStore = defineStore('schedule', () => {
     return schedules.value.filter(s => s.needMakeup && s.makeupStatus === 'pending' && s.makeupAssignedTo === role)
   }
 
+  const OPERATOR_VISIBLE_TYPES = ['活动协助', '儿童阅读']
+
+  function isOperatorSchedule(schedule) {
+    return OPERATOR_VISIBLE_TYPES.includes(schedule.type)
+  }
+
+  function filterByRole(list, role) {
+    if (role === 'operator') {
+      return list.filter(s => isOperatorSchedule(s))
+    }
+    return list
+  }
+
+  const operatorTodaySchedules = computed(() => {
+    return todaySchedules.value.filter(s => isOperatorSchedule(s))
+  })
+
+  const operatorPendingCount = computed(() => {
+    return operatorTodaySchedules.value.filter(s => s.status === 'pending').length
+  })
+
+  const operatorOverdueSchedules = computed(() => {
+    return overdueSchedules.value.filter(s => isOperatorSchedule(s))
+  })
+
+  const roleFilteredStatistics = computed(() => {
+    return (role) => {
+      if (role === 'operator') {
+        const operatorSchedules = schedules.value.filter(s => isOperatorSchedule(s))
+        return {
+          total: operatorSchedules.length,
+          checkedIn: operatorSchedules.filter(s => s.status === 'checkedIn').length,
+          missed: operatorSchedules.filter(s => s.status === 'missed').length,
+          pending: operatorSchedules.filter(s => s.status === 'pending').length,
+          completed: operatorSchedules.filter(s => s.status === 'completed').length
+        }
+      }
+      return statistics.value
+    }
+  })
+
   const weeklyTrend = computed(() => {
     const days = []
     const labels = []
@@ -230,12 +271,18 @@ export const useScheduleStore = defineStore('schedule', () => {
     statistics,
     volunteerStats,
     makeupPending,
+    operatorTodaySchedules,
+    operatorPendingCount,
+    operatorOverdueSchedules,
+    roleFilteredStatistics,
     weeklyTrend,
     monthlyTrend,
     getSchedulesByDate,
     getSchedulesByVolunteer,
     getSchedulesByStatus,
     getMakeupByHandler,
+    isOperatorSchedule,
+    filterByRole,
     addSchedule,
     updateSchedule,
     checkIn,
