@@ -155,9 +155,41 @@ export const getExceptionTypeLabel = (type: string): string => {
   const labels: Record<string, string> = {
     billing_dispute: '账单争议',
     equipment_damage: '器材损坏',
+    equipment_loss: '器材遗失',
     booking_error: '预约错误',
     service_complaint: '服务投诉',
     other: '其他',
   };
   return labels[type] || type;
+};
+
+export const getTransactionTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    recharge: '充值',
+    consume: '消费',
+    refund: '退款',
+    adjust: '调账',
+  };
+  return labels[type] || type;
+};
+
+export const getTransactionSourceLabel = (source: string): string => {
+  const labels: Record<string, string> = {
+    recharge: '储值充值',
+    booking: '球道消费',
+    equipment_damage: '器材赔偿',
+    manual: '手动扣费',
+    adjustment: '调整',
+  };
+  return labels[source] || source;
+};
+
+export const getReconciliationStatusLabelShort = (status: string): string => {
+  const labels: Record<string, string> = {
+    pending: '待对',
+    matched: '已匹配',
+    mismatched: '不匹配',
+    adjusted: '已调账',
+  };
+  return labels[status] || status;
 };

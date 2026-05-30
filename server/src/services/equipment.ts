@@ -53,6 +53,7 @@ export interface EquipmentRecordFilters {
   equipment_id?: number;
   booking_id?: number;
   return_status?: string;
+  return_status_is_null?: boolean;
   borrow_at_start?: string;
   borrow_at_end?: string;
   page?: number;
@@ -87,6 +88,7 @@ export function getEquipmentRecords(filters: EquipmentRecordFilters): PaginatedR
     'er.equipment_id': filters.equipment_id,
     'er.booking_id': filters.booking_id,
     'er.return_status': filters.return_status,
+    'er.return_status_is_null': filters.return_status_is_null,
     'er.borrow_at_start': filters.borrow_at_start,
     'er.borrow_at_end': filters.borrow_at_end
   });

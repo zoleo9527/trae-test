@@ -69,6 +69,7 @@ export default function ReceptionPage() {
     member_type: string;
     is_weekend: boolean;
     is_holiday: boolean;
+    holiday_name: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -197,6 +198,10 @@ export default function ReceptionPage() {
         member_id: selectedMember.id,
       });
       loadData();
+      if (selectedMember) {
+        refreshMember(selectedMember.id);
+        loadMemberData(selectedMember.id);
+      }
       alert('借出成功');
     } catch (e: any) {
       alert(e.response?.data?.message || '操作失败');
@@ -301,6 +306,7 @@ export default function ReceptionPage() {
         member_type: string;
         is_weekend: boolean;
         is_holiday: boolean;
+        holiday_name: string | null;
       }>(`/bookings/calculate?bay_id=${bookingForm.bay_id}&booking_date=${bookingForm.booking_date}&duration_minutes=${duration}&member_type=${selectedMember.member_type}`);
       if (res.success && res.data) {
         setBookingCalc(res.data);
@@ -857,7 +863,7 @@ export default function ReceptionPage() {
                   {bookingCalc.coefficient > 1 && (
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-gray-600">
-                        {bookingCalc.is_holiday ? '节假日' : bookingCalc.is_weekend ? '周末' : ''}系数 x{bookingCalc.coefficient}
+                        {bookingCalc.is_holiday ? (bookingCalc.holiday_name || '节假日') : bookingCalc.is_weekend ? '周末' : ''}系数 x{bookingCalc.coefficient}
                       </span>
                       <span className="font-medium text-amber-600">
                         +{formatCurrency(bookingCalc.coefficient_amount - bookingCalc.discount_amount)}

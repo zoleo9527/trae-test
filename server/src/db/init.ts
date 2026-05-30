@@ -175,6 +175,16 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- 节假日表
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      holiday_date DATE UNIQUE NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) NOT NULL DEFAULT 'public' CHECK (type IN ('public', 'special')),
+      coefficient DECIMAL(3,2),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- 索引
     CREATE INDEX IF NOT EXISTS idx_member_phone ON members(phone);
     CREATE INDEX IF NOT EXISTS idx_transaction_member ON wallet_transactions(member_id);
@@ -184,6 +194,7 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_equipment_record_member ON equipment_records(member_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_holiday_date ON holidays(holiday_date);
   `);
 
   console.log('数据库初始化完成');

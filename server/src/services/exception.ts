@@ -81,6 +81,78 @@ export function getExceptionById(id: number): (Exception & { member_name: string
   return stmt.get(id) as (Exception & { member_name: string | null; creator_name: string; handler_name: string | null }) | undefined;
 }
 
+export interface RelatedTransaction {
+  id: number;
+  member_id: number;
+  type: string;
+  amount: number;
+  principal_amount: number;
+  gift_amount: number;
+  source: string;
+  source_id: number | null;
+  remark: string | null;
+  created_at: string;
+  reconciliation_status: string;
+  member_name: string;
+}
+
+export interface RelatedBooking {
+  id: number;
+  member_id: number | null;
+  bay_id: number;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  total_amount: number;
+  status: string;
+  member_name: string | null;
+  bay_name: string;
+}
+
+export interface ExceptionDetail extends Exception {
+  member_name: string | null;
+  creator_name: string;
+  handler_name: string | null;
+  related_transaction: RelatedTransaction | null;
+  related_booking: RelatedBooking | null;
+}
+
+export function getExceptionDetailById(id: number): ExceptionDetail | undefined {
+  const ex = getExceptionById(id);
+  if (!ex) return undefined;
+
+  let relatedTransaction: RelatedTransaction | null = null;
+  let relatedBooking: RelatedBooking | null = null;
+
+  if (ex.related_transaction_id) {
+    const tx = db.prepare(`
+      SELECT wt.*, m.name as member_name
+      FROM wallet_transactions wt
+      LEFT JOIN members m ON wt.member_id = m.id
+      WHERE wt.id = ?
+    `).get(ex.related_transaction_id) as RelatedTransaction | undefined;
+    relatedTransaction = tx || null;
+  }
+
+  if (ex.related_booking_id) {
+    const booking = db.prepare(`
+      SELECT b.*, m.name as member_name, bay.name as bay_name
+      FROM bookings b
+      LEFT JOIN members m ON b.member_id = m.id
+      LEFT JOIN bays bay ON b.bay_id = bay.id
+      WHERE b.id = ?
+    `).get(ex.related_booking_id) as RelatedBooking | undefined;
+    relatedBooking = booking || null;
+  }
+
+  return {
+    ...ex,
+    related_transaction: relatedTransaction,
+    related_booking: relatedBooking
+  };
+}
+
 export function createException(req: any, operatorId: number, data: CreateExceptionRequest) {
   const tx = db.transaction(() => {
     let memberId = data.member_id;

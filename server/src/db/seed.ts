@@ -379,6 +379,34 @@ export async function seedSampleData() {
     insertAuditLog.run(4, 'equipment', 'create', 'equipment_record', 1, null, '{"action":"borrow","equipment_id":1}', '192.168.1.100', 'Mozilla/5.0');
     insertAuditLog.run(4, 'equipment', 'update', 'equipment_record', 1, '{"return_status":null}', '{"return_status":"normal"}', '192.168.1.100', 'Mozilla/5.0');
 
+    const insertHoliday = db.prepare(`
+      INSERT OR IGNORE INTO holidays (holiday_date, name, type, coefficient)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    insertHoliday.run('2026-01-01', '元旦', 'public', 1.5);
+    insertHoliday.run('2026-01-29', '春节', 'public', 1.5);
+    insertHoliday.run('2026-01-30', '春节', 'public', 1.5);
+    insertHoliday.run('2026-01-31', '春节', 'public', 1.5);
+    insertHoliday.run('2026-02-01', '春节', 'public', 1.5);
+    insertHoliday.run('2026-02-02', '春节', 'public', 1.5);
+    insertHoliday.run('2026-02-03', '春节', 'public', 1.5);
+    insertHoliday.run('2026-04-04', '清明节', 'public', 1.5);
+    insertHoliday.run('2026-04-05', '清明节', 'public', 1.5);
+    insertHoliday.run('2026-05-01', '劳动节', 'public', 1.5);
+    insertHoliday.run('2026-05-02', '劳动节', 'public', 1.5);
+    insertHoliday.run('2026-05-03', '劳动节', 'public', 1.5);
+    insertHoliday.run('2026-05-30', '端午节', 'public', 1.5);
+    insertHoliday.run('2026-05-31', '端午节', 'public', 1.5);
+    insertHoliday.run('2026-10-01', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-02', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-03', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-04', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-05', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-06', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-10-07', '国庆节', 'public', 1.5);
+    insertHoliday.run('2026-06-19', '场地维护日', 'special', 2.0);
+
     console.log('✅ 样例数据初始化完成');
     console.log('');
     console.log('📋 测试账号（密码均为 123456）：');

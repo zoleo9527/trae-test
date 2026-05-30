@@ -96,6 +96,12 @@ function isWeekend(dateStr: string): boolean {
   return day === 0 || day === 6;
 }
 
+function getHoliday(dateStr: string): { name: string; coefficient: number } | null {
+  const stmt = db.prepare('SELECT name, coefficient FROM holidays WHERE holiday_date = ?');
+  const row = stmt.get(dateStr) as { name: string; coefficient: number } | undefined;
+  return row || null;
+}
+
 export interface CalculationResult {
   base_amount: number;
   discount_amount: number;
@@ -106,6 +112,7 @@ export interface CalculationResult {
   member_type: string;
   is_weekend: boolean;
   is_holiday: boolean;
+  holiday_name: string | null;
 }
 
 export function calculateBookingAmount(
@@ -130,10 +137,10 @@ export function calculateBookingAmount(
 
   let coefficient = 1.0;
   const weekend = isWeekend(bookingDate);
-  const holiday = false;
+  const holiday = getHoliday(bookingDate);
 
   if (holiday) {
-    coefficient = config.holiday_coefficient;
+    coefficient = holiday.coefficient || config.holiday_coefficient;
   } else if (weekend) {
     coefficient = config.weekend_coefficient;
   }
@@ -149,7 +156,8 @@ export function calculateBookingAmount(
     coefficient: coefficient,
     member_type: memberType,
     is_weekend: weekend,
-    is_holiday: holiday
+    is_holiday: !!holiday,
+    holiday_name: holiday?.name || null
   };
 }
 

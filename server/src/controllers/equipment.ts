@@ -12,11 +12,13 @@ export async function getEquipments(req: Request, res: Response) {
 }
 
 export async function getRecords(req: Request, res: Response) {
+  const returnStatus = req.query.return_status as string;
   const filters: EquipmentRecordFilters = {
     member_id: req.query.member_id ? parseInt(req.query.member_id as string) : undefined,
     equipment_id: req.query.equipment_id ? parseInt(req.query.equipment_id as string) : undefined,
     booking_id: req.query.booking_id ? parseInt(req.query.booking_id as string) : undefined,
-    return_status: req.query.return_status as string,
+    return_status: returnStatus && returnStatus !== 'null' ? returnStatus : undefined,
+    return_status_is_null: returnStatus === 'null' ? true : undefined,
     borrow_at_start: req.query.borrow_at_start as string,
     borrow_at_end: req.query.borrow_at_end as string,
     page: parseInt(req.query.page as string) || 1,

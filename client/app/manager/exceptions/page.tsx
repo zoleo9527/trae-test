@@ -7,22 +7,67 @@ import Timeline from '@/components/timeline/Timeline';
 import { api } from '@/services/api';
 import { Exception, PaginatedResponse, TimelineEvent } from '@/types';
 import {
+    formatCurrency,
     formatDateTime,
+    getBookingStatusLabel,
     getExceptionStatusColor,
     getExceptionStatusLabel,
     getExceptionTypeLabel,
+    getReconciliationStatusLabelShort,
+    getTransactionSourceLabel,
+    getTransactionTypeLabel
 } from '@/utils/format';
 import {
     AlertTriangle,
+    Calendar,
     CheckCircle,
     Clock,
+    CreditCard,
     Eye,
+    Link2,
     MessageSquare,
     Plus,
     User,
-    XCircle,
+    XCircle
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+interface RelatedTransaction {
+  id: number;
+  member_id: number;
+  type: string;
+  amount: number;
+  principal_amount: number;
+  gift_amount: number;
+  source: string;
+  source_id: number | null;
+  remark: string | null;
+  created_at: string;
+  reconciliation_status: string;
+  member_name: string;
+}
+
+interface RelatedBooking {
+  id: number;
+  member_id: number | null;
+  bay_id: number;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  total_amount: number;
+  status: string;
+  member_name: string | null;
+  bay_name: string;
+}
+
+interface ExceptionDetail extends Exception {
+  member_name?: string | null;
+  creator_name: string;
+  handler_name?: string | null;
+  related_transaction?: RelatedTransaction | null;
+  related_booking?: RelatedBooking | null;
+}
 
 const filterConditions: FilterCondition[] = [
   { key: 'member_name_like', label: '会员姓名', type: 'text' },
@@ -65,7 +110,7 @@ export default function ExceptionsPage() {
   const [filters, setFilters] = useState<FilterValues>({});
   const [exceptions, setExceptions] = useState<PaginatedResponse<Exception & { member_name?: string; creator_name: string; handler_name?: string }> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedException, setSelectedException] = useState<(Exception & { member_name?: string; creator_name: string; handler_name?: string }) | null>(null);
+  const [selectedException, setSelectedException] = useState<ExceptionDetail | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [showProcessModal, setShowProcessModal] = useState(false);
   const [processStatus, setProcessStatus] = useState<'processing' | 'resolved' | 'closed'>('processing');
@@ -109,12 +154,21 @@ export default function ExceptionsPage() {
   };
 
   const handleViewDetail = async (exception: Exception & { member_name?: string; creator_name: string; handler_name?: string }) => {
-    setSelectedException(exception);
-    if (exception.member_id) {
-      const res = await api.get<TimelineEvent[]>(`/members/${exception.member_id}/timeline`);
-      if (res.success) {
-        setTimeline(res.data || []);
+    try {
+      const detailRes = await api.get<ExceptionDetail>(`/exceptions/${exception.id}`);
+      if (detailRes.success && detailRes.data) {
+        setSelectedException(detailRes.data);
       }
+      if (exception.member_id) {
+        const res = await api.get<TimelineEvent[]>(`/members/${exception.member_id}/timeline`);
+        if (res.success) {
+          setTimeline(res.data || []);
+        }
+      } else {
+        setTimeline([]);
+      }
+    } catch (e) {
+      console.error('Load detail error:', e);
     }
   };
 
@@ -312,6 +366,69 @@ export default function ExceptionsPage() {
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <h4 className="font-medium text-gray-700 mb-2">问题描述</h4>
                   <p className="text-gray-600">{selectedException.description}</p>
+                </div>
+
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-indigo-700 mb-3 flex items-center gap-2">
+                    <Link2 size={16} />
+                    关联信息
+                  </h4>
+                  <div className="space-y-3">
+                    {selectedException.member_id && (
+                      <div className="flex items-start gap-3 bg-white rounded-lg p-3">
+                        <User size={16} className="text-indigo-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">关联会员</p>
+                          <p className="text-sm text-gray-600">
+                            #{selectedException.member_id} {selectedException.member_name || '未知'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedException.related_transaction && (
+                      <div className="flex items-start gap-3 bg-white rounded-lg p-3">
+                        <CreditCard size={16} className="text-indigo-500 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-700">
+                            关联交易 #{selectedException.related_transaction.id}
+                          </p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-sm">
+                            <p className="text-gray-500">类型：<span className="text-gray-700">{getTransactionTypeLabel(selectedException.related_transaction.type)}</span></p>
+                            <p className="text-gray-500">来源：<span className="text-gray-700">{getTransactionSourceLabel(selectedException.related_transaction.source)}</span></p>
+                            <p className="text-gray-500">金额：<span className="text-gray-700 font-medium">{formatCurrency(selectedException.related_transaction.amount)}</span></p>
+                            <p className="text-gray-500">对账：<span className={`font-medium ${selectedException.related_transaction.reconciliation_status === 'mismatched' ? 'text-red-600' : 'text-gray-700'}`}>{getReconciliationStatusLabelShort(selectedException.related_transaction.reconciliation_status)}</span></p>
+                          </div>
+                          {selectedException.related_transaction.remark && (
+                            <p className="text-xs text-gray-500 mt-1">备注：{selectedException.related_transaction.remark}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">{formatDateTime(selectedException.related_transaction.created_at)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {selectedException.related_booking && (
+                      <div className="flex items-start gap-3 bg-white rounded-lg p-3">
+                        <Calendar size={16} className="text-indigo-500 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-700">
+                            关联预约 #{selectedException.related_booking.id}
+                          </p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-sm">
+                            <p className="text-gray-500">球道：<span className="text-gray-700">{selectedException.related_booking.bay_name}</span></p>
+                            <p className="text-gray-500">日期：<span className="text-gray-700">{selectedException.related_booking.booking_date}</span></p>
+                            <p className="text-gray-500">时段：<span className="text-gray-700">{selectedException.related_booking.start_time} - {selectedException.related_booking.end_time}</span></p>
+                            <p className="text-gray-500">金额：<span className="text-gray-700 font-medium">{formatCurrency(selectedException.related_booking.total_amount)}</span></p>
+                            <p className="text-gray-500">状态：<span className="text-gray-700">{getBookingStatusLabel(selectedException.related_booking.status)}</span></p>
+                            {selectedException.related_booking.member_name && (
+                              <p className="text-gray-500">会员：<span className="text-gray-700">{selectedException.related_booking.member_name}</span></p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {!selectedException.member_id && !selectedException.related_transaction && !selectedException.related_booking && (
+                      <p className="text-sm text-gray-500">暂无关联信息</p>
+                    )}
+                  </div>
                 </div>
 
                 {selectedException.handling_result && (

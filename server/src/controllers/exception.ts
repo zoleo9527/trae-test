@@ -25,7 +25,7 @@ export async function getExceptions(req: Request, res: Response) {
 
 export async function getExceptionById(req: Request, res: Response) {
   const id = parseInt(req.params.id);
-  const exception = exceptionService.getExceptionById(id);
+  const exception = exceptionService.getExceptionDetailById(id);
 
   if (!exception) {
     return res.status(404).json({

@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'golf_reconciliation_secret_key_202
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '2h';
 
 export function generateToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
 }
 
 export function verifyToken(token: string): AuthPayload | null {
@@ -68,6 +68,13 @@ export function buildWhereClause(filters: Record<string, any>): { clause: string
       const field = key.replace('_like', '');
       conditions.push(`${field} LIKE ?`);
       params.push(`%${value}%`);
+    } else if (key.endsWith('_is_null')) {
+      const field = key.replace('_is_null', '');
+      if (value === true || value === 'true' || value === 1) {
+        conditions.push(`${field} IS NULL`);
+      } else {
+        conditions.push(`${field} IS NOT NULL`);
+      }
     } else if (Array.isArray(value)) {
       if (value.length > 0) {
         const placeholders = value.map(() => '?').join(', ');
