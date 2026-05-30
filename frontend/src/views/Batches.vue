@@ -46,11 +46,11 @@
               <div class="space-y-2 text-sm">
                 <div class="flex items-center justify-between">
                   <span class="text-gray-500">衣物数量</span>
-                  <span>{{ batch.itemCount }} 件</span>
+                  <span class="font-medium">{{ getActualItemCount(batch.id) }} 件</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-gray-500">关联订单</span>
-                  <span>{{ batch.orderIds.length }} 单</span>
+                  <span>{{ getUniqueOrders(batch.id).length }} 单</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <span class="text-gray-500">操作人</span>
@@ -84,11 +84,11 @@
                 <el-tag type="primary" size="small">{{ getWashTypeLabel(row.washType) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="itemCount" label="衣物数量" width="100">
-              <template #default="{ row }">{{ row.itemCount }} 件</template>
+            <el-table-column label="衣物数量" width="100">
+              <template #default="{ row }">{{ getActualItemCount(row.id) }} 件</template>
             </el-table-column>
-            <el-table-column prop="orderIds" label="关联订单" width="100">
-              <template #default="{ row }">{{ row.orderIds.length }} 单</template>
+            <el-table-column label="关联订单" width="100">
+              <template #default="{ row }">{{ getUniqueOrders(row.id).length }} 单</template>
             </el-table-column>
             <el-table-column prop="operator" label="操作人" width="100" />
             <el-table-column prop="startedAt" label="开始时间" width="160" />
@@ -114,11 +114,11 @@
           <div class="grid grid-cols-2 gap-4 text-sm">
             <div class="flex items-center justify-between">
               <span class="text-gray-500">衣物数量</span>
-              <span>{{ selectedBatch.itemCount }} 件</span>
+              <span class="font-medium">{{ getActualItemCount(selectedBatch.id) }} 件</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-gray-500">关联订单</span>
-              <span>{{ selectedBatch.orderIds.length }} 单</span>
+              <span>{{ getUniqueOrders(selectedBatch.id).length }} 单</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-gray-500">操作人</span>
@@ -132,31 +132,37 @@
         </div>
 
         <div>
-          <h4 class="font-medium text-gray-800 mb-3">关联订单与衣物</h4>
-          <div v-for="orderId in selectedBatch.orderIds" :key="orderId" class="mb-4">
-            <div class="font-medium text-sm mb-2">{{ getOrderById(orderId)?.orderNo }}</div>
-            <div v-for="item in getOrderItemsInBatch(orderId, selectedBatch.id)" :key="item.id" 
+          <h4 class="font-medium text-gray-800 mb-3">关联订单与衣物 ({{ getActualItemCount(selectedBatch.id) }} 件)</h4>
+          <div v-for="group in getBatchItemsGrouped(selectedBatch.id)" :key="group.orderId" class="mb-4">
+            <div class="font-medium text-sm mb-2 flex items-center justify-between">
+              <span>{{ group.orderNo }}</span>
+              <span class="text-gray-500 text-xs">{{ group.items.length }} 件</span>
+            </div>
+            <div v-for="item in group.items" :key="item.item.id" 
                  class="bg-gray-50 rounded p-3 mb-2 text-sm">
               <div class="flex items-center justify-between">
-                <span>{{ item.name }}</span>
-                <el-tag :type="getStatusTagType(item.status)" size="small">
-                  {{ getStatusLabel(item.status) }}
+                <span>{{ item.item.name }}</span>
+                <el-tag :type="getStatusTagType(item.item.status)" size="small">
+                  {{ getStatusLabel(item.item.status) }}
                 </el-tag>
               </div>
-              <div v-if="item.defects && item.defects.length" class="mt-1 text-red-500 text-xs">
-                瑕疵：{{ item.defects.join('、') }}
+              <div v-if="item.item.defects && item.item.defects.length" class="mt-1 text-red-500 text-xs">
+                瑕疵：{{ item.item.defects.join('、') }}
               </div>
-              <div v-if="item.defectPhotos && item.defectPhotos.length" class="mt-2 flex gap-2">
+              <div v-if="item.item.defectPhotos && item.item.defectPhotos.length" class="mt-2 flex gap-2">
                 <el-image
-                  v-for="(photo, idx) in item.defectPhotos"
+                  v-for="(photo, idx) in item.item.defectPhotos"
                   :key="idx"
                   :src="photo"
-                  :preview-src-list="item.defectPhotos"
+                  :preview-src-list="item.item.defectPhotos"
                   fit="cover"
                   class="w-16 h-16 rounded cursor-pointer"
                 />
               </div>
             </div>
+          </div>
+          <div v-if="getBatchItemsGrouped(selectedBatch.id).length === 0" class="text-center text-gray-400 py-8">
+            暂无衣物数据
           </div>
         </div>
       </div>
@@ -200,13 +206,31 @@ function getStatusTagType(status: string) {
   return map[status] || '';
 }
 
-function getOrderById(orderId: string) {
-  return orderStore.getOrderById(orderId);
+function getBatchItemsGrouped(batchId: string) {
+  const items = batchStore.getBatchItems(batchId);
+  const grouped: Record<string, { orderId: string; orderNo: string; items: typeof items }> = {};
+  
+  items.forEach(item => {
+    if (!grouped[item.orderId]) {
+      grouped[item.orderId] = {
+        orderId: item.orderId,
+        orderNo: item.orderNo,
+        items: []
+      };
+    }
+    grouped[item.orderId].items.push(item);
+  });
+  
+  return Object.values(grouped);
 }
 
-function getOrderItemsInBatch(orderId: string, batchId: string) {
-  const order = orderStore.getOrderById(orderId);
-  return order?.items.filter(item => item.batchId === batchId) || [];
+function getActualItemCount(batchId: string) {
+  return batchStore.getBatchItems(batchId).length;
+}
+
+function getUniqueOrders(batchId: string) {
+  const items = batchStore.getBatchItems(batchId);
+  return [...new Set(items.map(i => i.orderId))];
 }
 
 function viewBatchDetail(batch: Batch) {

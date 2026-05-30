@@ -93,11 +93,15 @@
             <el-table-column label="收衣时间" width="160">
               <template #default="{ row }">{{ row.receivedAt }}</template>
             </el-table-column>
-            <el-table-column label="预计交付" width="160">
-              <template #default="{ row }">{{ row.expectedDeliveryAt }}</template>
-            </el-table-column>
-            <el-table-column label="操作人" width="90">
-              <template #default="{ row }">{{ row.updatedBy }}</template>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click.stop="viewDetail(row)">
+                  详情
+                </el-button>
+                <el-button link type="success" size="small" @click.stop="viewHandover(row)">
+                  交接回单
+                </el-button>
+              </template>
             </el-table-column>
           </el-table>
         </div>
@@ -141,6 +145,12 @@
           </div>
           <div v-if="selectedOrder.remark" class="mt-4 pt-4 border-t border-gray-200">
             <p class="text-sm text-gray-500">备注：{{ selectedOrder.remark }}</p>
+          </div>
+          <div class="mt-4 pt-4 border-t border-gray-200">
+            <el-button type="primary" size="small" @click="viewHandover(selectedOrder)">
+              <el-icon class="mr-1"><DocumentCopy /></el-icon>
+              查看交接回单
+            </el-button>
           </div>
         </div>
 
@@ -202,6 +212,59 @@
         </div>
       </div>
     </el-drawer>
+
+    <el-drawer v-model="handoverDrawerVisible" title="交接回单记录" size="500px">
+      <div v-if="selectedOrder" class="space-y-4">
+        <div class="bg-blue-50 rounded-lg p-4">
+          <p class="font-medium text-blue-800">{{ selectedOrder.orderNo }}</p>
+          <p class="text-sm text-blue-600 mt-1">
+            {{ selectedOrder.storeName }} · {{ selectedOrder.customerName }} · {{ selectedOrder.items.length }} 件
+          </p>
+        </div>
+
+        <div v-if="handoverRecords.length > 0">
+          <div v-for="record in handoverRecords" :key="record.id" class="border border-gray-200 rounded-lg p-4 mb-3">
+            <div class="flex items-center justify-between mb-3">
+              <el-tag :type="record.type === 'receive' ? 'primary' : 'success'" size="small">
+                {{ record.type === 'receive' ? '工厂收衣' : '门店交付' }}
+              </el-tag>
+              <span class="text-sm text-gray-500">{{ record.createdAt }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500">操作人</span>
+                <span>{{ record.operator }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500">接收人</span>
+                <span>{{ record.receiver }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500">数量</span>
+                <span>{{ record.itemCount }} 件</span>
+              </div>
+            </div>
+            <div v-if="record.remark" class="mt-3 pt-3 border-t border-gray-100">
+              <p class="text-sm text-gray-600">备注：{{ record.remark }}</p>
+            </div>
+            <div v-if="record.photos && record.photos.length" class="mt-3 flex gap-2">
+              <el-image
+                v-for="(photo, idx) in record.photos"
+                :key="idx"
+                :src="photo"
+                :preview-src-list="record.photos"
+                fit="cover"
+                class="w-16 h-16 rounded cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-center text-gray-400 py-12">
+          <el-icon class="text-4xl mb-2"><Document /></el-icon>
+          <p>暂无交接记录</p>
+        </div>
+      </div>
+    </el-drawer>
   </Layout>
 </template>
 
@@ -209,15 +272,18 @@
 import { ref, computed } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useOrderStore } from '@/stores/order';
+import { useHandoverStore } from '@/stores/handover';
 import { ORDER_STATUS_LABELS, CLOTHING_TYPE_LABELS, WASH_TYPE_LABELS, STORES } from '@/constants';
 import type { Order, OrderStatus } from '@/types';
 
 const orderStore = useOrderStore();
+const handoverStore = useHandoverStore();
 
 const searchKeyword = ref('');
 const filterStatus = ref<OrderStatus | ''>('');
 const filterStore = ref('');
 const detailDrawerVisible = ref(false);
+const handoverDrawerVisible = ref(false);
 const selectedOrder = ref<Order | null>(null);
 
 const stores = computed(() => STORES);
@@ -225,6 +291,11 @@ const stores = computed(() => STORES);
 const orderHistory = computed(() => {
   if (!selectedOrder.value) return [];
   return orderStore.getOrderHistory(selectedOrder.value.id);
+});
+
+const handoverRecords = computed(() => {
+  if (!selectedOrder.value) return [];
+  return handoverStore.getRecordsByOrderId(selectedOrder.value.id);
 });
 
 function getStatusLabel(status: string) {
@@ -272,6 +343,11 @@ function handleFilter() {
 function viewDetail(row: Order) {
   selectedOrder.value = row;
   detailDrawerVisible.value = true;
+}
+
+function viewHandover(row: Order) {
+  selectedOrder.value = row;
+  handoverDrawerVisible.value = true;
 }
 </script>
 

@@ -6,7 +6,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-gray-500 text-sm">本月订单</p>
-              <p class="text-2xl font-bold text-gray-800 mt-1">{{ monthStats.totalOrders }}</p>
+              <p class="text-2xl font-bold text-gray-800 mt-1">{{ currentMonthStats.totalOrders }}</p>
             </div>
             <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <el-icon class="text-blue-500 text-xl"><Document /></el-icon>
@@ -17,7 +17,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-gray-500 text-sm">本月衣物</p>
-              <p class="text-2xl font-bold text-gray-800 mt-1">{{ monthStats.totalItems }}</p>
+              <p class="text-2xl font-bold text-gray-800 mt-1">{{ currentMonthStats.totalItems }}</p>
             </div>
             <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <el-icon class="text-green-500 text-xl"><Tickets /></el-icon>
@@ -28,7 +28,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-gray-500 text-sm">洗涤收入</p>
-              <p class="text-2xl font-bold text-gray-800 mt-1">¥{{ monthStats.totalAmount }}</p>
+              <p class="text-2xl font-bold text-gray-800 mt-1">¥{{ currentMonthStats.totalAmount }}</p>
             </div>
             <div class="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
               <el-icon class="text-amber-500 text-xl"><Money /></el-icon>
@@ -39,7 +39,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-gray-500 text-sm">赔付金额</p>
-              <p class="text-2xl font-bold text-red-500 mt-1">¥{{ monthStats.totalCompensation }}</p>
+              <p class="text-2xl font-bold text-red-500 mt-1">¥{{ currentMonthStats.totalCompensation }}</p>
             </div>
             <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <el-icon class="text-red-500 text-xl"><Warning /></el-icon>
@@ -57,6 +57,7 @@
               placeholder="选择月份"
               size="small"
               style="width: 140px"
+              @change="refreshSettlements"
             >
               <el-option label="2024年5月" value="2024-05" />
               <el-option label="2024年4月" value="2024-04" />
@@ -65,7 +66,7 @@
           </div>
           <div class="flex-1 overflow-auto">
             <el-table
-              :data="settlementStore.settlements"
+              :data="dynamicSettlements"
               style="width: 100%"
               stripe
               @row-click="viewSettlementDetail"
@@ -262,36 +263,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import Layout from '@/components/Layout.vue';
 import { useSettlementStore } from '@/stores/settlement';
 import { useUserStore } from '@/stores/user';
-import { useOrderStore } from '@/stores/order';
-import { useComplaintStore } from '@/stores/complaint';
 import type { MonthlySettlement } from '@/types';
 
 const settlementStore = useSettlementStore();
 const userStore = useUserStore();
-const orderStore = useOrderStore();
-const complaintStore = useComplaintStore();
 
 const selectedMonth = ref('2024-05');
 const selectedSettlement = ref<MonthlySettlement | null>(null);
 
-const monthStats = computed(() => {
-  const totalAmount = orderStore.orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const totalItems = orderStore.orders.reduce((sum, o) => sum + o.items.length, 0);
-  const totalCompensation = complaintStore.complaints
-    .filter(c => c.status === 'approved' || c.status === 'resolved')
-    .reduce((sum, c) => sum + (c.approvedCompensation || 0), 0);
-  return {
-    totalOrders: orderStore.orders.length,
-    totalItems,
-    totalAmount,
-    totalCompensation
-  };
+const dynamicSettlements = computed(() => {
+  return settlementStore.getDynamicSettlements();
 });
+
+const currentMonthStats = computed(() => {
+  return settlementStore.calculateMonthStats(selectedMonth.value);
+});
+
+function refreshSettlements() {
+  selectedSettlement.value = null;
+}
 
 function getStatusLabel(status: string) {
   const map: Record<string, string> = {
