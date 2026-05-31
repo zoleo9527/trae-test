@@ -47,7 +47,7 @@ func (s *PartService) GetByID(id uint) (*dto.PartResponse, *appErrors.AppError) 
 	return s.toResponse(&part), nil
 }
 
-func (s *PartService) List(page, pageSize int) (*dto.PaginatedResponse, *appErrors.AppError) {
+func (s *PartService) List(page, pageSize int, keyword string) (*dto.PaginatedResponse, *appErrors.AppError) {
 	if page <= 0 {
 		page = 1
 	}
@@ -55,12 +55,18 @@ func (s *PartService) List(page, pageSize int) (*dto.PaginatedResponse, *appErro
 		pageSize = 20
 	}
 
+	query := s.db.Model(&model.Part{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("name LIKE ? OR sku LIKE ?", like, like)
+	}
+
 	var total int64
-	s.db.Model(&model.Part{}).Count(&total)
+	query.Count(&total)
 
 	var parts []model.Part
 	offset := (page - 1) * pageSize
-	if err := s.db.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&parts).Error; err != nil {
+	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&parts).Error; err != nil {
 		return nil, appErrors.NewInternalError("failed to query parts")
 	}
 

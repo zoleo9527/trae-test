@@ -39,8 +39,9 @@ func (h *PartHandler) Create(c *fiber.Ctx) error {
 func (h *PartHandler) List(c *fiber.Ctx) error {
 	page := c.QueryInt("page", 1)
 	pageSize := c.QueryInt("page_size", 20)
+	keyword := c.Query("keyword")
 
-	resp, appErr := h.partService.List(page, pageSize)
+	resp, appErr := h.partService.List(page, pageSize, keyword)
 	if appErr != nil {
 		return c.Status(appErr.Code).JSON(appErr)
 	}
