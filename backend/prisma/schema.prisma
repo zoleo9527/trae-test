@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  realName  String
+  email     String?
+  phone     String?
+  role      String
+  avatar    String?
+  isActive  Boolean  @default(true)
+  permissions String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  repairOrdersReceived RepairOrder[] @relation("ReceivedBy")
+  repairOrdersAssigned RepairOrder[] @relation("AssignedTo")
+  repairOrdersTechnician RepairOrder[] @relation("Technician")
+  applicationsCreated PartApplication[] @relation("CreatedBy")
+  applicationsApproved PartApplication[] @relation("ApprovedBy")
+  inventoryLocks InventoryLock[]
+  notes Note[]
+  operationLogs OperationLog[]
+  
+  @@index([role])
+  @@index([isActive])
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String   @unique
+  email       String?
+  address     String?
+  memberLevel String?  @default("NORMAL")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  repairOrders RepairOrder[]
+  
+  @@index([phone])
+}
+
+model Watch {
+  id           String   @id @default(uuid())
+  brand        String
+  model        String
+  serialNumber String   @unique
+  movementType String?
+  productionYear Int?
+  caseMaterial String?
+  strapType    String?
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  repairOrders RepairOrder[]
+  
+  @@index([brand])
+  @@index([serialNumber])
+}
+
+model RepairOrder {
+  id          String   @id @default(uuid())
+  orderNo     String   @unique
+  customerId  String
+  watchId     String
+  status      String   @default("PENDING_QUOTATION")
+  
+  problemDescription String
+  appearanceCondition String?
+  accessories String?
+  
+  estimatedCost Float?
+  actualCost Float?
+  quotationDate DateTime?
+  customerConfirmDate DateTime?
+  
+  receivedBy  String
+  assignedTo  String?
+  technician  String?
+  
+  estimatedDeliveryDate DateTime?
+  actualDeliveryDate DateTime?
+  pickupDate DateTime?
+  
+  satisfactionScore Int?
+  satisfactionNote String?
+  
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  customer Customer @relation(fields: [customerId], references: [id])
+  watch Watch @relation(fields: [watchId], references: [id])
+  receiver User @relation("ReceivedBy", fields: [receivedBy], references: [id])
+  assignee User? @relation("AssignedTo", fields: [assignedTo], references: [id])
+  tech User? @relation("Technician", fields: [technician], references: [id])
+  
+  statusHistories RepairStatusHistory[]
+  applications PartApplication[]
+  notes Note[]
+  
+  @@index([orderNo])
+  @@index([status])
+  @@index([customerId])
+  @@index([receivedBy])
+  @@index([createdAt])
+}
+
+model RepairStatusHistory {
+  id             String   @id @default(uuid())
+  repairOrderId  String
+  fromStatus     String?
+  toStatus       String
+  changedBy      String
+  changeReason   String?
+  createdAt      DateTime @default(now())
+  
+  repairOrder RepairOrder @relation(fields: [repairOrderId], references: [id])
+  
+  @@index([repairOrderId])
+  @@index([createdAt])
+}
+
+model Part {
+  id          String   @id @default(uuid())
+  sku         String   @unique
+  name        String
+  category    String
+  brand       String?
+  model       String?
+  specification String?
+  unit        String
+  unitPrice   Float
+  description String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  inventory Inventory[]
+  applicationItems PartApplicationItem[]
+  
+  @@index([sku])
+  @@index([category])
+  @@index([name])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  partId      String
+  warehouse   String   @default("MAIN")
+  location    String?
+  quantity    Int      @default(0)
+  reservedQty Int      @default(0)
+  minStock    Int      @default(0)
+  maxStock    Int?
+  batchNo     String?
+  expireDate  DateTime?
+  
+  part Part @relation(fields: [partId], references: [id])
+  locks InventoryLock[]
+  
+  @@unique([partId, warehouse, batchNo])
+  @@index([partId])
+  @@index([warehouse])
+}
+
+model InventoryLock {
+  id           String   @id @default(uuid())
+  lockNo       String   @unique
+  inventoryId  String
+  quantity     Int
+  status       String   @default("ACTIVE")
+  reason       String
+  lockedBy     String
+  applicationId String?
+  repairOrderId String?
+  
+  expireAt     DateTime
+  releasedAt   DateTime?
+  consumedAt   DateTime?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+  locker User @relation(fields: [lockedBy], references: [id])
+  application PartApplication? @relation(fields: [applicationId], references: [id])
+  
+  @@index([lockNo])
+  @@index([inventoryId])
+  @@index([status])
+  @@index([applicationId])
+  @@index([repairOrderId])
+  @@index([expireAt])
+}
+
+model PartApplication {
+  id             String   @id @default(uuid())
+  applicationNo  String   @unique
+  repairOrderId  String
+  status         String   @default("DRAFT")
+  urgencyLevel   String   @default("NORMAL")
+  
+  title          String
+  description    String?
+  
+  createdBy      String
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectReason   String?
+  
+  expectedPickupDate DateTime?
+  actualPickupDate DateTime?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  repairOrder RepairOrder @relation(fields: [repairOrderId], references: [id])
+  creator User @relation("CreatedBy", fields: [createdBy], references: [id])
+  approver User? @relation("ApprovedBy", fields: [approvedBy], references: [id])
+  
+  items PartApplicationItem[]
+  statusHistories ApplicationStatusHistory[]
+  inventoryLocks InventoryLock[]
+  notes Note[]
+  
+  @@index([applicationNo])
+  @@index([repairOrderId])
+  @@index([status])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model PartApplicationItem {
+  id              String   @id @default(uuid())
+  applicationId   String
+  partId          String
+  requestedQty    Int
+  approvedQty     Int?
+  actualIssuedQty Int?
+  unitPrice       Float?
+  remark          String?
+  
+  application PartApplication @relation(fields: [applicationId], references: [id])
+  part Part @relation(fields: [partId], references: [id])
+  
+  @@index([applicationId])
+  @@index([partId])
+}
+
+model ApplicationStatusHistory {
+  id             String   @id @default(uuid())
+  applicationId  String
+  fromStatus     String?
+  toStatus       String
+  changedBy      String
+  changeReason   String?
+  createdAt      DateTime @default(now())
+  
+  application PartApplication @relation(fields: [applicationId], references: [id])
+  
+  @@index([applicationId])
+  @@index([createdAt])
+}
+
+model Note {
+  id          String   @id @default(uuid())
+  type        String
+  content     String
+  
+  repairOrderId String?
+  applicationId String?
+  createdBy     String
+  
+  createdAt   DateTime @default(now())
+  
+  repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id])
+  application PartApplication? @relation(fields: [applicationId], references: [id])
+  creator User @relation(fields: [createdBy], references: [id])
+  
+  @@index([repairOrderId])
+  @@index([applicationId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model OperationLog {
+  id          String   @id @default(uuid())
+  traceId     String
+  operation   String
+  module      String
+  resourceType String?
+  resourceId   String?
+  
+  userId      String
+  userRole    String
+  ipAddress   String?
+  userAgent   String?
+  
+  requestId   String?
+  requestBody String?
+  responseBody String?
+  statusCode  Int?
+  
+  oldValue    String?
+  newValue    String?
+  changeSummary String?
+  
+  isSuccess   Boolean
+  errorMessage String?
+  
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id])
+  
+  @@index([traceId])
+  @@index([userId])
+  @@index([operation])
+  @@index([module])
+  @@index([createdAt])
+  @@index([isSuccess])
+}
+
+model IdempotentRecord {
+  id          String   @id @default(uuid())
+  idempotencyKey String @unique
+  userId      String
+  operation   String
+  requestHash String
+  responseData String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  
+  @@index([idempotencyKey])
+  @@index([userId, operation])
+}
+
+model ApiToken {
+  id          String   @id @default(uuid())
+  userId      String
+  token       String   @unique
+  type        String   @default("BEARER")
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime?
+  
+  @@index([token])
+  @@index([userId])
+}
