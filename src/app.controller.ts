@@ -39,14 +39,7 @@ export class AppController {
     const user = req.user;
 
     const [pendingChangeOrders, rejectedChangeOrders, pendingSignOffs, totalChangeOrders] = await Promise.all([
-      this.changeOrderRepository.find({
-        where: {
-          status: ChangeOrderStatus.SUBMITTED,
-        },
-        relations: ['createdBy'],
-        order: { createdAt: 'DESC' },
-        take: 10,
-      }),
+      this.getPendingChangeOrdersForUser(user),
       this.changeOrderRepository.find({
         where: {
           status: ChangeOrderStatus.REJECTED,
@@ -110,6 +103,50 @@ export class AppController {
       },
       statistics,
     };
+  }
+
+  private async getPendingChangeOrdersForUser(user: any): Promise<ChangeOrder[]> {
+    const queryBuilder = this.changeOrderRepository.createQueryBuilder('co')
+      .leftJoinAndSelect('co.createdBy', 'createdBy')
+      .leftJoin('co.signOffs', 'so');
+
+    if (user.role === Role.ADMIN) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.PROJECT_MANAGER) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.SUPERVISOR) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.SUBMITTED,
+      });
+    } else if (user.role === Role.CLIENT) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.APPROVED,
+      });
+    } else {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+        ],
+      });
+    }
+
+    return queryBuilder
+      .orderBy('co.createdAt', 'DESC')
+      .take(10)
+      .getMany();
   }
 
   private async getPendingSignOffsForUser(user: any): Promise<SignOff[]> {

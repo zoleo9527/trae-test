@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource, QueryRunner } from 'typeorm';
 import { SignOff } from './entities/sign-off.entity';
+import { ChangeOrder } from '../change-order/entities/change-order.entity';
 import { CreateSignOffDto } from './dto/create-sign-off.dto';
 import { ActionSignOffDto } from './dto/action-sign-off.dto';
 import { User } from '../user/entities/user.entity';
-import { SignOffStatus } from '../common/enums/sign-off.enum';
+import { SignOffStatus, SignOffType } from '../common/enums/sign-off.enum';
+import { ChangeOrderStatus } from '../common/enums/change-order-status.enum';
 import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
 import { Role } from '../common/enums/role.enum';
 import { AuditService } from '../audit/audit.service';
@@ -15,6 +17,9 @@ export class SignOffService {
   constructor(
     @InjectRepository(SignOff)
     private signOffRepository: Repository<SignOff>,
+    @InjectRepository(ChangeOrder)
+    private changeOrderRepository: Repository<ChangeOrder>,
+    private dataSource: DataSource,
     private auditService: AuditService,
   ) {}
 
@@ -100,75 +105,256 @@ export class SignOffService {
   }
 
   async sign(id: string, actionDto: ActionSignOffDto, user: User): Promise<SignOff> {
-    const signOff = await this.findOne(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (signOff.status !== SignOffStatus.PENDING) {
-      throw new BadRequestException('只能签认待处理的记录');
+    try {
+      const signOff = await this.findOne(id);
+
+      if (signOff.status !== SignOffStatus.PENDING) {
+        throw new BadRequestException('只能签认待处理的记录');
+      }
+
+      if (!this.canUserSign(signOff, user)) {
+        throw new ForbiddenException(
+          `您没有权限签认此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
+        );
+      }
+
+      signOff.status = SignOffStatus.SIGNED;
+      signOff.signedById = user.id;
+      signOff.signedBy = user;
+      signOff.signedAt = new Date();
+      signOff.comments = actionDto.comments;
+      signOff.signature = actionDto.signature;
+
+      const savedSignOff = await queryRunner.manager.save(signOff);
+
+      if (signOff.signOffType === SignOffType.CHANGE_ORDER && signOff.changeOrderId) {
+        await this.handleChangeOrderSignOffApproval(
+          queryRunner,
+          signOff,
+          user,
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      await this.auditService.createLog({
+        action: AuditAction.SIGN_OFF,
+        entityType: AuditEntityType.SIGN_OFF,
+        entityId: id,
+        entityName: `签认-${signOff.signOffType}`,
+        user,
+        oldValues: { status: SignOffStatus.PENDING },
+        newValues: { status: SignOffStatus.SIGNED },
+        description: '签认通过',
+      });
+
+      return this.findOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
+  }
 
-    if (!this.canUserSign(signOff, user)) {
-      throw new ForbiddenException(
-        `您没有权限签认此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
-      );
-    }
-
-    signOff.status = SignOffStatus.SIGNED;
-    signOff.signedById = user.id;
-    signOff.signedBy = user;
-    signOff.signedAt = new Date();
-    signOff.comments = actionDto.comments;
-    signOff.signature = actionDto.signature;
-
-    const saved = await this.signOffRepository.save(signOff);
-
-    await this.auditService.createLog({
-      action: AuditAction.SIGN_OFF,
-      entityType: AuditEntityType.SIGN_OFF,
-      entityId: id,
-      entityName: `签认-${signOff.signOffType}`,
-      user,
-      oldValues: { status: SignOffStatus.PENDING },
-      newValues: { status: SignOffStatus.SIGNED },
-      description: '签认通过',
+  private async handleChangeOrderSignOffApproval(
+    queryRunner: QueryRunner,
+    signOff: SignOff,
+    user: User,
+  ): Promise<void> {
+    const changeOrder = await queryRunner.manager.findOne(ChangeOrder, {
+      where: { id: signOff.changeOrderId },
     });
 
-    return this.findOne(id);
+    if (!changeOrder) {
+      return;
+    }
+
+    const sequenceToStatus: Record<number, ChangeOrderStatus> = {
+      1: ChangeOrderStatus.UNDER_REVIEW,
+      2: ChangeOrderStatus.APPROVED,
+      3: ChangeOrderStatus.IN_PROGRESS,
+    };
+
+    const nextStatus = sequenceToStatus[signOff.sequenceOrder];
+    if (nextStatus) {
+      changeOrder.status = nextStatus;
+      changeOrder.currentVersion += 1;
+
+      if (nextStatus === ChangeOrderStatus.APPROVED) {
+        changeOrder.approvedById = user.id;
+        changeOrder.approvedDate = new Date();
+      }
+
+      await queryRunner.manager.save(changeOrder);
+
+      await this.auditService.createLog({
+        action: AuditAction.STATUS_CHANGE,
+        entityType: AuditEntityType.CHANGE_ORDER,
+        entityId: changeOrder.id,
+        entityName: changeOrder.title,
+        user,
+        oldValues: { status: signOff.changeOrder?.status },
+        newValues: { status: nextStatus },
+        description: `签认通过，状态自动变更: ${signOff.changeOrder?.status} → ${nextStatus}`,
+      });
+    }
+
+    const nextSequenceConfigs: Array<{
+      sequence: number;
+      signerRole: Role;
+      signerDepartment: string;
+      requiredStatus: ChangeOrderStatus;
+      comments: string;
+    }> = [
+      {
+        sequence: 2,
+        signerRole: Role.PROJECT_MANAGER,
+        signerDepartment: '工程部',
+        requiredStatus: ChangeOrderStatus.UNDER_REVIEW,
+        comments: '监理初审通过，需项目经理审核',
+      },
+      {
+        sequence: 3,
+        signerRole: Role.CLIENT,
+        signerDepartment: '甲方项目部',
+        requiredStatus: ChangeOrderStatus.APPROVED,
+        comments: '项目内部审核通过，需甲方确认',
+      },
+    ];
+
+    for (const config of nextSequenceConfigs) {
+      if (signOff.sequenceOrder === config.sequence - 1) {
+        const existingNextSignOff = await queryRunner.manager.findOne(SignOff, {
+          where: {
+            changeOrderId: changeOrder.id,
+            sequenceOrder: config.sequence,
+          },
+        });
+
+        if (!existingNextSignOff) {
+          const nextSignOff = queryRunner.manager.create(SignOff, {
+            signOffType: SignOffType.CHANGE_ORDER,
+            changeOrderId: changeOrder.id,
+            changeOrder,
+            requestedById: user.id,
+            requestedBy: user,
+            status: SignOffStatus.PENDING,
+            sequenceOrder: config.sequence,
+            comments: config.comments,
+            signerRole: config.signerRole,
+            signerDepartment: config.signerDepartment,
+          });
+
+          await queryRunner.manager.save(nextSignOff);
+
+          await this.auditService.createLog({
+            action: AuditAction.CREATE,
+            entityType: AuditEntityType.SIGN_OFF,
+            entityId: nextSignOff.id,
+            entityName: `签认-${SignOffType.CHANGE_ORDER}-${config.sequence}`,
+            user,
+            newValues: nextSignOff,
+            description: `自动生成下一级签认: ${config.signerRole}`,
+          });
+        }
+        break;
+      }
+    }
   }
 
   async reject(id: string, actionDto: ActionSignOffDto, user: User): Promise<SignOff> {
-    const signOff = await this.findOne(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (signOff.status !== SignOffStatus.PENDING) {
-      throw new BadRequestException('只能驳回待处理的记录');
+    try {
+      const signOff = await this.findOne(id);
+
+      if (signOff.status !== SignOffStatus.PENDING) {
+        throw new BadRequestException('只能驳回待处理的记录');
+      }
+
+      if (!this.canUserSign(signOff, user)) {
+        throw new ForbiddenException(
+          `您没有权限驳回此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
+        );
+      }
+
+      signOff.status = SignOffStatus.REJECTED;
+      signOff.signedById = user.id;
+      signOff.signedBy = user;
+      signOff.signedAt = new Date();
+      signOff.rejectReason = actionDto.rejectReason;
+      signOff.comments = actionDto.comments;
+
+      const savedSignOff = await queryRunner.manager.save(signOff);
+
+      if (signOff.signOffType === SignOffType.CHANGE_ORDER && signOff.changeOrderId) {
+        const changeOrder = await queryRunner.manager.findOne(ChangeOrder, {
+          where: { id: signOff.changeOrderId },
+        });
+
+        if (changeOrder) {
+          const oldStatus = changeOrder.status;
+          changeOrder.status = ChangeOrderStatus.REJECTED;
+          changeOrder.rejectReason = actionDto.rejectReason || '签认被驳回';
+          changeOrder.currentVersion += 1;
+
+          await queryRunner.manager.save(changeOrder);
+
+          await queryRunner.manager.update(
+            SignOff,
+            {
+              changeOrderId: changeOrder.id,
+              status: SignOffStatus.PENDING,
+            },
+            {
+              status: SignOffStatus.REJECTED,
+              signedById: user.id,
+              signedBy: user,
+              signedAt: new Date(),
+              rejectReason: '变更单被驳回',
+            },
+          );
+
+          await this.auditService.createLog({
+            action: AuditAction.STATUS_CHANGE,
+            entityType: AuditEntityType.CHANGE_ORDER,
+            entityId: changeOrder.id,
+            entityName: changeOrder.title,
+            user,
+            oldValues: { status: oldStatus },
+            newValues: { status: ChangeOrderStatus.REJECTED },
+            description: `签认驳回，变更单状态自动变更: ${oldStatus} → rejected，原因: ${actionDto.rejectReason || '未说明原因'}`,
+          });
+        }
+      }
+
+      await queryRunner.commitTransaction();
+
+      await this.auditService.createLog({
+        action: AuditAction.SIGN_OFF_REJECT,
+        entityType: AuditEntityType.SIGN_OFF,
+        entityId: id,
+        entityName: `签认-${signOff.signOffType}`,
+        user,
+        oldValues: { status: SignOffStatus.PENDING },
+        newValues: { status: SignOffStatus.REJECTED },
+        description: `签认驳回: ${actionDto.rejectReason || '未说明原因'}`,
+      });
+
+      return this.findOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    if (!this.canUserSign(signOff, user)) {
-      throw new ForbiddenException(
-        `您没有权限驳回此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
-      );
-    }
-
-    signOff.status = SignOffStatus.REJECTED;
-    signOff.signedById = user.id;
-    signOff.signedBy = user;
-    signOff.signedAt = new Date();
-    signOff.rejectReason = actionDto.rejectReason;
-    signOff.comments = actionDto.comments;
-
-    const saved = await this.signOffRepository.save(signOff);
-
-    await this.auditService.createLog({
-      action: AuditAction.SIGN_OFF_REJECT,
-      entityType: AuditEntityType.SIGN_OFF,
-      entityId: id,
-      entityName: `签认-${signOff.signOffType}`,
-      user,
-      oldValues: { status: SignOffStatus.PENDING },
-      newValues: { status: SignOffStatus.REJECTED },
-      description: `签认驳回: ${actionDto.rejectReason || '未说明原因'}`,
-    });
-
-    return this.findOne(id);
   }
 
   async findByChangeOrder(changeOrderId: string): Promise<SignOff[]> {

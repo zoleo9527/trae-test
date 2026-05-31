@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SignOffService } from './sign-off.service';
 import { SignOffController } from './sign-off.controller';
 import { SignOff } from './entities/sign-off.entity';
+import { ChangeOrder } from '../change-order/entities/change-order.entity';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SignOff]),
+    TypeOrmModule.forFeature([SignOff, ChangeOrder]),
     AuditModule,
   ],
   controllers: [SignOffController],

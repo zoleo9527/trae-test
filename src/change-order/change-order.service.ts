@@ -198,6 +198,8 @@ export class ChangeOrderService {
         );
       }
 
+      await this.checkPendingSignOffs(changeOrder, targetStatus, user);
+
       changeOrder.status = targetStatus;
       changeOrder.currentVersion += 1;
 
@@ -335,6 +337,49 @@ export class ChangeOrderService {
           signedAt: new Date(),
           rejectReason: '变更单被驳回',
         },
+      );
+    }
+  }
+
+  private async checkPendingSignOffs(
+    changeOrder: ChangeOrder,
+    targetStatus: ChangeOrderStatus,
+    user: User,
+  ): Promise<void> {
+    if (user.role === Role.ADMIN) {
+      return;
+    }
+
+    const bypassStatuses = [
+      ChangeOrderStatus.DRAFT,
+      ChangeOrderStatus.REJECTED,
+      ChangeOrderStatus.CANCELLED,
+    ];
+
+    if (bypassStatuses.includes(changeOrder.status)) {
+      return;
+    }
+
+    const finalStatuses = [
+      ChangeOrderStatus.REJECTED,
+      ChangeOrderStatus.CANCELLED,
+    ];
+
+    if (finalStatuses.includes(targetStatus)) {
+      return;
+    }
+
+    const pendingSignOffs = await this.signOffRepository.find({
+      where: {
+        changeOrderId: changeOrder.id,
+        status: SignOffStatus.PENDING,
+      },
+    });
+
+    if (pendingSignOffs.length > 0) {
+      const pendingRoles = pendingSignOffs.map((s) => s.signerRole).join(', ');
+      throw new BadRequestException(
+        `当前存在待签认记录，无法直接推进状态。请先完成以下角色的签认: ${pendingRoles}，或通过签认接口自动推进状态。`,
       );
     }
   }
