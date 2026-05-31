@@ -169,26 +169,26 @@ export async function getRepairOrder(req: Request, res: Response, next: NextFunc
         statusHistories: {
           orderBy: { createdAt: 'desc' },
           include: {
-            repairOrder: false,
+            changer: { select: { id: true, realName: true, role: true } },
           },
         },
         applications: {
           include: {
             items: { include: { part: true } },
             statusHistories: { orderBy: { createdAt: 'desc' }, take: 5 },
+            inventoryLocks: {
+              where: { status: 'ACTIVE' },
+              include: {
+                inventory: { include: { part: true } },
+                locker: { select: { id: true, realName: true } },
+              },
+            },
           },
         },
         notes: {
           orderBy: { createdAt: 'desc' },
           include: {
             creator: { select: { id: true, realName: true, role: true } },
-          },
-        },
-        operationLogs: {
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-          include: {
-            user: { select: { id: true, realName: true, role: true } },
           },
         },
       },
@@ -198,7 +198,19 @@ export async function getRepairOrder(req: Request, res: Response, next: NextFunc
       throw new NotFoundError('寄修单不存在');
     }
 
-    return res.json(success(req, repairOrder));
+    const operationLogs = await prisma.operationLog.findMany({
+      where: {
+        resourceType: 'repairOrder',
+        resourceId: id,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        user: { select: { id: true, realName: true, role: true } },
+      },
+    });
+
+    return res.json(success(req, { ...repairOrder, operationLogs }));
   } catch (error) {
     next(error);
   }

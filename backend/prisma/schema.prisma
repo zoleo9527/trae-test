@@ -29,6 +29,8 @@ model User {
   inventoryLocks InventoryLock[]
   notes Note[]
   operationLogs OperationLog[]
+  repairStatusChanges RepairStatusHistory[]
+  applicationStatusChanges ApplicationStatusHistory[]
   
   @@index([role])
   @@index([isActive])
@@ -126,6 +128,7 @@ model RepairStatusHistory {
   createdAt      DateTime @default(now())
   
   repairOrder RepairOrder @relation(fields: [repairOrderId], references: [id])
+  changer User @relation(fields: [changedBy], references: [id])
   
   @@index([repairOrderId])
   @@index([createdAt])
@@ -184,6 +187,7 @@ model InventoryLock {
   reason       String
   lockedBy     String
   applicationId String?
+  applicationItemId String?
   repairOrderId String?
   
   expireAt     DateTime
@@ -196,11 +200,13 @@ model InventoryLock {
   inventory Inventory @relation(fields: [inventoryId], references: [id])
   locker User @relation(fields: [lockedBy], references: [id])
   application PartApplication? @relation(fields: [applicationId], references: [id])
+  applicationItem PartApplicationItem? @relation(fields: [applicationItemId], references: [id])
   
   @@index([lockNo])
   @@index([inventoryId])
   @@index([status])
   @@index([applicationId])
+  @@index([applicationItemId])
   @@index([repairOrderId])
   @@index([expireAt])
 }
@@ -254,6 +260,7 @@ model PartApplicationItem {
   
   application PartApplication @relation(fields: [applicationId], references: [id])
   part Part @relation(fields: [partId], references: [id])
+  inventoryLocks InventoryLock[]
   
   @@index([applicationId])
   @@index([partId])
@@ -269,6 +276,7 @@ model ApplicationStatusHistory {
   createdAt      DateTime @default(now())
   
   application PartApplication @relation(fields: [applicationId], references: [id])
+  changer User @relation(fields: [changedBy], references: [id])
   
   @@index([applicationId])
   @@index([createdAt])

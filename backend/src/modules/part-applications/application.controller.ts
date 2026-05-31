@@ -241,6 +241,9 @@ export async function getApplication(req: Request, res: Response, next: NextFunc
         approver: { select: { id: true, realName: true, role: true } },
         statusHistories: {
           orderBy: { createdAt: 'desc' },
+          include: {
+            changer: { select: { id: true, realName: true, role: true } },
+          },
         },
         inventoryLocks: {
           include: {
@@ -255,13 +258,6 @@ export async function getApplication(req: Request, res: Response, next: NextFunc
             creator: { select: { id: true, realName: true, role: true } },
           },
         },
-        operationLogs: {
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-          include: {
-            user: { select: { id: true, realName: true, role: true } },
-          },
-        },
       },
     });
 
@@ -269,7 +265,19 @@ export async function getApplication(req: Request, res: Response, next: NextFunc
       throw new NotFoundError('申请单不存在');
     }
 
-    return res.json(success(req, application));
+    const operationLogs = await prisma.operationLog.findMany({
+      where: {
+        resourceType: 'partApplication',
+        resourceId: id,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        user: { select: { id: true, realName: true, role: true } },
+      },
+    });
+
+    return res.json(success(req, { ...application, operationLogs }));
   } catch (error) {
     next(error);
   }
@@ -415,7 +423,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
         throw new ValidationError(`当前状态${application.status}不允许审批`);
       }
 
-      const approveItems = items;
+      const approveItems: { itemId: string; approvedQty: number; remark?: string }[] = items;
       const existingItemIds = application.items.map((item) => item.id);
 
       for (const ai of approveItems) {
@@ -425,7 +433,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
       }
 
       const totalApproved = approveItems.reduce(
-        (sum: number, ai: any) => sum + ai.approvedQty,
+        (sum, ai) => sum + ai.approvedQty,
         0
       );
       const totalRequested = application.items.reduce(
@@ -442,6 +450,8 @@ export async function approveApplication(req: Request, res: Response, next: Next
         newStatus = PartApplicationStatus.APPROVED;
       }
 
+      const lockDetails: { itemId: string; partId: string; lockQty: number; shortQty: number }[] = [];
+
       for (const ai of approveItems) {
         await tx.partApplicationItem.update({
           where: { id: ai.itemId },
@@ -451,52 +461,54 @@ export async function approveApplication(req: Request, res: Response, next: Next
           },
         });
 
-        if (ai.approvedQty > 0) {
-          const appItem = application.items.find((item) => item.id === ai.itemId);
-          if (!appItem) continue;
+        if (ai.approvedQty <= 0) continue;
 
-          const inventory = await tx.inventory.findFirst({
-            where: {
-              partId: appItem.partId,
-              warehouse: 'MAIN',
+        const appItem = application.items.find((item) => item.id === ai.itemId);
+        if (!appItem) continue;
+
+        const inventory = await tx.inventory.findFirst({
+          where: { partId: appItem.partId, warehouse: 'MAIN' },
+          select: { id: true, quantity: true, reservedQty: true },
+        });
+
+        const availableQty = inventory ? inventory.quantity - inventory.reservedQty : 0;
+        const lockQty = Math.min(ai.approvedQty, availableQty);
+        const shortQty = ai.approvedQty - lockQty;
+
+        lockDetails.push({ itemId: ai.itemId, partId: appItem.partId, lockQty, shortQty });
+
+        if (lockQty > 0 && inventory) {
+          const lockNo = generateLockNo();
+          const expireAt = new Date();
+          expireAt.setHours(
+            expireAt.getHours() + config.inventory.lockDefaultDurationHours
+          );
+
+          await tx.inventoryLock.create({
+            data: {
+              lockNo,
+              inventoryId: inventory.id,
+              quantity: lockQty,
+              status: InventoryLockStatus.ACTIVE,
+              reason: `配件申请审批通过: ${application.applicationNo}`,
+              lockedBy: req.user!.userId,
+              applicationId: application.id,
+              applicationItemId: ai.itemId,
+              repairOrderId: application.repairOrderId,
+              expireAt,
             },
-            select: { id: true, quantity: true, reservedQty: true },
           });
 
-          if (inventory) {
-            const availableQty = inventory.quantity - inventory.reservedQty;
-            const lockQty = Math.min(ai.approvedQty, availableQty);
-
-            if (lockQty > 0) {
-              const lockNo = generateLockNo();
-              const expireAt = new Date();
-              expireAt.setHours(
-                expireAt.getHours() + config.inventory.lockDefaultDurationHours
-              );
-
-              await tx.inventoryLock.create({
-                data: {
-                  lockNo,
-                  inventoryId: inventory.id,
-                  quantity: lockQty,
-                  status: InventoryLockStatus.ACTIVE,
-                  reason: `配件申请审批通过: ${application.applicationNo}`,
-                  lockedBy: req.user!.userId,
-                  applicationId: application.id,
-                  repairOrderId: application.repairOrderId,
-                  expireAt,
-                },
-              });
-
-              await tx.inventory.update({
-                where: { id: inventory.id },
-                data: {
-                  reservedQty: { increment: lockQty },
-                },
-              });
-            }
-          }
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: { reservedQty: { increment: lockQty } },
+          });
         }
+      }
+
+      const hasShortage = lockDetails.some((d) => d.shortQty > 0);
+      if (hasShortage && newStatus === PartApplicationStatus.APPROVED) {
+        newStatus = PartApplicationStatus.AWAITING_STOCK;
       }
 
       const updated = await tx.partApplication.update({
@@ -507,7 +519,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
           approvedAt: new Date(),
         },
         include: {
-          items: { include: { part: true } },
+          items: { include: { part: true, inventoryLocks: { where: { status: InventoryLockStatus.ACTIVE } } } },
           repairOrder: { select: { id: true, orderNo: true } },
         },
       });
@@ -520,6 +532,8 @@ export async function approveApplication(req: Request, res: Response, next: Next
           changedBy: req.user!.userId,
           changeReason: newStatus === PartApplicationStatus.PARTIAL_APPROVED
             ? '部分批准'
+            : newStatus === PartApplicationStatus.AWAITING_STOCK
+            ? '批准但有库存缺口，等待到货'
             : '全部批准',
         },
       });
@@ -555,7 +569,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
             fromStatus: RepairOrderStatus.QUOTATION_APPROVED,
             toStatus: RepairOrderStatus.AWAITING_PARTS,
             changedBy: req.user!.userId,
-            changeReason: '配件申请已提交，等待配件到货',
+            changeReason: '配件申请已审批，等待配件到位',
           },
         });
       }
@@ -566,6 +580,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
           totalRequested,
           totalApproved,
           status: newStatus,
+          lockDetails,
         },
       };
     });
@@ -574,9 +589,11 @@ export async function approveApplication(req: Request, res: Response, next: Next
       success(
         req,
         result,
-        result.approvalResult.status === PartApplicationStatus.PARTIAL_APPROVED
+        result.approvalResult.status === PartApplicationStatus.AWAITING_STOCK
+          ? '批准通过，但部分配件库存不足，已锁定可用部分，等待到货'
+          : result.approvalResult.status === PartApplicationStatus.PARTIAL_APPROVED
           ? '部分批准，已自动锁定可用库存'
-          : '批准通过，已自动锁定可用库存'
+          : '批准通过，已自动锁定库存'
       )
     );
   } catch (error) {
@@ -705,7 +722,7 @@ export async function supplementApplication(req: Request, res: Response, next: N
 
       await tx.note.create({
         data: {
-          type: NoteType.SUPPLEMENT_INFO,
+          type: NoteType.SUPPLEMENT,
           content: description,
           applicationId: id,
           createdBy: req.user!.userId,
@@ -767,12 +784,14 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
       if (
         application.status !== PartApplicationStatus.APPROVED &&
         application.status !== PartApplicationStatus.PARTIAL_APPROVED &&
+        application.status !== PartApplicationStatus.AWAITING_STOCK &&
         application.status !== PartApplicationStatus.PROCESSING
       ) {
         throw new ValidationError(`当前状态${application.status}不允许取件`);
       }
 
       const existingItemIds = application.items.map((item) => item.id);
+      const pickupDetails: { itemId: string; issuedQty: number; consumedLockQty: number; releasedLockQty: number }[] = [];
 
       for (const pi of items) {
         if (!existingItemIds.includes(pi.itemId)) {
@@ -784,8 +803,49 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
 
         if (pi.actualIssuedQty > (appItem.approvedQty || appItem.requestedQty)) {
           throw new ValidationError(
-            `实际发放数量不能超过批准数量: ${appItem.partId}`
+            `实际发放数量不能超过批准数量: 明细${pi.itemId}`
           );
+        }
+
+        const activeLock = application.inventoryLocks.find(
+          (lock) => lock.applicationItemId === pi.itemId
+        );
+
+        let consumedLockQty = 0;
+        let releasedLockQty = 0;
+
+        if (activeLock) {
+          const consumeQty = Math.min(pi.actualIssuedQty, activeLock.quantity);
+          const remainLockQty = activeLock.quantity - consumeQty;
+
+          if (consumeQty > 0) {
+            await tx.inventory.update({
+              where: { id: activeLock.inventoryId },
+              data: {
+                quantity: { decrement: consumeQty },
+                reservedQty: { decrement: consumeQty },
+              },
+            });
+            consumedLockQty = consumeQty;
+          }
+
+          if (remainLockQty > 0) {
+            await tx.inventory.update({
+              where: { id: activeLock.inventoryId },
+              data: {
+                reservedQty: { decrement: remainLockQty },
+              },
+            });
+            releasedLockQty = remainLockQty;
+          }
+
+          await tx.inventoryLock.update({
+            where: { id: activeLock.id },
+            data: {
+              status: InventoryLockStatus.CONSUMED,
+              consumedAt: new Date(),
+            },
+          });
         }
 
         await tx.partApplicationItem.update({
@@ -796,39 +856,23 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
           },
         });
 
-        if (pi.actualIssuedQty > 0) {
-          const activeLock = application.inventoryLocks.find(
-            (lock) => lock.inventoryId
-          );
-          if (activeLock) {
-            await tx.inventoryLock.update({
-              where: { id: activeLock.id },
-              data: {
-                status: InventoryLockStatus.CONSUMED,
-                consumedAt: new Date(),
-              },
-            });
-
-            await tx.inventory.update({
-              where: { id: activeLock.inventoryId },
-              data: {
-                quantity: { decrement: pi.actualIssuedQty },
-                reservedQty: { decrement: pi.actualIssuedQty },
-              },
-            });
-          }
-        }
+        pickupDetails.push({
+          itemId: pi.itemId,
+          issuedQty: pi.actualIssuedQty,
+          consumedLockQty,
+          releasedLockQty,
+        });
       }
 
-      const allCompleted = application.items.every((item) =>
+      const allIssued = application.items.every((item) =>
         items.some(
           (pi: any) =>
             pi.itemId === item.id &&
-            pi.actualIssuedQty === (item.approvedQty || item.requestedQty)
+            pi.actualIssuedQty >= (item.approvedQty || item.requestedQty)
         )
       );
 
-      const newStatus = allCompleted
+      const newStatus = allIssued
         ? PartApplicationStatus.COMPLETED
         : PartApplicationStatus.PROCESSING;
 
@@ -849,7 +893,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
           fromStatus: application.status,
           toStatus: newStatus,
           changedBy: req.user!.userId,
-          changeReason: allCompleted ? '配件全部发放完成' : '配件部分发放',
+          changeReason: allIssued ? '配件全部发放完成' : '配件部分发放',
         },
       });
 
@@ -864,7 +908,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
         });
       }
 
-      if (allCompleted) {
+      if (allIssued) {
         const repairOrder = await tx.repairOrder.findUnique({
           where: { id: application.repairOrderId },
           select: { id: true, status: true },
@@ -891,7 +935,10 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
         }
       }
 
-      return updated;
+      return {
+        ...updated,
+        pickupDetails,
+      };
     });
 
     return res.json(success(req, result, '配件发放完成'));

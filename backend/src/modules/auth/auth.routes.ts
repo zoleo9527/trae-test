@@ -65,7 +65,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/users:
+ * /api/v1/auth/users:
  *   get:
  *     tags: [用户管理]
  *     summary: 获取用户列表
@@ -80,7 +80,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/users:
+ * /api/v1/auth/users:
  *   post:
  *     tags: [用户管理]
  *     summary: 创建用户
@@ -90,14 +90,14 @@ router.post(
   '/users',
   authenticate,
   requireRole(Role.ADMIN),
-  requirePermission(Permission.SYSTEM_CONFIG),
+  requirePermission(Permission.USER_MANAGE),
   validateBody(createUserSchema),
   createUser
 );
 
 /**
  * @swagger
- * /api/v1/users/{id}:
+ * /api/v1/auth/users/{id}:
  *   put:
  *     tags: [用户管理]
  *     summary: 更新用户
@@ -107,7 +107,7 @@ router.put(
   '/users/:id',
   authenticate,
   requireRole(Role.ADMIN),
-  requirePermission(Permission.SYSTEM_CONFIG),
+  requirePermission(Permission.USER_MANAGE),
   validateParams(userIdSchema),
   validateBody(updateUserSchema),
   updateUser

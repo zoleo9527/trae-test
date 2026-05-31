@@ -69,9 +69,9 @@ app.use(
 
 const apiPrefix = config.apiVersion;
 
-app.use(apiPrefix, authRoutes);
+app.use(`${apiPrefix}/auth`, authRoutes);
 app.use(`${apiPrefix}/repair-orders`, repairOrderRoutes);
-app.use(`${apiPrefix}`, inventoryRoutes);
+app.use(`${apiPrefix}/inventory`, inventoryRoutes);
 app.use(`${apiPrefix}/part-applications`, partApplicationRoutes);
 app.use(`${apiPrefix}`, commonRoutes);
 
