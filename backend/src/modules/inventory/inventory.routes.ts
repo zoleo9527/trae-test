@@ -45,7 +45,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/v1/parts:
+ * /api/v1/inventory/parts:
  *   get:
  *     tags: [配件与库存管理]
  *     summary: 获取配件列表
@@ -61,7 +61,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/parts/{id}:
+ * /api/v1/inventory/parts/{id}:
  *   get:
  *     tags: [配件与库存管理]
  *     summary: 获取配件详情
@@ -77,7 +77,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/parts:
+ * /api/v1/inventory/parts:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 创建配件
@@ -94,7 +94,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/parts/{id}:
+ * /api/v1/inventory/parts/{id}:
  *   put:
  *     tags: [配件与库存管理]
  *     summary: 更新配件
@@ -114,7 +114,7 @@ router.put(
 
 /**
  * @swagger
- * /api/v1/inventories:
+ * /api/v1/inventory/inventories:
  *   get:
  *     tags: [配件与库存管理]
  *     summary: 获取库存列表（支持低库存筛选）
@@ -130,7 +130,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/inventories/{id}:
+ * /api/v1/inventory/inventories/{id}:
  *   get:
  *     tags: [配件与库存管理]
  *     summary: 获取库存详情（含锁定信息）
@@ -146,7 +146,7 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/inventories:
+ * /api/v1/inventory/inventories:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 创建库存记录
@@ -163,7 +163,7 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/inventories/{id}:
+ * /api/v1/inventory/inventories/{id}:
  *   put:
  *     tags: [配件与库存管理]
  *     summary: 更新库存
@@ -183,14 +183,14 @@ router.put(
 
 /**
  * @swagger
- * /api/v1/inventory-locks:
+ * /api/v1/inventory/locks:
  *   get:
  *     tags: [配件与库存管理]
  *     summary: 获取锁定记录列表
  *     security: [bearerAuth: []]
  */
 router.get(
-  '/inventory-locks',
+  '/locks',
   authenticate,
   requirePermission(Permission.INVENTORY_VIEW),
   validateQuery(lockQuerySchema),
@@ -199,14 +199,14 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/inventory-locks:
+ * /api/v1/inventory/locks:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 锁定库存
  *     security: [bearerAuth: []]
  */
 router.post(
-  '/inventory-locks',
+  '/locks',
   authenticate,
   requireRole(Role.SERVICE_MANAGER, Role.TECHNICIAN, Role.ADMIN),
   requirePermission(Permission.INVENTORY_LOCK),
@@ -216,14 +216,14 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/inventory-locks/{id}/release:
+ * /api/v1/inventory/locks/{id}/release:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 释放库存锁定
  *     security: [bearerAuth: []]
  */
 router.post(
-  '/inventory-locks/:id/release',
+  '/locks/:id/release',
   authenticate,
   requireRole(Role.SERVICE_MANAGER, Role.ADMIN),
   requirePermission(Permission.INVENTORY_UNLOCK),
@@ -234,14 +234,14 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/inventory-locks/{id}/consume:
+ * /api/v1/inventory/locks/{id}/consume:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 消耗锁定库存（实际出库）
  *     security: [bearerAuth: []]
  */
 router.post(
-  '/inventory-locks/:id/consume',
+  '/locks/:id/consume',
   authenticate,
   requireRole(Role.SERVICE_MANAGER, Role.TECHNICIAN, Role.ADMIN),
   requirePermission(Permission.INVENTORY_EDIT),
@@ -251,14 +251,14 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/inventory-locks/cleanup-expired:
+ * /api/v1/inventory/locks/cleanup-expired:
  *   post:
  *     tags: [配件与库存管理]
  *     summary: 清理过期锁定（定时任务或手动触发）
  *     security: [bearerAuth: []]
  */
 router.post(
-  '/inventory-locks/cleanup-expired',
+  '/locks/cleanup-expired',
   authenticate,
   requireRole(Role.ADMIN, Role.SERVICE_MANAGER),
   cleanupExpiredLocks

@@ -423,7 +423,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
         throw new ValidationError(`当前状态${application.status}不允许审批`);
       }
 
-      const approveItems: { itemId: string; approvedQty: number; remark?: string }[] = items;
+      const approveItems: { itemId: string; approvedQty: number; remark?: string }[] = items || [];
       const existingItemIds = application.items.map((item) => item.id);
 
       for (const ai of approveItems) {
@@ -432,8 +432,23 @@ export async function approveApplication(req: Request, res: Response, next: Next
         }
       }
 
-      const totalApproved = approveItems.reduce(
-        (sum, ai) => sum + ai.approvedQty,
+      const approveItemsMap = new Map(
+        approveItems.map((ai) => [ai.itemId, ai])
+      );
+
+      const allItemsToProcess = application.items.map((appItem) => {
+        const ai = approveItemsMap.get(appItem.id);
+        return {
+          itemId: appItem.id,
+          partId: appItem.partId,
+          requestedQty: appItem.requestedQty,
+          approvedQty: ai?.approvedQty ?? 0,
+          remark: ai?.remark,
+        };
+      });
+
+      const totalApproved = allItemsToProcess.reduce(
+        (sum, item) => sum + item.approvedQty,
         0
       );
       const totalRequested = application.items.reduce(
@@ -450,32 +465,34 @@ export async function approveApplication(req: Request, res: Response, next: Next
         newStatus = PartApplicationStatus.APPROVED;
       }
 
-      const lockDetails: { itemId: string; partId: string; lockQty: number; shortQty: number }[] = [];
+      const lockDetails: { itemId: string; partId: string; requestedQty: number; approvedQty: number; lockQty: number; shortQty: number }[] = [];
 
-      for (const ai of approveItems) {
+      for (const item of allItemsToProcess) {
         await tx.partApplicationItem.update({
-          where: { id: ai.itemId },
+          where: { id: item.itemId },
           data: {
-            approvedQty: ai.approvedQty,
-            remark: ai.remark,
+            approvedQty: item.approvedQty,
+            remark: item.remark,
           },
         });
 
-        if (ai.approvedQty <= 0) continue;
-
-        const appItem = application.items.find((item) => item.id === ai.itemId);
-        if (!appItem) continue;
-
         const inventory = await tx.inventory.findFirst({
-          where: { partId: appItem.partId, warehouse: 'MAIN' },
+          where: { partId: item.partId, warehouse: 'MAIN' },
           select: { id: true, quantity: true, reservedQty: true },
         });
 
         const availableQty = inventory ? inventory.quantity - inventory.reservedQty : 0;
-        const lockQty = Math.min(ai.approvedQty, availableQty);
-        const shortQty = ai.approvedQty - lockQty;
+        const lockQty = item.approvedQty > 0 ? Math.min(item.approvedQty, availableQty) : 0;
+        const shortQty = Math.max(0, item.approvedQty - lockQty);
 
-        lockDetails.push({ itemId: ai.itemId, partId: appItem.partId, lockQty, shortQty });
+        lockDetails.push({
+          itemId: item.itemId,
+          partId: item.partId,
+          requestedQty: item.requestedQty,
+          approvedQty: item.approvedQty,
+          lockQty,
+          shortQty,
+        });
 
         if (lockQty > 0 && inventory) {
           const lockNo = generateLockNo();
@@ -493,7 +510,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
               reason: `配件申请审批通过: ${application.applicationNo}`,
               lockedBy: req.user!.userId,
               applicationId: application.id,
-              applicationItemId: ai.itemId,
+              applicationItemId: item.itemId,
               repairOrderId: application.repairOrderId,
               expireAt,
             },
@@ -556,7 +573,8 @@ export async function approveApplication(req: Request, res: Response, next: Next
 
       if (
         repairOrder &&
-        repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED
+        repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED &&
+        !hasShortage
       ) {
         await tx.repairOrder.update({
           where: { id: repairOrder.id },
@@ -791,88 +809,121 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
       }
 
       const existingItemIds = application.items.map((item) => item.id);
-      const pickupDetails: { itemId: string; issuedQty: number; consumedLockQty: number; releasedLockQty: number }[] = [];
+      const pickupItemsMap = new Map(
+        (items || []).map((pi: any) => [pi.itemId, pi])
+      );
 
-      for (const pi of items) {
-        if (!existingItemIds.includes(pi.itemId)) {
-          throw new ValidationError(`明细ID不存在: ${pi.itemId}`);
-        }
+      const pickupDetails: {
+        itemId: string;
+        partId: string;
+        approvedQty: number | null;
+        actualIssuedQty: number;
+        lockedQty: number;
+        consumedLockQty: number;
+        releasedLockQty: number;
+        hasShortage: boolean;
+      }[] = [];
 
-        const appItem = application.items.find((item) => item.id === pi.itemId);
-        if (!appItem) continue;
+      const itemsWithShortage: string[] = [];
 
-        if (pi.actualIssuedQty > (appItem.approvedQty || appItem.requestedQty)) {
+      for (const appItem of application.items) {
+        const pi = pickupItemsMap.get(appItem.id);
+        const actualIssuedQty = pi?.actualIssuedQty ?? 0;
+        const approvedQty = appItem.approvedQty ?? appItem.requestedQty;
+
+        if (actualIssuedQty === 0) continue;
+
+        if (actualIssuedQty > approvedQty) {
           throw new ValidationError(
-            `实际发放数量不能超过批准数量: 明细${pi.itemId}`
+            `实际发放数量不能超过批准数量: 明细${appItem.id}, 批准${approvedQty}, 发放${actualIssuedQty}`
           );
         }
 
         const activeLock = application.inventoryLocks.find(
-          (lock) => lock.applicationItemId === pi.itemId
+          (lock) => lock.applicationItemId === appItem.id
         );
 
-        let consumedLockQty = 0;
-        let releasedLockQty = 0;
+        const lockedQty = activeLock?.quantity ?? 0;
 
-        if (activeLock) {
-          const consumeQty = Math.min(pi.actualIssuedQty, activeLock.quantity);
-          const remainLockQty = activeLock.quantity - consumeQty;
+        if (!activeLock || lockedQty === 0) {
+          throw new ValidationError(
+            `明细${appItem.id}无有效库存锁定，无法发放。请先锁定库存后再取件。`
+          );
+        }
 
-          if (consumeQty > 0) {
-            await tx.inventory.update({
-              where: { id: activeLock.inventoryId },
-              data: {
-                quantity: { decrement: consumeQty },
-                reservedQty: { decrement: consumeQty },
-              },
-            });
-            consumedLockQty = consumeQty;
-          }
+        if (actualIssuedQty > lockedQty) {
+          throw new ValidationError(
+            `明细${appItem.id}发放数量超过锁定数量: 锁定${lockedQty}, 发放${actualIssuedQty}。请先补充锁定。`
+          );
+        }
 
-          if (remainLockQty > 0) {
-            await tx.inventory.update({
-              where: { id: activeLock.inventoryId },
-              data: {
-                reservedQty: { decrement: remainLockQty },
-              },
-            });
-            releasedLockQty = remainLockQty;
-          }
+        const consumeQty = Math.min(actualIssuedQty, lockedQty);
+        const remainLockQty = lockedQty - consumeQty;
 
-          await tx.inventoryLock.update({
-            where: { id: activeLock.id },
+        if (consumeQty > 0) {
+          await tx.inventory.update({
+            where: { id: activeLock.inventoryId },
             data: {
-              status: InventoryLockStatus.CONSUMED,
-              consumedAt: new Date(),
+              quantity: { decrement: consumeQty },
+              reservedQty: { decrement: consumeQty },
             },
           });
         }
 
-        await tx.partApplicationItem.update({
-          where: { id: pi.itemId },
+        if (remainLockQty > 0) {
+          await tx.inventory.update({
+            where: { id: activeLock.inventoryId },
+            data: {
+              reservedQty: { decrement: remainLockQty },
+            },
+          });
+        }
+
+        await tx.inventoryLock.update({
+          where: { id: activeLock.id },
           data: {
-            actualIssuedQty: pi.actualIssuedQty,
-            unitPrice: pi.unitPrice,
+            status: InventoryLockStatus.CONSUMED,
+            consumedAt: new Date(),
           },
         });
 
+        await tx.partApplicationItem.update({
+          where: { id: appItem.id },
+          data: {
+            actualIssuedQty: pi?.actualIssuedQty,
+            unitPrice: pi?.unitPrice,
+          },
+        });
+
+        const hasShortage = (appItem.approvedQty ?? 0) > lockedQty;
+        if (hasShortage) {
+          itemsWithShortage.push(appItem.id);
+        }
+
         pickupDetails.push({
-          itemId: pi.itemId,
-          issuedQty: pi.actualIssuedQty,
-          consumedLockQty,
-          releasedLockQty,
+          itemId: appItem.id,
+          partId: appItem.partId,
+          approvedQty: appItem.approvedQty,
+          actualIssuedQty: pi?.actualIssuedQty,
+          lockedQty,
+          consumedLockQty: consumeQty,
+          releasedLockQty: remainLockQty,
+          hasShortage,
         });
       }
 
-      const allIssued = application.items.every((item) =>
-        items.some(
-          (pi: any) =>
-            pi.itemId === item.id &&
-            pi.actualIssuedQty >= (item.approvedQty || item.requestedQty)
-        )
-      );
+      if (pickupDetails.length === 0) {
+        throw new ValidationError('未指定任何发放明细');
+      }
 
-      const newStatus = allIssued
+      const allItemsFullyIssued = application.items.every((item) => {
+        const issued = pickupDetails.find((d) => d.itemId === item.id)?.actualIssuedQty ?? 0;
+        const approved = item.approvedQty ?? item.requestedQty;
+        return issued >= approved;
+      });
+
+      const canComplete = allItemsFullyIssued && itemsWithShortage.length === 0;
+      const newStatus = canComplete
         ? PartApplicationStatus.COMPLETED
         : PartApplicationStatus.PROCESSING;
 
@@ -893,7 +944,11 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
           fromStatus: application.status,
           toStatus: newStatus,
           changedBy: req.user!.userId,
-          changeReason: allIssued ? '配件全部发放完成' : '配件部分发放',
+          changeReason: canComplete
+            ? '配件全部发放完成'
+            : itemsWithShortage.length > 0
+            ? `部分发放，${itemsWithShortage.length}项仍有库存缺口待补锁`
+            : '配件部分发放',
         },
       });
 
@@ -908,7 +963,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
         });
       }
 
-      if (allIssued) {
+      if (canComplete) {
         const repairOrder = await tx.repairOrder.findUnique({
           where: { id: application.repairOrderId },
           select: { id: true, status: true },
@@ -929,7 +984,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
               fromStatus: RepairOrderStatus.AWAITING_PARTS,
               toStatus: RepairOrderStatus.IN_REPAIR,
               changedBy: req.user!.userId,
-              changeReason: '配件已到位，开始维修',
+              changeReason: '配件已全部到位，开始维修',
             },
           });
         }
@@ -938,10 +993,22 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
       return {
         ...updated,
         pickupDetails,
+        itemsWithShortage,
+        canComplete,
       };
     });
 
-    return res.json(success(req, result, '配件发放完成'));
+    return res.json(
+      success(
+        req,
+        result,
+        result.canComplete
+          ? '配件全部发放完成，申请单已结案'
+          : result.itemsWithShortage.length > 0
+          ? `部分发放完成，${result.itemsWithShortage.length}项有库存缺口，补锁后可继续发放`
+          : '部分发放完成'
+      )
+    );
   } catch (error) {
     next(error);
   }
@@ -960,9 +1027,14 @@ export async function addNote(req: Request, res: Response, next: NextFunction) {
       throw new NotFoundError('申请单不存在');
     }
 
+    const validNoteTypes = Object.values(NoteType);
+    if (type && !validNoteTypes.includes(type as NoteType)) {
+      throw new ValidationError(`无效的备注类型: ${type}，有效值: ${validNoteTypes.join(', ')}`);
+    }
+
     const note = await prisma.note.create({
       data: {
-        type: type as NoteType,
+        type: type as NoteType || NoteType.INTERNAL,
         content,
         applicationId: id,
         createdBy: req.user!.userId,
