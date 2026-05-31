@@ -6,6 +6,7 @@ import { apiFetch, AppError } from "@/lib/api";
 import RoleGuard from "@/components/RoleGuard";
 import ErrorAlert from "@/components/ErrorAlert";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import DataTable from "@/components/DataTable";
 
 interface Part {
   id: number;
@@ -15,10 +16,14 @@ interface Part {
   locked_quantity: number;
   min_quantity: number;
   unit_price: number;
+  available_quantity?: number;
 }
 
 export default function PartsPage() {
   const [parts, setParts] = useState<Part[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
   const [search, setSearch] = useState("");
@@ -32,14 +37,27 @@ export default function PartsPage() {
     unit_price: "",
   });
 
+  const pageSize = 20;
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      setLoading(true);
       try {
-        const res = await apiFetch<Part[]>("/parts");
-        if (!cancelled) setParts(res instanceof Array ? res : []);
+        const params = new URLSearchParams({
+          page: String(page),
+          page_size: String(pageSize),
+        });
+        if (search) params.set("keyword", search);
+        const res = await apiFetch<{ data: Part[]; total: number; total_pages: number }>(
+          `/parts?${params}`
+        );
+        if (!cancelled) {
+          setParts(res.data || []);
+          setTotal(res.total || 0);
+          setTotalPages(res.total_pages || 1);
+        }
       } catch (err) {
         if (!cancelled) setError(err as AppError);
       } finally {
@@ -48,7 +66,7 @@ export default function PartsPage() {
     };
     load();
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, [page, search, refreshKey]);
 
   const openCreate = () => {
     setEditPart(null);
@@ -96,11 +114,34 @@ export default function PartsPage() {
     }
   };
 
-  const filtered = parts.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  const columns = [
+    { key: "sku", title: "SKU", render: (item: Part) => item.sku },
+    { key: "name", title: "名称", render: (item: Part) => item.name },
+    { key: "quantity", title: "库存", render: (item: Part) => item.quantity },
+    { key: "locked_quantity", title: "锁定数", render: (item: Part) => item.locked_quantity },
+    {
+      key: "available",
+      title: "可用数",
+      render: (item: Part) => {
+        const available = item.available_quantity ?? (item.quantity - item.locked_quantity);
+        const isLow = available <= item.min_quantity;
+        return <span className={isLow ? "text-red-600 font-medium" : ""}>{available}</span>;
+      },
+    },
+    { key: "min_quantity", title: "最低库存", render: (item: Part) => item.min_quantity },
+    { key: "unit_price", title: "单价", render: (item: Part) => `¥${item.unit_price}` },
+    {
+      key: "actions",
+      title: "",
+      render: (item: Part) => (
+        <RoleGuard allowed={["manager", "consultant"]}>
+          <button onClick={() => openEdit(item)} className="text-blue-600 hover:text-blue-800">
+            <Edit2 className="w-4 h-4" />
+          </button>
+        </RoleGuard>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -126,7 +167,7 @@ export default function PartsPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="搜索配件名称/SKU"
               className="w-full border rounded pl-9 pr-3 py-1.5 text-sm"
             />
@@ -136,52 +177,16 @@ export default function PartsPage() {
         {loading ? (
           <LoadingSpinner />
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">名称</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">库存</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">锁定数</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">可用数</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">最低库存</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">单价</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">暂无配件</td>
-                </tr>
-              ) : (
-                filtered.map((part) => {
-                  const available = part.quantity - part.locked_quantity;
-                  const isLow = available <= part.min_quantity;
-                  return (
-                    <tr key={part.id} className={isLow ? "bg-red-50" : ""}>
-                      <td className="px-4 py-3 text-sm">{part.sku}</td>
-                      <td className="px-4 py-3 text-sm">{part.name}</td>
-                      <td className="px-4 py-3 text-sm">{part.quantity}</td>
-                      <td className="px-4 py-3 text-sm">{part.locked_quantity}</td>
-                      <td className={`px-4 py-3 text-sm font-medium ${isLow ? "text-red-600" : ""}`}>
-                        {available}
-                      </td>
-                      <td className="px-4 py-3 text-sm">{part.min_quantity}</td>
-                      <td className="px-4 py-3 text-sm">¥{part.unit_price}</td>
-                      <td className="px-4 py-3">
-                        <RoleGuard allowed={["manager", "consultant"]}>
-                          <button onClick={() => openEdit(part)} className="text-blue-600 hover:text-blue-800">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </RoleGuard>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            columns={columns}
+            data={parts}
+            total={total}
+            page={page}
+            pageSize={pageSize}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            rowKey={(item) => item.id}
+          />
         )}
       </div>
 

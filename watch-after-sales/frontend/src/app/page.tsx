@@ -21,8 +21,8 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 interface RepairOrder {
   id: number;
-  order_number: string;
-  customer_name: string;
+  order_no: string;
+  customer: { name: string };
   watch_brand: string;
   watch_model: string;
   status: string;
@@ -33,9 +33,9 @@ interface Part {
   id: number;
   sku: string;
   name: string;
-  stock_quantity: number;
+  quantity: number;
   locked_quantity: number;
-  minimum_stock: number;
+  min_quantity: number;
 }
 
 interface Callback {
@@ -60,7 +60,7 @@ function DashboardContent() {
         const [repairsRes, callbacksRes, partsRes] = await Promise.all([
           apiFetch<{ data: RepairOrder[]; total: number }>("/repairs?page=1&page_size=5"),
           apiFetch<Callback[]>("/callbacks/overdue"),
-          apiFetch<Part[]>("/parts"),
+          apiFetch<{ data: Part[]; total: number }>("/parts?page_size=100"),
         ]);
         if (cancelled) return;
 
@@ -68,9 +68,9 @@ function DashboardContent() {
         const callbacks = callbacksRes instanceof Array ? callbacksRes : [];
         setOverdueCallbacks(callbacks);
 
-        const allParts = partsRes instanceof Array ? partsRes : [];
+        const allParts = Array.isArray(partsRes.data) ? partsRes.data : [];
         const lowStock = allParts.filter(
-          (p) => p.stock_quantity - p.locked_quantity <= p.minimum_stock
+          (p) => p.quantity - p.locked_quantity <= p.min_quantity
         );
         setLowStockParts(lowStock);
 
@@ -145,9 +145,9 @@ function DashboardContent() {
                   onClick={() => router.push(`/repairs/${order.id}`)}
                 >
                   <div>
-                    <p className="text-sm font-medium">{order.order_number}</p>
+                    <p className="text-sm font-medium">{order.order_no}</p>
                     <p className="text-xs text-gray-500">
-                      {order.customer_name} - {order.watch_brand} {order.watch_model}
+                      {order.customer?.name || "-"} - {order.watch_brand} {order.watch_model}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -198,7 +198,7 @@ function DashboardContent() {
                       <p className="text-xs text-gray-500">SKU: {part.sku}</p>
                     </div>
                     <span className="text-sm text-red-600 font-medium">
-                      可用: {part.stock_quantity - part.locked_quantity} / 最低: {part.minimum_stock}
+                      可用: {part.quantity - part.locked_quantity} / 最低: {part.min_quantity}
                     </span>
                   </div>
                 ))

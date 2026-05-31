@@ -63,8 +63,11 @@ interface Part {
   id: number;
   sku: string;
   name: string;
-  available_quantity: number;
+  quantity: number;
+  locked_quantity: number;
+  min_quantity: number;
   unit_price: number;
+  available_quantity: number;
 }
 
 interface RepairOrder {
@@ -137,8 +140,9 @@ export default function RepairDetailPage() {
 
   const loadParts = async () => {
     try {
-      const res = await apiFetch<Part[]>("/parts");
-      setParts(Array.isArray(res) ? res : []);
+      const params = new URLSearchParams({ page_size: "100" });
+      const res = await apiFetch<{ data: Part[]; total: number }>(`/parts?${params}`);
+      setParts(Array.isArray(res.data) ? res.data : []);
     } catch {}
   };
 
