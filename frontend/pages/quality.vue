@@ -61,7 +61,24 @@
     </div>
 
     <div class="flex-1 bg-gray-50 overflow-auto">
-      <div v-if="showCreateModal" class="p-6">
+      <div v-if="loadError" class="p-6">
+        <div class="card p-6 border-red-200 bg-red-50">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="font-medium text-red-900">数据加载失败</h3>
+              <p class="text-sm text-red-700 mt-1">{{ loadError }}</p>
+              <button @click="retryLoad" class="btn-primary text-sm mt-3">重新加载</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="showCreateModal" class="p-6">
         <div class="card p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">创建质量检查记录</h2>
           <div class="grid grid-cols-2 gap-6">
@@ -316,6 +333,7 @@ const showCreateModal = ref(false)
 const creating = ref(false)
 const rectificationNote = ref('')
 const reinspectionResult = ref('passed')
+const loadError = ref('')
 
 const createForm = ref({
   project_id: 0,
@@ -361,15 +379,20 @@ const getTeamName = (id: number) => appStore.teams.find((t: any) => t.id === id)
 const getUserName = (id: number) => appStore.users.find((u: any) => u.id === id)?.name || '未知用户'
 
 const loadInspections = async () => {
-  const params = new URLSearchParams()
-  if (filterProject.value) params.append('project_id', String(filterProject.value))
-  inspections.value = await api.get(`/inspections?${params.toString()}`) as any[]
+  loadError.value = ''
+  try {
+    const params = new URLSearchParams()
+    if (filterProject.value) params.append('project_id', String(filterProject.value))
+    inspections.value = await api.get(`/inspections?${params.toString()}`) as any[]
 
-  if (route.query.inspectionId) {
-    const ins = inspections.value.find(i => i.id === Number(route.query.inspectionId))
-    if (ins) {
-      selectInspection(ins)
+    if (route.query.inspectionId) {
+      const ins = inspections.value.find(i => i.id === Number(route.query.inspectionId))
+      if (ins) {
+        selectInspection(ins)
+      }
     }
+  } catch (e: any) {
+    loadError.value = e.message || '加载质量检查数据失败，请稍后重试'
   }
 }
 
@@ -476,15 +499,24 @@ const initCreateFromDiary = async (diaryId: number, projectId: number) => {
   }
 }
 
-onMounted(async () => {
-  await appStore.loadProjects()
-  await appStore.loadTeams()
-  await appStore.loadUsers()
-  appStore.initFromAuth()
-  await loadInspections()
+const retryLoad = () => {
+  loadError.value = ''
+  loadInspections()
+}
 
-  if (route.query.diaryId && route.query.projectId) {
-    await initCreateFromDiary(Number(route.query.diaryId), Number(route.query.projectId))
+onMounted(async () => {
+  try {
+    await appStore.loadProjects()
+    await appStore.loadTeams()
+    await appStore.loadUsers()
+    appStore.initFromAuth()
+    await loadInspections()
+
+    if (route.query.diaryId && route.query.projectId) {
+      await initCreateFromDiary(Number(route.query.diaryId), Number(route.query.projectId))
+    }
+  } catch (e: any) {
+    loadError.value = e.message || '初始化失败，请稍后重试'
   }
 })
 </script>

@@ -18,8 +18,8 @@ export const useAPI = () => {
       return res
     } catch (error: any) {
       if (error.response?.status === 401) {
-        const router = useRouter()
-        router.push('/login')
+        const authStore = useAuthStore()
+        authStore.logout()
       }
       throw error
     }

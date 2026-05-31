@@ -25,18 +25,30 @@ export const useAppStore = defineStore('app', {
     },
 
     async loadProjects() {
-      const api = useAPI()
-      this.projects = await api.get('/projects') as any
+      try {
+        const api = useAPI()
+        this.projects = await api.get('/projects') as any
+      } catch (e) {
+        this.projects = []
+      }
     },
 
     async loadTeams() {
-      const api = useAPI()
-      this.teams = await api.get('/teams') as any
+      try {
+        const api = useAPI()
+        this.teams = await api.get('/teams') as any
+      } catch (e) {
+        this.teams = []
+      }
     },
 
     async loadUsers() {
-      const api = useAPI()
-      this.users = await api.get('/users') as any
+      try {
+        const api = useAPI()
+        this.users = await api.get('/users') as any
+      } catch (e) {
+        this.users = []
+      }
     },
 
     selectProject(id: number) {

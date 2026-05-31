@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     initAuth() {
+      if (this._initialized) return
       if (process.client) {
         const tokenCookie = useCookie('access_token')
         const userCookie = useCookie('user_info')
@@ -26,8 +27,8 @@ export const useAuthStore = defineStore('auth', {
             this.user = null
           }
         }
-        this._initialized = true
       }
+      this._initialized = true
     },
 
     async login(username: string, password: string) {
@@ -54,14 +55,17 @@ export const useAuthStore = defineStore('auth', {
     logout() {
       this.token = null
       this.user = null
+      this._initialized = false
 
-      const tokenCookie = useCookie('access_token')
-      const userCookie = useCookie('user_info')
+      const tokenCookie = useCookie('access_token', { path: '/' })
+      const userCookie = useCookie('user_info', { path: '/' })
       tokenCookie.value = null
       userCookie.value = null
 
-      const router = useRouter()
-      router.push('/login')
+      if (process.client) {
+        const router = useRouter()
+        router.push('/login')
+      }
     },
 
     checkAuth() {

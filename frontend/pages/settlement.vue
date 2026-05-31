@@ -57,7 +57,24 @@
     </div>
 
     <div class="flex-1 bg-gray-50 overflow-auto">
-      <div v-if="selectedSettlement" class="p-6">
+      <div v-if="loadError" class="p-6">
+        <div class="card p-6 border-red-200 bg-red-50">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h3 class="font-medium text-red-900">数据加载失败</h3>
+              <p class="text-sm text-red-700 mt-1">{{ loadError }}</p>
+              <button @click="retryLoad" class="btn-primary text-sm mt-3">重新加载</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="selectedSettlement" class="p-6">
         <div class="flex justify-between items-start mb-6">
           <div>
             <h2 class="text-xl font-bold text-gray-900">{{ getProjectName(selectedSettlement.project_id) }}</h2>
@@ -261,6 +278,7 @@ const activeTab = ref('all')
 const showResolveModal = ref(false)
 const resolutionText = ref('')
 const finalAmount = ref(0)
+const loadError = ref('')
 
 const tabs = computed(() => [
   { value: 'all', label: '全部', count: settlements.value.length },
@@ -288,16 +306,21 @@ const getProjectName = (id: number) => appStore.projects.find((p: any) => p.id =
 const getTeamName = (id: number) => appStore.teams.find((t: any) => t.id === id)?.name || '未知班组'
 
 const loadSettlements = async () => {
-  const params = new URLSearchParams()
-  if (filterProject.value) params.append('project_id', String(filterProject.value))
-  if (filterTeam.value) params.append('team_id', String(filterTeam.value))
-  settlements.value = await api.get(`/settlements?${params.toString()}`) as any[]
+  loadError.value = ''
+  try {
+    const params = new URLSearchParams()
+    if (filterProject.value) params.append('project_id', String(filterProject.value))
+    if (filterTeam.value) params.append('team_id', String(filterTeam.value))
+    settlements.value = await api.get(`/settlements?${params.toString()}`) as any[]
 
-  if (route.query.settlementId) {
-    const s = settlements.value.find(x => x.id === Number(route.query.settlementId))
-    if (s) {
-      selectSettlement(s)
+    if (route.query.settlementId) {
+      const s = settlements.value.find(x => x.id === Number(route.query.settlementId))
+      if (s) {
+        selectSettlement(s)
+      }
     }
+  } catch (e: any) {
+    loadError.value = e.message || '加载结算数据失败，请稍后重试'
   }
 }
 
@@ -332,11 +355,20 @@ const submitResolution = async () => {
   selectedSettlement.value = updated
 }
 
+const retryLoad = () => {
+  loadError.value = ''
+  loadSettlements()
+}
+
 onMounted(async () => {
-  await appStore.loadProjects()
-  await appStore.loadTeams()
-  await appStore.loadUsers()
-  appStore.initFromAuth()
-  await loadSettlements()
+  try {
+    await appStore.loadProjects()
+    await appStore.loadTeams()
+    await appStore.loadUsers()
+    appStore.initFromAuth()
+    await loadSettlements()
+  } catch (e: any) {
+    loadError.value = e.message || '初始化失败，请稍后重试'
+  }
 })
 </script>
