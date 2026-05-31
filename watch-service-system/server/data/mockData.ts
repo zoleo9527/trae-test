@@ -318,13 +318,21 @@ export function resetMockData() {
   mockWorkOrders = createMockWorkOrders();
 }
 
+const STATUS_GROUPS: Record<string, string[]> = {
+  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'],
+  rejected: ['rejected', 'customer_rejected'],
+  approval: ['pending_approval'],
+  followup: ['picked_up'],
+  completed: ['completed'],
+  pending_confirm: ['pending_confirm'],
+};
+
 export function getDashboardStats(): DashboardStats {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const pendingStatuses = ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'];
-  const rejectedStatuses = ['rejected', 'customer_rejected'];
-  const needFollowUpStatuses = ['completed', 'picked_up'];
+  const pendingStatuses = STATUS_GROUPS.pending;
+  const rejectedStatuses = STATUS_GROUPS.rejected;
 
   const weekAgo = new Date(today.getTime() - 7 * 86400000);
 

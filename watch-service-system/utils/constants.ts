@@ -49,3 +49,36 @@ export const WATCH_BRANDS = [
   '天梭', '美度', '梅花', '精工', '西铁城',
   '江诗丹顿', '百达翡丽', '爱彼', '积家', '伯爵'
 ];
+
+export const REPAIR_PROGRESS_LABELS: Record<string, string> = {
+  inspecting: '检测中',
+  parts_preparing: '配件准备',
+  repairing: '维修中',
+  testing: '测试中',
+  completed: '已完成',
+};
+
+export const REPAIR_PROGRESS_COLORS: Record<string, string> = {
+  inspecting: 'bg-blue-500',
+  parts_preparing: 'bg-amber-500',
+  repairing: 'bg-cyan-500',
+  testing: 'bg-purple-500',
+  completed: 'bg-green-500',
+};
+
+export const REPAIR_PROGRESS_ICONS: Record<string, string> = {
+  inspecting: 'mdi:magnify',
+  parts_preparing: 'mdi:package-variant',
+  repairing: 'mdi:hammer-wrench',
+  testing: 'mdi:check-circle-outline',
+  completed: 'mdi:check',
+};
+
+export const STATUS_GROUPS: Record<string, WorkOrderStatus[]> = {
+  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'],
+  rejected: ['rejected', 'customer_rejected'],
+  approval: ['pending_approval'],
+  followup: ['picked_up'],
+  completed: ['completed'],
+  pending_confirm: ['pending_confirm'],
+};

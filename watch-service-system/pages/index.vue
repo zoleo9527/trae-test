@@ -229,6 +229,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { STATUS_GROUPS } from '~/utils/constants';
 
 const router = useRouter();
 const { userName, currentRole, currentRoleLabel } = useRole();
@@ -283,27 +284,7 @@ onMounted(async () => {
 
 function navigateToWorkOrders(tab?: string) {
   if (tab) {
-    let statusFilter: string[] | undefined;
-    switch (tab) {
-      case 'pending':
-        statusFilter = ['pending_review', 'quoting', 'pending_confirm', 'repairing'];
-        break;
-      case 'approval':
-        statusFilter = ['pending_approval'];
-        break;
-      case 'rejected':
-        statusFilter = ['rejected', 'customer_rejected'];
-        break;
-      case 'completed':
-        statusFilter = ['completed'];
-        break;
-      case 'followup':
-        statusFilter = ['picked_up'];
-        break;
-      case 'pending_confirm':
-        statusFilter = ['pending_confirm'];
-        break;
-    }
+    const statusFilter = STATUS_GROUPS[tab];
     if (statusFilter) {
       setFilter({ status: statusFilter as any });
     }

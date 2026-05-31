@@ -3352,11 +3352,14 @@ function createMockWorkOrders() {
   return workOrders;
 }
 let mockWorkOrders = createMockWorkOrders();
+const STATUS_GROUPS = {
+  pending: ["pending_review", "quoting", "pending_approval", "pending_confirm", "repairing"],
+  rejected: ["rejected", "customer_rejected"]};
 function getDashboardStats() {
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
-  const pendingStatuses = ["pending_review", "quoting", "pending_approval", "pending_confirm", "repairing"];
-  const rejectedStatuses = ["rejected", "customer_rejected"];
+  const pendingStatuses = STATUS_GROUPS.pending;
+  const rejectedStatuses = STATUS_GROUPS.rejected;
   const weekAgo = new Date(today.getTime() - 7 * 864e5);
   const completedThisWeek = mockWorkOrders.filter(
     (wo) => (wo.status === "completed" || wo.status === "picked_up") && new Date(wo.updatedAt) >= weekAgo
@@ -3749,9 +3752,18 @@ const action_post = defineEventHandler(async (event) => {
         inspecting: "\u68C0\u6D4B\u4E2D",
         parts_preparing: "\u914D\u4EF6\u51C6\u5907",
         repairing: "\u7EF4\u4FEE\u4E2D",
-        testing: "\u6D4B\u8BD5\u4E2D",
-        completed: "\u5DF2\u5B8C\u6210"
+        testing: "\u6D4B\u8BD5\u4E2D"
       };
+      const progressToStatusMap = {
+        inspecting: "quoting",
+        parts_preparing: "quoting",
+        repairing: "repairing",
+        testing: "repairing"
+      };
+      const mappedStatus = progressToStatusMap[status];
+      if (mappedStatus) {
+        newStatus = mappedStatus;
+      }
       if (data.remark) {
         newProgress.push(createProgressEntry(id, status, data.remark, currentUser.name, currentUser.role));
         const statusLabel = statusLabels[status] || status;

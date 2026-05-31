@@ -32,7 +32,7 @@ export { definePageMeta } from '../node_modules/nuxt/dist/pages/runtime/composab
 export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
 export { useRole } from '../composables/useRole';
 export { useWorkOrder } from '../composables/useWorkOrder';
-export { STATUS_LABELS, STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS, ROLE_LABELS, WATCH_BRANDS } from '../utils/constants';
+export { STATUS_LABELS, STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS, ROLE_LABELS, WATCH_BRANDS, REPAIR_PROGRESS_LABELS, REPAIR_PROGRESS_COLORS, REPAIR_PROGRESS_ICONS, STATUS_GROUPS } from '../utils/constants';
 export { formatDate, formatDateTime, formatRelativeTime, formatCurrency, formatPhone } from '../utils/format';
 export { useUserStore } from '../stores/user';
 export { useWorkOrderStore } from '../stores/workorder';

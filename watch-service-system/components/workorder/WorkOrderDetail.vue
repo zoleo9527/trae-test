@@ -44,7 +44,7 @@
                 提交报价
               </button>
               <button
-                v-if="order.status === 'repairing'"
+                v-if="order.status === 'quoting' || order.status === 'repairing'"
                 @click="showProgressModal = true"
                 class="btn-secondary"
                 :disabled="actionLoading"
@@ -475,6 +475,7 @@
 import { ref, computed } from 'vue';
 import type { WorkOrder } from '~/types/workorder';
 import { formatDate, formatPhone, formatCurrency, formatDateTime } from '~/utils/format';
+import { REPAIR_PROGRESS_LABELS, REPAIR_PROGRESS_COLORS, REPAIR_PROGRESS_ICONS } from '~/utils/constants';
 import Timeline from './Timeline.vue';
 import ConfirmModal from '../common/ConfirmModal.vue';
 import QuoteModal from './QuoteModal.vue';
@@ -517,36 +518,15 @@ const quoteStatusLabel = computed(() => {
 });
 
 function getProgressLabel(status: string): string {
-  const labels: Record<string, string> = {
-    inspecting: '检测中',
-    parts_preparing: '配件准备',
-    repairing: '维修中',
-    testing: '测试中',
-    completed: '已完成',
-  };
-  return labels[status] || status;
+  return REPAIR_PROGRESS_LABELS[status] || status;
 }
 
 function getProgressColor(status: string): string {
-  const colors: Record<string, string> = {
-    inspecting: 'bg-blue-500',
-    parts_preparing: 'bg-amber-500',
-    repairing: 'bg-cyan-500',
-    testing: 'bg-purple-500',
-    completed: 'bg-green-500',
-  };
-  return colors[status] || 'bg-gray-500';
+  return REPAIR_PROGRESS_COLORS[status] || 'bg-gray-500';
 }
 
 function getProgressIcon(status: string): string {
-  const icons: Record<string, string> = {
-    inspecting: 'mdi:magnify',
-    parts_preparing: 'mdi:package-variant',
-    repairing: 'mdi:hammer-wrench',
-    testing: 'mdi:check-circle-outline',
-    completed: 'mdi:check',
-  };
-  return icons[status] || 'mdi:circle';
+  return REPAIR_PROGRESS_ICONS[status] || 'mdi:circle';
 }
 
 function handleStartInspect() {

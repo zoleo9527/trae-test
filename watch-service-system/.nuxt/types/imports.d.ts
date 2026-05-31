@@ -3,8 +3,12 @@ export {}
 declare global {
   const PRIORITY_COLORS: typeof import('../../utils/constants').PRIORITY_COLORS
   const PRIORITY_LABELS: typeof import('../../utils/constants').PRIORITY_LABELS
+  const REPAIR_PROGRESS_COLORS: typeof import('../../utils/constants').REPAIR_PROGRESS_COLORS
+  const REPAIR_PROGRESS_ICONS: typeof import('../../utils/constants').REPAIR_PROGRESS_ICONS
+  const REPAIR_PROGRESS_LABELS: typeof import('../../utils/constants').REPAIR_PROGRESS_LABELS
   const ROLE_LABELS: typeof import('../../utils/constants').ROLE_LABELS
   const STATUS_COLORS: typeof import('../../utils/constants').STATUS_COLORS
+  const STATUS_GROUPS: typeof import('../../utils/constants').STATUS_GROUPS
   const STATUS_LABELS: typeof import('../../utils/constants').STATUS_LABELS
   const WATCH_BRANDS: typeof import('../../utils/constants').WATCH_BRANDS
   const abortNavigation: typeof import('../../node_modules/nuxt/dist/app/composables/router').abortNavigation
@@ -219,8 +223,12 @@ declare module 'vue' {
   interface ComponentCustomProperties {
     readonly PRIORITY_COLORS: UnwrapRef<typeof import('../../utils/constants')['PRIORITY_COLORS']>
     readonly PRIORITY_LABELS: UnwrapRef<typeof import('../../utils/constants')['PRIORITY_LABELS']>
+    readonly REPAIR_PROGRESS_COLORS: UnwrapRef<typeof import('../../utils/constants')['REPAIR_PROGRESS_COLORS']>
+    readonly REPAIR_PROGRESS_ICONS: UnwrapRef<typeof import('../../utils/constants')['REPAIR_PROGRESS_ICONS']>
+    readonly REPAIR_PROGRESS_LABELS: UnwrapRef<typeof import('../../utils/constants')['REPAIR_PROGRESS_LABELS']>
     readonly ROLE_LABELS: UnwrapRef<typeof import('../../utils/constants')['ROLE_LABELS']>
     readonly STATUS_COLORS: UnwrapRef<typeof import('../../utils/constants')['STATUS_COLORS']>
+    readonly STATUS_GROUPS: UnwrapRef<typeof import('../../utils/constants')['STATUS_GROUPS']>
     readonly STATUS_LABELS: UnwrapRef<typeof import('../../utils/constants')['STATUS_LABELS']>
     readonly WATCH_BRANDS: UnwrapRef<typeof import('../../utils/constants')['WATCH_BRANDS']>
     readonly abortNavigation: UnwrapRef<typeof import('../../node_modules/nuxt/dist/app/composables/router')['abortNavigation']>

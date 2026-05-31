@@ -232,8 +232,20 @@ export default defineEventHandler(async (event) => {
         parts_preparing: '配件准备',
         repairing: '维修中',
         testing: '测试中',
-        completed: '已完成',
       };
+
+      const progressToStatusMap: Record<string, WorkOrderStatus> = {
+        inspecting: 'quoting',
+        parts_preparing: 'quoting',
+        repairing: 'repairing',
+        testing: 'repairing',
+      };
+
+      const mappedStatus = progressToStatusMap[status];
+      if (mappedStatus) {
+        newStatus = mappedStatus;
+      }
+
       if (data.remark) {
         newProgress.push(createProgressEntry(id, status as any, data.remark, currentUser.name, currentUser.role));
         const statusLabel = statusLabels[status] || status;

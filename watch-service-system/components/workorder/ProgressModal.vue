@@ -90,6 +90,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { WorkOrder } from '~/types/workorder';
+import { REPAIR_PROGRESS_LABELS, REPAIR_PROGRESS_COLORS, REPAIR_PROGRESS_ICONS } from '~/utils/constants';
 
 interface Props {
   modelValue: boolean;
@@ -110,33 +111,27 @@ const emit = defineEmits<{
 const progressStatuses = [
   {
     value: 'inspecting',
-    label: '检测中',
+    label: REPAIR_PROGRESS_LABELS.inspecting,
     description: '正在检测手表故障',
-    icon: 'mdi:magnify',
+    icon: REPAIR_PROGRESS_ICONS.inspecting,
   },
   {
     value: 'parts_preparing',
-    label: '配件准备',
+    label: REPAIR_PROGRESS_LABELS.parts_preparing,
     description: '准备维修所需配件',
-    icon: 'mdi:package-variant',
+    icon: REPAIR_PROGRESS_ICONS.parts_preparing,
   },
   {
     value: 'repairing',
-    label: '维修中',
+    label: REPAIR_PROGRESS_LABELS.repairing,
     description: '正在执行维修工作',
-    icon: 'mdi:hammer-wrench',
+    icon: REPAIR_PROGRESS_ICONS.repairing,
   },
   {
     value: 'testing',
-    label: '测试中',
+    label: REPAIR_PROGRESS_LABELS.testing,
     description: '维修完成，正在测试',
-    icon: 'mdi:check-circle-outline',
-  },
-  {
-    value: 'completed',
-    label: '已完成',
-    description: '维修完成，检测通过',
-    icon: 'mdi:check-circle',
+    icon: REPAIR_PROGRESS_ICONS.testing,
   },
 ];
 
@@ -146,18 +141,24 @@ const form = ref({
 });
 
 function getStatusColor(status: string) {
-  const colors: Record<string, string> = {
-    inspecting: 'bg-blue-500',
-    parts_preparing: 'bg-amber-500',
-    repairing: 'bg-cyan-500',
-    testing: 'bg-purple-500',
-    completed: 'bg-green-500',
-  };
-  return colors[status] || 'bg-gray-500';
+  return REPAIR_PROGRESS_COLORS[status] || 'bg-gray-500';
+}
+
+function getDefaultStatus(): string {
+  if (props.order && props.order.progress.length > 0) {
+    const lastProgress = props.order.progress[props.order.progress.length - 1];
+    const availableStatuses = progressStatuses.map(s => s.value);
+    if (availableStatuses.includes(lastProgress.status)) {
+      return lastProgress.status;
+    }
+  }
+  return 'repairing';
 }
 
 watch(() => props.modelValue, (val) => {
-  if (!val) {
+  if (val) {
+    selectedStatus.value = getDefaultStatus();
+  } else {
     selectedStatus.value = 'repairing';
     form.value = {
       remark: '',
