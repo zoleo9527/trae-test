@@ -231,6 +231,35 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">详细描述</label>
             <textarea v-model="newComplaint.description" class="textarea" rows="4" placeholder="请详细描述投诉内容..." />
           </div>
+          <div class="grid grid-cols-3 gap-4 pt-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">关联预约</label>
+              <select v-model="newComplaint.relatedBookingId" class="select">
+                <option value="">选择预约</option>
+                <option v-for="opt in bookingOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">关联巡场</label>
+              <select v-model="newComplaint.relatedPatrolId" class="select">
+                <option value="">选择巡场</option>
+                <option v-for="opt in patrolOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">关联器材</label>
+              <select v-model="newComplaint.relatedEquipmentId" class="select">
+                <option value="">选择器材</option>
+                <option v-for="opt in equipmentOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="flex justify-end gap-3 pt-4 mt-4 border-t">
           <button class="btn btn-secondary" @click="showCreateModal = false">取消</button>
@@ -242,11 +271,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useUserStore } from '~/stores/user'
 import { useCommonStore } from '~/stores/common'
 import { useComplaintStore } from '~/stores/complaint'
 import { useNotificationStore } from '~/stores/notification'
+import { useBookingStore } from '~/stores/booking'
+import { usePatrolStore } from '~/stores/patrol'
+import { useEquipmentStore } from '~/stores/equipment'
 import FilterBar from '~/components/FilterBar.vue'
 import StatusBadge from '~/components/StatusBadge.vue'
 import Pagination from '~/components/Pagination.vue'
@@ -256,6 +288,9 @@ const userStore = useUserStore()
 const commonStore = useCommonStore()
 const complaintStore = useComplaintStore()
 const notificationStore = useNotificationStore()
+const bookingStore = useBookingStore()
+const patrolStore = usePatrolStore()
+const equipmentStore = useEquipmentStore()
 
 const filters = reactive({
   keyword: '',
@@ -290,7 +325,50 @@ const newComplaint = reactive({
   category: 'other' as ComplaintCategory,
   priority: 'medium' as ComplaintPriority,
   source: 'on_site' as 'phone' | 'on_site' | 'wechat' | 'online' | 'other',
-  description: ''
+  description: '',
+  relatedBookingId: '',
+  relatedPatrolId: '',
+  relatedEquipmentId: ''
+})
+
+const bookingOptions = computed(() => {
+  return bookingStore.bookings
+    .filter(b => b.status !== 'rejected')
+    .slice(0, 50)
+    .map(b => ({
+      value: b.id,
+      label: `${b.bookingNo} - ${b.customerName} (${b.date})`
+    }))
+})
+
+const patrolOptions = computed(() => {
+  return patrolStore.patrols
+    .filter((p: any) => p.status !== 'draft')
+    .slice(0, 50)
+    .map((p: any) => ({
+      value: p.id,
+      label: `${p.patrolNo} - ${p.location} (${p.date})`
+    }))
+})
+
+const equipmentOptions = computed(() => {
+  return equipmentStore.equipment
+    .filter(e => e.status !== 'maintenance')
+    .slice(0, 50)
+    .map(e => ({
+      value: e.id,
+      label: `${e.equipmentNo} - ${e.name}`
+    }))
+})
+
+watch(() => newComplaint.relatedBookingId, (bookingId) => {
+  if (bookingId) {
+    const booking = bookingStore.getById(bookingId)
+    if (booking) {
+      newComplaint.customerName = booking.customerName
+      newComplaint.customerPhone = booking.customerPhone
+    }
+  }
 })
 
 function resetNewComplaint() {
@@ -301,6 +379,9 @@ function resetNewComplaint() {
   newComplaint.priority = 'medium'
   newComplaint.source = 'on_site'
   newComplaint.description = ''
+  newComplaint.relatedBookingId = ''
+  newComplaint.relatedPatrolId = ''
+  newComplaint.relatedEquipmentId = ''
 }
 
 function handleCreate() {
@@ -328,7 +409,10 @@ function handleCreate() {
     category: newComplaint.category,
     priority: newComplaint.priority,
     source: newComplaint.source,
-    description: newComplaint.description
+    description: newComplaint.description,
+    relatedBookingId: newComplaint.relatedBookingId || undefined,
+    relatedPatrolId: newComplaint.relatedPatrolId || undefined,
+    relatedEquipmentId: newComplaint.relatedEquipmentId || undefined
   })
 
   notificationStore.showToastMessage('success', '投诉登记成功')

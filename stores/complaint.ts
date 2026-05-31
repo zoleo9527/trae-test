@@ -155,6 +155,7 @@ export const useComplaintStore = defineStore('complaint', () => {
     const complaint = getById(id)
     if (!complaint) return
 
+    const oldStatus = complaint.status
     complaint.handlerId = handlerId
     complaint.handlerName = handlerName
     complaint.supervisorId = userStore.currentUser!.id
@@ -175,7 +176,7 @@ export const useComplaintStore = defineStore('complaint', () => {
 
     commonStore.addStatusHistory({
       recordId: id,
-      fromStatus: complaint.status,
+      fromStatus: oldStatus,
       toStatus: 'processing',
       operatorId: userStore.currentUser!.id,
       operatorName: userStore.currentUser!.name,
@@ -215,18 +216,39 @@ export const useComplaintStore = defineStore('complaint', () => {
     expectedDate.setDate(expectedDate.getDate() + (complaint.priority === 'urgent' ? 1 : complaint.priority === 'high' ? 2 : 3))
 
     let customerId = complaint.customerId
+    let customerName = complaint.customerName || ''
+    let customerPhone = complaint.customerPhone || ''
     let relatedBookingId = complaint.relatedBookingId
     let relatedPatrolId = complaint.relatedPatrolId
     let relatedEquipmentId = complaint.relatedEquipmentId
 
-    if (!customerId && complaint.customerPhone) {
-      const existingAccount = prepaidStore.getByCustomerPhone(complaint.customerPhone)
+    if (relatedBookingId) {
+      const booking = bookingStore.getById(relatedBookingId)
+      if (booking) {
+        if (!customerId) {
+          customerId = booking.customerId
+        }
+        if (!customerName) {
+          customerName = booking.customerName
+        }
+        if (!customerPhone) {
+          customerPhone = booking.customerPhone
+        }
+
+        if (booking.equipmentRentals && booking.equipmentRentals.length > 0 && !relatedEquipmentId) {
+          relatedEquipmentId = booking.equipmentRentals[0].equipmentId
+        }
+      }
+    }
+
+    if (!customerId && customerPhone) {
+      const existingAccount = prepaidStore.getByCustomerPhone(customerPhone)
       if (existingAccount) {
         customerId = existingAccount.customerId
       }
 
       const recentBooking = bookingStore.bookings.find(
-        b => b.customerPhone === complaint.customerPhone && b.status !== 'pending'
+        b => b.customerPhone === customerPhone && b.status !== 'pending'
       )
       if (recentBooking && !relatedBookingId) {
         relatedBookingId = recentBooking.id
@@ -245,8 +267,8 @@ export const useComplaintStore = defineStore('complaint', () => {
       id: `complaint-${Date.now()}`,
       complaintNo: commonStore.generateNo('CMP'),
       customerId,
-      customerName: complaint.customerName || '',
-      customerPhone: complaint.customerPhone || '',
+      customerName,
+      customerPhone,
       category: complaint.category || 'other',
       priority: complaint.priority || 'medium',
       title: complaint.title || '',
