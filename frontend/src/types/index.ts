@@ -261,6 +261,10 @@ export interface SettlementDispute {
   }>;
   resolution?: string;
   resolvedAt?: string;
+  sourceReceiptId?: string;
+  sourceDifferenceId?: string;
+  sourceShippingId?: string;
+  sourceReworkId?: string;
 }
 
 export interface Alert {

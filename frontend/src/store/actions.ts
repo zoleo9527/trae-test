@@ -67,6 +67,11 @@ export const updateDispute = (dispute: SettlementDispute): AppAction => ({
   payload: dispute,
 });
 
+export const addDispute = (dispute: SettlementDispute): AppAction => ({
+  type: 'ADD_DISPUTE',
+  payload: dispute,
+});
+
 export const setAlerts = (alerts: Alert[]): AppAction => ({
   type: 'SET_ALERTS',
   payload: alerts,

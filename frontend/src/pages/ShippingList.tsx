@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, ChevronDown, Package, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -9,10 +9,20 @@ import type { ShippingStatus } from '@/types';
 export function ShippingList() {
   const { state } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { canCreateShipping, canApproveShipping } = useRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ShippingStatus | 'all'>('all');
   const [showFilter, setShowFilter] = useState(false);
+
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'pending') {
+      setStatusFilter('pending_approval');
+    } else if (filter && filter !== 'all') {
+      setStatusFilter(filter as ShippingStatus);
+    }
+  }, [searchParams]);
 
   const filteredOrders = state.shippingOrders.filter(order => {
     const matchesSearch = order.code.toLowerCase().includes(searchTerm.toLowerCase()) ||

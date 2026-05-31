@@ -98,7 +98,7 @@ export function ReworkDetail() {
     setShowModal(true);
   };
 
-  const canStart = rework.status === 'created' && canExecuteRework;
+  const canStart = (rework.status === 'created' || rework.status === 'failed') && canExecuteRework;
   const canSubmit = rework.status === 'in_progress' && canExecuteRework;
   const canReview = rework.status === 'submitted' && canReviewRework;
   const canClose = rework.status === 'passed' && canReviewRework;
@@ -256,7 +256,7 @@ export function ReworkDetail() {
                   className="w-full btn-primary flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  开始整改
+                  {rework.status === 'failed' ? '继续整改' : '开始整改'}
                 </button>
               )}
               {canSubmit && (

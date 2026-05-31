@@ -39,6 +39,7 @@ export type ActionType =
   | 'ADD_REWORK_ORDER'
   | 'SET_DISPUTES'
   | 'UPDATE_DISPUTE'
+  | 'ADD_DISPUTE'
   | 'SET_ALERTS'
   | 'MARK_ALERT_READ'
   | 'MARK_ALERT_HANDLED'

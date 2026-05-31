@@ -82,6 +82,12 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ),
       };
 
+    case 'ADD_DISPUTE':
+      return {
+        ...state,
+        disputes: [action.payload, ...state.disputes],
+      };
+
     case 'SET_ALERTS':
       return { ...state, alerts: action.payload };
 

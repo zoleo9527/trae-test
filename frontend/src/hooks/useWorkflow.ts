@@ -4,9 +4,11 @@ import {
   updateReceipt,
   updateReworkOrder,
   updateDispute,
+  addDispute,
   addActionLog,
   markAlertHandled,
 } from '@/store/actions';
+import type { Responsibility, SettlementDispute } from '@/types';
 import type {
   ShippingStatus,
   ReworkStatus,
@@ -273,10 +275,14 @@ export function useWorkflow() {
   const judgeResponsibility = (
     receipt: Receipt,
     differenceId: string,
-    responsibility: string,
+    responsibility: Responsibility,
     resolution: string
   ) => {
     if (!currentUser) return;
+
+    const difference = receipt.differences.find((d) => d.id === differenceId);
+    if (!difference) return;
+
     const updatedDifferences = receipt.differences.map((d) =>
       d.id === differenceId
         ? { ...d, responsibility, resolved: true, resolvedAt: new Date().toISOString(), resolution }
@@ -301,6 +307,81 @@ export function useWorkflow() {
       dispatch(updateShippingOrder(updatedShipping));
     }
 
+    if (difference.amount > 0) {
+      const shippingCode = shipping?.code || receipt.id;
+      const existingDispute = state.disputes.find(
+        (d) => d.title.includes(shippingCode) && d.title.includes('材料差异')
+      );
+      
+      if (!existingDispute) {
+        const now = new Date();
+        const disputeCode = `JY${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(state.disputes.length + 1).padStart(3, '0')}`;
+        
+        const newDispute: SettlementDispute = {
+          id: `disp-${Date.now()}`,
+          projectId: receipt.projectId,
+          code: disputeCode,
+          status: 'ruled',
+          title: `${shippingCode} 材料差异结算`,
+          type: 'material',
+          amount: difference.amount,
+          applicant: currentUser.id,
+          respondent: responsibility,
+          description: `材料差异责任判定：${difference.description}`,
+          createdAt: new Date().toISOString(),
+          ruling: resolution,
+          ruledBy: currentUser.id,
+          ruledAt: new Date().toISOString(),
+          negotiationRecords: [
+            {
+              id: `neg-${Date.now()}`,
+              content: `责任判定：${responsibility}，处理方案：${resolution}`,
+              author: currentUser.name,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          sourceReceiptId: receipt.id,
+          sourceDifferenceId: differenceId,
+          sourceShippingId: receipt.shippingId,
+        };
+        dispatch(addDispute(newDispute));
+        
+        createActionLog(
+          '自动生成争议',
+          'dispute',
+          newDispute.id,
+          disputeCode,
+          `回单差异自动生成结算争议：${disputeCode}，责任方：${responsibility}，涉及金额：${difference.amount}元`
+        );
+      } else {
+        const existingRecords = existingDispute.negotiationRecords || [];
+        const updatedDispute = {
+          ...existingDispute,
+          ruling: resolution,
+          ruledBy: currentUser.id,
+          ruledAt: new Date().toISOString(),
+          status: 'ruled',
+          negotiationRecords: [
+            ...existingRecords,
+            {
+              id: `neg-${Date.now()}`,
+              content: `责任判定更新：${responsibility}，处理方案：${resolution}`,
+              author: currentUser.name,
+              timestamp: new Date().toISOString(),
+            }
+          ],
+        };
+        dispatch(updateDispute(updatedDispute));
+      }
+    }
+
+    const relatedAlert = state.alerts.find(
+      (a) => a.targetType === 'receipt' && a.targetId === receipt.id
+    );
+    if (relatedAlert) {
+      dispatch(markAlertHandled(relatedAlert.id));
+    }
+
     createActionLog(
       '判定责任',
       'receipt',
@@ -312,10 +393,11 @@ export function useWorkflow() {
 
   const startRework = (order: ReworkOrder, remark?: string) => {
     if (!canTransitionRework(order, 'in_progress') || !currentUser) return;
+    const isRetry = order.status === 'failed';
     const step: ReworkStep = {
       id: `step-${Date.now()}`,
       reworkId: order.id,
-      action: '开始整改',
+      action: isRetry ? '继续整改' : '开始整改',
       operator: currentUser.id,
       operatorName: currentUser.name,
       timestamp: new Date().toISOString(),
@@ -328,11 +410,11 @@ export function useWorkflow() {
     };
     dispatch(updateReworkOrder(updated));
     createActionLog(
-      '开始整改',
+      isRetry ? '继续整改' : '开始整改',
       'rework',
       order.id,
       order.code,
-      `返工单 ${order.code} 开始整改`
+      `返工单 ${order.code} ${isRetry ? '继续整改' : '开始整改'}`
     );
   };
 

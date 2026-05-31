@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, RefreshCw, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -9,9 +9,19 @@ import type { ReworkStatus, ResponsibilityLabels } from '@/types';
 export function ReworkList() {
   const { state } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { canCreateRework, canExecuteRework, canReviewRework } = useRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ReworkStatus | 'all'>('all');
+
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter === 'active') {
+      setStatusFilter('in_progress');
+    } else if (filter && filter !== 'all') {
+      setStatusFilter(filter as ReworkStatus);
+    }
+  }, [searchParams]);
 
   const filteredReworks = state.reworkOrders.filter(order => {
     const matchesSearch = order.code.toLowerCase().includes(searchTerm.toLowerCase()) ||

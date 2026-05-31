@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, FileCheck, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -9,9 +9,17 @@ import type { ReceiptStatus } from '@/types';
 export function ReceiptList() {
   const { state } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { canSignReceipt, canVerifyReceipt } = useRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ReceiptStatus | 'all'>('all');
+
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter && filter !== 'all') {
+      setStatusFilter(filter as ReceiptStatus);
+    }
+  }, [searchParams]);
 
   const getShippingInfo = (shippingId: string) => {
     return state.shippingOrders.find(s => s.id === shippingId);
