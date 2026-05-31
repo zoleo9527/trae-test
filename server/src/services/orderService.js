@@ -148,9 +148,25 @@ class OrderService {
     if (!order) throw new Error('订单不存在');
     if (order.status !== 'PENDING') throw new Error('只有待确认的订单可以确认');
 
-    const updatedOrder = await prisma.order.update({
-      where: { id },
-      data: { status: 'CONFIRMED', updatedById: operatorId },
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id },
+        data: { status: 'CONFIRMED', updatedById: operatorId },
+      });
+
+      const batchNo = `BAT${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
+      await tx.production.create({
+        data: {
+          orderId: id,
+          scheduledDate: order.pickupDate,
+          batchNo,
+          status: 'PENDING',
+          operatorId: null,
+        },
+      });
+
+      return updated;
     });
 
     await auditService.logOrderStatusChange({
@@ -192,9 +208,42 @@ class OrderService {
     if (!order) throw new Error('订单不存在');
     if (order.status !== 'CONFIRMED') throw new Error('只有已确认的订单可以开始生产');
 
-    const updatedOrder = await prisma.order.update({
-      where: { id },
-      data: { status: 'IN_PRODUCTION', updatedById: operatorId },
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedOrder = await tx.order.update({
+        where: { id },
+        data: { status: 'IN_PRODUCTION', updatedById: operatorId },
+        include: {
+          production: true,
+        },
+      });
+
+      let production = updatedOrder.production[0];
+
+      if (!production) {
+        const batchNo = `BAT${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
+        production = await tx.production.create({
+          data: {
+            orderId: id,
+            scheduledDate: order.pickupDate,
+            batchNo,
+            status: 'IN_PROGRESS',
+            startTime: new Date(),
+            operatorId,
+          },
+        });
+      } else {
+        production = await tx.production.update({
+          where: { id: production.id },
+          data: {
+            status: 'IN_PROGRESS',
+            startTime: new Date(),
+            operatorId,
+          },
+        });
+      }
+
+      return { order: updatedOrder, production };
     });
 
     await auditService.logOrderStatusChange({
@@ -206,7 +255,21 @@ class OrderService {
       requestId,
     });
 
-    return updatedOrder;
+    await auditService.log({
+      action: 'PRODUCTION_START',
+      entityType: 'Production',
+      entityId: result.production.id,
+      beforeValue: { status: 'PENDING' },
+      afterValue: { status: 'IN_PROGRESS', operatorId },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
+    return {
+      ...result.order,
+      production: result.production,
+    };
   }
 
   async completeOrder(id, operatorId, ipAddress, requestId) {

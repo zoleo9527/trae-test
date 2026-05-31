@@ -111,7 +111,6 @@ model Order {
   production Production[]
   refund     Refund?
   notes      Note[]
-  auditLogs  AuditLog[]
   wasteRecords WasteRecord[]
 }
 
@@ -244,6 +243,5 @@ model AuditLog {
   requestId  String?
   createdAt  DateTime @default(now())
 
-  operator User   @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  order    Order? @relation(fields: [entityId], references: [id])
+  operator User @relation(fields: [operatorId], references: [id], onDelete: Cascade)
 }

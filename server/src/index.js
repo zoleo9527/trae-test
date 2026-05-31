@@ -1,11 +1,12 @@
 import cors from 'cors';
 import express from 'express';
-import { errorHandler, idempotencyMiddleware, requestLogger } from './middleware/index.js';
-import ingredientRoutes from './routes/ingredients.js';
-import miscRoutes from './routes/misc.js';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import { v4 as uuidv4 } from 'uuid';
 import orderRoutes from './routes/orders.js';
-import productionRoutes from './routes/production.js';
-import refundRoutes from './routes/refunds.js';
+import productionRoutes from './routes/productions.js';
+import materialRoutes from './routes/materials.js';
+import wasteRoutes from './routes/waste.js';
 import refundRoutes from './routes/refunds.js';
 import auditRoutes from './routes/audit.js';
 import commonRoutes from './routes/common.js';
@@ -22,7 +23,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
 
 app.use((req, res, next) => {
-  req.requestId = req.headers['x-request-id'] || `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  req.requestId = req.headers['x-request-id'] || `req-${Date.now()}-${uuidv4()}`;
   res.setHeader('X-Request-Id', req.requestId);
   next();
 });

@@ -3,26 +3,69 @@ import auditService from './auditService.js';
 
 class WasteService {
   async createWasteRecord(data, operatorId, ipAddress, requestId) {
-    const { productionId, materialId, orderId, quantity, reason, reasonDetail } = data;
+    const { productionId, materialId, orderId, quantity, reason, reasonDetail, remark } = data;
+
+    if (!materialId && !productionId) {
+      throw new Error('损耗记录必须关联原料或生产记录');
+    }
+
+    if (quantity <= 0) {
+      throw new Error('损耗数量必须大于0');
+    }
 
     let unitPrice = 0;
+    let material = null;
+    let production = null;
+
     if (materialId) {
-      const material = await prisma.material.findUnique({ where: { id: materialId } });
-      if (material) {
-        unitPrice = material.unitPrice.toNumber();
+      material = await prisma.material.findUnique({ where: { id: materialId } });
+      if (!material) {
+        throw new Error(`原料不存在: ${materialId}`);
+      }
+      unitPrice = material.unitPrice.toNumber();
+    }
+
+    if (productionId) {
+      production = await prisma.production.findUnique({ where: { id: productionId } });
+      if (!production) {
+        throw new Error(`生产记录不存在: ${productionId}`);
+      }
+      if (!materialId && production.orderId) {
+        const recipeItems = await prisma.recipeItem.findMany({
+          where: {
+            product: {
+              orderItems: {
+                some: {
+                  orderId: production.orderId,
+                },
+              },
+            },
+          },
+          take: 1,
+          include: {
+            material: true,
+          },
+        });
+        if (recipeItems.length > 0) {
+          material = recipeItems[0].material;
+          unitPrice = material.unitPrice.toNumber();
+        }
       }
     }
 
     const totalAmount = quantity * unitPrice;
 
+    const finalReasonDetail = reasonDetail || (material ? `${material.name} 损耗` : (production ? `生产批次 ${production.batchNo} 损耗` : ''));
+    const finalRemark = remark || '';
+
     const record = await prisma.wasteRecord.create({
       data: {
         productionId,
-        materialId,
+        materialId: material ? material.id : null,
         orderId,
         quantity,
         reason,
-        reasonDetail,
+        reasonDetail: finalReasonDetail,
         unitPrice,
         totalAmount,
         recordedById: operatorId,
@@ -34,6 +77,23 @@ class WasteService {
         recordedBy: { select: { id: true, name: true } },
       },
     });
+
+    if (material) {
+      await prisma.material.update({
+        where: { id: material.id },
+        data: { currentStock: material.currentStock.minus(quantity) },
+      });
+
+      await prisma.stockLog.create({
+        data: {
+          materialId: material.id,
+          quantity: -quantity,
+          type: 'WASTE',
+          reason: finalReasonDetail,
+          operatorId,
+        },
+      });
+    }
 
     await auditService.logWasteRecord({
       recordId: record.id,
