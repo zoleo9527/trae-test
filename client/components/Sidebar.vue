@@ -112,9 +112,9 @@ const openAlertsCount = computed(() => dataStore.alerts.filter(a => a.status ===
 
 const menuConfig = computed<Record<UserRole, MenuItem[]>>(() => ({
   project_manager: [
-    { path: '/dashboard', label: '仪表盘', iconKey: 'dashboard' },
+    { path: '/', label: '仪表盘', iconKey: 'dashboard' },
     { path: '/calendar', label: '日历视图', iconKey: 'calendar' },
-    { path: '/scheduling', label: '排班管理', iconKey: 'schedule' },
+    { path: '/schedule', label: '排班管理', iconKey: 'schedule' },
     { path: '/supplies', label: '耗材管理', iconKey: 'supplies' },
     { path: '/quality', label: '质检管理', iconKey: 'inspection' },
     { path: '/rectification', label: '整改追踪', iconKey: 'rectification' },
@@ -122,14 +122,14 @@ const menuConfig = computed<Record<UserRole, MenuItem[]>>(() => ({
     { path: '/history', label: '历史记录', iconKey: 'history' }
   ],
   scheduling_specialist: [
-    { path: '/dashboard', label: '仪表盘', iconKey: 'dashboard' },
+    { path: '/', label: '仪表盘', iconKey: 'dashboard' },
     { path: '/calendar', label: '日历视图', iconKey: 'calendar' },
-    { path: '/scheduling', label: '排班管理', iconKey: 'schedule' },
+    { path: '/schedule', label: '排班管理', iconKey: 'schedule' },
     { path: '/punch', label: '打卡管理', iconKey: 'punch' },
     { path: '/alerts', label: '预警中心', iconKey: 'alert', badge: openAlertsCount.value }
   ],
   quality_inspector: [
-    { path: '/dashboard', label: '仪表盘', iconKey: 'dashboard' },
+    { path: '/', label: '仪表盘', iconKey: 'dashboard' },
     { path: '/calendar', label: '日历视图', iconKey: 'calendar' },
     { path: '/quality', label: '质检管理', iconKey: 'inspection' },
     { path: '/rectification', label: '整改追踪', iconKey: 'rectification' },

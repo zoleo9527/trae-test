@@ -260,7 +260,7 @@ function getProjectName(projectId: string): string {
 }
 
 function getStaffName(staffId: string): string {
-  return dataStore.getStaffById(staffId)?.name || '未知'
+  return dataStore.getUserNameById(staffId)
 }
 
 function getTotalAmount(req: SupplyRequisition): number {

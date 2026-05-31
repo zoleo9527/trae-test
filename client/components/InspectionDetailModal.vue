@@ -173,9 +173,7 @@ const projectName = computed(() => {
 
 const inspectorName = computed(() => {
   if (!props.inspection) return ''
-  const user = dataStore.staff.find(s => s.id === props.inspection!.inspectorId) || 
-               dataStore.staff.find(s => s.id === props.inspection!.inspectorId)
-  return user?.name || '未知质检员'
+  return dataStore.getUserNameById(props.inspection.inspectorId)
 })
 
 const canViewRectification = computed(() => {

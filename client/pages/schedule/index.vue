@@ -383,8 +383,7 @@ function closeForm() {
   editingSchedule.value = null
 }
 
-function handleFormSubmit(scheduleData: Omit<Schedule, 'id' | 'status'>) {
-  dataStore.createSchedule(scheduleData)
+function handleFormSubmit(schedule: Omit<Schedule, 'id' | 'status'>) {
   closeForm()
 }
 

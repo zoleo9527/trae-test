@@ -319,12 +319,12 @@ const project = computed(() => {
 })
 
 const applicant = computed(() => {
-  return dataStore.getStaffById(props.requisition.applicantId)
+  return dataStore.getUserById(props.requisition.applicantId)
 })
 
 const approver = computed(() => {
   if (props.requisition.approverId) {
-    return dataStore.staff.find(s => s.id === props.requisition.approverId)
+    return dataStore.getUserById(props.requisition.approverId)
   }
   return null
 })

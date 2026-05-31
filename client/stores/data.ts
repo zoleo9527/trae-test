@@ -46,6 +46,34 @@ export const useDataStore = defineStore('data', {
       return state.staff.find(s => s.id === id)
     },
 
+    getUserById: (state) => (id: string): { id: string; name: string; role?: string; avatar?: string } | undefined => {
+      const staff = state.staff.find(s => s.id === id)
+      if (staff) {
+        return { id: staff.id, name: staff.name, role: staff.position }
+      }
+      const mockUser = [
+        { id: 'user-1', name: '张明', role: 'project_manager', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zm' },
+        { id: 'user-2', name: '李华', role: 'scheduling_specialist', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lh' },
+        { id: 'user-3', name: '王芳', role: 'quality_inspector', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wf' }
+      ].find(u => u.id === id)
+      if (mockUser) {
+        return mockUser
+      }
+      return undefined
+    },
+
+    getUserNameById: (state) => (id: string): string => {
+      const staff = state.staff.find(s => s.id === id)
+      if (staff) return staff.name
+      const mockUser = [
+        { id: 'user-1', name: '张明' },
+        { id: 'user-2', name: '李华' },
+        { id: 'user-3', name: '王芳' }
+      ].find(u => u.id === id)
+      if (mockUser) return mockUser.name
+      return '未知用户'
+    },
+
     getSchedulesByDate: (state) => (date: string): Schedule[] => {
       return state.schedules.filter(s => s.date === date)
     },
@@ -199,6 +227,32 @@ export const useDataStore = defineStore('data', {
         if (rejectReason) {
           req.rejectReason = rejectReason
         }
+        
+        const pendingAlert = this.alerts.find(a => a.relatedId === requisitionId && a.type === 'overdue_task')
+        if (pendingAlert) {
+          if (status === 'approved' || status === 'rejected') {
+            pendingAlert.status = 'resolved'
+            pendingAlert.updatedAt = new Date().toISOString()
+            pendingAlert.resolvedAt = new Date().toISOString()
+            pendingAlert.resolutionNote = status === 'approved' ? '申领单已批准' : `申领单已拒绝: ${rejectReason || ''}`
+            pendingAlert.history.push({
+              status: 'resolved',
+              note: pendingAlert.resolutionNote,
+              operatorId: approverId || 'system',
+              timestamp: new Date().toISOString()
+            })
+          } else if (status === 'delivered') {
+            pendingAlert.status = 'in_progress'
+            pendingAlert.updatedAt = new Date().toISOString()
+            pendingAlert.history.push({
+              status: 'in_progress',
+              note: '申领单已发货，等待确认收货',
+              operatorId: approverId || 'system',
+              timestamp: new Date().toISOString()
+            })
+          }
+        }
+        
         if (status === 'delivered') {
           req.deliveryDate = formatDate(new Date())
           req.items.forEach(item => {
@@ -208,6 +262,22 @@ export const useDataStore = defineStore('data', {
               supply.currentStock += item.quantity
               supply.lastRestockDate = formatDate(new Date())
               supply.lastRestockQuantity = item.quantity
+              
+              if (supply.currentStock > supply.warningStock) {
+                const stockAlert = this.alerts.find(a => a.relatedId === supply.id && a.type === 'low_stock')
+                if (stockAlert && stockAlert.status !== 'resolved') {
+                  stockAlert.status = 'resolved'
+                  stockAlert.updatedAt = new Date().toISOString()
+                  stockAlert.resolvedAt = new Date().toISOString()
+                  stockAlert.resolutionNote = `库存已补充到 ${supply.currentStock}${supply.unit}，恢复正常水平`
+                  stockAlert.history.push({
+                    status: 'resolved',
+                    note: stockAlert.resolutionNote,
+                    operatorId: approverId || 'system',
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              }
             }
           })
         }
@@ -225,6 +295,33 @@ export const useDataStore = defineStore('data', {
         rejectReason: null
       }
       this.requisitions.unshift(newReq)
+      
+      if (status === 'pending') {
+        const project = this.getProjectById(requisition.projectId)
+        this.alerts.unshift({
+          id: `alert-req-${Date.now()}`,
+          type: 'overdue_task',
+          severity: 'warning',
+          status: 'open',
+          title: '新申领单待审核',
+          description: `项目 ${project?.name || '未知项目'} 有新的耗材申领单待审核，共 ${requisition.items.length} 项耗材`,
+          relatedId: newReq.id,
+          relatedType: 'requisition',
+          projectId: requisition.projectId,
+          assigneeId: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          resolvedAt: null,
+          resolutionNote: null,
+          history: [{
+            status: 'open',
+            note: '申领单提交，等待审核',
+            operatorId: requisition.applicantId,
+            timestamp: new Date().toISOString()
+          }]
+        })
+      }
+      
       return newReq
     },
 

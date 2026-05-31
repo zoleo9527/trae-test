@@ -430,11 +430,30 @@ function formatTime(isoString: string): string {
   }
 }
 
+const router = useRouter()
+
 function handleAlertClick(alert: Alert) {
-  console.log('处理预警:', alert.id)
+  router.push('/alerts')
 }
 
 function handleQuickAction(key: string) {
-  console.log('快速操作:', key)
+  const routeMap: Record<string, string> = {
+    view_projects: '/history',
+    approve_requisitions: '/supplies/requisitions',
+    view_alerts: '/alerts',
+    view_reports: '/history',
+    create_schedule: '/schedule',
+    view_schedules: '/schedule',
+    view_punches: '/punch',
+    view_staff: '/schedule',
+    create_inspection: '/quality/inspection/new',
+    view_inspections: '/quality',
+    view_rectifications: '/rectification',
+    view_supplies: '/supplies'
+  }
+  const route = routeMap[key]
+  if (route) {
+    router.push(route)
+  }
 }
 </script>

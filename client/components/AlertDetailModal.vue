@@ -79,6 +79,16 @@
           <div v-else class="text-gray-400 text-sm text-center py-4">
             暂无关联数据详情
           </div>
+          
+          <div v-if="alert.type === 'contract_expiry' && alert.status !== 'resolved'" class="mt-4 pt-4 border-t border-gray-100">
+            <button
+              @click="handleRenewalFollowUp"
+              class="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <span>📋</span>
+              续约跟进
+            </button>
+          </div>
         </div>
 
         <div>
@@ -350,9 +360,7 @@ function formatFieldValue(key: string, value: unknown): string {
 
 function getOperatorName(operatorId: string): string {
   if (operatorId === 'system') return '系统'
-  const user = dataStore.staff.find(s => s.id === operatorId)
-  if (user) return user.name
-  return '未知用户'
+  return dataStore.getUserNameById(operatorId)
 }
 
 function handleStatusChange(status: AlertStatus) {
@@ -431,6 +439,21 @@ function getTimelineDotClass(status: AlertStatus): string {
     resolved: 'bg-green-500'
   }
   return classMap[status]
+}
+
+const router = useRouter()
+
+function handleRenewalFollowUp() {
+  confirmDialog.value = {
+    visible: true,
+    title: '续约跟进',
+    message: '是否跳转到历史记录页面查看项目详情并进行续约跟进？',
+    onConfirm: () => {
+      confirmDialog.value.visible = false
+      router.push('/history')
+      emit('close')
+    }
+  }
 }
 
 function getCurrentUserId(): string {

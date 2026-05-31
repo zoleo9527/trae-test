@@ -229,8 +229,7 @@ function getProjectName(projectId: string): string {
 }
 
 function getInspectorName(inspectorId: string): string {
-  const staff = dataStore.staff.find(s => s.id === inspectorId)
-  return staff?.name || '未知质检员'
+  return dataStore.getUserNameById(inspectorId)
 }
 
 function getScoreColor(score: number): string {

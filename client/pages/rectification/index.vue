@@ -425,8 +425,7 @@ function getProjectName(projectId: string): string {
 
 function getStaffName(staffId: string | null): string {
   if (!staffId) return '未分配'
-  const staff = dataStore.staff.find(s => s.id === staffId)
-  return staff?.name || '未知'
+  return dataStore.getUserNameById(staffId)
 }
 
 function getProgress(rect: RectificationRecord): number {
