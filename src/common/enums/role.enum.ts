@@ -1,0 +1,63 @@
+export enum Role {
+  ADMIN = 'admin',
+  PROJECT_MANAGER = 'project_manager',
+  SUPERVISOR = 'supervisor',
+  FOREMAN = 'foreman',
+  WORKER = 'worker',
+  ACCOUNTANT = 'accountant',
+  CLIENT = 'client',
+}
+
+export const RolePermissions = {
+  [Role.ADMIN]: ['*'],
+  [Role.PROJECT_MANAGER]: [
+    'change_order:create',
+    'change_order:read',
+    'change_order:update',
+    'change_order:submit',
+    'change_order:approve',
+    'change_order:reject',
+    'change_order:settle',
+    'daily_report:create',
+    'daily_report:read',
+    'daily_report:update',
+    'delivery:create',
+    'delivery:read',
+    'delivery:update',
+    'sign_off:read',
+    'audit:read',
+  ],
+  [Role.SUPERVISOR]: [
+    'change_order:read',
+    'change_order:submit',
+    'daily_report:create',
+    'daily_report:read',
+    'daily_report:update',
+    'delivery:read',
+    'sign_off:create',
+    'sign_off:read',
+  ],
+  [Role.FOREMAN]: [
+    'change_order:read',
+    'daily_report:create',
+    'daily_report:read',
+    'delivery:read',
+    'sign_off:read',
+  ],
+  [Role.WORKER]: [
+    'daily_report:read',
+    'sign_off:read',
+  ],
+  [Role.ACCOUNTANT]: [
+    'change_order:read',
+    'change_order:settle',
+    'delivery:read',
+    'sign_off:read',
+    'audit:read',
+  ],
+  [Role.CLIENT]: [
+    'change_order:read',
+    'sign_off:create',
+    'sign_off:read',
+  ],
+};
