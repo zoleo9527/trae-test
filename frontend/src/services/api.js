@@ -49,7 +49,16 @@ export const suppliesAPI = {
   batchProcessRequests: (data) => api.post('/supplies/requests/batch-process', data),
   createRequest: (data) => api.post('/supplies/requests', data),
   getComments: (id, type) => api.get(`/supplies/${type === 'supply_request' ? 'requests' : 'supplies'}/${id}/comments`),
-  addComment: (id, type, data) => api.post(`/supplies/${type === 'supply_request' ? 'requests' : 'supplies'}/${id}/comments`, data)
+  addComment: (id, type, data) => api.post(`/supplies/${type === 'supply_request' ? 'requests' : 'supplies'}/${id}/comments`, data),
+  getRelatedRequests: (id) => api.get(`/supplies/supplies/${id}/related`)
+}
+
+export const notificationsAPI = {
+  getNotifications: (params) => api.get('/notifications', { params }),
+  getUnreadCount: (userId) => api.get('/notifications/unread-count', { params: { user_id: userId } }),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  getOverview: () => api.get('/notifications/overview'),
+  getByRelated: (relatedType, relatedId) => api.get('/notifications', { params: { related_type: relatedType, related_id: relatedId } })
 }
 
 export const renewalsAPI = {

@@ -41,6 +41,23 @@ router.get('/low-stock', (req, res) => {
   });
 });
 
+router.get('/supplies/:id/related', (req, res) => {
+  const { id } = req.params;
+  db.all(`
+    SELECT r.*, u1.name as requester_name, u2.name as approver_name
+    FROM supply_requests r
+    LEFT JOIN users u1 ON r.requested_by = u1.id
+    LEFT JOIN users u2 ON r.approved_by = u2.id
+    WHERE r.supply_id = ?
+    ORDER BY r.created_at DESC
+  `, [id], (err, requests) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(requests);
+  });
+});
+
 router.get('/requests', (req, res) => {
   const { project_id, status } = req.query;
   let sql = `

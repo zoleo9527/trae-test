@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { 
   Tabs, Table, Button, Space, Tag, Checkbox, Modal, Input, 
-  Select, message, Row, Col, Card, Avatar, Divider, Badge, Tooltip
+  Select, message, Row, Col, Card, Avatar, Divider, Badge, Tooltip, DatePicker
 } from 'antd'
 import {
   WarningOutlined,
@@ -12,14 +12,18 @@ import {
   CloseCircleOutlined,
   CommentOutlined,
   PhoneOutlined,
-  ShoppingCartOutlined
+  ShoppingCartOutlined,
+  InfoCircleOutlined,
+  BellOutlined,
+  FileTextOutlined
 } from '@ant-design/icons'
 import { 
   checkinsAPI, 
   inspectionsAPI, 
   suppliesAPI, 
   statusHistoryAPI,
-  renewalsAPI
+  renewalsAPI,
+  notificationsAPI
 } from '../services/api'
 import useAuthStore from '../stores/useAuthStore'
 import dayjs from 'dayjs'
@@ -70,7 +74,11 @@ function ReviewPanel() {
   const [processModal, setProcessModal] = useState({ visible: false, type: '', data: [], presetStatus: '' })
   const [remark, setRemark] = useState('')
   const [newStatus, setNewStatus] = useState('')
+  const [nextFollowupDate, setNextFollowupDate] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [relatedRequests, setRelatedRequests] = useState([])
   const [detailModal, setDetailModal] = useState({ visible: false, type: '', data: null })
+  const [detailTab, setDetailTab] = useState('info')
   const [comments, setComments] = useState([])
   const [statusHistory, setStatusHistory] = useState([])
   const [newComment, setNewComment] = useState('')
@@ -103,6 +111,10 @@ function ReviewPanel() {
   const handleBatchProcess = (type, items, presetStatus) => {
     setNewStatus(presetStatus)
     setRemark('')
+    setNextFollowupDate(null)
+    if (type === 'followups' && presetStatus === 'followup' && items.length > 0 && items[0].next_followup_date) {
+      setNextFollowupDate(dayjs(items[0].next_followup_date))
+    }
     setProcessModal({ visible: true, type, data: items, presetStatus })
   }
 
@@ -121,8 +133,18 @@ function ReviewPanel() {
       } else if (processModal.type === 'supplies') {
         await suppliesAPI.batchProcessRequests({ ids, status: newStatus, remark, processed_by: user.id })
       } else if (processModal.type === 'followups') {
+        if (newStatus === 'followup' && !nextFollowupDate) {
+          message.warning('请选择下次跟进日期')
+          setLoading(false)
+          return
+        }
         for (const id of ids) {
-          await renewalsAPI.updateStatus(id, { status: newStatus, remark, changed_by: user.id })
+          await renewalsAPI.updateStatus(id, { 
+            status: newStatus, 
+            remark, 
+            changed_by: user.id,
+            next_followup_date: nextFollowupDate ? nextFollowupDate.format('YYYY-MM-DD') : null
+          })
         }
       } else if (processModal.type === 'lowstock') {
         for (const item of processModal.data) {
@@ -150,26 +172,85 @@ function ReviewPanel() {
     setDetailModal({ visible: true, type, data: record })
     setComments([])
     setStatusHistory([])
+    setNotifications([])
+    setRelatedRequests([])
+    setDetailTab('info')
+    
     try {
-      let commentsRes
       const historyType = type === 'supply_request' ? 'supply_request' : type
       
-      if (type === 'checkin') {
-        commentsRes = await checkinsAPI.getComments(record.id)
+      if (type === 'supply') {
+        const [commentsRes, relatedRes, notifRes] = await Promise.all([
+          suppliesAPI.getComments(record.id, type),
+          suppliesAPI.getRelatedRequests(record.id),
+          notificationsAPI.getByRelated('supply', record.id)
+        ])
+        
+        setComments(commentsRes.data)
+        setRelatedRequests(relatedRes.data)
+        setNotifications(notifRes.data)
+        
+        const allHistory = []
+        const supplyHistory = await statusHistoryAPI.getHistory({
+          related_type: 'supply',
+          related_id: record.id
+        })
+        allHistory.push(...supplyHistory.data.map(h => ({ ...h, _source: '耗材本身' })))
+        
+        for (const req of relatedRes.data) {
+          const [reqComments, reqHistory, reqNotif] = await Promise.all([
+            suppliesAPI.getComments(req.id, 'supply_request'),
+            statusHistoryAPI.getHistory({ related_type: 'supply_request', related_id: req.id }),
+            notificationsAPI.getByRelated('supply_request', req.id)
+          ])
+          allHistory.push(...reqHistory.data.map(h => ({ ...h, _source: `补货申请#${req.id}` })))
+          setComments(prev => [...prev, ...reqComments.data.map(c => ({ ...c, _source: `补货申请#${req.id}` }))])
+          setNotifications(prev => [...prev, ...reqNotif.data.map(n => ({ ...n, _source: `补货申请#${req.id}` }))])
+        }
+        
+        allHistory.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        setStatusHistory(allHistory)
+        
+      } else if (type === 'supply_request') {
+        const [commentsRes, historyRes, notifRes] = await Promise.all([
+          suppliesAPI.getComments(record.id, type),
+          statusHistoryAPI.getHistory({ related_type: 'supply_request', related_id: record.id }),
+          notificationsAPI.getByRelated('supply_request', record.id)
+        ])
+        setComments(commentsRes.data)
+        setStatusHistory(historyRes.data)
+        setNotifications(notifRes.data)
+        
+      } else if (type === 'checkin') {
+        const [commentsRes, historyRes, notifRes] = await Promise.all([
+          checkinsAPI.getComments(record.id),
+          statusHistoryAPI.getHistory({ related_type: 'checkin', related_id: record.id }),
+          notificationsAPI.getByRelated('checkin', record.id)
+        ])
+        setComments(commentsRes.data)
+        setStatusHistory(historyRes.data)
+        setNotifications(notifRes.data)
+        
       } else if (type === 'inspection') {
-        commentsRes = await inspectionsAPI.getComments(record.id)
+        const [commentsRes, historyRes, notifRes] = await Promise.all([
+          inspectionsAPI.getComments(record.id),
+          statusHistoryAPI.getHistory({ related_type: 'inspection', related_id: record.id }),
+          notificationsAPI.getByRelated('inspection', record.id)
+        ])
+        setComments(commentsRes.data)
+        setStatusHistory(historyRes.data)
+        setNotifications(notifRes.data)
+        
       } else if (type === 'renewal') {
-        commentsRes = await renewalsAPI.getComments(record.id)
-      } else if (type === 'supply' || type === 'supply_request') {
-        commentsRes = await suppliesAPI.getComments(record.id, type)
+        const [commentsRes, historyRes, notifRes] = await Promise.all([
+          renewalsAPI.getComments(record.id),
+          statusHistoryAPI.getHistory({ related_type: 'renewal', related_id: record.id }),
+          notificationsAPI.getByRelated('renewal', record.id)
+        ])
+        setComments(commentsRes.data)
+        setStatusHistory(historyRes.data)
+        setNotifications(notifRes.data)
       }
-      if (commentsRes) setComments(commentsRes.data)
-
-      const historyRes = await statusHistoryAPI.getHistory({
-        related_type: historyType,
-        related_id: record.id
-      })
-      setStatusHistory(historyRes.data)
     } catch (err) {
       console.error('加载详情失败', err)
     }
@@ -461,6 +542,18 @@ function ReviewPanel() {
               {statusOptions(processModal.type)}
             </Select>
           </div>
+          {processModal.type === 'followups' && newStatus === 'followup' && (
+            <div>
+              <label style={{ color: '#ff4d4f' }}>* </label>
+              <label>下次跟进日期：</label>
+              <DatePicker 
+                value={nextFollowupDate} 
+                onChange={setNextFollowupDate}
+                style={{ width: 240, marginLeft: 8 }}
+                placeholder="请选择下次跟进日期"
+              />
+            </div>
+          )}
           <div>
             <label>备注说明：</label>
             <TextArea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} placeholder="请输入处理备注（可选）" style={{ marginTop: 8 }} />
@@ -469,69 +562,142 @@ function ReviewPanel() {
       </Modal>
 
       <Modal
-        title="详情与留痕"
+        title={`详情与留痕 - ${detailModal.type === 'supply' ? '低库存耗材' : detailModal.type === 'supply_request' ? '补货申请' : detailModal.type === 'checkin' ? '打卡记录' : detailModal.type === 'inspection' ? '质检记录' : '续约回访'}`}
         open={detailModal.visible}
         onCancel={() => setDetailModal({ visible: false, type: '', data: null })}
         footer={null}
-        width={720}
+        width={780}
       >
         {detailModal.data && (
-          <>
-            <Card size="small" title="基本信息" style={{ marginBottom: 12 }}>
-              <Row gutter={[16, 8]}>
-                {Object.entries(detailModal.data).filter(([k]) => detailFieldLabels[k]).slice(0, 12).map(([key, value]) => (
-                  <Col span={8} key={key}>
-                    <span style={{ color: '#999' }}>{detailFieldLabels[key]}：</span>
-                    <strong>{key === 'shift_type' ? (value === 'day' ? '白班' : '夜班') : String(value ?? '-')}</strong>
-                  </Col>
-                ))}
-              </Row>
-            </Card>
+          <Tabs activeKey={detailTab} onChange={setDetailTab} size="small">
+            <Tabs.TabPane tab={<Space><InfoCircleOutlined />基本信息</Space>} key="info">
+              <Card size="small">
+                <Row gutter={[16, 8]}>
+                  {Object.entries(detailModal.data).filter(([k]) => detailFieldLabels[k]).slice(0, 12).map(([key, value]) => (
+                    <Col span={8} key={key}>
+                      <span style={{ color: '#999' }}>{detailFieldLabels[key]}：</span>
+                      <strong>{key === 'shift_type' ? (value === 'day' ? '白班' : '夜班') : String(value ?? '-')}</strong>
+                    </Col>
+                  ))}
+                </Row>
+              </Card>
+            </Tabs.TabPane>
 
-            <Card size="small" title={<Space><ClockCircleOutlined /> 状态变更历史</Space>} style={{ marginBottom: 12 }}>
-              {statusHistory.length > 0 ? (
-                statusHistory.map((h, idx) => (
-                  <div key={idx} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
-                    <Space wrap>
-                      <Tag color={STATUS_COLOR_MAP[h.old_status] || 'default'}>{STATUS_LABEL_MAP[h.old_status] || h.old_status}</Tag>
-                      <span style={{ color: '#999' }}>→</span>
-                      <Tag color={STATUS_COLOR_MAP[h.new_status] || 'blue'}>{STATUS_LABEL_MAP[h.new_status] || h.new_status}</Tag>
-                      <Badge count={h.changer_name} style={{ backgroundColor: '#1890ff', fontSize: 11 }} />
-                      <span style={{ color: '#999', fontSize: 12 }}>{dayjs(h.created_at).format('YYYY-MM-DD HH:mm')}</span>
-                    </Space>
-                    {h.remark && <div style={{ marginTop: 4, color: '#666', fontSize: 13 }}>备注：{h.remark}</div>}
-                  </div>
-                ))
-              ) : (
-                <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无变更记录</div>
-              )}
-            </Card>
+            {detailModal.type === 'supply' && relatedRequests.length > 0 && (
+              <Tabs.TabPane tab={<Space><FileTextOutlined />关联补货申请 ({relatedRequests.length})</Space>} key="requests">
+                <Card size="small">
+                  {relatedRequests.map(req => (
+                    <div key={req.id} style={{ marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 4 }}>
+                      <Row gutter={[16, 4]}>
+                        <Col span={6}>
+                          <span style={{ color: '#999' }}>申请编号：</span>
+                          <strong>#{req.id}</strong>
+                        </Col>
+                        <Col span={6}>
+                          <span style={{ color: '#999' }}>申请数量：</span>
+                          <strong>{req.requested_quantity}{req.unit}</strong>
+                        </Col>
+                        <Col span={6}>
+                          <span style={{ color: '#999' }}>申请人：</span>
+                          <strong>{req.requester_name}</strong>
+                        </Col>
+                        <Col span={6}>
+                          <span style={{ color: '#999' }}>状态：</span>
+                          <Tag color={req.status === 'pending' ? 'orange' : req.status === 'approved' ? 'green' : 'red'}>
+                            {req.status === 'pending' ? '待审批' : req.status === 'approved' ? '已通过' : '已驳回'}
+                          </Tag>
+                        </Col>
+                        <Col span={24}>
+                          <span style={{ color: '#999' }}>申请时间：</span>
+                          <span>{dayjs(req.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                        </Col>
+                        {req.remark && (
+                          <Col span={24}>
+                            <span style={{ color: '#999' }}>备注：</span>
+                            <span>{req.remark}</span>
+                          </Col>
+                        )}
+                      </Row>
+                    </div>
+                  ))}
+                </Card>
+              </Tabs.TabPane>
+            )}
 
-            <Card size="small" title={<Space><CommentOutlined /> 备注交流</Space>}>
-              <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
-                <Input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="添加备注..." onPressEnter={addComment} />
-                <Button type="primary" onClick={addComment}>发送</Button>
-              </Space.Compact>
-              {comments.length > 0 ? (
-                comments.map(c => (
-                  <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <Space align="start">
-                      <Avatar size="small" style={{ backgroundColor: '#1890ff' }}>{c.creator_name?.[0]}</Avatar>
-                      <div>
-                        <div>
-                          <strong>{c.creator_name}</strong>
-                          <span style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>{dayjs(c.created_at).format('YYYY-MM-DD HH:mm')}</span>
+            <Tabs.TabPane tab={<Space><ClockCircleOutlined />状态历史 ({statusHistory.length})</Space>} key="history">
+              <Card size="small">
+                {statusHistory.length > 0 ? (
+                  statusHistory.map((h, idx) => (
+                    <div key={idx} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space wrap>
+                        {h._source && <Tag color="purple">{h._source}</Tag>}
+                        <Tag color={STATUS_COLOR_MAP[h.old_status] || 'default'}>{STATUS_LABEL_MAP[h.old_status] || h.old_status}</Tag>
+                        <span style={{ color: '#999' }}>→</span>
+                        <Tag color={STATUS_COLOR_MAP[h.new_status] || 'blue'}>{STATUS_LABEL_MAP[h.new_status] || h.new_status}</Tag>
+                        <Badge count={h.changer_name} style={{ backgroundColor: '#1890ff', fontSize: 11 }} />
+                        <span style={{ color: '#999', fontSize: 12 }}>{dayjs(h.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                      </Space>
+                      {h.remark && <div style={{ marginTop: 4, color: '#666', fontSize: 13 }}>备注：{h.remark}</div>}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无变更记录</div>
+                )}
+              </Card>
+            </Tabs.TabPane>
+
+            <Tabs.TabPane tab={<Space><CommentOutlined />备注交流 ({comments.length})</Space>} key="comments">
+              <Card size="small">
+                <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                  <Input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="添加备注..." onPressEnter={addComment} />
+                  <Button type="primary" onClick={addComment}>发送</Button>
+                </Space.Compact>
+                {comments.length > 0 ? (
+                  comments.map(c => (
+                    <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+                      <Space align="start">
+                        <Avatar size="small" style={{ backgroundColor: '#1890ff' }}>{c.creator_name?.[0]}</Avatar>
+                        <div style={{ flex: 1 }}>
+                          <div>
+                            <strong>{c.creator_name}</strong>
+                            <span style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>{dayjs(c.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                            {c._source && <Tag color="purple" style={{ marginLeft: 8 }}>{c._source}</Tag>}
+                          </div>
+                          <div style={{ marginTop: 4 }}>{c.content}</div>
                         </div>
-                        <div style={{ marginTop: 4 }}>{c.content}</div>
-                      </div>
-                    </Space>
-                  </div>
-                ))
-              ) : (
-                <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无备注</div>
-              )}
-            </Card>
-          </>
+                      </Space>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无备注</div>
+                )}
+              </Card>
+            </Tabs.TabPane>
+
+            <Tabs.TabPane tab={<Space><BellOutlined />通知提醒 ({notifications.length})</Space>} key="notifications">
+              <Card size="small">
+                {notifications.length > 0 ? (
+                  notifications.map(n => (
+                    <div key={n.id} style={{ padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+                      <Space align="start">
+                        <BellOutlined style={{ color: n.is_read ? '#999' : '#1890ff', marginTop: 4 }} />
+                        <div style={{ flex: 1 }}>
+                          <div>
+                            <strong style={{ fontWeight: n.is_read ? 'normal' : 'bold' }}>{n.title}</strong>
+                            {n._source && <Tag color="purple" style={{ marginLeft: 8 }}>{n._source}</Tag>}
+                            <span style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>{dayjs(n.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                          </div>
+                          <div style={{ marginTop: 4, color: '#666' }}>{n.content}</div>
+                        </div>
+                      </Space>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无通知</div>
+                )}
+              </Card>
+            </Tabs.TabPane>
+          </Tabs>
         )}
       </Modal>
     </div>

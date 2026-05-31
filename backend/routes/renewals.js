@@ -96,20 +96,38 @@ router.post('/', (req, res) => {
 
 router.put('/:id/status', (req, res) => {
   const { id } = req.params;
-  const { status, remark, changed_by } = req.body;
+  const { status, remark, changed_by, next_followup_date } = req.body;
   
-  db.get('SELECT status FROM renewals WHERE id = ?', [id], (err, oldRenewal) => {
+  db.get('SELECT status, next_followup_date FROM renewals WHERE id = ?', [id], (err, oldRenewal) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    db.run('UPDATE renewals SET status = ? WHERE id = ?', [status, id], (err) => {
+    
+    let updateSql = 'UPDATE renewals SET status = ?';
+    const params = [status];
+    
+    if (next_followup_date) {
+      updateSql += ', next_followup_date = ?';
+      params.push(next_followup_date);
+    }
+    updateSql += ' WHERE id = ?';
+    params.push(id);
+    
+    db.run(updateSql, params, (err) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
+      
+      let historyRemark = remark || '';
+      if (next_followup_date && oldRenewal.next_followup_date !== next_followup_date) {
+        historyRemark = (historyRemark ? historyRemark + '; ' : '') + `跟进日期从 ${oldRenewal.next_followup_date || '未设置'} 更新为 ${next_followup_date}`;
+      }
+      
       db.run(`
         INSERT INTO status_history (related_type, related_id, old_status, new_status, remark, changed_by)
         VALUES (?, ?, ?, ?, ?, ?)
-      `, ['renewal', id, oldRenewal.status, status, remark, changed_by]);
+      `, ['renewal', id, oldRenewal.status, status, historyRemark, changed_by]);
+      
       res.json({ message: '状态更新成功' });
     });
   });
