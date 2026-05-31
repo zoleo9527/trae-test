@@ -1,0 +1,5 @@
+const new_vue_vue_type_style_index_0_scoped_a94b3ca3_lang = "@keyframes slide-up-a94b3ca3{0%{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.animate-slide-up[data-v-a94b3ca3]{animation:slide-up-a94b3ca3 .3s ease-out}";
+export {
+  new_vue_vue_type_style_index_0_scoped_a94b3ca3_lang as default
+};
+//# sourceMappingURL=new-styles-1.mjs-DSfBZB2g.js.map
