@@ -179,7 +179,25 @@ async function batchReject() {
   await new Promise(resolve => setTimeout(resolve, 500))
 
   for (const id of selectedIds.value) {
+    const item = reviewStore.reviewItems.find(i => i.id === id)
+    if (!item) continue
+
     reviewStore.rejectItem(id, roleName.value)
+
+    if (item.type === 'refund') {
+      refundStore.rejectRefund(item.targetId, roleName.value)
+    } else if (item.type === 'remake') {
+      const remakeStore = useRemakeStore()
+      const ticket = remakeStore.tickets.find(t => t.id === item.targetId)
+      if (ticket && ticket.status === 'open') {
+        remakeStore.updateTicketStatus(item.targetId, 'closed')
+      }
+    } else if (item.type === 'change') {
+      const change = orderStore.changes.find(c => c.id === item.targetId)
+      if (change) {
+        change.pushedToSchedule = false
+      }
+    }
   }
 
   toastMessage.value = `已批量拒绝 ${selectedCount.value} 项复核`

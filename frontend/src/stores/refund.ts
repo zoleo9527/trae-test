@@ -30,10 +30,12 @@ export const useRefundStore = defineStore('refund', () => {
     }
   }
 
-  function rejectRefund(id: string) {
+  function rejectRefund(id: string, rejectedBy?: string) {
     const refund = refunds.value.find(r => r.id === id)
     if (refund) {
       refund.status = 'rejected' as RefundStatus
+      refund.approvedBy = rejectedBy
+      refund.completedAt = new Date().toISOString()
     }
   }
 
@@ -115,8 +117,10 @@ export const useRefundStore = defineStore('refund', () => {
     for (const refund of relatedRefunds) {
       const refundKey = `refund-${refund.id}`
       if (!seenTraceTargets.has(refundKey)) {
-        const statusText = refund.status === 'completed' ? '退款已完成' : refund.status === 'approved' ? '已批准' : refund.status === 'rejected' ? '已拒绝' : '处理中'
+        const statusText = refund.status === 'completed' ? '退款已完成' : refund.status === 'approved' ? '已批准' : refund.status === 'rejected' ? '退款已拒绝' : '处理中'
         const conclusion = refund.status === 'completed' || refund.status === 'approved'
+          ? `退款结论：${refund.reason}，退款金额 ¥${refund.amount}，${statusText}${refund.approvedBy ? '，审核人：' + refund.approvedBy : ''}`
+          : refund.status === 'rejected'
           ? `退款结论：${refund.reason}，退款金额 ¥${refund.amount}，${statusText}${refund.approvedBy ? '，审核人：' + refund.approvedBy : ''}`
           : `退款单：${refund.reason}，退款金额 ¥${refund.amount}，${statusText}`
         chain.push({

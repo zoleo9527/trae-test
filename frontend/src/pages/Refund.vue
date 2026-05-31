@@ -15,6 +15,8 @@ import {
 import { useRefundStore } from '@/stores/refund'
 import { useOrderStore } from '@/stores/order'
 import { useRemakeStore } from '@/stores/remake'
+import { useReviewStore } from '@/stores/review'
+import { useRole } from '@/composables/useRole'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TraceCard from '@/components/TraceCard.vue'
 import {
@@ -27,6 +29,8 @@ import {
 const refundStore = useRefundStore()
 const orderStore = useOrderStore()
 const remakeStore = useRemakeStore()
+const reviewStore = useReviewStore()
+const { roleName } = useRole()
 
 const selectedRefundId = ref<string | null>(null)
 const activeTab = ref<'list' | 'analysis'>('list')
@@ -107,12 +111,24 @@ function selectRefund(refundId: string) {
 function approveRefund(refundId: string) {
   const refund = refundStore.refunds.find(r => r.id === refundId)
   if (!refund) return
-  refundStore.approveRefund(refundId, '当前操作人')
+  refundStore.approveRefund(refundId, roleName.value)
   orderStore.updateOrderStatus(refund.orderId, 'refunded')
+  const reviewItem = reviewStore.reviewItems.find(
+    r => r.type === 'refund' && r.targetId === refundId,
+  )
+  if (reviewItem && reviewItem.status === 'pending') {
+    reviewStore.approveItem(reviewItem.id, roleName.value)
+  }
 }
 
 function rejectRefund(refundId: string) {
-  refundStore.rejectRefund(refundId)
+  refundStore.rejectRefund(refundId, roleName.value)
+  const reviewItem = reviewStore.reviewItems.find(
+    r => r.type === 'refund' && r.targetId === refundId,
+  )
+  if (reviewItem && reviewItem.status === 'pending') {
+    reviewStore.rejectItem(reviewItem.id, roleName.value)
+  }
 }
 </script>
 

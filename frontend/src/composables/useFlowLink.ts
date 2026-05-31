@@ -112,14 +112,16 @@ export function useFlowLink(orderId: string) {
       })
     }
 
+    const hasRefundRejected = refunds.length > 0 && refunds.every(r => r.status === 'rejected')
+
     if (refunds.length > 0 || order.status === 'refunded') {
       nodes.push({
         step: '5.2',
         label: '退款',
         role: 'manager' as RoleType,
-        status: order.status === 'refunded' || refunds.some(r => r.status === 'approved' || r.status === 'completed') ? 'done' as NodeStatus : 'current' as NodeStatus,
+        status: order.status === 'refunded' || refunds.some(r => r.status === 'approved' || r.status === 'completed') ? 'done' as NodeStatus : hasRefundRejected ? 'done' as NodeStatus : 'current' as NodeStatus,
         timestamp: refunds[0]?.createdAt,
-        detail: refunds.length > 0 ? refunds.map(r => `¥${r.amount}（${r.reason}）${r.status === 'completed' ? '，已完成' : r.status === 'approved' ? '，已批准' : ''}`).join('；') : '订单已退款',
+        detail: refunds.length > 0 ? refunds.map(r => `¥${r.amount}（${r.reason}）${r.status === 'completed' ? '，已完成' : r.status === 'approved' ? '，已批准' : r.status === 'rejected' ? '，已拒绝' : ''}`).join('；') : '订单已退款',
       })
     }
 
