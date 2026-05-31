@@ -103,6 +103,9 @@ export class ChangeOrder extends BaseEntity {
   @Column({ name: 'current_version', default: 1 })
   currentVersion: number;
 
+  @Column({ name: 'sign_off_process_version', default: 1 })
+  signOffProcessVersion: number;
+
   @OneToMany(() => ChangeOrderVersion, (version) => version.changeOrder)
   versions: ChangeOrderVersion[];
 

@@ -55,7 +55,7 @@ export class AppController {
     const needsReview = await this.changeOrderRepository
       .createQueryBuilder('co')
       .leftJoinAndSelect('co.createdBy', 'createdBy')
-      .leftJoin('co.signOffs', 'so')
+      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
       .where('co.status IN (:...statuses)', {
         statuses: [
           ChangeOrderStatus.SUBMITTED,
@@ -155,7 +155,10 @@ export class AppController {
       .leftJoinAndSelect('so.changeOrder', 'changeOrder')
       .leftJoinAndSelect('so.dailyReport', 'dailyReport')
       .leftJoinAndSelect('so.delivery', 'delivery')
-      .where('so.status = :status', { status: SignOffStatus.PENDING });
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = changeOrder.signOffProcessVersion)',
+      );
 
     if (user.role !== Role.ADMIN) {
       queryBuilder.andWhere(

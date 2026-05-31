@@ -24,11 +24,23 @@ export class SignOffService {
   ) {}
 
   async create(createDto: CreateSignOffDto, user: User): Promise<SignOff> {
+    let processVersion = 1;
+
+    if (createDto.changeOrderId) {
+      const changeOrder = await this.changeOrderRepository.findOne({
+        where: { id: createDto.changeOrderId },
+      });
+      if (changeOrder) {
+        processVersion = changeOrder.signOffProcessVersion;
+      }
+    }
+
     const signOff = this.signOffRepository.create({
       ...createDto,
       requestedById: user.id,
       requestedBy: user,
       status: SignOffStatus.PENDING,
+      processVersion,
     });
 
     const saved = await this.signOffRepository.save(signOff);
@@ -174,6 +186,12 @@ export class SignOffService {
       return;
     }
 
+    if (signOff.processVersion !== changeOrder.signOffProcessVersion) {
+      return;
+    }
+
+    const currentProcessVersion = changeOrder.signOffProcessVersion;
+
     const sequenceToStatus: Record<number, ChangeOrderStatus> = {
       1: ChangeOrderStatus.UNDER_REVIEW,
       2: ChangeOrderStatus.APPROVED,
@@ -233,6 +251,7 @@ export class SignOffService {
           where: {
             changeOrderId: changeOrder.id,
             sequenceOrder: config.sequence,
+            processVersion: currentProcessVersion,
           },
         });
 
@@ -248,6 +267,7 @@ export class SignOffService {
             comments: config.comments,
             signerRole: config.signerRole,
             signerDepartment: config.signerDepartment,
+            processVersion: currentProcessVersion,
           });
 
           await queryRunner.manager.save(nextSignOff);
@@ -371,7 +391,10 @@ export class SignOffService {
       .leftJoinAndSelect('so.changeOrder', 'changeOrder')
       .leftJoinAndSelect('so.dailyReport', 'dailyReport')
       .leftJoinAndSelect('so.delivery', 'delivery')
-      .where('so.status = :status', { status: SignOffStatus.PENDING });
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = changeOrder.signOffProcessVersion)',
+      );
 
     if (user.role !== Role.ADMIN) {
       queryBuilder.andWhere(

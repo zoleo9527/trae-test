@@ -17,7 +17,7 @@ export class DashboardService {
   ) {}
 
   async getOverview(user: User) {
-    const [pendingChangeOrders, rejectedChangeOrders, pendingSignOffs, totalChangeOrders] = await Promise.all([
+    const [pendingChangeOrders, rejectedChangeOrders, totalChangeOrders] = await Promise.all([
       this.changeOrderRepository.count({
         where: {
           status: ChangeOrderStatus.SUBMITTED,
@@ -28,17 +28,21 @@ export class DashboardService {
           status: ChangeOrderStatus.REJECTED,
         },
       }),
-      this.signOffRepository.count({
-        where: {
-          status: SignOffStatus.PENDING,
-        },
-      }),
       this.changeOrderRepository.count(),
     ]);
 
+    const pendingSignOffs = await this.signOffRepository
+      .createQueryBuilder('so')
+      .leftJoin('so.changeOrder', 'co')
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = co.signOffProcessVersion)',
+      )
+      .getCount();
+
     const needsReview = await this.changeOrderRepository
       .createQueryBuilder('co')
-      .leftJoin('co.signOffs', 'so')
+      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
       .where('co.status IN (:...statuses)', {
         statuses: [
           ChangeOrderStatus.SUBMITTED,
@@ -68,12 +72,19 @@ export class DashboardService {
       take: 10,
     });
 
-    const pendingSignOffs = await this.signOffRepository.find({
-      where: { status: SignOffStatus.PENDING },
-      relations: ['requestedBy', 'changeOrder', 'dailyReport', 'delivery'],
-      order: { createdAt: 'DESC' },
-      take: 10,
-    });
+    const pendingSignOffs = await this.signOffRepository
+      .createQueryBuilder('so')
+      .leftJoinAndSelect('so.requestedBy', 'requestedBy')
+      .leftJoinAndSelect('so.changeOrder', 'changeOrder')
+      .leftJoinAndSelect('so.dailyReport', 'dailyReport')
+      .leftJoinAndSelect('so.delivery', 'delivery')
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = changeOrder.signOffProcessVersion)',
+      )
+      .orderBy('so.createdAt', 'DESC')
+      .take(10)
+      .getMany();
 
     return {
       changeOrders: pendingChangeOrders,
@@ -96,7 +107,7 @@ export class DashboardService {
     return this.changeOrderRepository
       .createQueryBuilder('co')
       .leftJoinAndSelect('co.createdBy', 'createdBy')
-      .leftJoin('co.signOffs', 'so')
+      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
       .where('co.status IN (:...statuses)', {
         statuses: [
           ChangeOrderStatus.SUBMITTED,

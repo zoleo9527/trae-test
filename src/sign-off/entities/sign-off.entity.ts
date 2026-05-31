@@ -81,6 +81,9 @@ export class SignOff extends BaseEntity {
   @Column({ name: 'signer_department', nullable: true })
   signerDepartment?: string;
 
+  @Column({ name: 'process_version', default: 1 })
+  processVersion: number;
+
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, any>;
 }

@@ -264,6 +264,13 @@ export class ChangeOrderService {
     targetStatus: ChangeOrderStatus,
     user: User,
   ): Promise<void> {
+    if (oldStatus === ChangeOrderStatus.REJECTED && targetStatus === ChangeOrderStatus.SUBMITTED) {
+      changeOrder.signOffProcessVersion += 1;
+      await queryRunner.manager.save(changeOrder);
+    }
+
+    const currentProcessVersion = changeOrder.signOffProcessVersion;
+
     const signOffConfigs: Array<{
       triggerStatus: ChangeOrderStatus;
       signerRole: Role;
@@ -301,6 +308,7 @@ export class ChangeOrderService {
             changeOrderId: changeOrder.id,
             signerRole: config.signerRole,
             sequenceOrder: config.sequence,
+            processVersion: currentProcessVersion,
           },
         });
 
@@ -316,6 +324,7 @@ export class ChangeOrderService {
             comments: config.comments,
             signerRole: config.signerRole,
             signerDepartment: config.signerDepartment,
+            processVersion: currentProcessVersion,
           });
 
           await queryRunner.manager.save(signOff);
@@ -346,10 +355,6 @@ export class ChangeOrderService {
     targetStatus: ChangeOrderStatus,
     user: User,
   ): Promise<void> {
-    if (user.role === Role.ADMIN) {
-      return;
-    }
-
     const bypassStatuses = [
       ChangeOrderStatus.DRAFT,
       ChangeOrderStatus.REJECTED,
@@ -369,17 +374,20 @@ export class ChangeOrderService {
       return;
     }
 
+    const currentProcessVersion = changeOrder.signOffProcessVersion;
+
     const pendingSignOffs = await this.signOffRepository.find({
       where: {
         changeOrderId: changeOrder.id,
         status: SignOffStatus.PENDING,
+        processVersion: currentProcessVersion,
       },
     });
 
     if (pendingSignOffs.length > 0) {
       const pendingRoles = pendingSignOffs.map((s) => s.signerRole).join(', ');
       throw new BadRequestException(
-        `当前存在待签认记录，无法直接推进状态。请先完成以下角色的签认: ${pendingRoles}，或通过签认接口自动推进状态。`,
+        `当前存在待签认记录（第${currentProcessVersion}轮流程），无法直接推进状态。请先完成以下角色的签认: ${pendingRoles}，或通过签认接口自动推进状态。`,
       );
     }
   }
@@ -480,7 +488,7 @@ export class ChangeOrderService {
     return this.changeOrderRepository
       .createQueryBuilder('co')
       .leftJoinAndSelect('co.createdBy', 'createdBy')
-      .leftJoin('co.signOffs', 'so')
+      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
       .where('co.status IN (:...statuses)', {
         statuses: [
           ChangeOrderStatus.SUBMITTED,
