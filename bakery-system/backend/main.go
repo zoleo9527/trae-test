@@ -28,6 +28,7 @@ func main() {
 	dashboardHandler := handlers.NewDashboardHandler()
 	api.Get("/dashboard/stats", dashboardHandler.GetStats)
 	api.Get("/dashboard/activities", dashboardHandler.GetRecentActivities)
+	api.Get("/dashboard/timeline", dashboardHandler.GetUnifiedTimeline)
 
 	memberHandler := handlers.NewMemberHandler()
 	api.Get("/members", memberHandler.GetMembers)

@@ -3,14 +3,27 @@
 	import { api } from '$lib/api';
 
 	let orders = [];
+	let members = [];
+	let products = [];
 	let selectedIds = [];
 	let statusFilter = '';
 	let searchQuery = '';
 	let showDetailModal = false;
 	let showLossModal = false;
+	let showCreateModal = false;
 	let selectedOrder = null;
+	let unifiedTimeline = [];
 
 	let lossForm = { materialLoss: 0, remark: '', operator: '后厨负责人' };
+
+	let newOrder = {
+		memberId: '',
+		items: [],
+		pickupTime: '',
+		operator: '门店主理人',
+		remark: '',
+		useBalance: false
+	};
 
 	$: filteredOrders = orders.filter(o => {
 		const matchStatus = !statusFilter || o.status === statusFilter;
@@ -23,7 +36,17 @@
 
 	$: hasSelection = selectedIds.length > 0;
 
-	onMount(loadOrders);
+	$: newOrderTotal = newOrder.items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+
+	$: selectedMember = members.find(m => m.id === newOrder.memberId);
+
+	onMount(async () => {
+		await loadOrders();
+		const mRes = await api.getMembers();
+		members = mRes.data || [];
+		const pRes = await api.getProducts({ status: 'active' });
+		products = pRes.data || [];
+	});
 
 	async function loadOrders() {
 		const res = await api.getOrders();
@@ -59,6 +82,8 @@
 
 	async function openDetail(order) {
 		selectedOrder = await api.getOrder(order.id);
+		const tlRes = await api.getUnifiedTimeline({ orderID: order.id });
+		unifiedTimeline = (tlRes.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 		showDetailModal = true;
 	}
 
@@ -66,6 +91,75 @@
 		selectedOrder = order;
 		lossForm = { materialLoss: order.materialLoss || 0, remark: '', operator: '后厨负责人' };
 		showLossModal = true;
+	}
+
+	function openCreateOrder() {
+		newOrder = {
+			memberId: '',
+			items: [],
+			pickupTime: '',
+			operator: '门店主理人',
+			remark: '',
+			useBalance: false
+		};
+		showCreateModal = true;
+	}
+
+	function addOrderItem(productId) {
+		const product = products.find(p => p.id === productId);
+		if (!product) return;
+		const existing = newOrder.items.find(it => it.productId === productId);
+		if (existing) {
+			existing.quantity += 1;
+			existing.subtotal = existing.unitPrice * existing.quantity;
+		} else {
+			newOrder.items = [...newOrder.items, {
+				productId: product.id,
+				productName: product.name,
+				unitPrice: product.price,
+				quantity: 1,
+				subtotal: product.price,
+				remark: ''
+			}];
+		}
+		newOrder.items = newOrder.items;
+	}
+
+	function removeOrderItem(index) {
+		newOrder.items = newOrder.items.filter((_, i) => i !== index);
+	}
+
+	function updateItemQty(index, qty) {
+		if (qty < 1) return;
+		newOrder.items[index].quantity = qty;
+		newOrder.items[index].subtotal = newOrder.items[index].unitPrice * qty;
+		newOrder.items = newOrder.items;
+	}
+
+	async function handleCreateOrder() {
+		if (!newOrder.memberId || newOrder.items.length === 0) return;
+		const member = members.find(m => m.id === newOrder.memberId);
+		const totalAmount = newOrderTotal;
+		let useBalance = 0;
+		if (newOrder.useBalance && member) {
+			useBalance = Math.min(member.balance, totalAmount);
+		}
+		const payAmount = totalAmount - useBalance;
+
+		await api.createOrder({
+			memberId: newOrder.memberId,
+			memberName: member?.name || '',
+			memberPhone: member?.phone || '',
+			totalAmount,
+			payAmount,
+			useBalance,
+			pickupTime: newOrder.pickupTime || new Date(Date.now() + 3600000).toISOString(),
+			operator: newOrder.operator,
+			remark: newOrder.remark,
+			items: newOrder.items
+		});
+		showCreateModal = false;
+		loadOrders();
 	}
 
 	async function handleLoss() {
@@ -83,6 +177,11 @@
 			cancelled: '已取消'
 		};
 		return map[status] || status;
+	}
+
+	function getLogTypeLabel(type) {
+		const map = { order: '订单', refund: '退款', recharge: '储值' };
+		return map[type] || type;
 	}
 
 	function formatDate(dateStr) {
@@ -105,6 +204,7 @@
 			<option value="completed">已完成</option>
 		</select>
 		<input type="text" class="input" placeholder="搜索订单号/会员..." bind:value={searchQuery} />
+		<button class="btn btn-primary" on:click={openCreateOrder}>+ 新建订单</button>
 	</div>
 
 	{#if hasSelection}
@@ -131,6 +231,7 @@
 						<th>订单号</th>
 						<th>会员</th>
 						<th>金额</th>
+						<th>余额抵扣</th>
 						<th>状态</th>
 						<th>取货时间</th>
 						<th>原料损耗</th>
@@ -149,6 +250,7 @@
 							<td><strong>{order.orderNo}</strong></td>
 							<td>{order.memberName}</td>
 							<td>¥{order.payAmount.toFixed(2)}</td>
+							<td>{order.useBalance > 0 ? `¥${order.useBalance.toFixed(2)}` : '-'}</td>
 							<td><span class="badge {order.status}">{getOrderStatus(order.status)}</span></td>
 							<td>{formatDate(order.pickupTime)}</td>
 							<td class:text-danger={order.materialLoss > 0}>
@@ -166,6 +268,107 @@
 			</table>
 		</div>
 	</div>
+
+	{#if showCreateModal}
+		<div class="modal-overlay" on:click={() => showCreateModal = false}>
+			<div class="modal" style="max-width: 700px;" on:click|stopPropagation>
+				<div class="modal-header">
+					<h3>新建订单</h3>
+					<button class="btn btn-sm btn-outline" on:click={() => showCreateModal = false}>×</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-row">
+						<div class="form-group">
+							<label>选择会员</label>
+							<select class="input" bind:value={newOrder.memberId} style="width: 100%;">
+								<option value="">请选择会员</option>
+								{#each members as member}
+									<option value={member.id}>{member.name} ({member.phone}) 余额: ¥{member.balance.toFixed(2)}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="form-group">
+							<label>取货时间</label>
+							<input type="datetime-local" class="input" bind:value={newOrder.pickupTime} style="width: 100%;" />
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label>添加产品</label>
+						<select class="input" style="width: 100%;" on:change={(e) => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }}>
+							<option value="">点击选择产品添加到订单</option>
+							{#each products as product}
+								<option value={product.id}>{product.name} - ¥{product.price.toFixed(2)}</option>
+							{/each}
+						</select>
+					</div>
+
+					{#if newOrder.items.length > 0}
+						<table style="margin-bottom: 1rem;">
+							<thead>
+								<tr>
+									<th>产品</th>
+									<th>单价</th>
+									<th>数量</th>
+									<th>小计</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each newOrder.items as item, i}
+									<tr>
+										<td>{item.productName}</td>
+										<td>¥{item.unitPrice.toFixed(2)}</td>
+										<td>
+											<input type="number" class="input" style="width: 60px;" min="1"
+												value={item.quantity}
+												on:change={(e) => updateItemQty(i, parseInt(e.target.value) || 1)} />
+										</td>
+										<td>¥{item.subtotal.toFixed(2)}</td>
+										<td><button class="btn btn-sm btn-danger" on:click={() => removeOrderItem(i)}>×</button></td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+						<div style="text-align: right; font-weight: 600; margin-bottom: 1rem;">
+							合计: ¥{newOrderTotal.toFixed(2)}
+						</div>
+					{/if}
+
+					{#if selectedMember && selectedMember.balance > 0 && newOrderTotal > 0}
+						<div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
+							<input type="checkbox" id="useBalance" bind:checked={newOrder.useBalance} />
+							<label for="useBalance" style="margin-bottom: 0;">
+								使用余额抵扣 (可用: ¥{selectedMember.balance.toFixed(2)})
+							</label>
+						</div>
+						{#if newOrder.useBalance}
+							<div style="color: var(--success); font-size: 0.875rem; margin-bottom: 0.5rem;">
+								抵扣 ¥{Math.min(selectedMember.balance, newOrderTotal).toFixed(2)}，实付 ¥{(newOrderTotal - Math.min(selectedMember.balance, newOrderTotal)).toFixed(2)}
+							</div>
+						{/if}
+					{/if}
+
+					<div class="form-row">
+						<div class="form-group">
+							<label>操作人</label>
+							<input type="text" class="input" bind:value={newOrder.operator} style="width: 100%;" />
+						</div>
+						<div class="form-group">
+							<label>备注</label>
+							<input type="text" class="input" bind:value={newOrder.remark} style="width: 100%;" placeholder="订单备注..." />
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-outline" on:click={() => showCreateModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={handleCreateOrder} disabled={!newOrder.memberId || newOrder.items.length === 0}>
+						创建订单
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	{#if showDetailModal && selectedOrder}
 		<div class="modal-overlay" on:click={() => showDetailModal = false}>
@@ -193,8 +396,8 @@
 							<div>¥{selectedOrder.payAmount.toFixed(2)}</div>
 						</div>
 						<div>
-							<div class="text-sm text-gray-500">取货时间</div>
-							<div>{formatDate(selectedOrder.pickupTime)}</div>
+							<div class="text-sm text-gray-500">余额抵扣</div>
+							<div>{selectedOrder.useBalance > 0 ? `¥${selectedOrder.useBalance.toFixed(2)}` : '-'}</div>
 						</div>
 						<div>
 							<div class="text-sm text-gray-500">原料损耗</div>
@@ -227,17 +430,25 @@
 					</div>
 
 					<div>
-						<div class="text-sm text-gray-500 mb-4">状态时间轴</div>
+						<div class="text-sm text-gray-500 mb-4">统一时间轴</div>
 						<div class="timeline">
-							{#each selectedOrder.statusHistory as log}
+							{#each unifiedTimeline as log}
 								<div class="timeline-item">
-									<div class="timeline-dot"></div>
+									<div class="timeline-dot" style={log.relatedType === 'refund' ? 'background: var(--danger);' : log.relatedType === 'recharge' ? 'background: var(--success);' : ''}></div>
 									<div class="timeline-content">
 										<div class="timeline-time">{formatDate(log.createdAt)}</div>
 										<div class="text-sm">
+											<span style="font-size: 0.7rem; padding: 1px 6px; border-radius: 4px; margin-right: 4px;
+												background: {log.relatedType === 'refund' ? '#FEE2E2; color: #991B1B' : log.relatedType === 'recharge' ? '#D1FAE5; color: #065F46' : '#DBEAFE; color: #1E40AF'};">
+												{getLogTypeLabel(log.relatedType)}
+											</span>
 											<strong>{log.operator}</strong>
-											从 <span class="badge {log.fromStatus}">{log.fromStatus || '-'}</span>
-											变更为 <span class="badge {log.toStatus}">{log.toStatus}</span>
+											{#if log.fromStatus && log.toStatus && log.fromStatus !== log.toStatus}
+												从 <span class="badge {log.fromStatus}">{log.fromStatus}</span>
+												变更为 <span class="badge {log.toStatus}">{log.toStatus}</span>
+											{:else}
+												<span class="badge {log.toStatus || log.fromStatus}">{log.toStatus || log.fromStatus}</span>
+											{/if}
 										</div>
 										{#if log.remark}
 											<div class="text-sm text-gray-500">{log.remark}</div>

@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 
 	let refunds = [];
+	let orders = [];
 	let selectedIds = [];
 	let statusFilter = 'pending';
 	let searchQuery = '';
@@ -11,6 +12,16 @@
 	let selectedRefund = null;
 	let showRejectModal = false;
 	let rejectReason = '';
+	let showApplyModal = false;
+	let unifiedTimeline = [];
+
+	let applyForm = {
+		orderId: '',
+		refundAmount: 0,
+		refundType: 'balance',
+		reason: '',
+		applicant: '客服'
+	};
 
 	let tabs = [
 		{ id: 'pending', name: '待复核' },
@@ -28,8 +39,12 @@
 
 	$: hasSelection = selectedIds.length > 0;
 
-	onMount(() => {
-		loadRefunds();
+	$: selectedOrderForRefund = orders.find(o => o.id === applyForm.orderId);
+
+	onMount(async () => {
+		await loadRefunds();
+		const oRes = await api.getOrders();
+		orders = (oRes.data || []).filter(o => o.status !== 'cancelled');
 	});
 
 	async function loadRefunds() {
@@ -61,6 +76,12 @@
 
 	async function openDetail(refund) {
 		selectedRefund = await api.getRefund(refund.id);
+		if (selectedRefund.orderId) {
+			const tlRes = await api.getUnifiedTimeline({ orderID: selectedRefund.orderId });
+			unifiedTimeline = (tlRes.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+		} else {
+			unifiedTimeline = selectedRefund.statusHistory || [];
+		}
 		showDetailModal = true;
 	}
 
@@ -114,6 +135,31 @@
 		loadRefunds();
 	}
 
+	function openApplyRefund() {
+		applyForm = {
+			orderId: '',
+			refundAmount: 0,
+			refundType: 'balance',
+			reason: '',
+			applicant: '客服'
+		};
+		showApplyModal = true;
+	}
+
+	function onSelectOrderForRefund(orderId) {
+		const order = orders.find(o => o.id === orderId);
+		if (order) {
+			applyForm.refundAmount = order.payAmount;
+		}
+	}
+
+	async function handleApplyRefund() {
+		if (!applyForm.orderId || !applyForm.refundAmount || !applyForm.reason) return;
+		await api.createRefund(applyForm);
+		showApplyModal = false;
+		loadRefunds();
+	}
+
 	function getRefundStatus(status) {
 		const map = {
 			pending: '待复核',
@@ -129,6 +175,22 @@
 			cash: '现金退款',
 			original: '原路退回'
 		};
+		return map[type] || type;
+	}
+
+	function getOrderStatus(status) {
+		const map = {
+			pending: '待处理',
+			preparing: '制作中',
+			ready: '待取货',
+			completed: '已完成',
+			cancelled: '已取消'
+		};
+		return map[status] || status;
+	}
+
+	function getLogTypeLabel(type) {
+		const map = { order: '订单', refund: '退款', recharge: '储值' };
 		return map[type] || type;
 	}
 
@@ -158,6 +220,7 @@
 
 	<div class="filters">
 		<input type="text" class="input" placeholder="搜索退款单号/会员..." bind:value={searchQuery} />
+		<button class="btn btn-primary" on:click={openApplyRefund}>+ 申请退款</button>
 	</div>
 
 	{#if hasSelection && activeTab === 'pending'}
@@ -224,6 +287,73 @@
 		</div>
 	</div>
 
+	{#if showApplyModal}
+		<div class="modal-overlay" on:click={() => showApplyModal = false}>
+			<div class="modal" on:click|stopPropagation>
+				<div class="modal-header">
+					<h3>申请退款</h3>
+					<button class="btn btn-sm btn-outline" on:click={() => showApplyModal = false}>×</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label>选择关联订单</label>
+						<select class="input" style="width: 100%;" bind:value={applyForm.orderId} on:change={(e) => onSelectOrderForRefund(e.target.value)}>
+							<option value="">请选择要退款的订单</option>
+							{#each orders as order}
+								<option value={order.id}>{order.orderNo} - {order.memberName} ¥{order.payAmount.toFixed(2)} ({getOrderStatus(order.status)})</option>
+							{/each}
+						</select>
+					</div>
+
+					{#if selectedOrderForRefund}
+						<div class="card" style="padding: 1rem; margin-bottom: 1rem; background: var(--gray-50);">
+							<div class="text-sm"><strong>订单号:</strong> {selectedOrderForRefund.orderNo}</div>
+							<div class="text-sm"><strong>会员:</strong> {selectedOrderForRefund.memberName}</div>
+							<div class="text-sm"><strong>订单金额:</strong> ¥{selectedOrderForRefund.totalAmount.toFixed(2)}</div>
+							<div class="text-sm"><strong>实付金额:</strong> ¥{selectedOrderForRefund.payAmount.toFixed(2)}</div>
+							{#if selectedOrderForRefund.useBalance > 0}
+								<div class="text-sm"><strong>余额抵扣:</strong> ¥{selectedOrderForRefund.useBalance.toFixed(2)}</div>
+							{/if}
+						</div>
+					{/if}
+
+					<div class="form-row">
+						<div class="form-group">
+							<label>退款金额</label>
+							<input type="number" class="input" bind:value={applyForm.refundAmount} style="width: 100%;" />
+						</div>
+						<div class="form-group">
+							<label>退款方式</label>
+							<select class="input" bind:value={applyForm.refundType} style="width: 100%;">
+								<option value="balance">退回余额</option>
+								<option value="cash">现金退款</option>
+								<option value="original">原路退回</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label>退款原因</label>
+						<textarea class="input" bind:value={applyForm.reason}
+							style="width: 100%; min-height: 100px;"
+							placeholder="请详细说明退款原因..."></textarea>
+					</div>
+
+					<div class="form-group">
+						<label>申请人</label>
+						<input type="text" class="input" bind:value={applyForm.applicant} style="width: 100%;" />
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-outline" on:click={() => showApplyModal = false}>取消</button>
+					<button class="btn btn-primary" on:click={handleApplyRefund} disabled={!applyForm.orderId || !applyForm.refundAmount || !applyForm.reason}>
+						提交退款申请
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	{#if showDetailModal && selectedRefund}
 		<div class="modal-overlay" on:click={() => showDetailModal = false}>
 			<div class="modal" style="max-width: 700px;" on:click|stopPropagation>
@@ -254,8 +384,8 @@
 							<div>{selectedRefund.applicant || '-'}</div>
 						</div>
 						<div>
-							<div class="text-sm text-gray-500">申请时间</div>
-							<div>{formatDate(selectedRefund.createdAt)}</div>
+							<div class="text-sm text-gray-500">审核人</div>
+							<div>{selectedRefund.reviewer || '-'}</div>
 						</div>
 					</div>
 
@@ -265,6 +395,15 @@
 							{selectedRefund.reason || '-'}
 						</div>
 					</div>
+
+					{#if selectedRefund.rejectReason}
+						<div class="mb-6">
+							<div class="text-sm text-gray-500">驳回原因</div>
+							<div class="card" style="padding: 1rem; margin-top: 0.5rem; border-left: 3px solid var(--danger);">
+								{selectedRefund.rejectReason}
+							</div>
+						</div>
+					{/if}
 
 					{#if selectedRefund.order}
 						<div class="mb-6">
@@ -292,29 +431,35 @@
 						</div>
 					{/if}
 
-					{#if selectedRefund.statusHistory && selectedRefund.statusHistory.length > 0}
-						<div>
-							<div class="text-sm text-gray-500 mb-4">审核时间轴</div>
-							<div class="timeline">
-								{#each selectedRefund.statusHistory as log}
-									<div class="timeline-item">
-										<div class="timeline-dot"></div>
-										<div class="timeline-content">
-											<div class="timeline-time">{formatDate(log.createdAt)}</div>
-											<div class="text-sm">
-												<strong>{log.operator}</strong>
-												从 <span class="badge {log.fromStatus}">{log.fromStatus || '-'}</span>
+					<div>
+						<div class="text-sm text-gray-500 mb-4">统一时间轴（订单+退款全链路）</div>
+						<div class="timeline">
+							{#each unifiedTimeline as log}
+								<div class="timeline-item">
+									<div class="timeline-dot" style={log.relatedType === 'refund' ? 'background: var(--danger);' : log.relatedType === 'recharge' ? 'background: var(--success);' : ''}></div>
+									<div class="timeline-content">
+										<div class="timeline-time">{formatDate(log.createdAt)}</div>
+										<div class="text-sm">
+											<span style="font-size: 0.7rem; padding: 1px 6px; border-radius: 4px; margin-right: 4px;
+												background: {log.relatedType === 'refund' ? '#FEE2E2; color: #991B1B' : log.relatedType === 'recharge' ? '#D1FAE5; color: #065F46' : '#DBEAFE; color: #1E40AF'};">
+												{getLogTypeLabel(log.relatedType)}
+											</span>
+											<strong>{log.operator}</strong>
+											{#if log.fromStatus && log.toStatus && log.fromStatus !== log.toStatus}
+												从 <span class="badge {log.fromStatus}">{log.fromStatus}</span>
 												变更为 <span class="badge {log.toStatus}">{log.toStatus}</span>
-											</div>
-											{#if log.remark}
-												<div class="text-sm text-gray-500">{log.remark}</div>
+											{:else}
+												<span class="badge {log.toStatus || log.fromStatus}">{log.toStatus || log.fromStatus}</span>
 											{/if}
 										</div>
+										{#if log.remark}
+											<div class="text-sm text-gray-500">{log.remark}</div>
+										{/if}
 									</div>
-								{/each}
-							</div>
+								</div>
+							{/each}
 						</div>
-					{/if}
+					</div>
 				</div>
 				<div class="modal-footer">
 					<button class="btn btn-outline" on:click={() => showDetailModal = false}>关闭</button>
@@ -340,7 +485,7 @@
 				</div>
 				<div class="modal-footer">
 					<button class="btn btn-outline" on:click={() => showRejectModal = false}>取消</button>
-					<button class="btn btn-danger" on:click={selectedRefund && hasSelection ? batchReject : rejectSingle}>
+					<button class="btn btn-danger" on:click={hasSelection ? batchReject : rejectSingle}>
 						确认驳回
 					</button>
 				</div>

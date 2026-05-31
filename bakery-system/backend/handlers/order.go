@@ -86,7 +86,25 @@ func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {
 	database.DB.Model(&order).Updates(data)
 
 	if newStatus, ok := data["status"].(string); ok && newStatus != oldStatus {
-		database.AddStatusLog(order.ID, "order", oldStatus, newStatus, data["operator"].(string), "状态变更")
+		operator := ""
+		if op, ok := data["operator"].(string); ok {
+			operator = op
+		}
+		remark := "状态变更"
+		if r, ok := data["remark"].(string); ok && r != "" {
+			remark = r
+		}
+		database.AddStatusLog(order.ID, "order", oldStatus, newStatus, operator, remark)
+	} else {
+		operator := ""
+		if op, ok := data["operator"].(string); ok {
+			operator = op
+		}
+		remark := "改单"
+		if r, ok := data["remark"].(string); ok && r != "" {
+			remark = r
+		}
+		database.AddStatusLog(order.ID, "order", oldStatus, oldStatus, operator, remark)
 	}
 
 	return c.JSON(order)

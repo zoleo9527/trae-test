@@ -3,6 +3,7 @@ package handlers
 import (
 	"bakery-system/backend/database"
 	"bakery-system/backend/models"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -82,6 +83,8 @@ func (h *MemberHandler) Recharge(c *fiber.Ctx) error {
 		"balance":        member.Balance + recharge.Amount + recharge.Bonus,
 		"total_recharge": member.TotalRecharge + recharge.Amount,
 	})
+	database.AddStatusLog(member.ID, "recharge", "", "completed", recharge.Operator,
+		fmt.Sprintf("储值 %.2f, 赠送 %.2f, 方式: %s", recharge.Amount, recharge.Bonus, recharge.PaymentType))
 	tx.Commit()
 
 	return c.Status(201).JSON(recharge)

@@ -14,6 +14,10 @@ async function request(url, options = {}) {
 export const api = {
 	getDashboardStats: () => request('/dashboard/stats'),
 	getRecentActivities: () => request('/dashboard/activities'),
+	getUnifiedTimeline: (params = {}) => {
+		const query = new URLSearchParams(params).toString();
+		return request(`/dashboard/timeline${query ? '?' + query : ''}`);
+	},
 
 	getMembers: (params = {}) => {
 		const query = new URLSearchParams(params).toString();
