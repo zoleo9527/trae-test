@@ -5,6 +5,7 @@ import { ChangeOrder } from '../change-order/entities/change-order.entity';
 import { SignOff } from '../sign-off/entities/sign-off.entity';
 import { ChangeOrderStatus } from '../common/enums/change-order-status.enum';
 import { SignOffStatus } from '../common/enums/sign-off.enum';
+import { Role } from '../common/enums/role.enum';
 import { User } from '../user/entities/user.entity';
 
 @Injectable()
@@ -17,12 +18,7 @@ export class DashboardService {
   ) {}
 
   async getOverview(user: User) {
-    const [pendingChangeOrders, rejectedChangeOrders, totalChangeOrders] = await Promise.all([
-      this.changeOrderRepository.count({
-        where: {
-          status: ChangeOrderStatus.SUBMITTED,
-        },
-      }),
+    const [rejectedChangeOrders, totalChangeOrders] = await Promise.all([
       this.changeOrderRepository.count({
         where: {
           status: ChangeOrderStatus.REJECTED,
@@ -31,27 +27,9 @@ export class DashboardService {
       this.changeOrderRepository.count(),
     ]);
 
-    const pendingSignOffs = await this.signOffRepository
-      .createQueryBuilder('so')
-      .leftJoin('so.changeOrder', 'co')
-      .where('so.status = :status', { status: SignOffStatus.PENDING })
-      .andWhere(
-        '(so.changeOrderId IS NULL OR so.processVersion = co.signOffProcessVersion)',
-      )
-      .getCount();
-
-    const needsReview = await this.changeOrderRepository
-      .createQueryBuilder('co')
-      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
-      .where('co.status IN (:...statuses)', {
-        statuses: [
-          ChangeOrderStatus.SUBMITTED,
-          ChangeOrderStatus.UNDER_REVIEW,
-          ChangeOrderStatus.IN_PROGRESS,
-        ],
-      })
-      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' })
-      .getCount();
+    const pendingChangeOrders = await this.countPendingChangeOrdersForUser(user);
+    const pendingSignOffs = await this.countPendingSignOffsForUser(user);
+    const needsReview = await this.countNeedsReviewForUser(user);
 
     return {
       pendingChangeOrders,
@@ -62,17 +40,147 @@ export class DashboardService {
     };
   }
 
-  async getPendingItems(user: User) {
-    const pendingChangeOrders = await this.changeOrderRepository.find({
-      where: {
-        status: ChangeOrderStatus.SUBMITTED,
-      },
-      relations: ['createdBy'],
-      order: { createdAt: 'DESC' },
-      take: 10,
-    });
+  private async countPendingChangeOrdersForUser(user: User): Promise<number> {
+    const queryBuilder = this.changeOrderRepository.createQueryBuilder('co');
 
-    const pendingSignOffs = await this.signOffRepository
+    if (user.role === Role.ADMIN) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.PROJECT_MANAGER) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.SUPERVISOR) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.SUBMITTED,
+      });
+    } else if (user.role === Role.CLIENT) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.APPROVED,
+      });
+    } else {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+        ],
+      });
+    }
+
+    return queryBuilder.getCount();
+  }
+
+  private async countPendingSignOffsForUser(user: User): Promise<number> {
+    const queryBuilder = this.signOffRepository
+      .createQueryBuilder('so')
+      .leftJoin('so.changeOrder', 'co')
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = co.signOffProcessVersion)',
+      );
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+      queryBuilder.andWhere(
+        '(so.signerDepartment IS NULL OR so.signerDepartment = :userDepartment)',
+        { userDepartment: user.department },
+      );
+    }
+
+    return queryBuilder.getCount();
+  }
+
+  private async countNeedsReviewForUser(user: User): Promise<number> {
+    const queryBuilder = this.changeOrderRepository
+      .createQueryBuilder('co')
+      .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
+      .where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      })
+      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' });
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+    }
+
+    return queryBuilder.getCount();
+  }
+
+  async getPendingItems(user: User) {
+    const pendingChangeOrders = await this.getPendingChangeOrdersForUser(user);
+    const pendingSignOffs = await this.getPendingSignOffsForUser(user);
+
+    return {
+      changeOrders: pendingChangeOrders,
+      signOffs: pendingSignOffs,
+    };
+  }
+
+  private async getPendingChangeOrdersForUser(user: User): Promise<ChangeOrder[]> {
+    const queryBuilder = this.changeOrderRepository
+      .createQueryBuilder('co')
+      .leftJoinAndSelect('co.createdBy', 'createdBy');
+
+    if (user.role === Role.ADMIN) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.PROJECT_MANAGER) {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+          ChangeOrderStatus.IN_PROGRESS,
+        ],
+      });
+    } else if (user.role === Role.SUPERVISOR) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.SUBMITTED,
+      });
+    } else if (user.role === Role.CLIENT) {
+      queryBuilder.where('co.status = :status', {
+        status: ChangeOrderStatus.APPROVED,
+      });
+    } else {
+      queryBuilder.where('co.status IN (:...statuses)', {
+        statuses: [
+          ChangeOrderStatus.SUBMITTED,
+          ChangeOrderStatus.UNDER_REVIEW,
+        ],
+      });
+    }
+
+    return queryBuilder
+      .orderBy('co.createdAt', 'DESC')
+      .take(10)
+      .getMany();
+  }
+
+  private async getPendingSignOffsForUser(user: User): Promise<SignOff[]> {
+    const queryBuilder = this.signOffRepository
       .createQueryBuilder('so')
       .leftJoinAndSelect('so.requestedBy', 'requestedBy')
       .leftJoinAndSelect('so.changeOrder', 'changeOrder')
@@ -81,15 +189,23 @@ export class DashboardService {
       .where('so.status = :status', { status: SignOffStatus.PENDING })
       .andWhere(
         '(so.changeOrderId IS NULL OR so.processVersion = changeOrder.signOffProcessVersion)',
-      )
+      );
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+      queryBuilder.andWhere(
+        '(so.signerDepartment IS NULL OR so.signerDepartment = :userDepartment)',
+        { userDepartment: user.department },
+      );
+    }
+
+    return queryBuilder
       .orderBy('so.createdAt', 'DESC')
       .take(10)
       .getMany();
-
-    return {
-      changeOrders: pendingChangeOrders,
-      signOffs: pendingSignOffs,
-    };
   }
 
   async getRejectedItems(user: User) {
@@ -104,7 +220,7 @@ export class DashboardService {
   }
 
   async getNeedsReview(user: User) {
-    return this.changeOrderRepository
+    const queryBuilder = this.changeOrderRepository
       .createQueryBuilder('co')
       .leftJoinAndSelect('co.createdBy', 'createdBy')
       .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
@@ -115,7 +231,16 @@ export class DashboardService {
           ChangeOrderStatus.IN_PROGRESS,
         ],
       })
-      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' })
+      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' });
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+    }
+
+    return queryBuilder
       .orderBy('co.createdAt', 'DESC')
       .take(10)
       .getMany();
@@ -162,31 +287,62 @@ export class DashboardService {
   }
 
   async getMyTasks(user: User) {
-    const myPendingSignOffs = await this.signOffRepository.count({
-      where: { status: SignOffStatus.PENDING },
-    });
-
-    const myRequestedSignOffs = await this.signOffRepository.find({
-      where: {
-        requestedById: user.id,
-        status: SignOffStatus.PENDING,
-      },
-      relations: ['changeOrder'],
-      take: 5,
-    });
-
-    const myChangeOrders = await this.changeOrderRepository.find({
-      where: {
-        createdById: user.id,
-        status: ChangeOrderStatus.DRAFT,
-      },
-      take: 5,
-    });
+    const myPendingSignOffs = await this.countMyPendingSignOffs(user);
+    const myRequestedSignOffs = await this.getMyRequestedSignOffs(user);
+    const myChangeOrders = await this.getMyDraftChangeOrders(user);
 
     return {
       pendingSignOffCount: myPendingSignOffs,
       requestedSignOffs: myRequestedSignOffs,
       draftChangeOrders: myChangeOrders,
     };
+  }
+
+  private async countMyPendingSignOffs(user: User): Promise<number> {
+    const queryBuilder = this.signOffRepository
+      .createQueryBuilder('so')
+      .leftJoin('so.changeOrder', 'co')
+      .where('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = co.signOffProcessVersion)',
+      );
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+      queryBuilder.andWhere(
+        '(so.signerDepartment IS NULL OR so.signerDepartment = :userDepartment)',
+        { userDepartment: user.department },
+      );
+    }
+
+    return queryBuilder.getCount();
+  }
+
+  private async getMyRequestedSignOffs(user: User): Promise<SignOff[]> {
+    return this.signOffRepository
+      .createQueryBuilder('so')
+      .leftJoinAndSelect('so.changeOrder', 'co')
+      .where('so.requestedById = :userId', { userId: user.id })
+      .andWhere('so.status = :status', { status: SignOffStatus.PENDING })
+      .andWhere(
+        '(so.changeOrderId IS NULL OR so.processVersion = co.signOffProcessVersion)',
+      )
+      .orderBy('so.createdAt', 'DESC')
+      .take(5)
+      .getMany();
+  }
+
+  private async getMyDraftChangeOrders(user: User): Promise<ChangeOrder[]> {
+    return this.changeOrderRepository.find({
+      where: {
+        createdById: user.id,
+        status: ChangeOrderStatus.DRAFT,
+      },
+      order: { updatedAt: 'DESC' },
+      take: 5,
+    });
   }
 }

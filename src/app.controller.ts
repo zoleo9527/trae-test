@@ -21,13 +21,26 @@ export class AppController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: '系统状态' })
+  @ApiOperation({ summary: '系统信息与演示入口' })
   getStatus() {
     return {
       name: '地坪施工-变更报价与签认留痕系统',
       version: '1.0.0',
       status: 'running',
       docs: '/api',
+      demo: {
+        login: 'POST /auth/login',
+        dashboard: 'GET /home (需登录)',
+        accounts: {
+          admin: 'admin / admin123',
+          project_manager: 'pm01 / pm123456',
+          supervisor: 'super01 / super123',
+          foreman: 'foreman01 / foreman123',
+          worker: 'worker01 / worker123',
+          accountant: 'account01 / account123',
+          client: 'client01 / client123',
+        },
+      },
     };
   }
 
@@ -52,7 +65,7 @@ export class AppController {
       this.changeOrderRepository.count(),
     ]);
 
-    const needsReview = await this.changeOrderRepository
+    const needsReviewQuery = this.changeOrderRepository
       .createQueryBuilder('co')
       .leftJoinAndSelect('co.createdBy', 'createdBy')
       .leftJoin('co.signOffs', 'so', 'so.processVersion = co.signOffProcessVersion')
@@ -63,7 +76,16 @@ export class AppController {
           ChangeOrderStatus.IN_PROGRESS,
         ],
       })
-      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' })
+      .andWhere('(so.id IS NULL OR so.status != :signedStatus)', { signedStatus: 'signed' });
+
+    if (user.role !== Role.ADMIN) {
+      needsReviewQuery.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+    }
+
+    const needsReview = await needsReviewQuery
       .orderBy('co.createdAt', 'DESC')
       .take(10)
       .getMany();

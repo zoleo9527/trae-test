@@ -1,0 +1,30 @@
+import { BaseEntity } from '../../common/entities/base.entity';
+import { SignOffStatus, SignOffType } from '../../common/enums/sign-off.enum';
+import { User } from '../../user/entities/user.entity';
+import { ChangeOrder } from '../../change-order/entities/change-order.entity';
+import { DailyReport } from '../../daily-report/entities/daily-report.entity';
+import { Delivery } from '../../delivery/entities/delivery.entity';
+export declare class SignOff extends BaseEntity {
+    signOffType: SignOffType;
+    status: SignOffStatus;
+    sequenceOrder: number;
+    changeOrderId?: string;
+    changeOrder?: ChangeOrder;
+    dailyReportId?: string;
+    dailyReport?: DailyReport;
+    deliveryId?: string;
+    delivery?: Delivery;
+    requestedById: string;
+    requestedBy: User;
+    signedById?: string;
+    signedBy?: User;
+    signedAt?: Date;
+    deadline?: Date;
+    comments?: string;
+    rejectReason?: string;
+    signature?: string;
+    signerRole?: string;
+    signerDepartment?: string;
+    processVersion: number;
+    metadata?: Record<string, any>;
+}
