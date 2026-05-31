@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 
 	appErrors "watch-after-sales/backend/errors"
 	"watch-after-sales/backend/dto"
@@ -56,9 +57,10 @@ func (s *PartService) List(page, pageSize int, keyword string) (*dto.PaginatedRe
 	}
 
 	query := s.db.Model(&model.Part{})
+	keyword = strings.TrimSpace(keyword)
 	if keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("name LIKE ? OR sku LIKE ?", like, like)
+		keyword = "%" + keyword + "%"
+		query = query.Where("name ILIKE ? OR sku ILIKE ?", keyword, keyword)
 	}
 
 	var total int64
