@@ -50,6 +50,7 @@ export const lockInventorySchema = z.object({
   quantity: z.number().int().positive('锁定数量必须大于0'),
   reason: z.string().min(1, '锁定原因不能为空'),
   applicationId: z.string().uuid().optional(),
+  applicationItemId: z.string().uuid().optional(),
   repairOrderId: z.string().uuid().optional(),
   durationHours: z.number().int().min(1).max(24).optional().default(4),
 });

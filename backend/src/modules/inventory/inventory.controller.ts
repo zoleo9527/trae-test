@@ -5,7 +5,7 @@ import { parsePagination } from '../../utils/pagination';
 import { success, successWithPagination } from '../../utils/response';
 import { AppError, NotFoundError, ValidationError } from '../../middleware/errorHandler';
 import { config } from '../../config';
-import { InventoryLockStatus } from '../../types/enums';
+import { InventoryLockStatus, PartApplicationStatus } from '../../types/enums';
 
 export async function createPart(req: Request, res: Response, next: NextFunction) {
   try {
@@ -258,6 +258,7 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
       quantity,
       reason,
       applicationId,
+      applicationItemId,
       repairOrderId,
       durationHours,
     } = req.body;
@@ -285,6 +286,36 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
         );
       }
 
+      let applicationItem: any = null;
+      if (applicationItemId) {
+        applicationItem = await tx.partApplicationItem.findUnique({
+          where: { id: applicationItemId },
+          select: { id: true, requestedQty: true, approvedQty: true, actualIssuedQty: true, applicationId: true },
+        });
+
+        if (!applicationItem) {
+          throw new NotFoundError('申请明细不存在');
+        }
+
+        const existingLocks = await tx.inventoryLock.findMany({
+          where: {
+            applicationItemId,
+            status: InventoryLockStatus.ACTIVE,
+          },
+          select: { quantity: true },
+        });
+
+        const totalLocked = existingLocks.reduce((sum, l) => sum + l.quantity, 0);
+        const approvedQty = applicationItem.approvedQty ?? applicationItem.requestedQty;
+        const remainToLock = approvedQty - (applicationItem.actualIssuedQty ?? 0) - totalLocked;
+
+        if (quantity > remainToLock) {
+          throw new ValidationError(
+            `补锁数量超过待补锁量: 批准${approvedQty}, 已发${applicationItem.actualIssuedQty ?? 0}, 已锁${totalLocked}, 最多可补${remainToLock}`
+          );
+        }
+      }
+
       const lockNo = generateLockNo();
       const expireAt = new Date();
       expireAt.setHours(
@@ -299,6 +330,7 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
           reason,
           lockedBy: req.user!.userId,
           applicationId,
+          applicationItemId,
           repairOrderId,
           expireAt,
         },
@@ -309,6 +341,9 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
             },
           },
           locker: { select: { id: true, realName: true } },
+          applicationItem: {
+            select: { id: true, requestedQty: true, approvedQty: true },
+          },
         },
       });
 
@@ -320,6 +355,52 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
           },
         },
       });
+
+      if (applicationItemId && applicationItem) {
+        const app = await tx.partApplication.findUnique({
+          where: { id: applicationItem.applicationId },
+          select: { id: true, status: true },
+        });
+
+        if (app && app.status === PartApplicationStatus.AWAITING_STOCK) {
+          const allItems = await tx.partApplicationItem.findMany({
+            where: { applicationId: app.id },
+            select: { id: true, approvedQty: true, requestedQty: true, actualIssuedQty: true },
+          });
+
+          const allItemsWithLocks = await Promise.all(
+            allItems.map(async (item) => {
+              const locks = await tx.inventoryLock.findMany({
+                where: { applicationItemId: item.id, status: InventoryLockStatus.ACTIVE },
+                select: { quantity: true },
+              });
+              const totalLocked = locks.reduce((sum, l) => sum + l.quantity, 0);
+              const approved = item.approvedQty ?? item.requestedQty;
+              const issued = item.actualIssuedQty ?? 0;
+              return { ...item, totalLocked, canIssue: issued + totalLocked >= approved };
+            })
+          );
+
+          const allCanIssue = allItemsWithLocks.every((item) => item.canIssue);
+
+          if (allCanIssue) {
+            await tx.partApplication.update({
+              where: { id: app.id },
+              data: { status: PartApplicationStatus.PROCESSING },
+            });
+
+            await tx.applicationStatusHistory.create({
+              data: {
+                applicationId: app.id,
+                fromStatus: PartApplicationStatus.AWAITING_STOCK,
+                toStatus: PartApplicationStatus.PROCESSING,
+                changedBy: req.user!.userId,
+                changeReason: '所有明细库存已补足，可以发放',
+              },
+            });
+          }
+        }
+      }
 
       return lock;
     });

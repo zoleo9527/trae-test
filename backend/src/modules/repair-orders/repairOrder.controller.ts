@@ -582,9 +582,14 @@ export async function addNote(req: Request, res: Response, next: NextFunction) {
       throw new NotFoundError('寄修单不存在');
     }
 
+    const validNoteTypes = Object.values(NoteType);
+    if (type && !validNoteTypes.includes(type as NoteType)) {
+      throw new ValidationError(`无效的备注类型: ${type}，有效值: ${validNoteTypes.join(', ')}`);
+    }
+
     const note = await prisma.note.create({
       data: {
-        type: type as NoteType,
+        type: type as NoteType || NoteType.INTERNAL,
         content,
         repairOrderId: id,
         createdBy: req.user!.userId,

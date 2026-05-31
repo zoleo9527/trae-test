@@ -89,6 +89,6 @@ export const applicationQuerySchema = z.object({
 });
 
 export const addNoteSchema = z.object({
-  type: z.enum(['SYSTEM', 'CUSTOMER_REPLY', 'INTERNAL', 'REJECT_REASON', 'SUPPLEMENT_INFO', 'FOLLOWUP']),
+  type: z.enum(['SYSTEM', 'CUSTOMER_REPLY', 'INTERNAL', 'REJECT_REASON', 'SUPPLEMENT', 'FOLLOWUP']),
   content: z.string().min(1, '备注内容不能为空'),
 });
