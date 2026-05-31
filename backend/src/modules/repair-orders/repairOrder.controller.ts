@@ -339,7 +339,7 @@ export async function changeStatus(req: Request, res: Response, next: NextFuncti
         throw new NotFoundError('寄修单不存在');
       }
 
-      const validTransitions = VALID_STATUS_TRANSITIONS[repairOrder.status];
+      const validTransitions = VALID_STATUS_TRANSITIONS[repairOrder.status as RepairOrderStatus];
       if (!validTransitions.includes(status)) {
         throw new ValidationError(
           `状态流转不合法: ${repairOrder.status} -> ${status}。` +

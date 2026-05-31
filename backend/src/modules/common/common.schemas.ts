@@ -23,5 +23,5 @@ export const operationLogQuerySchema = z.object({
 });
 
 export const traceIdSchema = z.object({
-  traceId: z.string('链路追踪ID不能为空'),
+  traceId: z.string({ required_error: '链路追踪ID不能为空' }),
 });

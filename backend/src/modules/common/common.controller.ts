@@ -73,7 +73,7 @@ export async function exportData(req: Request, res: Response, next: NextFunction
           status: item.status,
           urgencyLevel: item.urgencyLevel,
           partsSummary: item.items
-            .map((i) => `${i.part.name} x${i.requestedQty}`)
+            .map((i: any) => `${i.part.name} x${i.requestedQty}`)
             .join('; '),
           createdAt: item.createdAt.toISOString(),
         }));

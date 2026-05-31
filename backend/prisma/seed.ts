@@ -615,6 +615,7 @@ async function main() {
       reason: `配件申请审批: ${approvedApp.applicationNo}`,
       lockedBy: manager.id,
       applicationId: approvedApp.id,
+      applicationItemId: approvedItems.id,
       repairOrderId: inRepairOrder.id,
       expireAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
     },
@@ -744,7 +745,83 @@ async function main() {
     }),
   ]);
 
-  const applications = [completedApp, approvedApp, pendingApp, rejectedApp, draftApp, partialApp];
+  // === 场景 G: 待补货（AWAITING_STOCK）状态，部分锁定可直接测试补锁续发 ===
+  // 数据设计：批准10个防水圈，当前库存仅5个已锁定，另5个待补货
+  //   可直接调用 lockInventory 补锁，再调用 pickup 测试分批发放
+  const awaitingStockOrder = await prisma.repairOrder.findUnique({
+    where: { id: awaitingPartsOrder.id },
+    select: { id: true, customerId: true, watchId: true, status: true },
+  });
+
+  const awaitStockApp = await prisma.partApplication.create({
+    data: {
+      applicationNo: generateApplicationNo(),
+      repairOrderId: awaitingPartsOrder.id,
+      title: '批量防水圈更换（待补货）',
+      description: '客户送修5块表，均需更换防水圈。批准10个，现库存仅5个，另5个待补货。用于测试 AWAITING_STOCK → PROCESSING → 分批发放 → 结案 完整续发链路',
+      urgencyLevel: 'NORMAL',
+      status: PartApplicationStatus.AWAITING_STOCK as string,
+      createdBy: tech.id,
+      approvedBy: manager.id,
+      approvedAt: daysAgo(3),
+      createdAt: daysAgo(5),
+    },
+  });
+
+  const sealPart = backSeal;
+  const awaitStockItems = await prisma.partApplicationItem.create({
+    data: {
+      applicationId: awaitStockApp.id,
+      partId: sealPart.id,
+      requestedQty: 10,
+      approvedQty: 10,
+      actualIssuedQty: 0,
+      unitPrice: sealPart.unitPrice,
+      remark: '底盖防水圈（共5块表，每块2个）',
+    },
+  });
+
+  // 先把库存该配件设为5（模拟库存不足）
+  const sealInv = inventoryMap.get(sealPart.id)!;
+  await prisma.inventory.update({
+    where: { id: sealInv.id },
+    data: { quantity: 5 },
+  });
+
+  // 部分锁定：已锁定5个，还需5个待补货
+  const awaitStockLock = await prisma.inventoryLock.create({
+    data: {
+      lockNo: generateLockNo(),
+      inventoryId: sealInv.id,
+      quantity: 5,
+      status: InventoryLockStatus.ACTIVE as string,
+      reason: `配件申请审批（5/10）: ${awaitStockApp.applicationNo}，剩余5个待补货`,
+      lockedBy: manager.id,
+      applicationId: awaitStockApp.id,
+      applicationItemId: awaitStockItems.id,
+      repairOrderId: awaitingPartsOrder.id,
+      expireAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
+    },
+  });
+
+  // 确保寄修单状态同步为 AWAITING_PARTS
+  if (awaitingStockOrder && awaitingStockOrder.status === RepairOrderStatus.QUOTATION_APPROVED) {
+    await prisma.repairOrder.update({
+      where: { id: awaitingPartsOrder.id },
+      data: { status: RepairOrderStatus.AWAITING_PARTS as string },
+    });
+    await prisma.repairStatusHistory.create({
+      data: {
+        repairOrderId: awaitingPartsOrder.id,
+        fromStatus: RepairOrderStatus.QUOTATION_APPROVED as string,
+        toStatus: RepairOrderStatus.AWAITING_PARTS as string,
+        changedBy: manager.id,
+        changeReason: '配件申请已审批，有库存缺口等待补货',
+      },
+    });
+  }
+
+  const applications = [completedApp, approvedApp, pendingApp, rejectedApp, draftApp, partialApp, awaitStockApp];
 
   // === 9. 创建申请单状态历史 ===
   console.log('  → 创建申请单状态历史...');
@@ -770,6 +847,10 @@ async function main() {
     { appId: partialApp.id, from: null, to: PartApplicationStatus.DRAFT as string, by: tech.id, reason: '创建申请单', date: daysAgo(16) },
     { appId: partialApp.id, from: PartApplicationStatus.DRAFT as string, to: PartApplicationStatus.PENDING_APPROVAL as string, by: tech.id, reason: '提交审批', date: daysAgo(16) },
     { appId: partialApp.id, from: PartApplicationStatus.PENDING_APPROVAL as string, to: PartApplicationStatus.PARTIAL_APPROVED as string, by: manager.id, reason: '表镜批准，表冠库存不足待订货', date: daysAgo(15) },
+
+    { appId: awaitStockApp.id, from: null, to: PartApplicationStatus.DRAFT as string, by: tech.id, reason: '创建申请单', date: daysAgo(5) },
+    { appId: awaitStockApp.id, from: PartApplicationStatus.DRAFT as string, to: PartApplicationStatus.PENDING_APPROVAL as string, by: tech.id, reason: '提交批量防水圈申请', date: daysAgo(4) },
+    { appId: awaitStockApp.id, from: PartApplicationStatus.PENDING_APPROVAL as string, to: PartApplicationStatus.AWAITING_STOCK as string, by: manager.id, reason: '批准10个，库存仅5个，剩余5个待补货', date: daysAgo(3) },
   ];
 
   for (const h of appStatusHistories) {
@@ -809,6 +890,10 @@ async function main() {
     
     // 系统自动备注
     { type: NoteType.SYSTEM as string, content: '系统检测：库存锁定已生效，有效期至今日18:00，请及时领取', appId: approvedApp.id, by: admin.id, date: daysAgo(6) },
+
+    // 待补货申请单的补录说明（用于测试补录和续发）
+    { type: NoteType.SUPPLEMENT as string, content: '补货进度：已联系供应商，预计3天内到货5个防水圈。到货后将自动补锁并通知客户', appId: awaitStockApp.id, by: manager.id, date: daysAgo(2) },
+    { type: NoteType.FOLLOWUP as string, content: '已通知客户库存不足，预计3天后到货。客户表示理解，愿意等待', orderId: awaitingPartsOrder.id, by: reception.id, date: daysAgo(2) },
   ];
 
   for (const note of notes) {
@@ -831,8 +916,8 @@ async function main() {
   const watchOilInv = inventoryMap.get(watchOil.id)!;
 
   const historyLocks = [
-    { invId: backSealInv.id, qty: 1, status: InventoryLockStatus.CONSUMED as string, reason: '保养用防水圈', appId: completedApp.id, orderId: completedOrder.id, by: manager.id, date: daysAgo(18) },
-    { invId: watchOilInv.id, qty: 1, status: InventoryLockStatus.CONSUMED as string, reason: '保养用表油', appId: completedApp.id, orderId: completedOrder.id, by: manager.id, date: daysAgo(18) },
+    { invId: backSealInv.id, qty: 1, status: InventoryLockStatus.CONSUMED as string, reason: '保养用防水圈', appId: completedApp.id, itemId: completedItems[0].id, orderId: completedOrder.id, by: manager.id, date: daysAgo(18) },
+    { invId: watchOilInv.id, qty: 1, status: InventoryLockStatus.CONSUMED as string, reason: '保养用表油', appId: completedApp.id, itemId: completedItems[1].id, orderId: completedOrder.id, by: manager.id, date: daysAgo(18) },
   ];
 
   for (const l of historyLocks) {
@@ -845,6 +930,7 @@ async function main() {
         reason: l.reason,
         lockedBy: l.by,
         applicationId: l.appId,
+        applicationItemId: l.itemId,
         repairOrderId: l.orderId,
         expireAt: new Date(),
         consumedAt: l.date,

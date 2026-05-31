@@ -47,6 +47,7 @@ const VALID_STATUS_TRANSITIONS: Record<PartApplicationStatus, PartApplicationSta
   ],
   [PartApplicationStatus.COMPLETED]: [],
   [PartApplicationStatus.CANCELLED]: [],
+  [PartApplicationStatus.EXPIRED]: [],
 };
 
 export async function createApplication(req: Request, res: Response, next: NextFunction) {
@@ -573,9 +574,12 @@ export async function approveApplication(req: Request, res: Response, next: Next
 
       if (
         repairOrder &&
-        repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED &&
-        !hasShortage
+        repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED
       ) {
+        const changeReason = hasShortage
+          ? '配件申请已审批，有库存缺口等待补货'
+          : '配件申请已审批，等待配件到位';
+
         await tx.repairOrder.update({
           where: { id: repairOrder.id },
           data: { status: RepairOrderStatus.AWAITING_PARTS },
@@ -587,7 +591,7 @@ export async function approveApplication(req: Request, res: Response, next: Next
             fromStatus: RepairOrderStatus.QUOTATION_APPROVED,
             toStatus: RepairOrderStatus.AWAITING_PARTS,
             changedBy: req.user!.userId,
-            changeReason: '配件申请已审批，等待配件到位',
+            changeReason,
           },
         });
       }
@@ -846,7 +850,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
       }[] = [];
 
       for (const appItem of application.items) {
-        const pi = pickupItemsMap.get(appItem.id);
+        const pi = pickupItemsMap.get(appItem.id) as { actualIssuedQty?: number; unitPrice?: number } | undefined;
         const thisIssueQty = pi?.actualIssuedQty ?? 0;
 
         if (thisIssueQty === 0) continue;
@@ -997,8 +1001,10 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
 
         if (
           repairOrder &&
-          repairOrder.status === RepairOrderStatus.AWAITING_PARTS
+          (repairOrder.status === RepairOrderStatus.AWAITING_PARTS ||
+            repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED)
         ) {
+          const fromStatus = repairOrder.status;
           await tx.repairOrder.update({
             where: { id: repairOrder.id },
             data: { status: RepairOrderStatus.IN_REPAIR },
@@ -1007,7 +1013,7 @@ export async function pickupApplication(req: Request, res: Response, next: NextF
           await tx.repairStatusHistory.create({
             data: {
               repairOrderId: repairOrder.id,
-              fromStatus: RepairOrderStatus.AWAITING_PARTS,
+              fromStatus,
               toStatus: RepairOrderStatus.IN_REPAIR,
               changedBy: req.user!.userId,
               changeReason: '配件已全部到位，开始维修',

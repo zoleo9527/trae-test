@@ -5,7 +5,7 @@ import { parsePagination } from '../../utils/pagination';
 import { success, successWithPagination } from '../../utils/response';
 import { AppError, NotFoundError, ValidationError } from '../../middleware/errorHandler';
 import { config } from '../../config';
-import { InventoryLockStatus, PartApplicationStatus } from '../../types/enums';
+import { InventoryLockStatus, PartApplicationStatus, RepairOrderStatus } from '../../types/enums';
 
 export async function createPart(req: Request, res: Response, next: NextFunction) {
   try {
@@ -359,7 +359,7 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
       if (applicationItemId && applicationItem) {
         const app = await tx.partApplication.findUnique({
           where: { id: applicationItem.applicationId },
-          select: { id: true, status: true },
+          select: { id: true, status: true, repairOrderId: true },
         });
 
         if (app && app.status === PartApplicationStatus.AWAITING_STOCK) {
@@ -398,6 +398,28 @@ export async function lockInventory(req: Request, res: Response, next: NextFunct
                 changeReason: '所有明细库存已补足，可以发放',
               },
             });
+
+            const repairOrder = await tx.repairOrder.findUnique({
+              where: { id: app.repairOrderId || '' },
+              select: { id: true, status: true },
+            });
+
+            if (repairOrder && repairOrder.status === RepairOrderStatus.QUOTATION_APPROVED) {
+              await tx.repairOrder.update({
+                where: { id: repairOrder.id },
+                data: { status: RepairOrderStatus.AWAITING_PARTS },
+              });
+
+              await tx.repairStatusHistory.create({
+                data: {
+                  repairOrderId: repairOrder.id,
+                  fromStatus: RepairOrderStatus.QUOTATION_APPROVED,
+                  toStatus: RepairOrderStatus.AWAITING_PARTS,
+                  changedBy: req.user!.userId,
+                  changeReason: '配件库存已补足，等待发放',
+                },
+              });
+            }
           }
         }
       }
