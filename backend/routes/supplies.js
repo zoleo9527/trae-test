@@ -127,4 +127,64 @@ router.post('/requests', (req, res) => {
   });
 });
 
+router.get('/supplies/:id/comments', (req, res) => {
+  const { id } = req.params;
+  db.all(`
+    SELECT c.*, u.name as creator_name
+    FROM comments c
+    LEFT JOIN users u ON c.created_by = u.id
+    WHERE c.related_type = 'supply' AND c.related_id = ?
+    ORDER BY c.created_at DESC
+  `, [id], (err, comments) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(comments);
+  });
+});
+
+router.post('/supplies/:id/comments', (req, res) => {
+  const { id } = req.params;
+  const { content, created_by } = req.body;
+  db.run(`
+    INSERT INTO comments (related_type, related_id, content, created_by)
+    VALUES (?, ?, ?, ?)
+  `, ['supply', id, content, created_by], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ id: this.lastID, message: '评论添加成功' });
+  });
+});
+
+router.get('/requests/:id/comments', (req, res) => {
+  const { id } = req.params;
+  db.all(`
+    SELECT c.*, u.name as creator_name
+    FROM comments c
+    LEFT JOIN users u ON c.created_by = u.id
+    WHERE c.related_type = 'supply_request' AND c.related_id = ?
+    ORDER BY c.created_at DESC
+  `, [id], (err, comments) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(comments);
+  });
+});
+
+router.post('/requests/:id/comments', (req, res) => {
+  const { id } = req.params;
+  const { content, created_by } = req.body;
+  db.run(`
+    INSERT INTO comments (related_type, related_id, content, created_by)
+    VALUES (?, ?, ?, ?)
+  `, ['supply_request', id, content, created_by], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ id: this.lastID, message: '评论添加成功' });
+  });
+});
+
 module.exports = router;

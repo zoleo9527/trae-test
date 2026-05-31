@@ -47,7 +47,9 @@ export const suppliesAPI = {
   getLowStock: () => api.get('/supplies/low-stock'),
   getRequests: (params) => api.get('/supplies/requests', { params }),
   batchProcessRequests: (data) => api.post('/supplies/requests/batch-process', data),
-  createRequest: (data) => api.post('/supplies/requests', data)
+  createRequest: (data) => api.post('/supplies/requests', data),
+  getComments: (id, type) => api.get(`/supplies/${type === 'supply_request' ? 'requests' : 'supplies'}/${id}/comments`),
+  addComment: (id, type, data) => api.post(`/supplies/${type === 'supply_request' ? 'requests' : 'supplies'}/${id}/comments`, data)
 }
 
 export const renewalsAPI = {

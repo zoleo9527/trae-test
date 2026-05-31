@@ -152,19 +152,21 @@ function ReviewPanel() {
     setStatusHistory([])
     try {
       let commentsRes
+      const historyType = type === 'supply_request' ? 'supply_request' : type
+      
       if (type === 'checkin') {
         commentsRes = await checkinsAPI.getComments(record.id)
       } else if (type === 'inspection') {
         commentsRes = await inspectionsAPI.getComments(record.id)
       } else if (type === 'renewal') {
         commentsRes = await renewalsAPI.getComments(record.id)
-      } else if (type === 'supply') {
-        commentsRes = { data: [] }
+      } else if (type === 'supply' || type === 'supply_request') {
+        commentsRes = await suppliesAPI.getComments(record.id, type)
       }
       if (commentsRes) setComments(commentsRes.data)
 
       const historyRes = await statusHistoryAPI.getHistory({
-        related_type: type === 'checkin' ? 'checkin' : type === 'inspection' ? 'inspection' : type === 'renewal' ? 'renewal' : 'supply',
+        related_type: historyType,
         related_id: record.id
       })
       setStatusHistory(historyRes.data)
@@ -182,13 +184,21 @@ function ReviewPanel() {
       const typeMap = {
         checkin: checkinsAPI,
         inspection: inspectionsAPI,
-        renewal: renewalsAPI
+        renewal: renewalsAPI,
+        supply: suppliesAPI,
+        supply_request: suppliesAPI
       }
       const api = typeMap[detailModal.type]
       if (api) {
-        await api.addComment(detailModal.data.id, { content: newComment, created_by: user.id })
-        const res = await api.getComments(detailModal.data.id)
-        setComments(res.data)
+        if (detailModal.type === 'supply' || detailModal.type === 'supply_request') {
+          await api.addComment(detailModal.data.id, detailModal.type, { content: newComment, created_by: user.id })
+          const res = await api.getComments(detailModal.data.id, detailModal.type)
+          setComments(res.data)
+        } else {
+          await api.addComment(detailModal.data.id, { content: newComment, created_by: user.id })
+          const res = await api.getComments(detailModal.data.id)
+          setComments(res.data)
+        }
       }
       setNewComment('')
       message.success('备注添加成功')
@@ -223,7 +233,13 @@ function ReviewPanel() {
     { title: '耗材名称', dataIndex: 'supply_name', key: 'supply_name' },
     { title: '申请数量', dataIndex: 'requested_quantity', key: 'requested_quantity', render: (v, r) => `${v}${r.unit || ''}` },
     { title: '申请人', dataIndex: 'requester_name', key: 'requester_name' },
-    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true }
+    { title: '状态', dataIndex: 'status', key: 'status', render: (v) => {
+      const colors = { pending: 'orange', approved: 'green', rejected: 'red' }
+      const labels = { pending: '待审批', approved: '已通过', rejected: '已驳回' }
+      return <Tag color={colors[v]}>{labels[v]}</Tag>
+    }},
+    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true },
+    { title: '操作', key: 'action', render: (_, r) => <Button type="link" size="small" onClick={() => openDetail('supply_request', r)}>详情</Button> }
   ]
 
   const followupColumns = [
@@ -300,7 +316,7 @@ function ReviewPanel() {
     if (type === 'checkins') return [<Option key="verified" value="verified">确认属实</Option>, <Option key="rejected" value="rejected">已补卡/驳回</Option>]
     if (type === 'rectifications') return [<Option key="completed" value="completed">整改完成</Option>, <Option key="extended" value="extended">申请延期</Option>]
     if (type === 'supplies') return [<Option key="approved" value="approved">通过</Option>, <Option key="rejected" value="rejected">驳回</Option>]
-    if (type === 'followups') return [<Option key="completed" value="completed">已完成跟进</Option>, <Option key="pending" value="pending">待再次回访</Option>]
+    if (type === 'followups') return [<Option key="completed" value="completed">已完成跟进</Option>, <Option key="followup" value="followup">更新跟进日期</Option>]
     if (type === 'lowstock') return [<Option key="approved" value="approved">确认并提交补货申请</Option>]
     return []
   }
@@ -379,8 +395,8 @@ function ReviewPanel() {
             pendingFollowups,
             () => handleBatchProcess('followups', selectedRows, 'completed'),
             '标记已完成跟进',
-            () => handleBatchProcess('followups', selectedRows, 'pending'),
-            '标记待再次回访'
+            () => handleBatchProcess('followups', selectedRows, 'followup'),
+            '更新跟进日期'
           )}
           <Table rowKey="id" columns={followupColumns} dataSource={pendingFollowups} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
         </>
@@ -407,10 +423,15 @@ function ReviewPanel() {
     next_followup_date: '下次跟进',
     contract_end_date: '合同到期',
     name: '耗材',
+    supply_name: '耗材',
     quantity: '库存',
     unit: '单位',
     min_threshold: '预警值',
-    visitor_name: '回访人'
+    requested_quantity: '申请数量',
+    requester_name: '申请人',
+    approver_name: '审批人',
+    visitor_name: '回访人',
+    status: '状态'
   }
 
   return (
