@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Tabs, Table, Button, Space, Tag, Checkbox, Modal, Input, 
-  Select, message, Row, Col, Card, Avatar, Tooltip, Divider
+  Select, message, Row, Col, Card, Avatar, Divider, Badge, Tooltip
 } from 'antd'
 import {
   WarningOutlined,
@@ -10,7 +10,9 @@ import {
   InboxOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  CommentOutlined
+  CommentOutlined,
+  PhoneOutlined,
+  ShoppingCartOutlined
 } from '@ant-design/icons'
 import { 
   checkinsAPI, 
@@ -25,6 +27,38 @@ import dayjs from 'dayjs'
 const { TextArea } = Input
 const { Option } = Select
 
+const STATUS_LABEL_MAP = {
+  missed: '漏打卡',
+  late: '迟到',
+  normal: '正常',
+  verified: '已核实',
+  rejected: '已驳回',
+  pending: '待处理',
+  approved: '已通过',
+  completed: '已完成',
+  followup: '待跟进',
+  rectification: '需整改',
+  passed: '已通过',
+  extended: '已延期',
+  none: '-'
+}
+
+const STATUS_COLOR_MAP = {
+  missed: 'red',
+  late: 'orange',
+  normal: 'green',
+  verified: 'blue',
+  rejected: 'default',
+  pending: 'orange',
+  approved: 'green',
+  completed: 'green',
+  followup: 'blue',
+  rectification: 'orange',
+  passed: 'green',
+  extended: 'orange',
+  none: 'default'
+}
+
 function ReviewPanel() {
   const [activeTab, setActiveTab] = useState('checkins')
   const [selectedRows, setSelectedRows] = useState([])
@@ -33,7 +67,7 @@ function ReviewPanel() {
   const [lowStockSupplies, setLowStockSupplies] = useState([])
   const [supplyRequests, setSupplyRequests] = useState([])
   const [pendingFollowups, setPendingFollowups] = useState([])
-  const [processModal, setProcessModal] = useState({ visible: false, type: '', data: [] })
+  const [processModal, setProcessModal] = useState({ visible: false, type: '', data: [], presetStatus: '' })
   const [remark, setRemark] = useState('')
   const [newStatus, setNewStatus] = useState('')
   const [detailModal, setDetailModal] = useState({ visible: false, type: '', data: null })
@@ -43,11 +77,7 @@ function ReviewPanel() {
   const user = useAuthStore((state) => state.user)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    loadAllData()
-  }, [])
-
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       const [missedRes, rectRes, suppliesRes, requestsRes, followupsRes] = await Promise.all([
         checkinsAPI.getMissedCheckins(14),
@@ -64,22 +94,16 @@ function ReviewPanel() {
     } catch (err) {
       message.error('加载数据失败')
     }
-  }
+  }, [])
 
-  const handleBatchProcess = (type, items) => {
-    setProcessModal({
-      visible: true,
-      type,
-      data: items
-    })
+  useEffect(() => {
+    loadAllData()
+  }, [loadAllData])
+
+  const handleBatchProcess = (type, items, presetStatus) => {
+    setNewStatus(presetStatus)
     setRemark('')
-    if (type === 'checkins') {
-      setNewStatus('verified')
-    } else if (type === 'rectifications') {
-      setNewStatus('completed')
-    } else if (type === 'supplies') {
-      setNewStatus('approved')
-    }
+    setProcessModal({ visible: true, type, data: items, presetStatus })
   }
 
   const confirmBatchProcess = async () => {
@@ -91,29 +115,28 @@ function ReviewPanel() {
     try {
       const ids = processModal.data.map(item => item.id)
       if (processModal.type === 'checkins') {
-        await checkinsAPI.batchProcess({
-          ids,
-          status: newStatus,
-          remark,
-          processed_by: user.id
-        })
+        await checkinsAPI.batchProcess({ ids, status: newStatus, remark, processed_by: user.id })
       } else if (processModal.type === 'rectifications') {
-        await inspectionsAPI.batchRectification({
-          ids,
-          status: newStatus,
-          remark,
-          processed_by: user.id
-        })
+        await inspectionsAPI.batchRectification({ ids, status: newStatus, remark, processed_by: user.id })
       } else if (processModal.type === 'supplies') {
-        await suppliesAPI.batchProcessRequests({
-          ids,
-          status: newStatus,
-          remark,
-          processed_by: user.id
-        })
+        await suppliesAPI.batchProcessRequests({ ids, status: newStatus, remark, processed_by: user.id })
+      } else if (processModal.type === 'followups') {
+        for (const id of ids) {
+          await renewalsAPI.updateStatus(id, { status: newStatus, remark, changed_by: user.id })
+        }
+      } else if (processModal.type === 'lowstock') {
+        for (const item of processModal.data) {
+          await suppliesAPI.createRequest({
+            project_id: item.project_id,
+            supply_id: item.id,
+            requested_quantity: item.min_threshold * 2 - item.quantity,
+            requested_by: user.id,
+            remark: remark || '库存不足，自动补货申请'
+          })
+        }
       }
       message.success('批量处理成功')
-      setProcessModal({ visible: false, type: '', data: [] })
+      setProcessModal({ visible: false, type: '', data: [], presetStatus: '' })
       setSelectedRows([])
       loadAllData()
     } catch (err) {
@@ -125,6 +148,8 @@ function ReviewPanel() {
 
   const openDetail = async (type, record) => {
     setDetailModal({ visible: true, type, data: record })
+    setComments([])
+    setStatusHistory([])
     try {
       let commentsRes
       if (type === 'checkin') {
@@ -133,228 +158,101 @@ function ReviewPanel() {
         commentsRes = await inspectionsAPI.getComments(record.id)
       } else if (type === 'renewal') {
         commentsRes = await renewalsAPI.getComments(record.id)
+      } else if (type === 'supply') {
+        commentsRes = { data: [] }
       }
       if (commentsRes) setComments(commentsRes.data)
 
       const historyRes = await statusHistoryAPI.getHistory({
-        related_type: type,
+        related_type: type === 'checkin' ? 'checkin' : type === 'inspection' ? 'inspection' : type === 'renewal' ? 'renewal' : 'supply',
         related_id: record.id
       })
       setStatusHistory(historyRes.data)
     } catch (err) {
-      console.error('加载详情失败')
+      console.error('加载详情失败', err)
     }
   }
 
   const addComment = async () => {
     if (!newComment.trim()) {
-      message.warning('请输入评论内容')
+      message.warning('请输入备注内容')
       return
     }
     try {
-      if (detailModal.type === 'checkin') {
-        await checkinsAPI.addComment(detailModal.data.id, {
-          content: newComment,
-          created_by: user.id
-        })
-        const res = await checkinsAPI.getComments(detailModal.data.id)
-        setComments(res.data)
-      } else if (detailModal.type === 'inspection') {
-        await inspectionsAPI.addComment(detailModal.data.id, {
-          content: newComment,
-          created_by: user.id
-        })
-        const res = await inspectionsAPI.getComments(detailModal.data.id)
-        setComments(res.data)
-      } else if (detailModal.type === 'renewal') {
-        await renewalsAPI.addComment(detailModal.data.id, {
-          content: newComment,
-          created_by: user.id
-        })
-        const res = await renewalsAPI.getComments(detailModal.data.id)
+      const typeMap = {
+        checkin: checkinsAPI,
+        inspection: inspectionsAPI,
+        renewal: renewalsAPI
+      }
+      const api = typeMap[detailModal.type]
+      if (api) {
+        await api.addComment(detailModal.data.id, { content: newComment, created_by: user.id })
+        const res = await api.getComments(detailModal.data.id)
         setComments(res.data)
       }
       setNewComment('')
-      message.success('评论添加成功')
+      message.success('备注添加成功')
     } catch (err) {
       message.error('添加失败')
     }
   }
 
   const checkinColumns = [
-    {
-      title: '项目名称',
-      dataIndex: 'project_name',
-      key: 'project_name',
-      render: (text) => <strong>{text}</strong>
-    },
-    {
-      title: '清洁员',
-      dataIndex: 'cleaner_name',
-      key: 'cleaner_name'
-    },
-    {
-      title: '日期',
-      dataIndex: 'schedule_date',
-      key: 'schedule_date'
-    },
-    {
-      title: '班次',
-      dataIndex: 'shift_type',
-      key: 'shift_type',
-      render: (val) => val === 'day' ? '白班' : '夜班'
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: () => <Tag color="red">漏打卡</Tag>
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => openDetail('checkin', record)}>
-            详情
-          </Button>
-        </Space>
-      )
-    }
+    { title: '项目名称', dataIndex: 'project_name', key: 'project_name', render: (t) => <strong>{t}</strong> },
+    { title: '清洁员', dataIndex: 'cleaner_name', key: 'cleaner_name' },
+    { title: '日期', dataIndex: 'schedule_date', key: 'schedule_date' },
+    { title: '班次', dataIndex: 'shift_type', key: 'shift_type', render: (v) => v === 'day' ? '白班' : '夜班' },
+    { title: '状态', key: 'status', render: () => <Tag color="red">漏打卡</Tag> },
+    { title: '操作', key: 'action', render: (_, r) => <Button type="link" size="small" onClick={() => openDetail('checkin', r)}>详情</Button> }
   ]
 
   const rectificationColumns = [
-    {
-      title: '项目名称',
-      dataIndex: 'project_name',
-      key: 'project_name',
-      render: (text) => <strong>{text}</strong>
-    },
-    {
-      title: '质检日期',
-      dataIndex: 'inspection_date',
-      key: 'inspection_date'
-    },
-    {
-      title: '得分',
-      dataIndex: 'score',
-      key: 'score',
-      render: (val) => <span style={{ color: val < 85 ? '#ff4d4f' : '#fa8c16' }}>{val}分</span>
-    },
-    {
-      title: '问题',
-      dataIndex: 'issues',
-      key: 'issues',
-      ellipsis: true
-    },
-    {
-      title: '整改截止',
-      dataIndex: 'rectification_deadline',
-      key: 'rectification_deadline',
-      render: (val) => {
-        const isOverdue = dayjs(val).isBefore(dayjs(), 'day')
-        return <span style={{ color: isOverdue ? '#ff4d4f' : 'inherit' }}>{val}</span>
-      }
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => openDetail('inspection', record)}>
-            详情
-          </Button>
-        </Space>
-      )
-    }
+    { title: '项目名称', dataIndex: 'project_name', key: 'project_name', render: (t) => <strong>{t}</strong> },
+    { title: '质检日期', dataIndex: 'inspection_date', key: 'inspection_date' },
+    { title: '得分', dataIndex: 'score', key: 'score', render: (v) => <span style={{ color: v < 85 ? '#ff4d4f' : '#fa8c16' }}>{v}分</span> },
+    { title: '问题', dataIndex: 'issues', key: 'issues', ellipsis: true },
+    { title: '整改截止', dataIndex: 'rectification_deadline', key: 'rectification_deadline', render: (v) => {
+      const isOverdue = dayjs(v).isBefore(dayjs(), 'day')
+      return <span style={{ color: isOverdue ? '#ff4d4f' : 'inherit' }}>{v}</span>
+    }},
+    { title: '操作', key: 'action', render: (_, r) => <Button type="link" size="small" onClick={() => openDetail('inspection', r)}>详情</Button> }
   ]
 
   const supplyRequestColumns = [
-    {
-      title: '项目名称',
-      dataIndex: 'project_name',
-      key: 'project_name',
-      render: (text) => <strong>{text}</strong>
-    },
-    {
-      title: '耗材名称',
-      dataIndex: 'supply_name',
-      key: 'supply_name'
-    },
-    {
-      title: '申请数量',
-      dataIndex: 'requested_quantity',
-      key: 'requested_quantity',
-      render: (val, record) => `${val}${record.unit}`
-    },
-    {
-      title: '申请人',
-      dataIndex: 'requester_name',
-      key: 'requester_name'
-    },
-    {
-      title: '申请时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (val) => dayjs(val).format('YYYY-MM-DD HH:mm')
-    },
-    {
-      title: '备注',
-      dataIndex: 'remark',
-      key: 'remark',
-      ellipsis: true
-    }
+    { title: '项目名称', dataIndex: 'project_name', key: 'project_name', render: (t) => <strong>{t}</strong> },
+    { title: '耗材名称', dataIndex: 'supply_name', key: 'supply_name' },
+    { title: '申请数量', dataIndex: 'requested_quantity', key: 'requested_quantity', render: (v, r) => `${v}${r.unit || ''}` },
+    { title: '申请人', dataIndex: 'requester_name', key: 'requester_name' },
+    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true }
   ]
 
   const followupColumns = [
-    {
-      title: '项目名称',
-      dataIndex: 'project_name',
-      key: 'project_name',
-      render: (text) => <strong>{text}</strong>
-    },
-    {
-      title: '客户',
-      dataIndex: 'client_name',
-      key: 'client_name'
-    },
-    {
-      title: '满意度',
-      dataIndex: 'satisfaction_score',
-      key: 'satisfaction_score',
-      render: (val) => `${val}星`
-    },
-    {
-      title: '续约意向',
-      dataIndex: 'renewal_intention',
-      key: 'renewal_intention',
-      render: (val) => {
-        const colors = { high: 'green', medium: 'orange', low: 'red' }
-        const labels = { high: '高', medium: '中', low: '低' }
-        return <Tag color={colors[val]}>{labels[val]}</Tag>
-      }
-    },
-    {
-      title: '下次跟进',
-      dataIndex: 'next_followup_date',
-      key: 'next_followup_date'
-    },
-    {
-      title: '合同到期',
-      dataIndex: 'contract_end_date',
-      key: 'contract_end_date'
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => openDetail('renewal', record)}>
-            详情
-          </Button>
-        </Space>
-      )
-    }
+    { title: '项目名称', dataIndex: 'project_name', key: 'project_name', render: (t) => <strong>{t}</strong> },
+    { title: '客户', dataIndex: 'client_name', key: 'client_name' },
+    { title: '满意度', dataIndex: 'satisfaction_score', key: 'satisfaction_score', render: (v) => `${v}星` },
+    { title: '续约意向', dataIndex: 'renewal_intention', key: 'renewal_intention', render: (v) => {
+      const colors = { high: 'green', medium: 'orange', low: 'red' }
+      const labels = { high: '高', medium: '中', low: '低' }
+      return <Tag color={colors[v]}>{labels[v]}</Tag>
+    }},
+    { title: '下次跟进', dataIndex: 'next_followup_date', key: 'next_followup_date' },
+    { title: '合同到期', dataIndex: 'contract_end_date', key: 'contract_end_date' },
+    { title: '操作', key: 'action', render: (_, r) => <Button type="link" size="small" onClick={() => openDetail('renewal', r)}>详情</Button> }
+  ]
+
+  const lowStockColumns = [
+    { title: '项目名称', dataIndex: 'project_name', key: 'project_name', render: (t) => <strong>{t}</strong> },
+    { title: '耗材', dataIndex: 'name', key: 'name' },
+    { title: '当前库存', key: 'current', render: (_, r) => (
+      <span style={{ color: r.quantity < r.min_threshold ? '#ff4d4f' : 'inherit', fontWeight: 'bold' }}>
+        {r.quantity}{r.unit}
+      </span>
+    )},
+    { title: '预警值', key: 'threshold', render: (_, r) => `${r.min_threshold}${r.unit}` },
+    { title: '缺口', key: 'gap', render: (_, r) => (
+      <Tag color="red">缺 {r.min_threshold - r.quantity}{r.unit}</Tag>
+    )},
+    { title: '操作', key: 'action', render: (_, r) => <Button type="link" size="small" onClick={() => openDetail('supply', r)}>详情</Button> }
   ]
 
   const rowSelection = {
@@ -362,351 +260,246 @@ function ReviewPanel() {
     onChange: (_, rows) => setSelectedRows(rows)
   }
 
+  const renderActionBar = (dataSource, onBatch, batchLabel, onReject, rejectLabel) => (
+    <Card style={{ marginBottom: 16 }}>
+      <Row align="middle" justify="space-between">
+        <Col>
+          <Space>
+            <Checkbox
+              indeterminate={selectedRows.length > 0 && selectedRows.length < dataSource.length}
+              checked={selectedRows.length > 0 && selectedRows.length === dataSource.length}
+              onChange={(e) => setSelectedRows(e.target.checked ? dataSource : [])}
+            >
+              全选
+            </Checkbox>
+            <span>已选 {selectedRows.length} 项</span>
+          </Space>
+        </Col>
+        <Col>
+          <Space>
+            <Button type="primary" icon={<CheckCircleOutlined />} disabled={selectedRows.length === 0} onClick={() => onBatch()}>
+              {batchLabel}
+            </Button>
+            {onReject && (
+              <Button danger icon={<CloseCircleOutlined />} disabled={selectedRows.length === 0} onClick={() => onReject()}>
+                {rejectLabel}
+              </Button>
+            )}
+          </Space>
+        </Col>
+      </Row>
+    </Card>
+  )
+
+  const typeLabel = (t) => {
+    const map = { checkins: '漏打卡', rectifications: '整改', supplies: '耗材申请', followups: '续约跟进', lowstock: '低库存补货' }
+    return map[t] || t
+  }
+
+  const statusOptions = (type) => {
+    if (type === 'checkins') return [<Option key="verified" value="verified">确认属实</Option>, <Option key="rejected" value="rejected">已补卡/驳回</Option>]
+    if (type === 'rectifications') return [<Option key="completed" value="completed">整改完成</Option>, <Option key="extended" value="extended">申请延期</Option>]
+    if (type === 'supplies') return [<Option key="approved" value="approved">通过</Option>, <Option key="rejected" value="rejected">驳回</Option>]
+    if (type === 'followups') return [<Option key="completed" value="completed">已完成跟进</Option>, <Option key="pending" value="pending">待再次回访</Option>]
+    if (type === 'lowstock') return [<Option key="approved" value="approved">确认并提交补货申请</Option>]
+    return []
+  }
+
   const tabItems = [
     {
       key: 'checkins',
-      label: (
-        <Space>
-          <WarningOutlined style={{ color: '#ff4d4f' }} />
-          漏打卡处理
-          <Tag color="red" size="small">{missedCheckins.length}</Tag>
-        </Space>
-      ),
+      label: <Space><WarningOutlined style={{ color: '#ff4d4f' }} />漏打卡处理<Tag color="red">{missedCheckins.length}</Tag></Space>,
       children: (
         <>
-          <Card style={{ marginBottom: 16 }}>
-            <Row align="middle" justify="space-between">
-              <Col>
-                <Space>
-                  <Checkbox
-                    indeterminate={selectedRows.length > 0 && selectedRows.length < missedCheckins.length}
-                    checked={selectedRows.length > 0 && selectedRows.length === missedCheckins.length}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedRows(missedCheckins)
-                      } else {
-                        setSelectedRows([])
-                      }
-                    }}
-                  >
-                    全选
-                  </Checkbox>
-                  <span>已选 {selectedRows.length} 项</span>
-                </Space>
-              </Col>
-              <Col>
-                <Space>
-                  <Button 
-                    type="primary" 
-                    icon={<CheckCircleOutlined />}
-                    disabled={selectedRows.length === 0}
-                    onClick={() => handleBatchProcess('checkins', selectedRows)}
-                  >
-                    批量确认
-                  </Button>
-                  <Button 
-                    danger
-                    icon={<CloseCircleOutlined />}
-                    disabled={selectedRows.length === 0}
-                    onClick={() => {
-                      setNewStatus('rejected')
-                      handleBatchProcess('checkins', selectedRows)
-                    }}
-                  >
-                    批量驳回
-                  </Button>
-                </Space>
-              </Col>
-            </Row>
-          </Card>
-          <Table
-            rowKey="id"
-            columns={checkinColumns}
-            dataSource={missedCheckins}
-            rowSelection={rowSelection}
-            pagination={{ pageSize: 10 }}
-          />
+          {renderActionBar(
+            missedCheckins,
+            () => handleBatchProcess('checkins', selectedRows, 'verified'),
+            '批量确认',
+            () => handleBatchProcess('checkins', selectedRows, 'rejected'),
+            '批量驳回'
+          )}
+          <Table rowKey="id" columns={checkinColumns} dataSource={missedCheckins} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
         </>
       )
     },
     {
       key: 'rectifications',
-      label: (
-        <Space>
-          <ClockCircleOutlined style={{ color: '#fa8c16' }} />
-          整改追踪
-          <Tag color="orange" size="small">{pendingRectifications.length}</Tag>
-        </Space>
-      ),
+      label: <Space><ClockCircleOutlined style={{ color: '#fa8c16' }} />整改追踪<Tag color="orange">{pendingRectifications.length}</Tag></Space>,
       children: (
         <>
-          <Card style={{ marginBottom: 16 }}>
-            <Row align="middle" justify="space-between">
-              <Col>
-                <Space>
-                  <Checkbox
-                    indeterminate={selectedRows.length > 0 && selectedRows.length < pendingRectifications.length}
-                    checked={selectedRows.length > 0 && selectedRows.length === pendingRectifications.length}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedRows(pendingRectifications)
-                      } else {
-                        setSelectedRows([])
-                      }
-                    }}
-                  >
-                    全选
-                  </Checkbox>
-                  <span>已选 {selectedRows.length} 项</span>
-                </Space>
-              </Col>
-              <Col>
-                <Button 
-                  type="primary" 
-                  icon={<CheckCircleOutlined />}
-                  disabled={selectedRows.length === 0}
-                  onClick={() => handleBatchProcess('rectifications', selectedRows)}
-                >
-                  标记整改完成
-                </Button>
-              </Col>
-            </Row>
-          </Card>
-          <Table
-            rowKey="id"
-            columns={rectificationColumns}
-            dataSource={pendingRectifications}
-            rowSelection={rowSelection}
-            pagination={{ pageSize: 10 }}
-          />
+          {renderActionBar(
+            pendingRectifications,
+            () => handleBatchProcess('rectifications', selectedRows, 'completed'),
+            '标记整改完成',
+            () => handleBatchProcess('rectifications', selectedRows, 'extended'),
+            '申请延期'
+          )}
+          <Table rowKey="id" columns={rectificationColumns} dataSource={pendingRectifications} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
         </>
       )
     },
     {
       key: 'supplies',
-      label: (
-        <Space>
-          <InboxOutlined style={{ color: '#faad14' }} />
-          耗材审批
-          <Tag color="orange" size="small">{supplyRequests.length}</Tag>
-        </Space>
-      ),
+      label: <Space><ShoppingCartOutlined style={{ color: '#722ed1' }} />耗材审批<Tag color="purple">{supplyRequests.length}</Tag></Space>,
       children: (
         <>
-          <Card style={{ marginBottom: 16 }}>
-            <Row align="middle" justify="space-between">
-              <Col>
-                <Space>
-                  <Checkbox
-                    indeterminate={selectedRows.length > 0 && selectedRows.length < supplyRequests.length}
-                    checked={selectedRows.length > 0 && selectedRows.length === supplyRequests.length}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedRows(supplyRequests)
-                      } else {
-                        setSelectedRows([])
-                      }
-                    }}
-                  >
-                    全选
-                  </Checkbox>
-                  <span>已选 {selectedRows.length} 项</span>
-                </Space>
-              </Col>
-              <Col>
-                <Space>
-                  <Button 
-                    type="primary" 
-                    icon={<CheckCircleOutlined />}
-                    disabled={selectedRows.length === 0}
-                    onClick={() => {
-                      setNewStatus('approved')
-                      handleBatchProcess('supplies', selectedRows)
-                    }}
-                  >
-                    批量通过
-                  </Button>
-                  <Button 
-                    danger
-                    icon={<CloseCircleOutlined />}
-                    disabled={selectedRows.length === 0}
-                    onClick={() => {
-                      setNewStatus('rejected')
-                      handleBatchProcess('supplies', selectedRows)
-                    }}
-                  >
-                    批量驳回
-                  </Button>
-                </Space>
-              </Col>
-            </Row>
-          </Card>
-          <Table
-            rowKey="id"
-            columns={supplyRequestColumns}
-            dataSource={supplyRequests}
-            rowSelection={rowSelection}
-            pagination={{ pageSize: 10 }}
-          />
+          {renderActionBar(
+            supplyRequests,
+            () => handleBatchProcess('supplies', selectedRows, 'approved'),
+            '批量通过',
+            () => handleBatchProcess('supplies', selectedRows, 'rejected'),
+            '批量驳回'
+          )}
+          <Table rowKey="id" columns={supplyRequestColumns} dataSource={supplyRequests} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
+        </>
+      )
+    },
+    {
+      key: 'lowstock',
+      label: <Space><InboxOutlined style={{ color: '#faad14' }} />低库存补货<Tag color="orange">{lowStockSupplies.length}</Tag></Space>,
+      children: (
+        <>
+          {renderActionBar(
+            lowStockSupplies,
+            () => handleBatchProcess('lowstock', selectedRows, 'approved'),
+            '一键补货申请',
+            null,
+            null
+          )}
+          <Table rowKey="id" columns={lowStockColumns} dataSource={lowStockSupplies} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
         </>
       )
     },
     {
       key: 'followups',
-      label: (
-        <Space>
-          <ExclamationCircleOutlined style={{ color: '#1890ff' }} />
-          续约跟进
-          <Tag color="blue" size="small">{pendingFollowups.length}</Tag>
-        </Space>
-      ),
+      label: <Space><PhoneOutlined style={{ color: '#1890ff' }} />续约跟进<Tag color="blue">{pendingFollowups.length}</Tag></Space>,
       children: (
-        <Table
-          rowKey="id"
-          columns={followupColumns}
-          dataSource={pendingFollowups}
-          pagination={{ pageSize: 10 }}
-        />
+        <>
+          {renderActionBar(
+            pendingFollowups,
+            () => handleBatchProcess('followups', selectedRows, 'completed'),
+            '标记已完成跟进',
+            () => handleBatchProcess('followups', selectedRows, 'pending'),
+            '标记待再次回访'
+          )}
+          <Table rowKey="id" columns={followupColumns} dataSource={pendingFollowups} rowSelection={rowSelection} pagination={{ pageSize: 10 }} />
+        </>
       )
     }
   ]
 
+  const detailFieldLabels = {
+    project_name: '项目',
+    cleaner_name: '清洁员',
+    schedule_date: '日期',
+    shift_type: '班次',
+    checkin_time: '打卡时间',
+    checkout_time: '签退时间',
+    inspection_date: '质检日期',
+    score: '得分',
+    issues: '问题',
+    rectification_deadline: '整改截止',
+    client_name: '客户',
+    client_contact: '对接人',
+    satisfaction_score: '满意度',
+    feedback: '反馈',
+    renewal_intention: '续约意向',
+    next_followup_date: '下次跟进',
+    contract_end_date: '合同到期',
+    name: '耗材',
+    quantity: '库存',
+    unit: '单位',
+    min_threshold: '预警值',
+    visitor_name: '回访人'
+  }
+
   return (
     <div>
-      <Card 
-        title="批量复核面板" 
-        extra={
-          <Button type="primary" onClick={loadAllData}>
-            刷新数据
-          </Button>
-        }
-      >
-        <Tabs 
-          activeKey={activeTab} 
-          onChange={(key) => {
-            setActiveTab(key)
-            setSelectedRows([])
-          }}
-          items={tabItems}
-        />
+      <Card title="批量复核面板" extra={<Button type="primary" onClick={loadAllData}>刷新数据</Button>}>
+        <Tabs activeKey={activeTab} onChange={(key) => { setActiveTab(key); setSelectedRows([]) }} items={tabItems} />
       </Card>
 
       <Modal
-        title={`批量处理 - ${processModal.type === 'checkins' ? '漏打卡' : processModal.type === 'rectifications' ? '整改' : '耗材申请'}`}
+        title={`批量处理 - ${typeLabel(processModal.type)}`}
         open={processModal.visible}
         onOk={confirmBatchProcess}
-        onCancel={() => setProcessModal({ visible: false, type: '', data: [] })}
+        onCancel={() => setProcessModal({ visible: false, type: '', data: [], presetStatus: '' })}
         confirmLoading={loading}
         width={600}
       >
         <p>已选择 <strong>{processModal.data.length}</strong> 条记录进行处理：</p>
         <div style={{ maxHeight: 150, overflow: 'auto', background: '#f5f5f5', padding: 12, borderRadius: 4, marginBottom: 16 }}>
           {processModal.data.map(item => (
-            <div key={item.id}>
-              • {item.project_name || item.supply_name || item.client_name}
-            </div>
+            <div key={item.id}>• {item.project_name || item.supply_name || item.client_name || item.name}</div>
           ))}
         </div>
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <label>处理结果：</label>
-            <Select 
-              value={newStatus} 
-              onChange={setNewStatus}
-              style={{ width: 200, marginLeft: 8 }}
-            >
-              {processModal.type === 'checkins' && (
-                <>
-                  <Option value="verified">确认属实</Option>
-                  <Option value="rejected">已补卡/驳回</Option>
-                </>
-              )}
-              {processModal.type === 'rectifications' && (
-                <>
-                  <Option value="completed">整改完成</Option>
-                  <Option value="extended">申请延期</Option>
-                </>
-              )}
-              {processModal.type === 'supplies' && (
-                <>
-                  <Option value="approved">通过</Option>
-                  <Option value="rejected">驳回</Option>
-                </>
-              )}
+            <Select value={newStatus} onChange={setNewStatus} style={{ width: 240, marginLeft: 8 }}>
+              {statusOptions(processModal.type)}
             </Select>
           </div>
           <div>
             <label>备注说明：</label>
-            <TextArea 
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              rows={3}
-              placeholder="请输入处理备注（可选）"
-              style={{ marginTop: 8 }}
-            />
+            <TextArea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} placeholder="请输入处理备注（可选）" style={{ marginTop: 8 }} />
           </div>
         </Space>
       </Modal>
 
       <Modal
-        title="详情查看"
+        title="详情与留痕"
         open={detailModal.visible}
         onCancel={() => setDetailModal({ visible: false, type: '', data: null })}
         footer={null}
-        width={700}
+        width={720}
       >
         {detailModal.data && (
           <>
-            <Card size="small" title="基本信息">
-              {Object.entries(detailModal.data).slice(0, 8).map(([key, value]) => (
-                <div key={key} style={{ marginBottom: 8 }}>
-                  <strong>{key}：</strong>{String(value || '-')}
-                </div>
-              ))}
+            <Card size="small" title="基本信息" style={{ marginBottom: 12 }}>
+              <Row gutter={[16, 8]}>
+                {Object.entries(detailModal.data).filter(([k]) => detailFieldLabels[k]).slice(0, 12).map(([key, value]) => (
+                  <Col span={8} key={key}>
+                    <span style={{ color: '#999' }}>{detailFieldLabels[key]}：</span>
+                    <strong>{key === 'shift_type' ? (value === 'day' ? '白班' : '夜班') : String(value ?? '-')}</strong>
+                  </Col>
+                ))}
+              </Row>
             </Card>
 
-            <Divider />
-
-            <Card size="small" title="状态变更历史">
+            <Card size="small" title={<Space><ClockCircleOutlined /> 状态变更历史</Space>} style={{ marginBottom: 12 }}>
               {statusHistory.length > 0 ? (
                 statusHistory.map((h, idx) => (
-                  <div key={idx} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
-                    <Space>
-                      <Tag>{h.old_status} → {h.new_status}</Tag>
-                      <span>{h.changer_name}</span>
-                      <span style={{ color: '#999' }}>{dayjs(h.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                  <div key={idx} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid #f0f0f0' }}>
+                    <Space wrap>
+                      <Tag color={STATUS_COLOR_MAP[h.old_status] || 'default'}>{STATUS_LABEL_MAP[h.old_status] || h.old_status}</Tag>
+                      <span style={{ color: '#999' }}>→</span>
+                      <Tag color={STATUS_COLOR_MAP[h.new_status] || 'blue'}>{STATUS_LABEL_MAP[h.new_status] || h.new_status}</Tag>
+                      <Badge count={h.changer_name} style={{ backgroundColor: '#1890ff', fontSize: 11 }} />
+                      <span style={{ color: '#999', fontSize: 12 }}>{dayjs(h.created_at).format('YYYY-MM-DD HH:mm')}</span>
                     </Space>
-                    {h.remark && <div style={{ marginTop: 4, color: '#666' }}>备注：{h.remark}</div>}
+                    {h.remark && <div style={{ marginTop: 4, color: '#666', fontSize: 13 }}>备注：{h.remark}</div>}
                   </div>
                 ))
               ) : (
-                <div style={{ color: '#999' }}>暂无变更记录</div>
+                <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无变更记录</div>
               )}
             </Card>
 
-            <Divider />
-
-            <Card size="small" title="备注交流">
+            <Card size="small" title={<Space><CommentOutlined /> 备注交流</Space>}>
               <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
-                <Input 
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="添加备注..."
-                  onPressEnter={addComment}
-                />
+                <Input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="添加备注..." onPressEnter={addComment} />
                 <Button type="primary" onClick={addComment}>发送</Button>
               </Space.Compact>
               {comments.length > 0 ? (
                 comments.map(c => (
-                  <div key={c.id} className="comment-item">
+                  <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
                     <Space align="start">
-                      <Avatar size="small">{c.creator_name?.[0]}</Avatar>
-                      <div style={{ flex: 1 }}>
+                      <Avatar size="small" style={{ backgroundColor: '#1890ff' }}>{c.creator_name?.[0]}</Avatar>
+                      <div>
                         <div>
                           <strong>{c.creator_name}</strong>
-                          <span style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>
-                            {dayjs(c.created_at).format('YYYY-MM-DD HH:mm')}
-                          </span>
+                          <span style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>{dayjs(c.created_at).format('YYYY-MM-DD HH:mm')}</span>
                         </div>
                         <div style={{ marginTop: 4 }}>{c.content}</div>
                       </div>
@@ -714,7 +507,7 @@ function ReviewPanel() {
                   </div>
                 ))
               ) : (
-                <div style={{ color: '#999' }}>暂无备注</div>
+                <div style={{ color: '#999', textAlign: 'center', padding: 12 }}>暂无备注</div>
               )}
             </Card>
           </>

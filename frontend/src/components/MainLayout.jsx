@@ -9,7 +9,7 @@ import {
   UserOutlined,
   SwitcherOutlined,
   LogoutOutlined
-} from 'antd/icons'
+} from '@ant-design/icons'
 import useAuthStore from '../stores/useAuthStore'
 import { notificationsAPI } from '../services/api'
 

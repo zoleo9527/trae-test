@@ -241,7 +241,75 @@ const seedData = (callback) => {
     renewStmt.run(3, today.subtract(5, 'day').format('YYYY-MM-DD'), 2, '王经理', 4, '整体服务不错，希望加强节假日清洁', 'high', today.add(5, 'day').format('YYYY-MM-DD'), 'followup');
     renewStmt.run(5, today.subtract(10, 'day').format('YYYY-MM-DD'), 3, '李总', 3, '部分区域清洁不到位，需要改进', 'medium', today.add(3, 'day').format('YYYY-MM-DD'), 'followup');
     renewStmt.run(1, today.subtract(30, 'day').format('YYYY-MM-DD'), 2, '张主任', 5, '服务非常满意', 'high', null, 'completed');
+    renewStmt.run(4, today.subtract(15, 'day').format('YYYY-MM-DD'), 3, '刘主任', 4, '服务质量稳定，继续保持', 'high', today.add(10, 'day').format('YYYY-MM-DD'), 'followup');
     renewStmt.finalize();
+
+    const commentStmt = db.prepare('INSERT INTO comments (related_type, related_id, content, created_by, created_at) VALUES (?, ?, ?, ?, ?)');
+    const now = dayjs();
+    
+    commentStmt.run('checkin', 16, '当天该清洁员请假未及时报备，请补走请假流程', 4, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('checkin', 16, '已收到请假申请，确认补卡通过', 2, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('checkin', 36, '连续两天漏打卡，需要约谈了解情况', 5, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    commentStmt.run('inspection', 1, '已安排整改，清洁班组加班处理，请尽快复查', 2, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('inspection', 1, '复查通过，整改质量合格', 5, now.format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('inspection', 5, '卫生间异味问题比较严重，建议增加清洁频次', 3, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    commentStmt.run('renewal', 1, '客户对我们的服务整体还是认可的，已发送续约报价', 2, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('renewal', 1, '报价已确认，等待客户走内部审批流程', 2, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('renewal', 2, '客户对夜间清洁质量有异议，需重点关注并改进', 3, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('renewal', 4, '医院领导对消毒工作很满意，续约希望很大', 3, now.subtract(10, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    commentStmt.run('supply', 3, '拖布损耗较大，建议增加备用库存', 5, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('supply', 6, '清洁剂用量异常，请核实实际使用情况', 2, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    commentStmt.run('supply_request', 1, '库存确实紧张，建议尽快采购', 4, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.run('supply_request', 4, '上月刚采购过，确认是否有浪费情况', 3, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    commentStmt.finalize();
+
+    const historyStmt = db.prepare('INSERT INTO status_history (related_type, related_id, old_status, new_status, remark, changed_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    
+    historyStmt.run('project', 3, 'active', 'expiring', '合同即将到期，启动续约跟进', 2, now.subtract(15, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('project', 5, 'active', 'renewal', '续约谈判中', 2, now.subtract(20, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    historyStmt.run('checkin', 16, 'missed', 'verified', '补卡申请通过', 2, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('checkin', 36, 'missed', 'rejected', '无故旷工，按规定处理', 2, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    historyStmt.run('inspection', 1, 'pending', 'rectification', '发现问题需要整改', 5, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('inspection', 1, 'rectification', 'passed', '整改完成，复查通过', 5, now.format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('inspection', 5, 'pending', 'rectification', '清洁质量不达标', 6, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    historyStmt.run('supply_request', 2, 'pending', 'approved', '同意领用', 2, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('supply_request', 4, 'pending', 'rejected', '用量异常，需核实', 3, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('supply_request', 1, null, 'pending', '新建补货申请', 4, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('supply_request', 3, null, 'pending', '新建补货申请', 4, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    historyStmt.run('renewal', 1, null, 'followup', '首次回访，待跟进', 2, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('renewal', 2, null, 'followup', '回访完成，待进一步沟通', 3, now.subtract(10, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.run('renewal', 3, 'followup', 'completed', '续约成功', 2, now.subtract(20, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    historyStmt.finalize();
+
+    const notifStmt = db.prepare('INSERT INTO notifications (user_id, type, title, content, related_type, related_id, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    
+    notifStmt.run(2, 'checkin', '漏打卡提醒', '国贸大厦A座有1人次未打卡', 'checkin', 16, 0, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(2, 'checkin', '漏打卡提醒', '医院住院部有1人次未打卡', 'checkin', 36, 1, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(2, 'checkin', '迟到提醒', '科技园办公楼清洁员迟到', 'checkin', 2, 1, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    notifStmt.run(2, 'inspection', '待整改提醒', '科技园办公楼质检发现问题待整改', 'inspection', 5, 0, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(3, 'inspection', '待整改提醒', '购物中心日常保洁质检需整改', 'inspection', 9, 0, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(2, 'inspection', '整改完成通知', '国贸大厦A座整改已复查通过', 'inspection', 1, 1, now.format('YYYY-MM-DD HH:mm:ss'));
+    
+    notifStmt.run(2, 'supply', '库存预警', '购物中心清洁剂库存不足', 'supply', 6, 0, now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(3, 'supply', '库存预警', '医院消毒液库存不足', 'supply', 8, 0, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(2, 'supply', '补货申请提醒', '有2笔补货申请待审批', 'supply_request', 1, 0, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    notifStmt.run(2, 'renewal', '续约回访提醒', '购物中心合同即将到期，请安排回访', 'renewal', 1, 0, now.subtract(5, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(3, 'renewal', '续约跟进提醒', '地铁站续约需再次跟进', 'renewal', 2, 0, now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(2, 'renewal', '回访提醒', '医院项目下次跟进日期已到', 'renewal', 4, 0, now.subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    
+    notifStmt.run(4, 'checkin', '排班通知', '下月排班已发布，请查看', 'schedule', 1, 1, now.subtract(10, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.run(5, 'inspection', '质检任务', '本周有3个质检任务待完成', 'inspection', 0, 1, now.subtract(7, 'day').format('YYYY-MM-DD HH:mm:ss'));
+    notifStmt.finalize();
 
     console.log('演示数据生成完成');
     callback();

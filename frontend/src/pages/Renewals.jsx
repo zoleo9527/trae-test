@@ -123,7 +123,7 @@ function Renewals() {
             <Statistic 
               title="待跟进回访" 
               value={pendingCount}
-              prefix={<CommentOutlined style={{ color: '#1890ff' }} />
+              prefix={<CommentOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
@@ -133,7 +133,7 @@ function Renewals() {
             <Statistic 
               title="总回访记录" 
               value={renewals.length}
-              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />
+              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
             />
           </Card>
         </Col>

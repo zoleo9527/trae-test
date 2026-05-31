@@ -24,10 +24,15 @@ const useAuthStore = create((set) => ({
   },
   
   init: () => {
-    const savedUser = localStorage.getItem('user')
-    const savedToken = localStorage.getItem('token')
-    if (savedUser && savedToken) {
-      set({ user: JSON.parse(savedUser), token: savedToken })
+    try {
+      const savedUser = localStorage.getItem('user')
+      const savedToken = localStorage.getItem('token')
+      if (savedUser && savedToken && savedUser !== 'undefined') {
+        set({ user: JSON.parse(savedUser), token: savedToken })
+      }
+    } catch (e) {
+      localStorage.removeItem('user')
+      localStorage.removeItem('token')
     }
   }
 }))

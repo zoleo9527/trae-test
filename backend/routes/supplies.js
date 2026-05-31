@@ -118,7 +118,12 @@ router.post('/requests', (req, res) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    res.json({ id: this.lastID, message: '申请提交成功' });
+    const newId = this.lastID;
+    db.run(`
+      INSERT INTO status_history (related_type, related_id, old_status, new_status, remark, changed_by)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, ['supply_request', newId, null, 'pending', remark || '新建补货申请', requested_by]);
+    res.json({ id: newId, message: '申请提交成功' });
   });
 });
 
