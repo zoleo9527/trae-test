@@ -115,7 +115,7 @@ export const usePrepaidStore = defineStore('prepaid', () => {
       transactionNo: commonStore.generateNo('TX'),
       accountId,
       type: 'consume' as const,
-      amount,
+      amount: -amount,
       balanceBefore,
       balanceAfter: account.balance,
       relatedBookingId,

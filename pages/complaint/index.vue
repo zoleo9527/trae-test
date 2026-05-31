@@ -347,19 +347,22 @@ const categoryOptions = [
 ]
 
 const userOptions = computed(() => {
-  const users = new Map<string, string>()
-  complaintStore.complaints.forEach(c => {
-    if (c.handlerId) {
-      users.set(c.handlerId, c.handlerName!)
-    }
-    if (c.supervisorId) {
-      users.set(c.supervisorId, c.supervisorName!)
-    }
-  })
-  users.set('user_2', '李明-教练主管')
-  users.set('user_3', '王芳-前台')
-  return Array.from(users.entries()).map(([value, label]) => ({ value, label }))
+  return userStore.users
+    .filter(u => u.role === 'manager' || u.role === 'coach_supervisor' || u.role === 'reception')
+    .map(u => ({
+      value: u.id,
+      label: `${u.name}-${getRoleLabel(u.role)}`
+    }))
 })
+
+function getRoleLabel(role: string) {
+  const map: Record<string, string> = {
+    manager: '场馆经理',
+    coach_supervisor: '教练主管',
+    reception: '前台'
+  }
+  return map[role] || role
+}
 
 const filteredComplaints = computed(() => {
   return complaintStore.complaints.filter(complaint => {
@@ -454,10 +457,12 @@ function showAssignModal(complaint: Complaint) {
 
 function confirmAssign() {
   if (selectedComplaintId.value && selectedHandlerId.value) {
-    const handler = userOptions.value.find(u => u.value === selectedHandlerId.value)
-    complaintStore.assignHandler(selectedComplaintId.value, selectedHandlerId.value, handler?.label || '', assignRemark.value)
-    notificationStore.showToastMessage('success', '投诉已分配处理人')
-    showAssignModalFlag.value = false
+    const handler = userStore.users.find(u => u.id === selectedHandlerId.value)
+    if (handler) {
+      complaintStore.assignHandler(selectedComplaintId.value, selectedHandlerId.value, handler.name, assignRemark.value)
+      notificationStore.showToastMessage('success', '投诉已分配处理人')
+      showAssignModalFlag.value = false
+    }
   }
 }
 

@@ -340,7 +340,7 @@ const monthlyConsumption = computed(() => {
   
   return account.value.transactions
     .filter(t => t.type === 'consume' && t.createdAt >= monthStart)
-    .reduce((sum, t) => sum + t.amount, 0)
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 })
 
 function loadAccount() {

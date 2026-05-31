@@ -6,6 +6,8 @@ import { demoCustomerComplaints } from '~/data/demo-complaints'
 import { useCommonStore } from './common'
 import { useUserStore } from './user'
 import { useNotificationStore } from './notification'
+import { usePrepaidStore } from './prepaid'
+import { useBookingStore } from './booking'
 
 export const useComplaintStore = defineStore('complaint', () => {
   const complaints = ref<Complaint[]>([...demoCustomerComplaints, ...mockComplaints])
@@ -16,6 +18,8 @@ export const useComplaintStore = defineStore('complaint', () => {
   const commonStore = useCommonStore()
   const userStore = useUserStore()
   const notificationStore = useNotificationStore()
+  const prepaidStore = usePrepaidStore()
+  const bookingStore = useBookingStore()
 
   const categoryLabelMap: Record<ComplaintCategory, string> = {
     equipment: '器材问题',
@@ -210,10 +214,37 @@ export const useComplaintStore = defineStore('complaint', () => {
     const expectedDate = new Date()
     expectedDate.setDate(expectedDate.getDate() + (complaint.priority === 'urgent' ? 1 : complaint.priority === 'high' ? 2 : 3))
 
+    let customerId = complaint.customerId
+    let relatedBookingId = complaint.relatedBookingId
+    let relatedPatrolId = complaint.relatedPatrolId
+    let relatedEquipmentId = complaint.relatedEquipmentId
+
+    if (!customerId && complaint.customerPhone) {
+      const existingAccount = prepaidStore.getByCustomerPhone(complaint.customerPhone)
+      if (existingAccount) {
+        customerId = existingAccount.customerId
+      }
+
+      const recentBooking = bookingStore.bookings.find(
+        b => b.customerPhone === complaint.customerPhone && b.status !== 'pending'
+      )
+      if (recentBooking && !relatedBookingId) {
+        relatedBookingId = recentBooking.id
+      }
+
+      if (!customerId && recentBooking) {
+        customerId = recentBooking.customerId
+      }
+    }
+
+    if (!customerId) {
+      customerId = `cust-${Date.now()}`
+    }
+
     const newComplaint: Complaint = {
       id: `complaint-${Date.now()}`,
       complaintNo: commonStore.generateNo('CMP'),
-      customerId: complaint.customerId || '',
+      customerId,
       customerName: complaint.customerName || '',
       customerPhone: complaint.customerPhone || '',
       category: complaint.category || 'other',
@@ -226,9 +257,9 @@ export const useComplaintStore = defineStore('complaint', () => {
       handlerName: complaint.handlerName,
       supervisorId: userStore.currentUser!.id,
       supervisorName: userStore.currentUser!.name,
-      relatedBookingId: complaint.relatedBookingId,
-      relatedPatrolId: complaint.relatedPatrolId,
-      relatedEquipmentId: complaint.relatedEquipmentId,
+      relatedBookingId,
+      relatedPatrolId,
+      relatedEquipmentId,
       timeline: [{
         id: `tl-${Date.now()}`,
         action: 'created',

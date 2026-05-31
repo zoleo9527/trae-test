@@ -195,11 +195,11 @@
               </div>
               <div class="flex items-center justify-between mb-2">
                 <span class="text-sm text-gray-500">账户余额</span>
-                <span class="text-sm font-medium text-gray-900">¥{{ customerAccount.balance.toFixed(2) }}</span>
+                <span class="text-sm font-medium text-gray-900">{{ commonStore.formatMoney(customerAccount.balance) }}</span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-sm text-gray-500">累计消费</span>
-                <span class="text-sm font-medium text-gray-900">¥{{ customerAccount.totalConsumed.toFixed(2) }}</span>
+                <span class="text-sm font-medium text-gray-900">{{ commonStore.formatMoney(customerAccount.totalConsumed) }}</span>
               </div>
             </div>
           </div>
@@ -236,8 +236,9 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">选择处理人</label>
           <select v-model="selectedHandlerId" class="select">
             <option value="">请选择处理人</option>
-            <option value="user_2">李明 - 教练主管</option>
-            <option value="user_3">王芳 - 前台</option>
+            <option v-for="user in handlerOptions" :key="user.id" :value="user.id">
+              {{ user.name }} - {{ getRoleLabel(user.role) }}
+            </option>
           </select>
         </div>
         <div class="mb-4">
@@ -373,6 +374,12 @@ const customerComplaints = computed(() => {
     .slice(0, 5)
 })
 
+const handlerOptions = computed(() => {
+  return userStore.users.filter(u =>
+    u.role === 'manager' || u.role === 'coach_supervisor' || u.role === 'reception'
+  )
+})
+
 const showAssignModalFlag = ref(false)
 const showResolveModalFlag = ref(false)
 const showRejectModal = ref(false)
@@ -497,10 +504,12 @@ function getMemberLevelClass(level: string) {
 
 function confirmAssign() {
   if (complaint.value && selectedHandlerId.value) {
-    const handlerName = selectedHandlerId.value === 'user_2' ? '李明' : '王芳'
-    complaintStore.assignHandler(complaint.value.id, selectedHandlerId.value, handlerName, assignRemark.value)
-    notificationStore.showToastMessage('success', '投诉已分配处理人')
-    showAssignModalFlag.value = false
+    const handler = userStore.users.find(u => u.id === selectedHandlerId.value)
+    if (handler) {
+      complaintStore.assignHandler(complaint.value.id, selectedHandlerId.value, handler.name, assignRemark.value)
+      notificationStore.showToastMessage('success', '投诉已分配处理人')
+      showAssignModalFlag.value = false
+    }
   }
 }
 
