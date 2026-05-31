@@ -258,19 +258,38 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
                   </div>
                 )}
                 
-                {canApprove && !['refunded', 'completed', 'cancelled'].includes(selectedOrder.status) && (
-                  <button
-                    onClick={() => setShowScheduleForm(true)}
-                    className="w-full mt-3 py-2 bg-bakery-brown-100 text-bakery-brown-700 text-sm rounded-lg hover:bg-bakery-brown-200 transition-colors font-medium"
-                  >
-                    {['pending_review', 'reviewed'].includes(selectedOrder.status) ? '确认排期并审核' : '调整排期'}
-                  </button>
-                )}
-                
-                {!canApprove && canEdit && selectedOrder.status === 'scheduled' && existingSchedule?.status === 'scheduled' && (
-                  <p className="mt-3 text-xs text-gray-500 text-center">
-                    排期已确认，如需调整请联系店长
-                  </p>
+                {['pending_review', 'reviewed'].includes(selectedOrder.status) && existingSchedule ? (
+                  <>
+                    {canApprove && (
+                      <button
+                        onClick={() => setShowScheduleForm(true)}
+                        className="w-full mt-3 py-2 bg-orange-100 text-orange-700 text-sm rounded-lg hover:bg-orange-200 transition-colors font-medium"
+                      >
+                        确认排期并审核
+                      </button>
+                    )}
+                    {!canApprove && (
+                      <p className="mt-3 text-xs text-orange-500 text-center">
+                        此为异常排期，需店长审核确认
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {canEdit && !['refunded', 'completed', 'cancelled', 'in_production'].includes(selectedOrder.status) && existingSchedule?.status !== 'in_progress' && (
+                      <button
+                        onClick={() => setShowScheduleForm(true)}
+                        className="w-full mt-3 py-2 bg-bakery-brown-100 text-bakery-brown-700 text-sm rounded-lg hover:bg-bakery-brown-200 transition-colors font-medium"
+                      >
+                        调整排期
+                      </button>
+                    )}
+                    {(selectedOrder.status === 'in_production' || existingSchedule?.status === 'in_progress') && (
+                      <p className="mt-3 text-xs text-gray-500 text-center">
+                        生产中，暂无法调整排期
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
