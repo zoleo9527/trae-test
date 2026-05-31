@@ -26,16 +26,35 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
   order,
   existingScheduleId 
 }) => {
-  const { createSchedule, updateSchedule, checkCapacity, getSchedulesByDate } = useScheduleStore();
+  const { createSchedule, updateSchedule, checkCapacity, getSchedulesByDate, schedules } = useScheduleStore();
   const { updateOrderStatus, addOrderHistory, selectOrder } = useOrderStore();
   const { user } = useAuthStore();
   
-  const defaultDate = order.pickupTime.split(' ')[0];
+  const existingSchedule = useMemo(() => {
+    if (!existingScheduleId) return null;
+    return schedules.find((s) => s.id === existingScheduleId) || null;
+  }, [existingScheduleId, schedules]);
+
+  const defaultDate = existingSchedule?.date || order.pickupTime.split(' ')[0];
   const [scheduleDate, setScheduleDate] = useState(defaultDate);
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('11:00');
-  const [chefId, setChefId] = useState('user-2');
+  const [startTime, setStartTime] = useState(existingSchedule?.startTime || '09:00');
+  const [endTime, setEndTime] = useState(existingSchedule?.endTime || '11:00');
+  const [chefId, setChefId] = useState(existingSchedule?.chefId || 'user-2');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    if (isOpen && existingSchedule) {
+      setScheduleDate(existingSchedule.date);
+      setStartTime(existingSchedule.startTime);
+      setEndTime(existingSchedule.endTime);
+      setChefId(existingSchedule.chefId);
+    } else if (isOpen && !existingSchedule) {
+      setScheduleDate(order.pickupTime.split(' ')[0]);
+      setStartTime('09:00');
+      setEndTime('11:00');
+      setChefId('user-2');
+    }
+  }, [isOpen, existingSchedule, order.pickupTime]);
 
   const capacity = useMemo(() => checkCapacity(scheduleDate), [scheduleDate, checkCapacity]);
   const daySchedules = useMemo(() => getSchedulesByDate(scheduleDate), [scheduleDate, getSchedulesByDate]);
@@ -84,14 +103,25 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
         endTime,
         chefId,
       });
-      addOrderHistory(order.id, {
-        orderId: order.id,
-        action: '更新排期',
-        operator: user?.name || '',
-        operatorRole: user?.role || 'manager',
-        timestamp: new Date().toISOString(),
-        remarks: `排期更新为 ${scheduleDate} ${startTime}-${endTime}，负责人：${chefs.find(c => c.id === chefId)?.name}`,
-      });
+      
+      if (['pending_review', 'reviewed'].includes(order.status)) {
+        updateOrderStatus(
+          order.id, 
+          'scheduled', 
+          `排期已确认：${scheduleDate} ${startTime}-${endTime}，负责人：${chefs.find(c => c.id === chefId)?.name}`,
+          user?.name || '',
+          user?.role || 'manager'
+        );
+      } else {
+        addOrderHistory(order.id, {
+          orderId: order.id,
+          action: '更新排期',
+          operator: user?.name || '',
+          operatorRole: user?.role || 'manager',
+          timestamp: new Date().toISOString(),
+          remarks: `排期更新为 ${scheduleDate} ${startTime}-${endTime}，负责人：${chefs.find(c => c.id === chefId)?.name}`,
+        });
+      }
     } else {
       createSchedule({
         date: scheduleDate,

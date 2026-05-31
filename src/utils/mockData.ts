@@ -64,7 +64,8 @@ export const mockOrders: Order[] = [
     createdAt: yesterday.toISOString(),
     updatedAt: yesterday.toISOString(),
     createdBy: 'user-3',
-    notes: '客户是老顾客，希望能多送两个小饼干',
+    assignedChef: 'user-2',
+    notes: '客户是老顾客，希望能多送两个小饼干。⚠️ 注意：此订单已提前安排排期但未走审核流程，属于状态异常订单。',
     history: [
       {
         id: 'h-1',
@@ -74,6 +75,15 @@ export const mockOrders: Order[] = [
         operatorRole: 'customer_service',
         timestamp: yesterday.toISOString(),
         remarks: '客户通过微信预订',
+      },
+      {
+        id: 'h-24',
+        orderId: 'order-1',
+        action: '提前安排排期',
+        operator: '张主厨',
+        operatorRole: 'chef',
+        timestamp: yesterday.toISOString(),
+        remarks: '老顾客订单，提前安排明天上午生产，待店长补审核',
       },
     ],
     isUrgent: false,
