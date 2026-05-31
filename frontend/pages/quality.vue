@@ -454,10 +454,12 @@ const submitReinspection = async () => {
 const initCreateFromDiary = async (diaryId: number, projectId: number) => {
   try {
     sourceDiary.value = await api.get(`/diaries/${diaryId}`)
+    const authStore = useAuthStore()
+    const currentUser = authStore.user || appStore.user
     createForm.value = {
       project_id: projectId,
       diary_id: diaryId,
-      inspector_id: appStore.user?.id || inspectors.value[0]?.id || 0,
+      inspector_id: currentUser?.id || inspectors.value[0]?.id || 0,
       inspection_date: new Date().toISOString().split('T')[0],
       inspection_items: sourceDiary.value.is_exception ? '异常区域专项检查' : '日常质量检查',
       inspection_result: sourceDiary.value.is_exception ? 'failed' : 'passed',
@@ -478,6 +480,7 @@ onMounted(async () => {
   await appStore.loadProjects()
   await appStore.loadTeams()
   await appStore.loadUsers()
+  appStore.initFromAuth()
   await loadInspections()
 
   if (route.query.diaryId && route.query.projectId) {

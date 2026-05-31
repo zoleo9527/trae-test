@@ -27,7 +27,7 @@
 
       <div class="flex-1 overflow-auto">
         <div v-for="d in filteredDeliveries" :key="d.id"
-          @click="selectedDelivery = d"
+          @click="selectDelivery(d)"
           class="p-4 border-b border-gray-100 cursor-pointer transition-colors"
           :class="selectedDelivery?.id === d.id ? 'bg-purple-50' : 'hover:bg-gray-50'">
           <div class="flex items-start justify-between mb-2">
@@ -149,6 +149,8 @@
 <script setup lang="ts">
 const api = useAPI()
 const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 
 const deliveries = ref<any[]>([])
 const selectedDelivery = ref<any>(null)
@@ -180,16 +182,28 @@ const filteredDeliveries = computed(() => {
 const getProjectName = (id: number) => appStore.projects.find((p: any) => p.id === id)?.name || '未知项目'
 const getUserName = (id: number) => appStore.users.find((u: any) => u.id === id)?.name || '未知用户'
 
+const selectDelivery = (d: any) => {
+  selectedDelivery.value = d
+}
+
 const loadDeliveries = async () => {
   const params = new URLSearchParams()
   if (filterProject.value) params.append('project_id', String(filterProject.value))
   deliveries.value = await api.get(`/deliveries?${params.toString()}`) as any[]
+
+  if (route.query.deliveryId) {
+    const d = deliveries.value.find(x => x.id === Number(route.query.deliveryId))
+    if (d) {
+      selectDelivery(d)
+    }
+  }
 }
 
 onMounted(async () => {
   await appStore.loadProjects()
   await appStore.loadTeams()
   await appStore.loadUsers()
+  appStore.initFromAuth()
   await loadDeliveries()
 })
 </script>
