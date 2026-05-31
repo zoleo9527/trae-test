@@ -48,9 +48,13 @@
 			});
 
 			if (inspectionForm.result === 'fail' && rectForm.description) {
+				const rectPayload = {
+					...rectForm,
+					deadline: new Date(rectForm.deadline + 'T00:00:00').toISOString()
+				};
 				await createRectification({
 					inspectionId: inspection.ID,
-					...rectForm
+					...rectPayload
 				});
 			}
 

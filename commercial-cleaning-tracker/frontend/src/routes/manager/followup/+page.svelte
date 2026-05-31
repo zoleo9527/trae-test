@@ -68,7 +68,7 @@
 			title: newFollowUp.title,
 			content: newFollowUp.content,
 			assigneeId: $currentUser?.ID || 0,
-			dueDate: newFollowUp.dueDate
+			dueDate: new Date(newFollowUp.dueDate + 'T00:00:00').toISOString()
 		});
 		followUps = await getFollowUps();
 		showModal = false;

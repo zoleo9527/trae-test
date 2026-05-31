@@ -61,6 +61,10 @@
 					<div class="shift-body">
 						<div class="shift-info">
 							<span class="label">项目：</span>
+							<span class="value">{shift.Schedule?.Project?.Name || '-'}</span>
+						</div>
+						<div class="shift-info">
+							<span class="label">区域：</span>
 							<span class="value">{shift.Area}</span>
 						</div>
 						<div class="shift-info">

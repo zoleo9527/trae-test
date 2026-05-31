@@ -60,7 +60,15 @@
 
 	async function handleCreateSchedule() {
 		try {
-			await createSchedule(newSchedule);
+			const payload = {
+				...newSchedule,
+				weekStart: new Date(newSchedule.weekStart + 'T00:00:00').toISOString(),
+				shifts: newSchedule.shifts.map(s => ({
+					...s,
+					date: new Date(s.date + 'T00:00:00').toISOString()
+				}))
+			};
+			await createSchedule(payload);
 			showCreateModal = false;
 			loadData();
 		} catch (e) {

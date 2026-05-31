@@ -4,6 +4,12 @@
 	import { getMaterials, approveMaterial } from '$lib/stores';
 	import type { MaterialRequisition } from '$lib/types';
 
+	interface MaterialItem {
+		name: string;
+		qty: number;
+		unit: string;
+	}
+
 	let materials: MaterialRequisition[] = [];
 	let loading = true;
 	let filterStatus = 'pending';
@@ -14,6 +20,23 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function parseItems(itemsStr: string): MaterialItem[] {
+		try {
+			const parsed = JSON.parse(itemsStr);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function formatItems(itemsStr: string): string[] {
+		const items = parseItems(itemsStr);
+		if (items.length > 0) {
+			return items.map(i => `${i.name} x${i.qty}${i.unit}`);
+		}
+		return itemsStr ? [itemsStr] : [];
 	}
 
 	$: filteredMaterials = materials.filter(m => !filterStatus || m.Status === filterStatus);
@@ -51,7 +74,10 @@
 	{:else}
 		<div class="material-list">
 			{#each filteredMaterials as m}
-				{@const items = JSON.parse(m.Items || '[]')}
+				{@const items = parseItems(m.Items)}
+				{@const itemLabels = items.length > 0 
+					? items.map(i => `${i.name} x${i.qty}${i.unit}`) 
+					: (m.Items ? [m.Items] : [])}
 				<div class="material-card">
 					<div class="material-header">
 						<div>
@@ -61,8 +87,8 @@
 						<span style={getStatusColor(m.Status)} class="status">{getStatusText(m.Status)}</span>
 					</div>
 					<div class="material-items">
-						{#each items as item}
-							<span class="item-tag">{item.name} x{item.qty}{item.unit}</span>
+						{#each itemLabels as label}
+							<span class="item-tag">{label}</span>
 						{/each}
 					</div>
 					{#if m.Status === 'pending'}
