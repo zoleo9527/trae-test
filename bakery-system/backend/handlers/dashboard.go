@@ -109,6 +109,15 @@ func (h *DashboardHandler) GetUnifiedTimeline(c *fiber.Ctx) error {
 			database.DB.Model(&models.Refund{}).Select("id").Where("order_id = ?", orderID),
 		).Order("created_at asc").Find(&refundLogs)
 		logs = append(logs, refundLogs...)
+
+		var order models.Order
+		if err := database.DB.Select("member_id").First(&order, "id = ?", orderID).Error; err == nil && order.MemberID != "" {
+			var rechargeLogs []models.StatusLog
+			database.DB.Where("related_type = ? AND related_id = ?",
+				"recharge", order.MemberID,
+			).Order("created_at asc").Find(&rechargeLogs)
+			logs = append(logs, rechargeLogs...)
+		}
 	}
 
 	if memberID != "" {

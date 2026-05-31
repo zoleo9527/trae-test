@@ -1,5 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
 
 	let refunds = [];
@@ -14,6 +16,8 @@
 	let rejectReason = '';
 	let showApplyModal = false;
 	let unifiedTimeline = [];
+	let memberRecharges = [];
+	let memberInfo = null;
 
 	let applyForm = {
 		orderId: '',
@@ -29,33 +33,52 @@
 		{ id: 'rejected', name: '已驳回' }
 	];
 
-	$: filteredRefunds = refunds.filter(r => {
-		const matchStatus = !statusFilter || r.status === statusFilter;
-		const matchSearch = !searchQuery ||
-			r.refundNo.includes(searchQuery) ||
-			r.memberName.includes(searchQuery);
-		return matchStatus && matchSearch;
-	});
-
 	$: hasSelection = selectedIds.length > 0;
 
 	$: selectedOrderForRefund = orders.find(o => o.id === applyForm.orderId);
 
 	onMount(async () => {
+		const params = new URLSearchParams($page.url.searchParams);
+		const urlTab = params.get('tab') || 'pending';
+		activeTab = urlTab;
+		statusFilter = urlTab;
+		searchQuery = params.get('search') || '';
 		await loadRefunds();
 		const oRes = await api.getOrders();
 		orders = (oRes.data || []).filter(o => o.status !== 'cancelled');
 	});
 
 	async function loadRefunds() {
-		const res = await api.getRefunds();
+		const params = {};
+		if (statusFilter) params.status = statusFilter;
+		if (searchQuery) params.search = searchQuery;
+		const res = await api.getRefunds(params);
 		refunds = res.data || [];
+		selectedIds = [];
 	}
 
-	function switchTab(tabId) {
+	function updateURL() {
+		const params = new URLSearchParams();
+		if (activeTab) params.set('tab', activeTab);
+		if (searchQuery) params.set('search', searchQuery);
+		goto(`/refunds${params.toString() ? '?' + params.toString() : ''}`, { replaceState: true, noScroll: true });
+	}
+
+	async function switchTab(tabId) {
 		activeTab = tabId;
 		statusFilter = tabId;
 		selectedIds = [];
+		updateURL();
+		await loadRefunds();
+	}
+
+	function onSearchChange(e) {
+		searchQuery = e.target.value;
+	}
+
+	async function onSearchSubmit() {
+		updateURL();
+		await loadRefunds();
 	}
 
 	function toggleSelect(id) {
@@ -81,6 +104,15 @@
 			unifiedTimeline = (tlRes.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 		} else {
 			unifiedTimeline = selectedRefund.statusHistory || [];
+		}
+		if (selectedRefund.memberId) {
+			const mRes = await api.getMember(selectedRefund.memberId);
+			memberInfo = mRes;
+			const rRes = await api.getRecharges(selectedRefund.memberId);
+			memberRecharges = rRes.data || [];
+		} else {
+			memberInfo = null;
+			memberRecharges = [];
 		}
 		showDetailModal = true;
 	}
@@ -219,7 +251,8 @@
 	</div>
 
 	<div class="filters">
-		<input type="text" class="input" placeholder="搜索退款单号/会员..." bind:value={searchQuery} />
+		<input type="text" class="input" placeholder="搜索退款单号/会员..." value={searchQuery} on:input={onSearchChange} on:keydown={(e) => e.key === 'Enter' && onSearchSubmit()} />
+		<button class="btn btn-outline" on:click={onSearchSubmit}>搜索</button>
 		<button class="btn btn-primary" on:click={openApplyRefund}>+ 申请退款</button>
 	</div>
 
@@ -240,7 +273,7 @@
 						{#if activeTab === 'pending'}
 							<th class="checkbox-cell">
 								<input type="checkbox"
-									checked={selectedIds.length === filteredRefunds.length && filteredRefunds.length > 0}
+									checked={selectedIds.length === refunds.length && refunds.length > 0}
 									on:change={toggleSelectAll}
 								/>
 							</th>
@@ -255,7 +288,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each filteredRefunds as refund}
+					{#each refunds as refund}
 						<tr>
 							{#if activeTab === 'pending'}
 								<td class="checkbox-cell">
@@ -388,6 +421,31 @@
 							<div>{selectedRefund.reviewer || '-'}</div>
 						</div>
 					</div>
+
+					{#if memberInfo}
+						<div class="card" style="padding: 1rem; margin-bottom: 1rem; background: #F0FDF4; border: 1px solid #BBF7D0;">
+							<div class="text-sm text-gray-500 mb-2">会员资金概览</div>
+							<div class="grid-2">
+								<div>
+									<div class="text-sm text-gray-500">当前余额</div>
+									<div style="font-weight: 600; color: var(--success);">¥{memberInfo.balance.toFixed(2)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-gray-500">累计储值</div>
+									<div style="font-weight: 600;">¥{memberRecharges.reduce((s, r) => s + r.amount, 0).toFixed(2)}</div>
+								</div>
+							</div>
+							{#if memberRecharges.length > 0}
+								<div class="text-sm text-gray-500 mt-2 mb-1">最近储值记录</div>
+								{#each memberRecharges.slice(0, 3) as r}
+									<div class="text-sm">
+										{formatDate(r.createdAt)} · 储值 ¥{r.amount.toFixed(2)} (赠送 ¥{r.bonus.toFixed(2)})
+										{#if r.operator} · {r.operator}{/if}
+									</div>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 
 					<div class="mb-6">
 						<div class="text-sm text-gray-500">退款原因</div>

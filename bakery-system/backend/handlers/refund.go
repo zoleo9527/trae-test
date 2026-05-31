@@ -92,6 +92,8 @@ func (h *RefundHandler) ApproveRefund(c *fiber.Ctx) error {
 		var member models.Member
 		tx.First(&member, "id = ?", refund.MemberID)
 		tx.Model(&member).Update("balance", member.Balance+refund.RefundAmount)
+		database.AddStatusLog(member.ID, "recharge", "", "completed", data.Reviewer,
+			fmt.Sprintf("退款退回余额: %.2f, 退款单号: %s", refund.RefundAmount, refund.RefundNo))
 	}
 
 	tx.Commit()
@@ -166,6 +168,8 @@ func (h *RefundHandler) BatchReview(c *fiber.Ctx) error {
 				var member models.Member
 				tx.First(&member, "id = ?", refund.MemberID)
 				tx.Model(&member).Update("balance", member.Balance+refund.RefundAmount)
+				database.AddStatusLog(member.ID, "recharge", "", "completed", req.Reviewer,
+					fmt.Sprintf("退款退回余额: %.2f, 退款单号: %s", refund.RefundAmount, refund.RefundNo))
 			}
 
 			database.AddStatusLog(id, "refund", refund.Status, newStatus, req.Reviewer, req.Remark)

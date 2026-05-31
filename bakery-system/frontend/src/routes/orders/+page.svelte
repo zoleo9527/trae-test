@@ -1,5 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
 
 	let orders = [];
@@ -13,6 +15,8 @@
 	let showCreateModal = false;
 	let selectedOrder = null;
 	let unifiedTimeline = [];
+	let memberRecharges = [];
+	let memberInfo = null;
 
 	let lossForm = { materialLoss: 0, remark: '', operator: '后厨负责人' };
 
@@ -25,15 +29,6 @@
 		useBalance: false
 	};
 
-	$: filteredOrders = orders.filter(o => {
-		const matchStatus = !statusFilter || o.status === statusFilter;
-		const matchSearch = !searchQuery ||
-			o.orderNo.includes(searchQuery) ||
-			o.memberName.includes(searchQuery) ||
-			o.memberPhone.includes(searchQuery);
-		return matchStatus && matchSearch;
-	});
-
 	$: hasSelection = selectedIds.length > 0;
 
 	$: newOrderTotal = newOrder.items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
@@ -41,6 +36,10 @@
 	$: selectedMember = members.find(m => m.id === newOrder.memberId);
 
 	onMount(async () => {
+		const params = new URLSearchParams($page.url.searchParams);
+		const urlStatus = params.get('status') || '';
+		statusFilter = urlStatus;
+		searchQuery = params.get('search') || '';
 		await loadOrders();
 		const mRes = await api.getMembers();
 		members = mRes.data || [];
@@ -49,8 +48,34 @@
 	});
 
 	async function loadOrders() {
-		const res = await api.getOrders();
+		const params = {};
+		if (statusFilter) params.status = statusFilter;
+		if (searchQuery) params.search = searchQuery;
+		const res = await api.getOrders(params);
 		orders = res.data || [];
+		selectedIds = [];
+	}
+
+	function updateURL() {
+		const params = new URLSearchParams();
+		if (statusFilter) params.set('status', statusFilter);
+		if (searchQuery) params.set('search', searchQuery);
+		goto(`/orders${params.toString() ? '?' + params.toString() : ''}`, { replaceState: true, noScroll: true });
+	}
+
+	function onStatusChange(e) {
+		statusFilter = e.target.value;
+		updateURL();
+		loadOrders();
+	}
+
+	function onSearchChange(e) {
+		searchQuery = e.target.value;
+	}
+
+	async function onSearchSubmit() {
+		updateURL();
+		await loadOrders();
 	}
 
 	function toggleSelect(id) {
@@ -84,6 +109,15 @@
 		selectedOrder = await api.getOrder(order.id);
 		const tlRes = await api.getUnifiedTimeline({ orderID: order.id });
 		unifiedTimeline = (tlRes.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+		if (selectedOrder.memberId) {
+			const mRes = await api.getMember(selectedOrder.memberId);
+			memberInfo = mRes;
+			const rRes = await api.getRecharges(selectedOrder.memberId);
+			memberRecharges = rRes.data || [];
+		} else {
+			memberInfo = null;
+			memberRecharges = [];
+		}
 		showDetailModal = true;
 	}
 
@@ -196,14 +230,15 @@
 
 <div>
 	<div class="filters">
-		<select class="input" bind:value={statusFilter}>
+		<select class="input" value={statusFilter} on:change={onStatusChange}>
 			<option value="">全部状态</option>
 			<option value="pending">待处理</option>
 			<option value="preparing">制作中</option>
 			<option value="ready">待取货</option>
 			<option value="completed">已完成</option>
 		</select>
-		<input type="text" class="input" placeholder="搜索订单号/会员..." bind:value={searchQuery} />
+		<input type="text" class="input" placeholder="搜索订单号/会员..." value={searchQuery} on:input={onSearchChange} on:keydown={(e) => e.key === 'Enter' && onSearchSubmit()} />
+		<button class="btn btn-outline" on:click={onSearchSubmit}>搜索</button>
 		<button class="btn btn-primary" on:click={openCreateOrder}>+ 新建订单</button>
 	</div>
 
@@ -224,7 +259,7 @@
 					<tr>
 						<th class="checkbox-cell">
 							<input type="checkbox"
-								checked={selectedIds.length === filteredOrders.length && filteredOrders.length > 0}
+								checked={selectedIds.length === orders.length && orders.length > 0}
 								on:change={toggleSelectAll}
 							/>
 						</th>
@@ -239,7 +274,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each filteredOrders as order}
+					{#each orders as order}
 						<tr>
 							<td class="checkbox-cell">
 								<input type="checkbox"
@@ -404,6 +439,31 @@
 							<div>¥{selectedOrder.materialLoss.toFixed(2)}</div>
 						</div>
 					</div>
+
+					{#if memberInfo}
+						<div class="card" style="padding: 1rem; margin-bottom: 1rem; background: #F0FDF4; border: 1px solid #BBF7D0;">
+							<div class="text-sm text-gray-500 mb-2">会员资金概览</div>
+							<div class="grid-2">
+								<div>
+									<div class="text-sm text-gray-500">当前余额</div>
+									<div style="font-weight: 600; color: var(--success);">¥{memberInfo.balance.toFixed(2)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-gray-500">累计储值</div>
+									<div style="font-weight: 600;">¥{memberRecharges.reduce((s, r) => s + r.amount, 0).toFixed(2)}</div>
+								</div>
+							</div>
+							{#if memberRecharges.length > 0}
+								<div class="text-sm text-gray-500 mt-2 mb-1">最近储值记录</div>
+								{#each memberRecharges.slice(0, 3) as r}
+									<div class="text-sm">
+										{formatDate(r.createdAt)} · 储值 ¥{r.amount.toFixed(2)} (赠送 ¥{r.bonus.toFixed(2)})
+										{#if r.operator} · {r.operator}{/if}
+									</div>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 
 					<div class="mb-6">
 						<div class="text-sm text-gray-500 mb-4">订单项</div>

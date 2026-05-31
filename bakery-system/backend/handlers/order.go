@@ -64,6 +64,17 @@ func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 		tx.Create(&order.Items[i])
 	}
 
+	if order.UseBalance > 0 && order.MemberID != "" {
+		var member models.Member
+		if err := tx.First(&member, "id = ?", order.MemberID).Error; err == nil {
+			if member.Balance >= order.UseBalance {
+				tx.Model(&member).Update("balance", member.Balance-order.UseBalance)
+				database.AddStatusLog(member.ID, "recharge", "", "completed", order.Operator,
+					fmt.Sprintf("订单抵扣余额: %.2f, 订单号: %s", order.UseBalance, order.OrderNo))
+			}
+		}
+	}
+
 	database.AddStatusLog(order.ID, "order", "", "pending", order.Operator, "订单创建")
 	tx.Commit()
 
