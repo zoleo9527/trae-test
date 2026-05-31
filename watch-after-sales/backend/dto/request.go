@@ -88,3 +88,10 @@ type AuditFilterRequest struct {
 	Page       int    `json:"page" query:"page"`
 	PageSize   int    `json:"page_size" query:"page_size"`
 }
+
+type CreateCustomerRequest struct {
+	Name    string `json:"name" validate:"required"`
+	Phone   string `json:"phone" validate:"required"`
+	Email   string `json:"email"`
+	Address string `json:"address"`
+}

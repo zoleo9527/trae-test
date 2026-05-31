@@ -33,6 +33,8 @@ func main() {
 	partService := service.NewPartService(database.DB, auditService)
 	authService := service.NewAuthService(database.DB)
 	exportService := service.NewExportService(database.DB)
+	userService := service.NewUserService(database.DB)
+	customerService := service.NewCustomerService(database.DB)
 
 	scheduler := service.NewScheduler(database.DB, partService)
 	scheduler.Start()
@@ -43,6 +45,8 @@ func main() {
 	auditHandler := handler.NewAuditHandler(auditService)
 	callbackHandler := handler.NewCallbackHandler(callbackService)
 	exportHandler := handler.NewExportHandler(exportService)
+	userHandler := handler.NewUserHandler(userService)
+	customerHandler := handler.NewCustomerHandler(customerService, auditService)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -88,21 +92,28 @@ func main() {
 	auth.Post("/repairs/:id/status", repairHandler.ChangeStatus)
 	auth.Post("/repairs/batch-status", repairHandler.BatchStatusChange)
 
-	auth.Post("/parts", partHandler.Create)
-	auth.Get("/parts", partHandler.List)
-	auth.Get("/parts/:id", partHandler.GetByID)
-	auth.Patch("/parts/:id", partHandler.Update)
-	auth.Post("/repairs/:id/lock-part", partHandler.LockPart)
-	auth.Delete("/repairs/:id/lock-part/:lockId", partHandler.UnlockPart)
+	auth.Get("/users", middleware.RequireRole("manager", "consultant"), userHandler.List)
+	auth.Get("/users/:id", middleware.RequireRole("manager", "consultant"), userHandler.GetByID)
 
-	auth.Get("/audit-logs", auditHandler.List)
+	auth.Get("/customers", customerHandler.List)
+	auth.Get("/customers/:id", customerHandler.GetByID)
+	auth.Post("/customers", customerHandler.Create)
 
-	auth.Post("/callbacks", callbackHandler.Create)
-	auth.Get("/callbacks", callbackHandler.List)
-	auth.Patch("/callbacks/:id/complete", callbackHandler.Complete)
-	auth.Get("/callbacks/overdue", callbackHandler.GetOverdue)
+	auth.Post("/parts", middleware.RequireRole("manager", "consultant"), partHandler.Create)
+	auth.Get("/parts", middleware.RequireRole("manager", "consultant", "technician"), partHandler.List)
+	auth.Get("/parts/:id", middleware.RequireRole("manager", "consultant", "technician"), partHandler.GetByID)
+	auth.Patch("/parts/:id", middleware.RequireRole("manager", "consultant"), partHandler.Update)
+	auth.Post("/repairs/:id/lock-part", middleware.RequireRole("manager", "technician"), partHandler.LockPart)
+	auth.Delete("/repairs/:id/lock-part/:lockId", middleware.RequireRole("manager", "technician"), partHandler.UnlockPart)
 
-	auth.Get("/exports/repairs/csv", exportHandler.ExportRepairsCSV)
+	auth.Get("/audit-logs", middleware.RequireRole("manager"), auditHandler.List)
+
+	auth.Post("/callbacks", middleware.RequireRole("manager", "consultant"), callbackHandler.Create)
+	auth.Get("/callbacks", middleware.RequireRole("manager", "consultant", "technician"), callbackHandler.List)
+	auth.Patch("/callbacks/:id/complete", middleware.RequireRole("manager", "consultant"), callbackHandler.Complete)
+	auth.Get("/callbacks/overdue", middleware.RequireRole("manager", "consultant"), callbackHandler.GetOverdue)
+
+	auth.Get("/exports/repairs/csv", middleware.RequireRole("manager", "consultant"), exportHandler.ExportRepairsCSV)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

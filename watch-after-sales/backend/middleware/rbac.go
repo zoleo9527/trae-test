@@ -24,7 +24,7 @@ func RequireRole(roles ...string) fiber.Handler {
 		return c.Status(403).JSON(fiber.Map{
 			"code":    403,
 			"message": "insufficient permissions",
-			"type":    "unauthorized",
+			"type":    "forbidden",
 		})
 	}
 }

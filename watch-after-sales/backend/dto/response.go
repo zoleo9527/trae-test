@@ -26,28 +26,30 @@ type CustomerResponse struct {
 }
 
 type RepairOrderResponse struct {
-	ID                   uint               `json:"id"`
-	OrderNo              string             `json:"order_no"`
-	CustomerID           uint               `json:"customer_id"`
-	Customer             *CustomerResponse  `json:"customer,omitempty"`
-	WatchBrand           string             `json:"watch_brand"`
-	WatchModel           string             `json:"watch_model"`
-	WatchSerial          string             `json:"watch_serial"`
-	IssueDescription     string             `json:"issue_description"`
-	Status               string             `json:"status"`
-	AssignedTechnicianID *uint              `json:"assigned_technician_id"`
-	AssignedTechnician   *UserResponse      `json:"assigned_technician,omitempty"`
-	QuotationPrice       *float64           `json:"quotation_price"`
-	QuotationNote        *string            `json:"quotation_note"`
-	EstimatedCompletion  *time.Time         `json:"estimated_completion"`
-	CompletedAt          *time.Time         `json:"completed_at"`
-	PickedUpAt           *time.Time         `json:"picked_up_at"`
-	CreatedBy            uint               `json:"created_by"`
-	Creator              *UserResponse      `json:"creator,omitempty"`
-	CreatedAt            time.Time          `json:"created_at"`
-	UpdatedAt            time.Time          `json:"updated_at"`
+	ID                   uint                  `json:"id"`
+	OrderNo              string                `json:"order_no"`
+	CustomerID           uint                  `json:"customer_id"`
+	Customer             *CustomerResponse     `json:"customer,omitempty"`
+	WatchBrand           string                `json:"watch_brand"`
+	WatchModel           string                `json:"watch_model"`
+	WatchSerial          string                `json:"watch_serial"`
+	IssueDescription     string                `json:"issue_description"`
+	Status               string                `json:"status"`
+	AssignedTechnicianID *uint                 `json:"assigned_technician_id"`
+	AssignedTechnician   *UserResponse         `json:"assigned_technician,omitempty"`
+	QuotationPrice       *float64              `json:"quotation_price"`
+	QuotationNote        *string               `json:"quotation_note"`
+	EstimatedCompletion  *time.Time            `json:"estimated_completion"`
+	CompletedAt          *time.Time            `json:"completed_at"`
+	PickedUpAt           *time.Time            `json:"picked_up_at"`
+	CreatedBy            uint                  `json:"created_by"`
+	Creator              *UserResponse         `json:"creator,omitempty"`
+	CreatedAt            time.Time             `json:"created_at"`
+	UpdatedAt            time.Time             `json:"updated_at"`
 	ProgressLogs         []ProgressLogResponse `json:"progress_logs,omitempty"`
 	PartLocks            []PartLockResponse    `json:"part_locks,omitempty"`
+	Callbacks            []CallbackResponse    `json:"callbacks,omitempty"`
+	AuditLogs            []AuditLogResponse    `json:"audit_logs,omitempty"`
 }
 
 type PartResponse struct {

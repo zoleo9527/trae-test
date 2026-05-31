@@ -31,3 +31,10 @@ type SatisfactionCallback struct {
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
 }
+
+func (c *SatisfactionCallback) IsOverdue() bool {
+	if c.CompletedAt != nil {
+		return false
+	}
+	return c.ScheduledAt.Before(time.Now())
+}

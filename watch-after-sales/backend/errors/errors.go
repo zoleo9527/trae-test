@@ -21,7 +21,7 @@ func NewUnauthorizedError(msg string) *AppError {
 }
 
 func NewForbiddenError(msg string) *AppError {
-	return &AppError{Code: http.StatusForbidden, Message: msg, Type: "unauthorized"}
+	return &AppError{Code: http.StatusForbidden, Message: msg, Type: "forbidden"}
 }
 
 func NewConflictError(msg string) *AppError {

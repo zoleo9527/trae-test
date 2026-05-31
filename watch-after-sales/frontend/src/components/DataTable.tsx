@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   total: number;
   page: number;
   pageSize: number;
+  totalPages?: number;
   onPageChange: (page: number) => void;
   selectable?: boolean;
   selectedIds?: number[];
@@ -29,6 +30,7 @@ export default function DataTable<T extends Record<string, any>>({
   total,
   page,
   pageSize,
+  totalPages,
   onPageChange,
   selectable = false,
   selectedIds = [],
@@ -36,7 +38,7 @@ export default function DataTable<T extends Record<string, any>>({
   rowKey = (item) => item.id,
   onRowClick,
 }: DataTableProps<T>) {
-  const totalPages = Math.ceil(total / pageSize);
+  const computedTotalPages = totalPages ?? Math.ceil(total / pageSize);
 
   const toggleAll = () => {
     if (selectedIds.length === data.length) {
@@ -121,10 +123,10 @@ export default function DataTable<T extends Record<string, any>>({
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && (
+      {computedTotalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
           <p className="text-sm text-gray-500">
-            共 {total} 条，第 {page}/{totalPages} 页
+            共 {total} 条，第 {page}/{computedTotalPages} 页
           </p>
           <div className="flex gap-1">
             <button
@@ -134,14 +136,14 @@ export default function DataTable<T extends Record<string, any>>({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+            {Array.from({ length: Math.min(computedTotalPages, 5) }, (_, i) => {
               let pageNum: number;
-              if (totalPages <= 5) {
+              if (computedTotalPages <= 5) {
                 pageNum = i + 1;
               } else if (page <= 3) {
                 pageNum = i + 1;
-              } else if (page >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
+              } else if (page >= computedTotalPages - 2) {
+                pageNum = computedTotalPages - 4 + i;
               } else {
                 pageNum = page - 2 + i;
               }
@@ -157,7 +159,7 @@ export default function DataTable<T extends Record<string, any>>({
             })}
             <button
               onClick={() => onPageChange(page + 1)}
-              disabled={page >= totalPages}
+              disabled={page >= computedTotalPages}
               className="px-3 py-1 text-sm border rounded disabled:opacity-50 hover:bg-gray-50"
             >
               <ChevronRight className="w-4 h-4" />

@@ -26,8 +26,8 @@ import RoleGuard from "@/components/RoleGuard";
 
 interface ProgressLog {
   id: number;
-  from_status: string;
-  to_status: string;
+  status_from: string;
+  status_to: string;
   note: string;
   operator_name: string;
   created_at: string;
@@ -37,9 +37,7 @@ interface PartLock {
   id: number;
   part_id: number;
   part_name: string;
-  part_sku: string;
   quantity: number;
-  unit_price: number;
 }
 
 interface Callback {
@@ -49,15 +47,15 @@ interface Callback {
   completed_at: string | null;
   result: string | null;
   note: string | null;
-  operator_name: string;
+  is_overdue: boolean;
 }
 
 interface AuditLogEntry {
   id: number;
   operator_name: string;
   action: string;
-  old_value: string;
-  new_value: string;
+  old_value: Record<string, unknown>;
+  new_value: Record<string, unknown>;
   created_at: string;
 }
 
@@ -71,18 +69,16 @@ interface Part {
 
 interface RepairOrder {
   id: number;
-  order_number: string;
-  customer_name: string;
-  customer_phone: string;
+  order_no: string;
+  customer: { name: string; phone: string };
   watch_brand: string;
   watch_model: string;
-  serial_number: string;
+  watch_serial: string;
   issue_description: string;
   status: string;
-  assigned_technician_name: string;
-  estimated_price: number;
-  quoted_price: number;
-  quotation_note: string;
+  assigned_technician?: { display_name: string };
+  quotation_price?: number;
+  quotation_note?: string;
   created_at: string;
   progress_logs: ProgressLog[];
   part_locks: PartLock[];
@@ -142,7 +138,7 @@ export default function RepairDetailPage() {
   const loadParts = async () => {
     try {
       const res = await apiFetch<Part[]>("/parts");
-      setParts(res instanceof Array ? res : []);
+      setParts(Array.isArray(res) ? res : []);
     } catch {}
   };
 
@@ -229,7 +225,7 @@ export default function RepairDetailPage() {
         <button onClick={() => router.push("/repairs")} className="p-2 hover:bg-gray-100 rounded">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-xl font-bold">工单 {order.order_number}</h2>
+        <h2 className="text-xl font-bold">工单 {order.order_no}</h2>
         <StatusBadge status={order.status} />
       </div>
 
@@ -240,14 +236,13 @@ export default function RepairDetailPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-semibold mb-4">工单信息</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><span className="text-gray-500">客户姓名：</span>{order.customer_name}</div>
-              <div><span className="text-gray-500">联系电话：</span>{order.customer_phone}</div>
+              <div><span className="text-gray-500">客户姓名：</span>{order.customer?.name || "-"}</div>
+              <div><span className="text-gray-500">联系电话：</span>{order.customer?.phone || "-"}</div>
               <div><span className="text-gray-500">品牌：</span>{order.watch_brand}</div>
               <div><span className="text-gray-500">型号：</span>{order.watch_model}</div>
-              <div><span className="text-gray-500">序列号：</span>{order.serial_number || "-"}</div>
-              <div><span className="text-gray-500">技师：</span>{order.assigned_technician_name || "-"}</div>
+              <div><span className="text-gray-500">序列号：</span>{order.watch_serial || "-"}</div>
+              <div><span className="text-gray-500">技师：</span>{order.assigned_technician?.display_name || "-"}</div>
               <div><span className="text-gray-500">创建时间：</span>{formatDateCN(order.created_at)}</div>
-              <div><span className="text-gray-500">预估价格：</span>{order.estimated_price ? `¥${order.estimated_price}` : "-"}</div>
             </div>
             <div className="mt-4 text-sm">
               <span className="text-gray-500">问题描述：</span>
@@ -257,9 +252,9 @@ export default function RepairDetailPage() {
 
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-semibold mb-4">报价信息</h3>
-            {order.quoted_price ? (
+            {order.quotation_price ? (
               <div className="space-y-2 text-sm">
-                <div><span className="text-gray-500">报价金额：</span>¥{order.quoted_price}</div>
+                <div><span className="text-gray-500">报价金额：</span>¥{order.quotation_price}</div>
                 <div><span className="text-gray-500">报价备注：</span>{order.quotation_note || "-"}</div>
                 {order.status === "quoted" && (
                   <RoleGuard allowed={["manager", "consultant"]}>
@@ -289,15 +284,12 @@ export default function RepairDetailPage() {
 
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-semibold mb-4">配件使用</h3>
-            {order.part_locks.length > 0 && (
+            {order.part_locks?.length > 0 ? (
               <table className="w-full text-sm mb-4">
                 <thead>
                   <tr className="border-b">
                     <th className="py-2 text-left text-gray-500">配件</th>
-                    <th className="py-2 text-left text-gray-500">SKU</th>
                     <th className="py-2 text-left text-gray-500">数量</th>
-                    <th className="py-2 text-left text-gray-500">单价</th>
-                    <th className="py-2 text-left text-gray-500">小计</th>
                     <th className="py-2"></th>
                   </tr>
                 </thead>
@@ -305,10 +297,7 @@ export default function RepairDetailPage() {
                   {order.part_locks.map((lock) => (
                     <tr key={lock.id} className="border-b">
                       <td className="py-2">{lock.part_name}</td>
-                      <td className="py-2">{lock.part_sku}</td>
                       <td className="py-2">{lock.quantity}</td>
-                      <td className="py-2">¥{lock.unit_price}</td>
-                      <td className="py-2">¥{(lock.quantity * lock.unit_price).toFixed(2)}</td>
                       <td className="py-2">
                         <RoleGuard allowed={["manager", "technician"]}>
                           <button
@@ -323,6 +312,8 @@ export default function RepairDetailPage() {
                   ))}
                 </tbody>
               </table>
+            ) : (
+              <p className="text-sm text-gray-400 mb-4">暂无锁定配件</p>
             )}
             <RoleGuard allowed={["manager", "technician"]}>
               {!showLockForm ? (
@@ -380,7 +371,7 @@ export default function RepairDetailPage() {
 
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-semibold mb-4">回访记录</h3>
-            {order.callbacks.length === 0 ? (
+            {!order.callbacks?.length ? (
               <p className="text-sm text-gray-400">暂无回访记录</p>
             ) : (
               <div className="space-y-3">
@@ -388,8 +379,13 @@ export default function RepairDetailPage() {
                   <div key={cb.id} className="border rounded p-3 text-sm">
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="font-medium">{CALLBACK_TYPE_LABELS[cb.callback_type] || cb.callback_type}</span>
+                        <span className="font-medium">
+                          {CALLBACK_TYPE_LABELS[cb.callback_type] || cb.callback_type}
+                        </span>
                         <span className="ml-2 text-gray-500">计划: {formatDateCN(cb.scheduled_at)}</span>
+                        {cb.is_overdue && !cb.completed_at && (
+                          <span className="ml-2 text-red-500 text-xs">已逾期</span>
+                        )}
                       </div>
                       {cb.completed_at ? (
                         <span className="text-green-600 text-xs">已完成</span>
@@ -405,7 +401,11 @@ export default function RepairDetailPage() {
                     {cb.completed_at && (
                       <div className="mt-1 text-gray-500">
                         <span>完成: {formatDateCN(cb.completed_at)}</span>
-                        {cb.result && <span className="ml-2">结果: {CALLBACK_RESULT_LABELS[cb.result] || cb.result}</span>}
+                        {cb.result && (
+                          <span className="ml-2">
+                            结果: {CALLBACK_RESULT_LABELS[cb.result] || cb.result}
+                          </span>
+                        )}
                         {cb.note && <span className="ml-2">备注: {cb.note}</span>}
                       </div>
                     )}
@@ -451,9 +451,11 @@ export default function RepairDetailPage() {
                   </div>
                   <div className="pb-4">
                     <p className="text-sm font-medium">
-                      {STATUS_LABELS[log.from_status] || log.from_status} → {STATUS_LABELS[log.to_status] || log.to_status}
+                      {STATUS_LABELS[log.status_from] || log.status_from} → {STATUS_LABELS[log.status_to] || log.status_to}
                     </p>
-                    <p className="text-xs text-gray-500">{log.operator_name} · {formatDateCN(log.created_at)}</p>
+                    <p className="text-xs text-gray-500">
+                      {log.operator_name} · {formatDateCN(log.created_at)}
+                    </p>
                     {log.note && <p className="text-xs text-gray-600 mt-1">{log.note}</p>}
                   </div>
                 </div>
@@ -463,11 +465,11 @@ export default function RepairDetailPage() {
 
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="font-semibold mb-4">审计日志</h3>
-            {(order.audit_logs || []).length === 0 ? (
+            {!order.audit_logs?.length ? (
               <p className="text-sm text-gray-400">暂无日志</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {(order.audit_logs || []).map((log) => (
+                {order.audit_logs.map((log) => (
                   <div key={log.id} className="text-xs border-b pb-2">
                     <p className="text-gray-700">{log.operator_name} - {log.action}</p>
                     <p className="text-gray-400">{formatDateCN(log.created_at)}</p>

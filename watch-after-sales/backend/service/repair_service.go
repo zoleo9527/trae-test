@@ -62,11 +62,34 @@ func (s *RepairService) GetByID(id uint) (*dto.RepairOrderResponse, *appErrors.A
 	var order model.RepairOrder
 	if err := s.db.Preload("Customer").Preload("AssignedTechnician").Preload("Creator").
 		Preload("ProgressLogs.Operator").
-		Preload("PartLocks.Part").
+		Preload("PartLocks.Part").Preload("PartLocks.LockedByUser").
+		Preload("Callbacks").
 		First(&order, id).Error; err != nil {
 		return nil, appErrors.NewNotFoundError("repair order not found")
 	}
-	return s.toResponse(&order), nil
+
+	resp := s.toResponse(&order)
+
+	var auditLogs []model.AuditLog
+	s.db.Where("entity_type = ? AND entity_id = ?", "repair_order", id).
+		Order("created_at DESC").Limit(50).Find(&auditLogs)
+
+	resp.AuditLogs = make([]dto.AuditLogResponse, len(auditLogs))
+	for i, log := range auditLogs {
+		resp.AuditLogs[i] = dto.AuditLogResponse{
+			ID:           log.ID,
+			EntityType:   log.EntityType,
+			EntityID:     log.EntityID,
+			Action:       log.Action,
+			OldValue:     log.OldValue,
+			NewValue:     log.NewValue,
+			OperatorID:   log.OperatorID,
+			OperatorName: log.OperatorName,
+			CreatedAt:    log.CreatedAt,
+		}
+	}
+
+	return resp, nil
 }
 
 func (s *RepairService) List(filter dto.RepairFilterRequest) (*dto.PaginatedResponse, *appErrors.AppError) {
@@ -399,6 +422,30 @@ func (s *RepairService) toResponse(order *model.RepairOrder) *dto.RepairOrderRes
 				pl.LockedByName = lock.LockedByUser.DisplayName
 			}
 			resp.PartLocks[i] = pl
+		}
+	}
+
+	if len(order.Callbacks) > 0 {
+		resp.Callbacks = make([]dto.CallbackResponse, len(order.Callbacks))
+		for i, cb := range order.Callbacks {
+			var resultStr *string
+			if cb.Result != nil {
+				result := string(*cb.Result)
+				resultStr = &result
+			}
+			resp.Callbacks[i] = dto.CallbackResponse{
+				ID:            cb.ID,
+				RepairOrderID: cb.RepairOrderID,
+				CallbackType:  string(cb.CallbackType),
+				ScheduledAt:   cb.ScheduledAt,
+				CompletedAt:   cb.CompletedAt,
+				Result:        resultStr,
+				Note:          cb.Note,
+				OperatorID:    cb.OperatorID,
+				IsOverdue:     cb.IsOverdue(),
+				CreatedAt:     cb.CreatedAt,
+				UpdatedAt:     cb.UpdatedAt,
+			}
 		}
 	}
 

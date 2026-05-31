@@ -11,9 +11,9 @@ interface Part {
   id: number;
   sku: string;
   name: string;
-  stock_quantity: number;
+  quantity: number;
   locked_quantity: number;
-  minimum_stock: number;
+  min_quantity: number;
   unit_price: number;
 }
 
@@ -27,8 +27,8 @@ export default function PartsPage() {
   const [form, setForm] = useState({
     sku: "",
     name: "",
-    stock_quantity: "",
-    minimum_stock: "",
+    quantity: "",
+    min_quantity: "",
     unit_price: "",
   });
 
@@ -52,7 +52,7 @@ export default function PartsPage() {
 
   const openCreate = () => {
     setEditPart(null);
-    setForm({ sku: "", name: "", stock_quantity: "", minimum_stock: "0", unit_price: "" });
+    setForm({ sku: "", name: "", quantity: "", min_quantity: "0", unit_price: "" });
     setModal(true);
   };
 
@@ -61,8 +61,8 @@ export default function PartsPage() {
     setForm({
       sku: part.sku,
       name: part.name,
-      stock_quantity: String(part.stock_quantity),
-      minimum_stock: String(part.minimum_stock),
+      quantity: String(part.quantity),
+      min_quantity: String(part.min_quantity),
       unit_price: String(part.unit_price),
     });
     setModal(true);
@@ -74,8 +74,8 @@ export default function PartsPage() {
       const body = {
         sku: form.sku,
         name: form.name,
-        stock_quantity: parseInt(form.stock_quantity),
-        minimum_stock: parseInt(form.minimum_stock),
+        quantity: parseInt(form.quantity),
+        min_quantity: parseInt(form.min_quantity),
         unit_price: parseFloat(form.unit_price),
       };
       if (editPart) {
@@ -156,18 +156,18 @@ export default function PartsPage() {
                 </tr>
               ) : (
                 filtered.map((part) => {
-                  const available = part.stock_quantity - part.locked_quantity;
-                  const isLow = available <= part.minimum_stock;
+                  const available = part.quantity - part.locked_quantity;
+                  const isLow = available <= part.min_quantity;
                   return (
                     <tr key={part.id} className={isLow ? "bg-red-50" : ""}>
                       <td className="px-4 py-3 text-sm">{part.sku}</td>
                       <td className="px-4 py-3 text-sm">{part.name}</td>
-                      <td className="px-4 py-3 text-sm">{part.stock_quantity}</td>
+                      <td className="px-4 py-3 text-sm">{part.quantity}</td>
                       <td className="px-4 py-3 text-sm">{part.locked_quantity}</td>
                       <td className={`px-4 py-3 text-sm font-medium ${isLow ? "text-red-600" : ""}`}>
                         {available}
                       </td>
-                      <td className="px-4 py-3 text-sm">{part.minimum_stock}</td>
+                      <td className="px-4 py-3 text-sm">{part.min_quantity}</td>
                       <td className="px-4 py-3 text-sm">¥{part.unit_price}</td>
                       <td className="px-4 py-3">
                         <RoleGuard allowed={["manager", "consultant"]}>
@@ -218,8 +218,8 @@ export default function PartsPage() {
                     type="number"
                     required
                     min="0"
-                    value={form.stock_quantity}
-                    onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+                    value={form.quantity}
+                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
                 </div>
@@ -228,8 +228,8 @@ export default function PartsPage() {
                   <input
                     type="number"
                     min="0"
-                    value={form.minimum_stock}
-                    onChange={(e) => setForm({ ...form, minimum_stock: e.target.value })}
+                    value={form.min_quantity}
+                    onChange={(e) => setForm({ ...form, min_quantity: e.target.value })}
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
                 </div>

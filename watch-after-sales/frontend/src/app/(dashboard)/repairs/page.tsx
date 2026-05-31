@@ -15,12 +15,12 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 interface RepairOrder {
   id: number;
-  order_number: string;
-  customer_name: string;
+  order_no: string;
+  customer: { name: string };
   watch_brand: string;
   watch_model: string;
   status: string;
-  assigned_technician_name: string;
+  assigned_technician?: { display_name: string };
   created_at: string;
 }
 
@@ -40,6 +40,7 @@ export default function RepairsPage() {
   const [data, setData] = useState<RepairOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -63,10 +64,13 @@ export default function RepairsPage() {
         Object.entries(filters).forEach(([k, v]) => {
           if (v) params.set(k, v);
         });
-        const res = await apiFetch<{ data: RepairOrder[]; total: number }>(`/repairs?${params}`);
+        const res = await apiFetch<{ data: RepairOrder[]; total: number; total_pages: number }>(
+          `/repairs?${params}`
+        );
         if (!cancelled) {
           setData(res.data || []);
           setTotal(res.total || 0);
+          setTotalPages(res.total_pages || 1);
         }
       } catch (err) {
         if (!cancelled) setError(err as AppError);
@@ -107,8 +111,8 @@ export default function RepairsPage() {
   };
 
   const columns = [
-    { key: "order_number", title: "工单号" },
-    { key: "customer_name", title: "客户" },
+    { key: "order_no", title: "工单号", render: (item: RepairOrder) => item.order_no },
+    { key: "customer", title: "客户", render: (item: RepairOrder) => item.customer?.name || "-" },
     {
       key: "watch_brand",
       title: "品牌/型号",
@@ -119,7 +123,11 @@ export default function RepairsPage() {
       title: "状态",
       render: (item: RepairOrder) => <StatusBadge status={item.status} />,
     },
-    { key: "assigned_technician_name", title: "技师" },
+    {
+      key: "assigned_technician",
+      title: "技师",
+      render: (item: RepairOrder) => item.assigned_technician?.display_name || "-",
+    },
     {
       key: "created_at",
       title: "创建时间",
@@ -221,6 +229,7 @@ export default function RepairsPage() {
             total={total}
             page={page}
             pageSize={pageSize}
+            totalPages={totalPages}
             onPageChange={setPage}
             selectable
             selectedIds={selectedIds}
@@ -234,7 +243,9 @@ export default function RepairsPage() {
       <ConfirmDialog
         open={batchDialog}
         title="批量变更状态"
-        message={`确认将 ${selectedIds.length} 个工单的状态变更为「${STATUS_LABELS[batchStatus] || batchStatus}」？`}
+        message={`确认将 ${selectedIds.length} 个工单的状态变更为「${
+          STATUS_LABELS[batchStatus] || batchStatus
+        }」？`}
         onConfirm={handleBatchStatus}
         onCancel={() => setBatchDialog(false)}
       />
