@@ -44,15 +44,15 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="card p-4">
         <p class="text-sm text-gray-500">账户余额</p>
-        <p class="text-2xl font-bold text-primary-600 mt-1">¥{{ commonStore.formatMoney(account.balance) }}</p>
+        <p class="text-2xl font-bold text-primary-600 mt-1">{{ commonStore.formatMoney(account.balance) }}</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-gray-500">累计充值</p>
-        <p class="text-2xl font-bold text-green-600 mt-1">¥{{ commonStore.formatMoney(account.totalRecharged) }}</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ commonStore.formatMoney(account.totalRecharged) }}</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-gray-500">累计消费</p>
-        <p class="text-2xl font-bold text-red-600 mt-1">¥{{ commonStore.formatMoney(account.totalConsumed) }}</p>
+        <p class="text-2xl font-bold text-red-600 mt-1">{{ commonStore.formatMoney(account.totalConsumed) }}</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-gray-500">积分余额</p>
@@ -136,10 +136,10 @@
                 </div>
                 <div class="text-right ml-4">
                   <p :class="tx.amount >= 0 ? 'text-green-600' : 'text-red-600'" class="text-lg font-bold">
-                    {{ tx.amount >= 0 ? '+' : '' }}¥{{ commonStore.formatMoney(tx.amount) }}
+                    {{ tx.amount >= 0 ? '+' : '' }}{{ commonStore.formatMoney(Math.abs(tx.amount)) }}
                   </p>
                   <p class="text-xs text-gray-500 mt-1">
-                    余额：¥{{ commonStore.formatMoney(tx.balanceAfter) }}
+                    余额：{{ commonStore.formatMoney(tx.balanceAfter) }}
                   </p>
                 </div>
               </div>
@@ -164,8 +164,7 @@
 
       <div class="space-y-6">
         <RelatedInfoPanel
-          :customer-id="account.customerId"
-          :prepaid-id="account.id"
+          :prepaid-account-id="account.id"
         />
 
         <div class="card">

@@ -248,6 +248,65 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showCreateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl p-6 w-full max-w-lg">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">新增器材</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">器材名称 <span class="text-red-500">*</span></label>
+            <input v-model="newEquipment.name" type="text" class="input" placeholder="请输入器材名称" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">器材分类</label>
+              <select v-model="newEquipment.category" class="select">
+                <option v-for="cat in categoryOptions" :key="cat.value" :value="cat.value">
+                  {{ cat.label }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">成色</label>
+              <select v-model="newEquipment.condition" class="select">
+                <option value="new">全新</option>
+                <option value="good">良好</option>
+                <option value="fair">一般</option>
+                <option value="poor">较差</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">品牌</label>
+              <input v-model="newEquipment.brand" type="text" class="input" placeholder="可选" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">型号</label>
+              <input v-model="newEquipment.model" type="text" class="input" placeholder="可选" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">租借费（元/次）</label>
+              <input v-model.number="newEquipment.rentalFee" type="number" min="0" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">押金（元）</label>
+              <input v-model.number="newEquipment.deposit" type="number" min="0" class="input" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea v-model="newEquipment.notes" class="input" rows="2" placeholder="可选" />
+          </div>
+          <div class="flex items-center gap-3 pt-4">
+            <button class="btn btn-outline flex-1" @click="showCreateModal = false">取消</button>
+            <button class="btn btn-primary flex-1" @click="handleCreateEquipment">创建器材</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -259,7 +318,7 @@ import { useEquipmentStore } from '~/stores/equipment'
 import { useNotificationStore } from '~/stores/notification'
 import FilterBar from '~/components/FilterBar.vue'
 import Pagination from '~/components/Pagination.vue'
-import type { Equipment, BorrowRecord } from '~/types'
+import type { Equipment, BorrowRecord, EquipmentCategory } from '~/types'
 
 const userStore = useUserStore()
 const commonStore = useCommonStore()
@@ -290,6 +349,52 @@ const returnRemark = ref('')
 const lendBorrowerName = ref('')
 const lendBorrowerPhone = ref('')
 const lendExpectedReturn = ref('')
+
+const newEquipment = reactive({
+  name: '',
+  category: 'club' as EquipmentCategory,
+  condition: 'good' as 'new' | 'good' | 'fair' | 'poor',
+  brand: '',
+  model: '',
+  rentalFee: 50,
+  deposit: 200,
+  notes: ''
+})
+
+function resetNewEquipment() {
+  newEquipment.name = ''
+  newEquipment.category = 'club'
+  newEquipment.condition = 'good'
+  newEquipment.brand = ''
+  newEquipment.model = ''
+  newEquipment.rentalFee = 50
+  newEquipment.deposit = 200
+  newEquipment.notes = ''
+}
+
+function handleCreateEquipment() {
+  if (!newEquipment.name.trim()) {
+    notificationStore.showToastMessage('error', '请输入器材名称')
+    return
+  }
+
+  const equip = equipmentStore.createEquipment({
+    name: newEquipment.name,
+    category: newEquipment.category,
+    condition: newEquipment.condition,
+    brand: newEquipment.brand || undefined,
+    model: newEquipment.model || undefined,
+    rentalFee: newEquipment.rentalFee,
+    deposit: newEquipment.deposit,
+    notes: newEquipment.notes || undefined
+  })
+
+  notificationStore.showToastMessage('success', '器材创建成功')
+  showCreateModal.value = false
+  resetNewEquipment()
+
+  navigateTo(`/equipment/${equip.id}`)
+}
 
 const returnConditionOptions: { value: 'new' | 'good' | 'fair' | 'poor' | 'damaged'; label: string }[] = [
   { value: 'good', label: '完好' },

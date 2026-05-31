@@ -8,11 +8,11 @@ export const mockUsers: User[] = [
     phone: '13800138001',
     email: 'zhang.my@golfclub.com',
     permissions: [
-      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:approve', 'patrol:reject',
-      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:assign', 'complaint:resolve',
-      'booking:view', 'booking:create', 'booking:edit', 'booking:cancel',
-      'prepaid:view', 'prepaid:recharge', 'prepaid:adjust',
-      'equipment:view', 'equipment:manage', 'equipment:check_return',
+      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit', 'patrol:approve', 'patrol:reject',
+      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:assign', 'complaint:resolve', 'complaint:close',
+      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:cancel', 'booking:checkin', 'booking:checkout',
+      'prepaid:view', 'prepaid:create', 'prepaid:recharge', 'prepaid:deduct', 'prepaid:adjust', 'prepaid:freeze',
+      'equipment:view', 'equipment:create', 'equipment:manage', 'equipment:lend', 'equipment:return', 'equipment:check_return',
       'report:view', 'user:manage'
     ]
   },
@@ -23,8 +23,8 @@ export const mockUsers: User[] = [
     phone: '13800138002',
     email: 'li.coach@golfclub.com',
     permissions: [
-      'patrol:view', 'patrol:create', 'patrol:edit',
-      'complaint:view', 'complaint:create', 'complaint:edit',
+      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit',
+      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:resolve',
       'booking:view', 'booking:create', 'booking:edit',
       'equipment:view', 'equipment:check_return'
     ]
@@ -38,9 +38,9 @@ export const mockUsers: User[] = [
     permissions: [
       'patrol:view',
       'complaint:view', 'complaint:create',
-      'booking:view', 'booking:create', 'booking:edit', 'booking:checkin',
-      'prepaid:view', 'prepaid:recharge',
-      'equipment:view', 'equipment:lend', 'equipment:check_return'
+      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:checkin', 'booking:checkout',
+      'prepaid:view', 'prepaid:create', 'prepaid:recharge',
+      'equipment:view', 'equipment:lend', 'equipment:return', 'equipment:check_return'
     ]
   }
 ]

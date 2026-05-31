@@ -100,6 +100,81 @@
         @change="handlePageChange"
       />
     </div>
+
+    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+      <div class="modal-content p-6 max-w-2xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">新增预约</h3>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">客户姓名</label>
+              <input v-model="newBooking.customerName" type="text" class="input" placeholder="请输入客户姓名" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">联系电话</label>
+              <input v-model="newBooking.customerPhone" type="tel" class="input" placeholder="请输入联系电话" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">预约类型</label>
+              <select v-model="newBooking.type" class="select">
+                <option v-for="t in categoryOptions" :key="t.value" :value="t.value">
+                  {{ t.label }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">人数</label>
+              <input v-model.number="newBooking.numberOfPeople" type="number" min="1" class="input" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">预约日期</label>
+              <input v-model="newBooking.date" type="date" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">打位/洞号</label>
+              <input v-model="newBooking.bayNumber" type="text" class="input" placeholder="如: A1, B3" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+              <input v-model="newBooking.startTime" type="time" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
+              <input v-model="newBooking.endTime" type="time" class="input" />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">支付方式</label>
+              <select v-model="newBooking.paymentMethod" class="select">
+                <option value="prepaid">储值卡</option>
+                <option value="cash">现金</option>
+                <option value="card">刷卡</option>
+                <option value="points">积分</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">预约金额</label>
+              <input v-model.number="newBooking.totalAmount" type="number" min="0" step="0.01" class="input" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea v-model="newBooking.remark" class="textarea" rows="2" placeholder="可选填写备注..." />
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 mt-4 border-t">
+          <button class="btn btn-secondary" @click="showCreateModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleCreate">创建</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -133,6 +208,81 @@ const pagination = reactive({
 })
 
 const showCreateModal = ref(false)
+
+const newBooking = reactive({
+  customerName: '',
+  customerPhone: '',
+  type: 'driving_range' as BookingType,
+  numberOfPeople: 1,
+  date: new Date().toISOString().split('T')[0],
+  bayNumber: '',
+  startTime: '09:00',
+  endTime: '11:00',
+  paymentMethod: 'prepaid' as 'prepaid' | 'cash' | 'card' | 'points',
+  totalAmount: 200,
+  remark: ''
+})
+
+function resetNewBooking() {
+  newBooking.customerName = ''
+  newBooking.customerPhone = ''
+  newBooking.type = 'driving_range'
+  newBooking.numberOfPeople = 1
+  newBooking.date = new Date().toISOString().split('T')[0]
+  newBooking.bayNumber = ''
+  newBooking.startTime = '09:00'
+  newBooking.endTime = '11:00'
+  newBooking.paymentMethod = 'prepaid'
+  newBooking.totalAmount = 200
+  newBooking.remark = ''
+}
+
+function handleCreate() {
+  if (!newBooking.customerName.trim()) {
+    notificationStore.showToastMessage('error', '请输入客户姓名')
+    return
+  }
+  if (!newBooking.customerPhone.trim()) {
+    notificationStore.showToastMessage('error', '请输入联系电话')
+    return
+  }
+  if (!newBooking.date) {
+    notificationStore.showToastMessage('error', '请选择预约日期')
+    return
+  }
+
+  const startTime = new Date(`${newBooking.date}T${newBooking.startTime}`)
+  const endTime = new Date(`${newBooking.date}T${newBooking.endTime}`)
+  const duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000)
+
+  const booking = bookingStore.createBooking({
+    customerName: newBooking.customerName,
+    customerPhone: newBooking.customerPhone,
+    type: newBooking.type,
+    numberOfPeople: newBooking.numberOfPeople,
+    date: newBooking.date,
+    bayNumber: newBooking.bayNumber || undefined,
+    startTime: newBooking.startTime,
+    endTime: newBooking.endTime,
+    duration: duration > 0 ? duration : 120,
+    paymentMethod: newBooking.paymentMethod,
+    totalAmount: newBooking.totalAmount,
+    remark: newBooking.remark || undefined,
+    fees: [{
+      id: `fee-${Date.now()}`,
+      name: getBookingTypeLabel(newBooking.type),
+      category: 'other' as const,
+      amount: newBooking.totalAmount,
+      prepaidApplicable: true
+    }]
+  })
+
+  notificationStore.showToastMessage('success', '预约创建成功')
+  showCreateModal.value = false
+  resetNewBooking()
+
+  navigateTo(`/booking/${booking.id}`)
+}
 
 const categoryOptions = [
   { value: 'driving_range', label: '练习场' },

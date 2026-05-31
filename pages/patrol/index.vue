@@ -115,6 +115,84 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+      <div class="modal-content p-6 max-w-2xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">新建巡场记录</h3>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">巡场日期</label>
+              <input v-model="newPatrol.date" type="date" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">地点</label>
+              <select v-model="newPatrol.location" class="select">
+                <option value="">请选择</option>
+                <option value="练习场A区">练习场A区</option>
+                <option value="练习场B区">练习场B区</option>
+                <option value="果岭区">果岭区</option>
+                <option value="沙坑区">沙坑区</option>
+                <option value="会所">会所</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+              <input v-model="newPatrol.startTime" type="time" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">天气</label>
+              <select v-model="newPatrol.weather" class="select">
+                <option value="晴">晴</option>
+                <option value="多云">多云</option>
+                <option value="阴">阴</option>
+                <option value="雨">雨</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">温度 (°C)</label>
+            <input v-model.number="newPatrol.temperature" type="number" class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">巡场摘要</label>
+            <textarea v-model="newPatrol.summary" class="textarea" rows="3" placeholder="请输入巡场摘要..." />
+          </div>
+          <div class="pt-2">
+            <label class="block text-sm font-medium text-gray-700 mb-2">检查项</label>
+            <div class="space-y-2">
+              <div v-for="(item, index) in newPatrol.items" :key="index" class="flex items-center gap-3">
+                <select v-model="item.name" class="select flex-1">
+                  <option v-for="cat in categoryOptions" :key="cat.value" :value="cat.label">
+                    {{ cat.label }}
+                  </option>
+                </select>
+                <select v-model="item.condition" class="select w-28">
+                  <option value="excellent">优秀</option>
+                  <option value="good">良好</option>
+                  <option value="fair">一般</option>
+                  <option value="poor">较差</option>
+                </select>
+                <button @click="removePatrolItem(index)" class="text-red-500 hover:text-red-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+              <button @click="addPatrolItem" class="text-primary-600 hover:text-primary-700 text-sm">
+                + 添加检查项
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 mt-4 border-t">
+          <button class="btn btn-secondary" @click="showCreateModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleCreate">创建</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -152,6 +230,77 @@ const showRejectModal = ref(false)
 const showCreateModal = ref(false)
 const rejectReason = ref('')
 const selectedPatrolId = ref<string | null>(null)
+
+const newPatrol = reactive({
+  date: new Date().toISOString().split('T')[0],
+  startTime: new Date().toTimeString().slice(0, 5),
+  location: '',
+  weather: '晴',
+  temperature: 25,
+  summary: '',
+  items: [
+    { id: '1', name: '球道', category: 'fairway' as const, condition: 'good' as const },
+    { id: '2', name: '果岭', category: 'green' as const, condition: 'good' as const }
+  ]
+})
+
+function resetNewPatrol() {
+  newPatrol.date = new Date().toISOString().split('T')[0]
+  newPatrol.startTime = new Date().toTimeString().slice(0, 5)
+  newPatrol.location = ''
+  newPatrol.weather = '晴'
+  newPatrol.temperature = 25
+  newPatrol.summary = ''
+  newPatrol.items = [
+    { id: '1', name: '球道', category: 'fairway' as const, condition: 'good' as const },
+    { id: '2', name: '果岭', category: 'green' as const, condition: 'good' as const }
+  ]
+}
+
+function addPatrolItem() {
+  newPatrol.items.push({
+    id: Date.now().toString(),
+    name: '',
+    category: 'fairway' as const,
+    condition: 'good' as const
+  })
+}
+
+function removePatrolItem(index: number) {
+  if (newPatrol.items.length > 1) {
+    newPatrol.items.splice(index, 1)
+  }
+}
+
+function handleCreate() {
+  if (!newPatrol.location.trim()) {
+    notificationStore.showToastMessage('error', '请选择巡场地点')
+    return
+  }
+
+  const patrol = patrolStore.createPatrol({
+    date: newPatrol.date,
+    startTime: newPatrol.startTime,
+    location: newPatrol.location,
+    weather: newPatrol.weather,
+    temperature: newPatrol.temperature,
+    summary: newPatrol.summary,
+    items: newPatrol.items.map((item, idx) => ({
+      id: `item-${Date.now()}-${idx}`,
+      name: item.name,
+      category: item.category,
+      condition: item.condition
+    }))
+  })
+
+  notificationStore.showToastMessage('success', '巡场记录创建成功')
+  showCreateModal.value = false
+  resetNewPatrol()
+
+  if (userStore.hasPermission('patrol:submit')) {
+    navigateTo(`/patrol/${patrol.id}`)
+  }
+}
 
 const categoryOptions = [
   { value: 'fairway', label: '球道' },

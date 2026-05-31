@@ -179,6 +179,65 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+      <div class="modal-content p-6 max-w-2xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">登记投诉</h3>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">客户姓名</label>
+              <input v-model="newComplaint.customerName" type="text" class="input" placeholder="请输入客户姓名" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">联系电话</label>
+              <input v-model="newComplaint.customerPhone" type="tel" class="input" placeholder="请输入联系电话" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">投诉标题</label>
+            <input v-model="newComplaint.title" type="text" class="input" placeholder="请简要描述投诉内容" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">投诉分类</label>
+              <select v-model="newComplaint.category" class="select">
+                <option v-for="cat in categoryOptions" :key="cat.value" :value="cat.value">
+                  {{ cat.label }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+              <select v-model="newComplaint.priority" class="select">
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+                <option value="urgent">紧急</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">投诉来源</label>
+            <select v-model="newComplaint.source" class="select">
+              <option value="phone">电话</option>
+              <option value="on_site">现场</option>
+              <option value="wechat">微信</option>
+              <option value="online">线上</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">详细描述</label>
+            <textarea v-model="newComplaint.description" class="textarea" rows="4" placeholder="请详细描述投诉内容..." />
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 mt-4 border-t">
+          <button class="btn btn-secondary" @click="showCreateModal = false">取消</button>
+          <button class="btn btn-primary" @click="handleCreate">创建</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -223,6 +282,61 @@ const selectedHandlerId = ref('')
 const assignRemark = ref('')
 const resolveResult = ref<'resolved' | 'rejected'>('resolved')
 const resolveRemark = ref('')
+
+const newComplaint = reactive({
+  customerName: '',
+  customerPhone: '',
+  title: '',
+  category: 'other' as ComplaintCategory,
+  priority: 'medium' as ComplaintPriority,
+  source: 'on_site' as 'phone' | 'on_site' | 'wechat' | 'online' | 'other',
+  description: ''
+})
+
+function resetNewComplaint() {
+  newComplaint.customerName = ''
+  newComplaint.customerPhone = ''
+  newComplaint.title = ''
+  newComplaint.category = 'other'
+  newComplaint.priority = 'medium'
+  newComplaint.source = 'on_site'
+  newComplaint.description = ''
+}
+
+function handleCreate() {
+  if (!newComplaint.customerName.trim()) {
+    notificationStore.showToastMessage('error', '请输入客户姓名')
+    return
+  }
+  if (!newComplaint.customerPhone.trim()) {
+    notificationStore.showToastMessage('error', '请输入联系电话')
+    return
+  }
+  if (!newComplaint.title.trim()) {
+    notificationStore.showToastMessage('error', '请输入投诉标题')
+    return
+  }
+  if (!newComplaint.description.trim()) {
+    notificationStore.showToastMessage('error', '请输入投诉详情')
+    return
+  }
+
+  const complaint = complaintStore.createComplaint({
+    customerName: newComplaint.customerName,
+    customerPhone: newComplaint.customerPhone,
+    title: newComplaint.title,
+    category: newComplaint.category,
+    priority: newComplaint.priority,
+    source: newComplaint.source,
+    description: newComplaint.description
+  })
+
+  notificationStore.showToastMessage('success', '投诉登记成功')
+  showCreateModal.value = false
+  resetNewComplaint()
+
+  navigateTo(`/complaint/${complaint.id}`)
+}
 
 const categoryOptions = [
   { value: 'equipment', label: '器材问题' },

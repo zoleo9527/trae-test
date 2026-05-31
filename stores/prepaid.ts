@@ -272,28 +272,66 @@ export const usePrepaidStore = defineStore('prepaid', () => {
     return true
   }
 
-  function createAccount(customer: { id: string; name: string; phone: string }): PrepaidAccount {
+  function createAccount(
+    customer: { id: string; name: string; phone: string },
+    initialRecharge: number = 0,
+    level: 'normal' | 'silver' | 'gold' | 'platinum' = 'normal'
+  ): PrepaidAccount {
     const now = new Date()
+    
+    const discountRates: Record<string, number> = {
+      normal: 1,
+      silver: 0.9,
+      gold: 0.85,
+      platinum: 0.85
+    }
+
     const newAccount: PrepaidAccount = {
       id: `prepaid-${Date.now()}`,
       accountNo: commonStore.generateNo('ACC'),
       customerId: customer.id,
       customerName: customer.name,
       customerPhone: customer.phone,
-      balance: 0,
-      totalRecharged: 0,
+      balance: initialRecharge,
+      totalRecharged: initialRecharge,
       totalConsumed: 0,
       frozenAmount: 0,
       status: 'active',
-      level: 'normal',
-      discountRate: 1,
-      pointBalance: 0,
+      level,
+      discountRate: discountRates[level],
+      pointBalance: initialRecharge > 0 ? Math.floor(initialRecharge / 10) : 0,
       transactions: [],
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     }
 
     accounts.value.unshift(newAccount)
+
+    commonStore.addStatusHistory({
+      recordId: newAccount.id,
+      fromStatus: null,
+      toStatus: 'approved',
+      operatorId: userStore.currentUser!.id,
+      operatorName: userStore.currentUser!.name,
+      remark: '账户创建成功'
+    })
+
+    if (initialRecharge > 0) {
+      const transaction = {
+        id: `tx-${Date.now()}`,
+        transactionNo: commonStore.generateNo('TX'),
+        accountId: newAccount.id,
+        type: 'recharge' as const,
+        amount: initialRecharge,
+        balanceBefore: 0,
+        balanceAfter: initialRecharge,
+        operatorId: userStore.currentUser!.id,
+        operatorName: userStore.currentUser!.name,
+        remark: '开户初始充值',
+        createdAt: new Date().toISOString()
+      }
+      newAccount.transactions.push(transaction)
+    }
 
     return newAccount
   }

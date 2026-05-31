@@ -299,6 +299,42 @@ export const useEquipmentStore = defineStore('equipment', () => {
       .sort((a, b) => new Date(b.borrowDate).getTime() - new Date(a.borrowDate).getTime())
   }
 
+  function createEquipment(equip: Partial<Equipment>): Equipment {
+    const now = new Date()
+    const newEquipment: Equipment = {
+      id: `equipment-${Date.now()}`,
+      equipmentNo: commonStore.generateNo('EQP'),
+      name: equip.name || '',
+      category: equip.category || 'other',
+      brand: equip.brand,
+      model: equip.model,
+      serialNumber: equip.serialNumber,
+      purchaseDate: equip.purchaseDate || now.toISOString().split('T')[0],
+      purchasePrice: equip.purchasePrice || 0,
+      condition: equip.condition || 'good',
+      status: 'available',
+      location: equip.location || '器材室',
+      rentalFee: equip.rentalFee || 50,
+      deposit: equip.deposit || 200,
+      notes: equip.notes,
+      currentBorrowerId: undefined,
+      currentBorrowerName: undefined,
+      currentBookingId: undefined,
+      lastMaintenanceDate: undefined,
+      nextMaintenanceDate: undefined,
+      borrowHistory: [],
+      maintenanceRecords: [],
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    }
+
+    equipment.value.unshift(newEquipment)
+
+    commonStore.addRemark(newEquipment.id, '器材入库', true)
+
+    return newEquipment
+  }
+
   function setFilter(newFilter: Partial<FilterOptions>) {
     filter.value = { ...filter.value, ...newFilter }
     pagination.value.page = 1
@@ -337,6 +373,7 @@ export const useEquipmentStore = defineStore('equipment', () => {
     addMaintenance,
     completeMaintenance,
     getBorrowHistory,
+    createEquipment,
     setFilter,
     clearFilter,
     setPage

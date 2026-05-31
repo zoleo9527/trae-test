@@ -11,11 +11,11 @@
       </div>
       <div class="card p-4">
         <p class="text-sm text-gray-500">总余额</p>
-        <p class="text-2xl font-bold text-primary-600 mt-1">¥{{ commonStore.formatMoney(prepaidStore.totalBalance) }}</p>
+        <p class="text-2xl font-bold text-primary-600 mt-1">{{ commonStore.formatMoney(prepaidStore.totalBalance) }}</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-gray-500">本月消费</p>
-        <p class="text-2xl font-bold text-amber-600 mt-1">¥{{ commonStore.formatMoney(monthlyConsumption) }}</p>
+        <p class="text-2xl font-bold text-amber-600 mt-1">{{ commonStore.formatMoney(monthlyConsumption) }}</p>
       </div>
     </div>
 
@@ -71,9 +71,9 @@
                 <span :class="getLevelBadgeClass(account.level)">{{ prepaidStore.getLevelLabel(account.level) }}</span>
               </td>
               <td class="font-medium text-amber-600">{{ (account.discountRate * 10).toFixed(1) }}折</td>
-              <td class="font-medium text-gray-900">¥{{ commonStore.formatMoney(account.balance) }}</td>
-              <td class="text-green-600">¥{{ commonStore.formatMoney(account.totalRecharged) }}</td>
-              <td class="text-red-600">¥{{ commonStore.formatMoney(account.totalConsumed) }}</td>
+              <td class="font-medium text-gray-900">{{ commonStore.formatMoney(account.balance) }}</td>
+              <td class="text-green-600">{{ commonStore.formatMoney(account.totalRecharged) }}</td>
+              <td class="text-red-600">{{ commonStore.formatMoney(account.totalConsumed) }}</td>
               <td class="text-purple-600">{{ account.pointBalance }} 分</td>
               <td>
                 <span
@@ -149,6 +149,42 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showCreateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-xl p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">新建储值账户</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">客户姓名</label>
+            <input v-model="newAccount.customerName" type="text" class="input" placeholder="请输入客户姓名" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">联系电话</label>
+            <input v-model="newAccount.customerPhone" type="tel" class="input" placeholder="请输入联系电话" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">会员等级</label>
+            <select v-model="newAccount.level" class="select">
+              <option v-for="level in levelOptions" :key="level.value" :value="level.value">
+                {{ level.label }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">初始充值金额</label>
+            <input v-model.number="newAccount.initialRecharge" type="number" min="0" step="100" class="input" placeholder="请输入充值金额" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+            <textarea v-model="newAccount.remark" class="input" rows="2" placeholder="可选" />
+          </div>
+          <div class="flex items-center gap-3 pt-4">
+            <button class="btn btn-outline flex-1" @click="showCreateModal = false">取消</button>
+            <button class="btn btn-primary flex-1" @click="handleCreateAccount">创建账户</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -185,6 +221,53 @@ const showRechargeModal = ref(false)
 const rechargeAccount = ref<PrepaidAccount | null>(null)
 const rechargeAmount = ref(0)
 const rechargeRemark = ref('')
+
+const newAccount = reactive({
+  customerName: '',
+  customerPhone: '',
+  level: 'normal' as 'normal' | 'silver' | 'gold' | 'platinum',
+  initialRecharge: 1000,
+  remark: ''
+})
+
+function resetNewAccount() {
+  newAccount.customerName = ''
+  newAccount.customerPhone = ''
+  newAccount.level = 'normal'
+  newAccount.initialRecharge = 1000
+  newAccount.remark = ''
+}
+
+function handleCreateAccount() {
+  if (!newAccount.customerName.trim()) {
+    notificationStore.showToastMessage('error', '请输入客户姓名')
+    return
+  }
+  if (!newAccount.customerPhone.trim()) {
+    notificationStore.showToastMessage('error', '请输入联系电话')
+    return
+  }
+
+  const account = prepaidStore.createAccount(
+    {
+      id: `cust-${Date.now()}`,
+      name: newAccount.customerName,
+      phone: newAccount.customerPhone
+    },
+    newAccount.initialRecharge,
+    newAccount.level
+  )
+
+  if (newAccount.remark.trim()) {
+    commonStore.addRemark(account.id, newAccount.remark, true)
+  }
+
+  notificationStore.showToastMessage('success', '储值账户创建成功')
+  showCreateModal.value = false
+  resetNewAccount()
+
+  navigateTo(`/prepaid/${account.id}`)
+}
 
 const levelOptions = [
   { value: 'normal', label: '普通会员' },
