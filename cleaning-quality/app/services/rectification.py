@@ -7,6 +7,8 @@ from app.services.audit import log_audit
 from app.services.state_machine import (
     validate_rectification_transition,
     check_rectification_overdue,
+    check_optimistic_lock,
+    increment_version,
 )
 
 
@@ -48,10 +50,11 @@ def create_rectification(db: Session, data: RectificationCreate, operator_id: st
     return rect
 
 
-def assign_rectification(db: Session, rectification_id: int, data: RectificationAssign, operator_id: str, operator_name: str, operator_role: str) -> Optional[Rectification]:
+def assign_rectification(db: Session, rectification_id: int, data: RectificationAssign, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Rectification]:
     rect = get_rectification(db, rectification_id)
     if not rect:
         return None
+    check_optimistic_lock(rect, expected_version)
     validate_rectification_transition(rect.status, "assigned")
     old_values = {"status": rect.status, "assignee_id": rect.assignee_id}
     rect.status = "assigned"
@@ -64,15 +67,17 @@ def assign_rectification(db: Session, rectification_id: int, data: Rectification
         old_values=old_values,
         new_values={"status": "assigned", "assignee_id": data.assignee_id, "assignee_name": data.assignee_name},
     )
+    increment_version(rect)
     db.commit()
     db.refresh(rect)
     return rect
 
 
-def start_rectification(db: Session, rectification_id: int, operator_id: str, operator_name: str, operator_role: str) -> Optional[Rectification]:
+def start_rectification(db: Session, rectification_id: int, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Rectification]:
     rect = get_rectification(db, rectification_id)
     if not rect:
         return None
+    check_optimistic_lock(rect, expected_version)
     validate_rectification_transition(rect.status, "in_progress")
     old_status = rect.status
     rect.status = "in_progress"
@@ -82,15 +87,17 @@ def start_rectification(db: Session, rectification_id: int, operator_id: str, op
         old_values={"status": old_status},
         new_values={"status": "in_progress"},
     )
+    increment_version(rect)
     db.commit()
     db.refresh(rect)
     return rect
 
 
-def submit_rectification(db: Session, rectification_id: int, data: RectificationSubmit, operator_id: str, operator_name: str, operator_role: str) -> Optional[Rectification]:
+def submit_rectification(db: Session, rectification_id: int, data: RectificationSubmit, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Rectification]:
     rect = get_rectification(db, rectification_id)
     if not rect:
         return None
+    check_optimistic_lock(rect, expected_version)
     validate_rectification_transition(rect.status, "submitted")
     old_status = rect.status
     rect.status = "submitted"
@@ -103,15 +110,17 @@ def submit_rectification(db: Session, rectification_id: int, data: Rectification
         old_values={"status": old_status},
         new_values={"status": "submitted", "resolution": data.resolution},
     )
+    increment_version(rect)
     db.commit()
     db.refresh(rect)
     return rect
 
 
-def review_rectification(db: Session, rectification_id: int, data: RectificationReview, operator_id: str, operator_name: str, operator_role: str) -> Optional[Rectification]:
+def review_rectification(db: Session, rectification_id: int, data: RectificationReview, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Rectification]:
     rect = get_rectification(db, rectification_id)
     if not rect:
         return None
+    check_optimistic_lock(rect, expected_version)
     if rect.status != "submitted":
         raise ValueError(f"整改单状态为 {rect.status}，只有 submitted 状态才可审核")
     target = data.action
@@ -131,6 +140,7 @@ def review_rectification(db: Session, rectification_id: int, data: Rectification
         old_values={"status": old_status},
         new_values={"status": target, "reject_reason": data.reject_reason},
     )
+    increment_version(rect)
     db.commit()
     db.refresh(rect)
     return rect

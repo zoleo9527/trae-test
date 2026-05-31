@@ -59,6 +59,7 @@ class InspectionOut(BaseModel):
     rectification_required: bool
     scheduled_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    version: int
     items: list[InspectionItemOut] = []
     created_at: datetime
     updated_at: datetime

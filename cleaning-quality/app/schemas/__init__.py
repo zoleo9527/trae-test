@@ -37,6 +37,7 @@ from app.schemas.contract import (
 )
 from app.schemas.dashboard import DashboardResponse, DashboardStats, DashboardItem
 from app.schemas.audit_log import AuditLogOut
+from app.schemas.operator import OperatorContext
 
 __all__ = [
     "ProjectCreate",
@@ -72,4 +73,5 @@ __all__ = [
     "DashboardStats",
     "DashboardItem",
     "AuditLogOut",
+    "OperatorContext",
 ]

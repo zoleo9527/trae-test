@@ -100,3 +100,21 @@ def auto_transition_consumable_status(current_stock: float, threshold: float) ->
         return "low"
     else:
         return "normal"
+
+
+def check_optimistic_lock(entity, expected_version: Optional[int] = None) -> None:
+    if expected_version is None:
+        return
+    if not hasattr(entity, 'version'):
+        return
+    if entity.version != expected_version:
+        raise ConcurrentTransitionError(
+            entity.__class__.__name__,
+            entity.id,
+            f"版本冲突: 预期版本 {expected_version}，当前版本 {entity.version}，该记录可能已被其他操作修改，请刷新后重试"
+        )
+
+
+def increment_version(entity) -> None:
+    if hasattr(entity, 'version'):
+        entity.version += 1

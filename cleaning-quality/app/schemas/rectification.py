@@ -47,6 +47,7 @@ class RectificationOut(BaseModel):
     submitted_at: Optional[datetime] = None
     reviewed_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    version: int
     created_at: datetime
     updated_at: datetime
 

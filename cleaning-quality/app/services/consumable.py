@@ -9,7 +9,7 @@ from app.schemas.consumable import (
     ConsumableOrderApprove,
 )
 from app.services.audit import log_audit
-from app.services.state_machine import auto_transition_consumable_status
+from app.services.state_machine import auto_transition_consumable_status, check_optimistic_lock, increment_version
 
 
 def get_consumables(db: Session, project_id: Optional[int] = None, status: Optional[str] = None) -> list[Consumable]:
@@ -42,10 +42,11 @@ def create_consumable(db: Session, data: ConsumableCreate, operator_id: str, ope
     return consumable
 
 
-def update_consumable(db: Session, consumable_id: int, data: ConsumableUpdate, operator_id: str, operator_name: str, operator_role: str) -> Optional[Consumable]:
+def update_consumable(db: Session, consumable_id: int, data: ConsumableUpdate, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Consumable]:
     consumable = get_consumable(db, consumable_id)
     if not consumable:
         return None
+    check_optimistic_lock(consumable, expected_version)
     old_values = {k: getattr(consumable, k) for k in data.model_dump(exclude_unset=True)}
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(consumable, k, v)
@@ -59,6 +60,7 @@ def update_consumable(db: Session, consumable_id: int, data: ConsumableUpdate, o
         old_values=old_values,
         new_values={**data.model_dump(exclude_unset=True), "status": new_status},
     )
+    increment_version(consumable)
     db.commit()
     db.refresh(consumable)
     return consumable
@@ -88,10 +90,11 @@ def create_consumable_order(db: Session, data: ConsumableOrderCreate, operator_i
     return order
 
 
-def approve_consumable_order(db: Session, order_id: int, data: ConsumableOrderApprove, operator_id: str, operator_name: str, operator_role: str) -> Optional[ConsumableOrder]:
+def approve_consumable_order(db: Session, order_id: int, data: ConsumableOrderApprove, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[ConsumableOrder]:
     order = db.query(ConsumableOrder).filter(ConsumableOrder.id == order_id).first()
     if not order:
         return None
+    check_optimistic_lock(order, expected_version)
     if order.status != "pending":
         raise ValueError(f"补货单状态为 {order.status}，只有 pending 状态才可审批")
     old_status = order.status
@@ -104,15 +107,17 @@ def approve_consumable_order(db: Session, order_id: int, data: ConsumableOrderAp
         old_values={"status": old_status},
         new_values={"status": "approved", "approved_by": data.approved_by},
     )
+    increment_version(order)
     db.commit()
     db.refresh(order)
     return order
 
 
-def fulfill_consumable_order(db: Session, order_id: int, operator_id: str, operator_name: str, operator_role: str) -> Optional[ConsumableOrder]:
+def fulfill_consumable_order(db: Session, order_id: int, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[ConsumableOrder]:
     order = db.query(ConsumableOrder).filter(ConsumableOrder.id == order_id).first()
     if not order:
         return None
+    check_optimistic_lock(order, expected_version)
     if order.status != "approved":
         raise ValueError(f"补货单状态为 {order.status}，只有 approved 状态才可标记到货")
     old_status = order.status
@@ -136,6 +141,7 @@ def fulfill_consumable_order(db: Session, order_id: int, operator_id: str, opera
         old_values={"status": old_status},
         new_values={"status": "fulfilled"},
     )
+    increment_version(order)
     db.commit()
     db.refresh(order)
     return order

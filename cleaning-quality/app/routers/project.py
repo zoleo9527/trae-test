@@ -1,15 +1,14 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectOut
+from app.schemas.operator import OperatorContext
+from app.dependencies import get_operator_context
+from app.services.idempotency import check_idempotency, create_idempotency_record
 from app.services import project as svc
 
 router = APIRouter(prefix="/projects", tags=["项目"])
-
-
-def _op(request_headers=None):
-    return "op_default", "默认操作员", "admin"
 
 
 @router.get("", response_model=list[ProjectOut])
@@ -21,22 +20,33 @@ def list_projects(is_active: Optional[bool] = None, db: Session = Depends(get_db
 def get_project(project_id: int, db: Session = Depends(get_db)):
     p = svc.get_project(db, project_id)
     if not p:
-        from fastapi import HTTPException
         raise HTTPException(404, "项目不存在")
     return p
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
-def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    op_id, op_name, op_role = _op()
-    return svc.create_project(db, data, op_id, op_name, op_role)
+def create_project(
+    data: ProjectCreate,
+    db: Session = Depends(get_db),
+    operator: OperatorContext = Depends(get_operator_context),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+):
+    check_idempotency(db, x_idempotency_key, "project", operator.operator_id)
+    p = svc.create_project(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
+    create_idempotency_record(db, x_idempotency_key, "project", p.id, operator.operator_id)
+    db.commit()
+    db.refresh(p)
+    return p
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
-def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
-    op_id, op_name, op_role = _op()
-    p = svc.update_project(db, project_id, data, op_id, op_name, op_role)
+def update_project(
+    project_id: int,
+    data: ProjectUpdate,
+    db: Session = Depends(get_db),
+    operator: OperatorContext = Depends(get_operator_context),
+):
+    p = svc.update_project(db, project_id, data, operator.operator_id, operator.operator_name, operator.operator_role)
     if not p:
-        from fastapi import HTTPException
         raise HTTPException(404, "项目不存在")
     return p

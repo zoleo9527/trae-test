@@ -30,6 +30,7 @@ class ConsumableOut(BaseModel):
     status: str
     last_restock_date: Optional[datetime] = None
     remark: Optional[str] = None
+    version: int
     created_at: datetime
     updated_at: datetime
 
@@ -61,6 +62,7 @@ class ConsumableOrderOut(BaseModel):
     approved_at: Optional[datetime] = None
     fulfilled_at: Optional[datetime] = None
     remark: Optional[str] = None
+    version: int
     created_at: datetime
     updated_at: datetime
 

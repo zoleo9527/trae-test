@@ -1,15 +1,15 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.contract import ContractCreate, ContractUpdate, ContractFollowUp, ContractOut
+from app.schemas.operator import OperatorContext
+from app.dependencies import get_operator_context
+from app.services.state_machine import StateTransitionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
 from app.services import contract as svc
 
 router = APIRouter(prefix="/contracts", tags=["合同续约"])
-
-
-def _op():
-    return "op_default", "默认操作员", "project_manager"
 
 
 @router.get("", response_model=list[ContractOut])
@@ -26,20 +26,35 @@ def get_contract(contract_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ContractOut, status_code=201)
-def create_contract(data: ContractCreate, db: Session = Depends(get_db)):
-    op_id, op_name, op_role = _op()
+def create_contract(
+    data: ContractCreate,
+    db: Session = Depends(get_db),
+    operator: OperatorContext = Depends(get_operator_context),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+):
     try:
-        return svc.create_contract(db, data, op_id, op_name, op_role)
+        check_idempotency(db, x_idempotency_key, "contract", operator.operator_id)
+        c = svc.create_contract(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
+        create_idempotency_record(db, x_idempotency_key, "contract", c.id, operator.operator_id)
+        db.commit()
+        db.refresh(c)
+        return c
+    except DuplicateSubmissionError as e:
+        raise HTTPException(409, str(e))
     except Exception as e:
         raise HTTPException(400, str(e))
 
 
 @router.put("/{contract_id}", response_model=ContractOut)
-def update_contract(contract_id: int, data: ContractUpdate, db: Session = Depends(get_db)):
-    op_id, op_name, op_role = _op()
+def update_contract(
+    contract_id: int,
+    data: ContractUpdate,
+    db: Session = Depends(get_db),
+    operator: OperatorContext = Depends(get_operator_context),
+):
     try:
-        c = svc.update_contract(db, contract_id, data, op_id, op_name, op_role)
-    except ValueError as e:
+        c = svc.update_contract(db, contract_id, data, operator.operator_id, operator.operator_name, operator.operator_role)
+    except (ValueError, StateTransitionError) as e:
         raise HTTPException(400, str(e))
     if not c:
         raise HTTPException(404, "合同不存在")
@@ -47,11 +62,15 @@ def update_contract(contract_id: int, data: ContractUpdate, db: Session = Depend
 
 
 @router.post("/{contract_id}/followup", response_model=ContractOut)
-def followup_contract(contract_id: int, data: ContractFollowUp, db: Session = Depends(get_db)):
-    op_id, op_name, op_role = _op()
+def followup_contract(
+    contract_id: int,
+    data: ContractFollowUp,
+    db: Session = Depends(get_db),
+    operator: OperatorContext = Depends(get_operator_context),
+):
     try:
-        c = svc.followup_contract(db, contract_id, data, op_id, op_name, op_role)
-    except ValueError as e:
+        c = svc.followup_contract(db, contract_id, data, operator.operator_id, operator.operator_name, operator.operator_role)
+    except (ValueError, StateTransitionError) as e:
         raise HTTPException(400, str(e))
     if not c:
         raise HTTPException(404, "合同不存在")

@@ -5,6 +5,7 @@ from app.models.rectification import Rectification
 from app.models.consumable import Consumable, ConsumableOrder
 from app.models.contract import Contract
 from app.models.audit_log import AuditLog
+from app.models.idempotency import IdempotencyKey
 
 __all__ = [
     "Project",
@@ -16,4 +17,5 @@ __all__ = [
     "ConsumableOrder",
     "Contract",
     "AuditLog",
+    "IdempotencyKey",
 ]

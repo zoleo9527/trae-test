@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.inspection import Inspection, InspectionItem
 from app.schemas.inspection import InspectionCreate, InspectionUpdate, InspectionItemScore
 from app.services.audit import log_audit
-from app.services.state_machine import validate_inspection_transition
+from app.services.state_machine import validate_inspection_transition, check_optimistic_lock, increment_version
 
 
 def get_inspections(
@@ -51,10 +51,11 @@ def create_inspection(db: Session, data: InspectionCreate, operator_id: str, ope
     return inspection
 
 
-def update_inspection_status(db: Session, inspection_id: int, data: InspectionUpdate, operator_id: str, operator_name: str, operator_role: str) -> Optional[Inspection]:
+def update_inspection_status(db: Session, inspection_id: int, data: InspectionUpdate, operator_id: str, operator_name: str, operator_role: str, expected_version: Optional[int] = None) -> Optional[Inspection]:
     inspection = get_inspection(db, inspection_id)
     if not inspection:
         return None
+    check_optimistic_lock(inspection, expected_version)
     if data.status is not None:
         validate_inspection_transition(inspection.status, data.status)
     old_status = inspection.status
@@ -67,6 +68,7 @@ def update_inspection_status(db: Session, inspection_id: int, data: InspectionUp
         old_values={"status": old_status},
         new_values=update_data,
     )
+    increment_version(inspection)
     db.commit()
     db.refresh(inspection)
     return inspection
