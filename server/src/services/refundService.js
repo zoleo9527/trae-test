@@ -213,7 +213,7 @@ class RefundService {
         status: 'REJECTED',
         approvedById: operatorId,
         approvedAt: new Date(),
-        detail: refund.detail ? `${refund.detail} | 驳回原因: ${rejectReason || '未填写'}` : `驳回原因: ${rejectReason || '未填写'}`,
+        rejectReason: rejectReason || '未填写驳回原因',
       },
     });
 
@@ -230,7 +230,7 @@ class RefundService {
       afterValue: {
         status: 'REJECTED',
         refundNo: refund.refundNo,
-        rejectReason: rejectReason || '未填写',
+        rejectReason: rejectReason || '未填写驳回原因',
         rejectedById: operatorId,
       },
       operatorId,

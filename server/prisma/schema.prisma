@@ -201,20 +201,21 @@ model InventoryItem {
 
 model Refund {
   id           String   @id @default(uuid())
-  orderId      String   @unique
   refundNo     String   @unique
+  orderId      String   @unique
   amount       Decimal
   reason       String
   detail       String?
+  rejectReason String?
   status       String
   approvedById String?
   approvedAt   DateTime?
   createdById  String
   createdAt    DateTime @default(now())
 
-  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  approvedBy User?  @relation("RefundApproved", fields: [approvedById], references: [id], onDelete: SetNull)
-  createdBy  User   @relation("RefundCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("RefundCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  approvedBy User?   @relation("RefundApproved", fields: [approvedById], references: [id], onDelete: Cascade)
 }
 
 model Note {

@@ -128,6 +128,8 @@ class MaterialService {
   async startInventory(inventoryId, operatorId, ipAddress, requestId) {
     const inventory = await prisma.inventory.findUnique({ where: { id: inventoryId } });
     if (!inventory) throw new Error('盘点单不存在');
+    if (inventory.status === 'COMPLETED') throw new Error('已完成的盘点单不可再修改');
+    if (inventory.status === 'CANCELLED') throw new Error('已取消的盘点单不可再修改');
     if (inventory.status !== 'DRAFT') throw new Error('只有草稿状态的盘点单可以开始');
 
     const updated = await prisma.inventory.update({
@@ -163,6 +165,10 @@ class MaterialService {
     });
 
     if (!item) throw new Error('盘点项不存在');
+
+    if (item.inventory.status === 'COMPLETED') throw new Error('已完成的盘点单不可再修改明细');
+    if (item.inventory.status === 'CANCELLED') throw new Error('已取消的盘点单不可再修改明细');
+    if (item.inventory.status === 'DRAFT') throw new Error('请先开始盘点再修改明细');
 
     const systemStock = item.systemStock.toNumber();
     const beforeActualStock = item.actualStock.toNumber();
@@ -214,6 +220,8 @@ class MaterialService {
     });
 
     if (!inventory) throw new Error('盘点单不存在');
+    if (inventory.status === 'COMPLETED') throw new Error('盘点单已完成，不可重复操作');
+    if (inventory.status === 'CANCELLED') throw new Error('已取消的盘点单不可完成');
     if (inventory.status !== 'IN_PROGRESS') throw new Error('只有进行中的盘点单可以完成');
 
     const adjustments = [];

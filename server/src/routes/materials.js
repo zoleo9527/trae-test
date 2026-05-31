@@ -2,7 +2,6 @@ import express from 'express';
 import materialService from '../services/materialService.js';
 import { success, error } from '../utils/response.js';
 import { auth, requireRoles } from '../middleware/auth.js';
-import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -39,14 +38,13 @@ router.get('/inventories', async (req, res) => {
 
 router.post('/inventories', requireRoles('OWNER'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const inventory = await materialService.createInventory(
       req.body.title,
       req.body.type,
       req.body.materialIds,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, inventory, '盘点单创建成功');
   } catch (err) {
@@ -56,12 +54,11 @@ router.post('/inventories', requireRoles('OWNER'), async (req, res) => {
 
 router.post('/inventories/:id/start', requireRoles('OWNER'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const inventory = await materialService.startInventory(
       req.params.id,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, inventory, '开始盘点');
   } catch (err) {
@@ -71,14 +68,13 @@ router.post('/inventories/:id/start', requireRoles('OWNER'), async (req, res) =>
 
 router.put('/inventories/items/:itemId', requireRoles('OWNER', 'KITCHEN'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const item = await materialService.updateInventoryItem(
       req.params.itemId,
       req.body.actualStock,
       req.body.remark,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, item, '盘点项更新成功');
   } catch (err) {
@@ -88,12 +84,11 @@ router.put('/inventories/items/:itemId', requireRoles('OWNER', 'KITCHEN'), async
 
 router.post('/inventories/:id/complete', requireRoles('OWNER'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const inventory = await materialService.completeInventory(
       req.params.id,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, inventory, '盘点完成');
   } catch (err) {
@@ -112,7 +107,6 @@ router.get('/:id', async (req, res) => {
 
 router.post('/:id/stock', requireRoles('OWNER', 'KITCHEN'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const material = await materialService.updateStock(
       req.params.id,
       req.body.quantity,
@@ -120,7 +114,7 @@ router.post('/:id/stock', requireRoles('OWNER', 'KITCHEN'), async (req, res) => 
       req.body.reason,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, material, '库存更新成功');
   } catch (err) {

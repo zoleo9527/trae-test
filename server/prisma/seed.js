@@ -172,6 +172,21 @@ async function main() {
     },
   });
 
+  const order6 = await prisma.order.create({
+    data: {
+      orderNo: 'ORD202605290006', customerName: '周先生', customerPhone: '13400134006',
+      customerRemark: '给老婆的纪念日蛋糕', totalAmount: 168.0, status: 'COMPLETED',
+      pickupDate: twoDaysAgo, pickupTime: '18:00', deliveryType: 'DELIVERY', createdById: cs.id,
+      items: { create: [{ productId: prodCake.id, quantity: 1, unitPrice: 168.0, subtotal: 168.0, remark: '纪念日快乐' }] },
+      notes: {
+        create: [
+          { content: '蛋糕已经制作完成并送达', type: 'GENERAL', createdById: kitchen.id },
+          { content: '客户反馈送到时奶油有点融化，不是很满意', type: 'CUSTOMER_COMPLAINT', createdById: cs.id },
+        ],
+      },
+    },
+  });
+
   console.log('订单创建完成');
 
   const production1 = await prisma.production.create({
@@ -217,6 +232,16 @@ async function main() {
       reason: '订单被拒，全额退款',
       detail: '客户当天早上预订蛋糕，因当天产能已满无法接单，已全额退款',
       status: 'COMPLETED', approvedById: owner.id, approvedAt: twoDaysAgo, createdById: cs.id,
+    },
+  });
+
+  const refund2 = await prisma.refund.create({
+    data: {
+      orderId: order6.id, refundNo: 'REF202605290002', amount: 84.0,
+      reason: '商品配送问题，申请部分退款',
+      detail: '客户反映蛋糕送到时奶油融化，影响食用体验，申请部分退款',
+      rejectReason: '配送为第三方服务，已超过退款时效，且签收时未提出异议。可赠送代金券补偿',
+      status: 'REJECTED', approvedById: owner.id, approvedAt: yesterday, createdById: cs.id,
     },
   });
 
@@ -384,6 +409,30 @@ async function main() {
         beforeValue: JSON.stringify({ status: 'APPROVED', refundNo: 'REF202605300001', amount: 56.0 }),
         afterValue: JSON.stringify({ status: 'COMPLETED', refundNo: 'REF202605300001' }),
         operatorId: cs.id, requestId: 'seed-refund-004',
+      },
+
+      {
+        action: 'REFUND_CREATE', entityType: 'Refund', entityId: refund2.id,
+        afterValue: JSON.stringify({
+          refundNo: 'REF202605290002', orderId: order6.id, orderNo: 'ORD202605290006',
+          amount: 84.0, reason: '商品配送问题，申请部分退款',
+          detail: '客户反映蛋糕送到时奶油融化，影响食用体验，申请部分退款',
+          status: 'PENDING',
+        }),
+        operatorId: cs.id, requestId: 'seed-refund-005',
+      },
+      {
+        action: 'REFUND_REJECT', entityType: 'Refund', entityId: refund2.id,
+        beforeValue: JSON.stringify({
+          status: 'PENDING', refundNo: 'REF202605290002', amount: 84.0,
+          reason: '商品配送问题，申请部分退款',
+        }),
+        afterValue: JSON.stringify({
+          status: 'REJECTED', refundNo: 'REF202605290002',
+          rejectReason: '配送为第三方服务，已超过退款时效，且签收时未提出异议。可赠送代金券补偿',
+          rejectedById: owner.id,
+        }),
+        operatorId: owner.id, requestId: 'seed-refund-006',
       },
     ],
   });

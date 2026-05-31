@@ -2,7 +2,6 @@ import express from 'express';
 import wasteService from '../services/wasteService.js';
 import { success, error } from '../utils/response.js';
 import { auth, requireRoles } from '../middleware/auth.js';
-import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -43,12 +42,11 @@ router.get('/analysis', async (req, res) => {
 
 router.post('/', requireRoles('OWNER', 'KITCHEN'), async (req, res) => {
   try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
     const record = await wasteService.createWasteRecord(
       req.body,
       req.user.id,
       req.ip,
-      requestId
+      req.requestId
     );
     success(res, record, '损耗记录创建成功');
   } catch (err) {
