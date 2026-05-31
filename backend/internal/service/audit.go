@@ -18,7 +18,7 @@ func NewAuditService() *AuditService {
 	}
 }
 
-func (s *AuditService) Record(entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, operatorID uuid.UUID, operatorName, operatorRole, remark string) error {
+func (s *AuditService) Record(operatorID uuid.UUID, operatorName, operatorRole string, entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, remark string) error {
 	trail := &model.AuditTrail{
 		EntityType:   entityType,
 		EntityID:     entityID,
@@ -61,7 +61,7 @@ func (s *AuditService) RecordFromContext(c *fiber.Ctx, entityType string, entity
 		operatorRole = v
 	}
 
-	return s.Record(entityType, entityID, action, before, after, operatorID, operatorName, operatorRole, remark)
+	return s.Record(operatorID, operatorName, operatorRole, entityType, entityID, action, before, after, remark)
 }
 
 func (s *AuditService) Query(entityType, entityID, operatorID, action, startDate, endDate string, page, pageSize int) ([]model.AuditTrail, int64, error) {

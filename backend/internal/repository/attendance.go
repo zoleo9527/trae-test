@@ -6,7 +6,6 @@ import (
 	"floor-settlement/internal/model"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type AttendanceRepository struct{}

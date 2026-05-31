@@ -2,7 +2,6 @@ package service
 
 import (
 	"floor-settlement/internal/dto"
-	"floor-settlement/internal/model"
 	"floor-settlement/internal/repository"
 	"time"
 

@@ -53,7 +53,7 @@ func operatorFromClaims(claims *dto.UserSummary) *OperatorInfo {
 }
 
 func RecordAuditWithOperator(op *OperatorInfo, entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, remark string) error {
-	if RecordAuditDirect != nil {
+	if RecordAuditDirect != nil && op != nil {
 		return RecordAuditDirect(op.ID, op.Name, op.Role, entityType, entityID, action, before, after, remark)
 	}
 	return nil

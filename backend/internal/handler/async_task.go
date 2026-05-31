@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"floor-settlement/internal/dto"
 	"floor-settlement/internal/service"
 
 	"github.com/gofiber/fiber/v2"

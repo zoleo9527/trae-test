@@ -4,7 +4,6 @@ import (
 	"floor-settlement/internal/model"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type AuditTrailRepository struct{}
@@ -56,12 +55,16 @@ func (r *AuditTrailRepository) FindByEntity(entityType string, entityID uuid.UUI
 }
 
 func (r *AuditTrailRepository) RecentByProject(projectID uuid.UUID, limit int) ([]model.AuditTrail, error) {
-	entityIDs := db.Model(&model.DeliveryReceipt{}).Select("id").Where("project_id = ?", projectID)
-	entityIDs = entityIDs.Union(db.Model(&model.ChangeOrder{}).Select("id").Where("project_id = ?", projectID))
-	entityIDs = entityIDs.Union(db.Model(&model.QualityInspection{}).Select("id").Where("project_id = ?", projectID))
-	entityIDs = entityIDs.Union(db.Model(&model.ReworkRecord{}).Select("id").Where("project_id = ?", projectID))
-
 	var trails []model.AuditTrail
-	err := db.Where("entity_id IN (?)", entityIDs).Order("created_at DESC").Limit(limit).Find(&trails).Error
+	sql := `
+		SELECT DISTINCT a.* FROM audit_trails a
+		WHERE (a.entity_type IN ('delivery_receipt', 'change_order', 'quality_inspection', 'rework_record', 'settlement_batch')
+		AND EXISTS (
+			SELECT 1 FROM delivery_receipts d WHERE d.id = a.entity_id AND d.project_id = $1
+		)
+		ORDER BY a.created_at DESC
+		LIMIT $2
+	`
+	err := db.Raw(sql, projectID, limit).Scan(&trails).Error
 	return trails, err
 }
