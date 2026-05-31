@@ -43,6 +43,10 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  layout: false
+})
+
 const authStore = useAuthStore()
 const router = useRouter()
 
@@ -60,7 +64,15 @@ const handleLogin = async () => {
     await authStore.login(form.value.username, form.value.password)
     router.push('/')
   } catch (e: any) {
-    error.value = e.data?.detail || '登录失败，请检查用户名和密码'
+    let msg = '登录失败，请检查用户名和密码'
+    if (e.data?.detail) {
+      msg = e.data.detail
+    } else if (e.message?.includes('ERR_CONNECTION') || e.message?.includes('Failed to fetch')) {
+      msg = '无法连接到服务器，请确认后端服务已启动'
+    } else if (e.message) {
+      msg = e.message
+    }
+    error.value = msg
   } finally {
     loading.value = false
   }

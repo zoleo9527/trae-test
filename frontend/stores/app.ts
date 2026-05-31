@@ -10,7 +10,8 @@ export const useAppStore = defineStore('app', {
     selectedDiaryId: null as number | null,
     selectedInspectionId: null as number | null,
     selectedSettlementId: null as number | null,
-    filterStatus: 'all' as string
+    filterStatus: 'all' as string,
+    loadError: null as string | null
   }),
 
   getters: {
@@ -25,30 +26,57 @@ export const useAppStore = defineStore('app', {
     },
 
     async loadProjects() {
+      const api = useAPI()
       try {
-        const api = useAPI()
         this.projects = await api.get('/projects') as any
-      } catch (e) {
+        return this.projects
+      } catch (e: any) {
         this.projects = []
+        this.loadError = '加载项目数据失败'
+        throw new Error(this.loadError + '：' + (e.message || '网络异常'))
       }
     },
 
     async loadTeams() {
+      const api = useAPI()
       try {
-        const api = useAPI()
         this.teams = await api.get('/teams') as any
-      } catch (e) {
+        return this.teams
+      } catch (e: any) {
         this.teams = []
+        this.loadError = '加载班组数据失败'
+        throw new Error(this.loadError + '：' + (e.message || '网络异常'))
       }
     },
 
     async loadUsers() {
+      const api = useAPI()
       try {
-        const api = useAPI()
         this.users = await api.get('/users') as any
-      } catch (e) {
+        return this.users
+      } catch (e: any) {
         this.users = []
+        this.loadError = '加载用户数据失败'
+        throw new Error(this.loadError + '：' + (e.message || '网络异常'))
       }
+    },
+
+    async loadAllBaseData() {
+      this.loadError = null
+      const errors: string[] = []
+      try {
+        await Promise.all([
+          this.loadProjects().catch(e => { errors.push(e.message); throw e }),
+          this.loadTeams().catch(e => { errors.push(e.message); throw e }),
+          this.loadUsers().catch(e => { errors.push(e.message); throw e })
+        ])
+      } catch (e: any) {
+        throw new Error(errors[0] || e.message || '基础数据加载失败')
+      }
+    },
+
+    clearError() {
+      this.loadError = null
     },
 
     selectProject(id: number) {

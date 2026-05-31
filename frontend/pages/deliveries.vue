@@ -224,16 +224,19 @@ const loadDeliveries = async () => {
 
 const retryLoad = () => {
   loadError.value = ''
-  loadDeliveries()
+  appStore.clearError()
+  loadAll()
+}
+
+const loadAll = async () => {
+  appStore.initFromAuth()
+  await appStore.loadAllBaseData()
+  await loadDeliveries()
 }
 
 onMounted(async () => {
   try {
-    await appStore.loadProjects()
-    await appStore.loadTeams()
-    await appStore.loadUsers()
-    appStore.initFromAuth()
-    await loadDeliveries()
+    await loadAll()
   } catch (e: any) {
     loadError.value = e.message || '初始化失败，请稍后重试'
   }

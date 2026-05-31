@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBase: 'http://localhost:8000/api'
+      apiBase: process.env.API_BASE_URL || 'http://localhost:8000/api'
     }
   },
   app: {
@@ -19,9 +19,14 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://localhost:8000/api',
-        changeOrigin: true
+        target: process.env.API_BASE_URL || 'http://localhost:8000/api',
+        changeOrigin: true,
+        prependPath: false
       }
     }
+  },
+  routeRules: {
+    '/login': { ssr: false },
+    '/api/**': { cors: true }
   }
 })

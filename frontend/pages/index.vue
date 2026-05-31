@@ -15,7 +15,22 @@
         <div class="flex-1">
           <h3 class="font-medium text-red-900">数据加载失败</h3>
           <p class="text-sm text-red-700 mt-1">{{ loadError }}</p>
-          <button @click="loadData" class="btn-primary text-sm mt-3">重新加载</button>
+          <button @click="retryLoad" class="btn-primary text-sm mt-3">重新加载</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="partialError" class="card p-4 mb-6 border-amber-200 bg-amber-50">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="font-medium text-amber-900">部分数据加载异常</h3>
+          <p class="text-sm text-amber-700 mt-1">{{ partialError }}</p>
+          <button @click="retryLoad" class="btn-primary text-sm mt-3">重新加载</button>
         </div>
       </div>
     </div>
@@ -128,6 +143,7 @@
 
 <script setup lang="ts">
 const api = useAPI()
+const appStore = useAppStore()
 const stats = ref<any>({})
 const projects = ref<any[]>([])
 const exceptions = ref<any[]>([])
@@ -135,21 +151,30 @@ const activities = ref<any[]>([])
 const projectProgress = ref<Record<number, any>>({})
 const loading = ref(true)
 const loadError = ref('')
+const partialError = ref('')
 
 const loadData = async () => {
   loading.value = true
   loadError.value = ''
+  partialError.value = ''
   try {
-    const [s, p, e, a] = await Promise.all([
-      api.get('/dashboard/stats').catch(() => ({})),
-      api.get('/projects').catch(() => []),
-      api.get('/dashboard/exceptions').catch(() => []),
-      api.get('/dashboard/recent-activities').catch(() => [])
+    await appStore.loadAllBaseData()
+    projects.value = appStore.projects
+
+    const errors: string[] = []
+    const [s, e, a] = await Promise.all([
+      api.get('/dashboard/stats').catch(err => { errors.push('仪表盘统计数据加载失败'); return null }),
+      api.get('/dashboard/exceptions').catch(err => { errors.push('异常预警数据加载失败'); return null }),
+      api.get('/dashboard/recent-activities').catch(err => { errors.push('动态数据加载失败'); return null })
     ])
-    stats.value = s
-    projects.value = p as any[]
-    exceptions.value = (e as any[]).filter((x: any) => x.status === '待处理' || x.status === '待整改' || x.status === '待解决')
-    activities.value = a as any[]
+
+    if (errors.length > 0) {
+      partialError.value = errors.join('；')
+    }
+
+    stats.value = s || {}
+    exceptions.value = ((e || []) as any[]).filter((x: any) => x.status === '待处理' || x.status === '待整改' || x.status === '待解决')
+    activities.value = a || []
 
     for (const project of projects.value) {
       try {
@@ -166,6 +191,11 @@ const loadData = async () => {
   }
 }
 
+const retryLoad = () => {
+  appStore.clearError()
+  loadData()
+}
+
 const goToException = (item: any) => {
   const router = useRouter()
   if (item.source === 'diary') {
@@ -180,6 +210,7 @@ const goToException = (item: any) => {
 }
 
 onMounted(() => {
+  appStore.initFromAuth()
   loadData()
 })
 </script>

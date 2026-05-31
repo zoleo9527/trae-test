@@ -501,16 +501,19 @@ const initCreateFromDiary = async (diaryId: number, projectId: number) => {
 
 const retryLoad = () => {
   loadError.value = ''
-  loadInspections()
+  appStore.clearError()
+  loadAll()
+}
+
+const loadAll = async () => {
+  appStore.initFromAuth()
+  await appStore.loadAllBaseData()
+  await loadInspections()
 }
 
 onMounted(async () => {
   try {
-    await appStore.loadProjects()
-    await appStore.loadTeams()
-    await appStore.loadUsers()
-    appStore.initFromAuth()
-    await loadInspections()
+    await loadAll()
 
     if (route.query.diaryId && route.query.projectId) {
       await initCreateFromDiary(Number(route.query.diaryId), Number(route.query.projectId))

@@ -75,6 +75,10 @@
 <script setup lang="ts">
 const authStore = useAuthStore()
 
+if (process.client) {
+  authStore.initAuth()
+}
+
 const roleText = computed(() => {
   const map: Record<string, string> = {
     'manager': '项目负责人',

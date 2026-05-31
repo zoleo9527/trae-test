@@ -341,15 +341,19 @@ const submitHandle = async () => {
 
 const retryLoad = () => {
   loadError.value = ''
-  loadDiaries()
+  appStore.clearError()
+  loadAll()
+}
+
+const loadAll = async () => {
+  await appStore.loadAllBaseData()
+  await loadDiaries()
 }
 
 onMounted(async () => {
   try {
-    await appStore.loadProjects()
-    await appStore.loadTeams()
-    await appStore.loadUsers()
-    await loadDiaries()
+    appStore.initFromAuth()
+    await loadAll()
   } catch (e: any) {
     loadError.value = e.message || '初始化失败，请稍后重试'
   }
