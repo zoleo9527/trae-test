@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+.venv/
+venv/
+node_modules/
+.nuxt/
+.output/
+dist/
+*.log
+.DS_Store
