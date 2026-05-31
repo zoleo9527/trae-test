@@ -29,8 +29,6 @@ def create_contract(db: Session, data: ContractCreate, operator_id: str, operato
         operator_id, operator_name, operator_role,
         new_values=data.model_dump(),
     )
-    db.commit()
-    db.refresh(contract)
     return contract
 
 

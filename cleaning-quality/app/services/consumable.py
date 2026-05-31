@@ -37,8 +37,6 @@ def create_consumable(db: Session, data: ConsumableCreate, operator_id: str, ope
         operator_id, operator_name, operator_role,
         new_values=create_data,
     )
-    db.commit()
-    db.refresh(consumable)
     return consumable
 
 
@@ -85,8 +83,6 @@ def create_consumable_order(db: Session, data: ConsumableOrderCreate, operator_i
         new_values=data.model_dump(),
         detail=f"耗材ID={data.consumable_id}，数量={data.quantity}",
     )
-    db.commit()
-    db.refresh(order)
     return order
 
 

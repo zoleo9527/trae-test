@@ -45,8 +45,6 @@ def create_rectification(db: Session, data: RectificationCreate, operator_id: st
         new_values=data.model_dump(),
         detail=f"关联质检ID={data.inspection_id}",
     )
-    db.commit()
-    db.refresh(rect)
     return rect
 
 

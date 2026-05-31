@@ -51,8 +51,6 @@ def create_schedule(db: Session, data: ScheduleCreate, operator_id: str, operato
         operator_id, operator_name, operator_role,
         new_values=data.model_dump(),
     )
-    db.commit()
-    db.refresh(schedule)
     return schedule
 
 

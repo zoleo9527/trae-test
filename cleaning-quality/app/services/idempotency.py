@@ -23,6 +23,15 @@ class MissingIdempotencyKeyError(Exception):
         )
 
 
+class MissingExpectedVersionError(Exception):
+    def __init__(self, entity_type: str, operation: str):
+        self.entity_type = entity_type
+        self.operation = operation
+        super().__init__(
+            f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 {entity_type} 的 {operation} 操作的并发控制"
+        )
+
+
 def check_idempotency(
     db: Session,
     key: str,

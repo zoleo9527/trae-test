@@ -25,8 +25,6 @@ def create_project(db: Session, data: ProjectCreate, operator_id: str, operator_
         operator_id, operator_name, operator_role,
         new_values=data.model_dump(),
     )
-    db.commit()
-    db.refresh(project)
     return project
 
 

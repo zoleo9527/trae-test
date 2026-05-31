@@ -29,17 +29,25 @@ def create_consumable(
     data: ConsumableCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
+    if not x_idempotency_key:
+        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 consumable 操作的重复提交保护")
     try:
         check_idempotency(db, x_idempotency_key, "consumable", operator.operator_id)
         c = svc.create_consumable(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
         create_idempotency_record(db, x_idempotency_key, "consumable", c.id, operator.operator_id)
         db.commit()
+        db.refresh(c)
         return c
     except DuplicateSubmissionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
     except MissingIdempotencyKeyError as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        db.rollback()
         raise HTTPException(400, str(e))
 
 
@@ -53,17 +61,25 @@ def create_order(
     data: ConsumableOrderCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
+    if not x_idempotency_key:
+        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 consumable_order 操作的重复提交保护")
     try:
         check_idempotency(db, x_idempotency_key, "consumable_order", operator.operator_id)
         o = svc.create_consumable_order(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
         create_idempotency_record(db, x_idempotency_key, "consumable_order", o.id, operator.operator_id)
         db.commit()
+        db.refresh(o)
         return o
     except DuplicateSubmissionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
     except MissingIdempotencyKeyError as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        db.rollback()
         raise HTTPException(400, str(e))
 
 
@@ -73,8 +89,10 @@ def approve_order(
     data: ConsumableOrderApprove,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: int = Header(..., alias="X-Expected-Version"),
+    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
+    if x_expected_version is None:
+        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 consumable_order 的 approve 操作的并发控制")
     try:
         o = svc.approve_consumable_order(
             db, order_id, data,
@@ -82,9 +100,14 @@ def approve_order(
             expected_version=x_expected_version
         )
     except (ValueError, StateTransitionError) as e:
+        db.rollback()
         raise HTTPException(400, str(e))
     except ConcurrentTransitionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
     if not o:
         raise HTTPException(404, "补货单不存在")
     return o
@@ -95,8 +118,10 @@ def fulfill_order(
     order_id: int,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: int = Header(..., alias="X-Expected-Version"),
+    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
+    if x_expected_version is None:
+        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 consumable_order 的 fulfill 操作的并发控制")
     try:
         o = svc.fulfill_consumable_order(
             db, order_id,
@@ -104,9 +129,14 @@ def fulfill_order(
             expected_version=x_expected_version
         )
     except (ValueError, StateTransitionError) as e:
+        db.rollback()
         raise HTTPException(400, str(e))
     except ConcurrentTransitionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
     if not o:
         raise HTTPException(404, "补货单不存在")
     return o
@@ -126,8 +156,10 @@ def update_consumable(
     data: ConsumableUpdate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: int = Header(..., alias="X-Expected-Version"),
+    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
+    if x_expected_version is None:
+        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 consumable 的 update 操作的并发控制")
     try:
         c = svc.update_consumable(
             db, consumable_id, data,
@@ -135,7 +167,11 @@ def update_consumable(
             expected_version=x_expected_version
         )
     except ConcurrentTransitionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
     if not c:
         raise HTTPException(404, "耗材不存在")
     return c

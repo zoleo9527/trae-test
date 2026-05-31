@@ -5,14 +5,16 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import API_PREFIX
 from app.database import engine, Base
+from app.database_migrations import run_all_migrations
 from app.middleware.audit import AuditMiddleware
 from app.routers import dashboard, project, schedule, inspection, rectification, consumable, contract
 from app.services.state_machine import StateTransitionError, ConcurrentTransitionError
-from app.services.idempotency import DuplicateSubmissionError, MissingIdempotencyKeyError
+from app.services.idempotency import DuplicateSubmissionError, MissingIdempotencyKeyError, MissingExpectedVersionError
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    run_all_migrations(engine)
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -63,6 +65,14 @@ async def missing_idempotency_key_handler(request: Request, exc: MissingIdempote
     return JSONResponse(
         status_code=400,
         content={"error": "MISSING_IDEMPOTENCY_KEY", "detail": str(exc)},
+    )
+
+
+@app.exception_handler(MissingExpectedVersionError)
+async def missing_expected_version_handler(request: Request, exc: MissingExpectedVersionError):
+    return JSONResponse(
+        status_code=400,
+        content={"error": "MISSING_EXPECTED_VERSION", "detail": str(exc)},
     )
 
 

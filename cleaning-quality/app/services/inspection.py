@@ -46,8 +46,6 @@ def create_inspection(db: Session, data: InspectionCreate, operator_id: str, ope
         new_values=create_data,
         detail=f"包含 {len(items_data)} 个检查项",
     )
-    db.commit()
-    db.refresh(inspection)
     return inspection
 
 

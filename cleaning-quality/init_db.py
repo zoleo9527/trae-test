@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime, timedelta, date
 from app.database import engine, SessionLocal, Base
+from app.database_migrations import run_all_migrations
 from app.models import (
     Project, Schedule, Inspection, InspectionItem,
     Rectification, Consumable, ConsumableOrder, Contract, AuditLog,
@@ -15,6 +16,7 @@ today = date.today()
 
 
 def seed():
+    run_all_migrations(engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 

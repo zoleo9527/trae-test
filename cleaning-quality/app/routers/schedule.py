@@ -36,8 +36,10 @@ def create_schedule(
     data: ScheduleCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
+    if not x_idempotency_key:
+        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 schedule 操作的重复提交保护")
     try:
         check_idempotency(db, x_idempotency_key, "schedule", operator.operator_id)
         s = svc.create_schedule(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
@@ -46,11 +48,14 @@ def create_schedule(
         db.refresh(s)
         return s
     except DuplicateSubmissionError as e:
+        db.rollback()
         raise HTTPException(409, str(e))
     except MissingIdempotencyKeyError as e:
+        db.rollback()
         raise HTTPException(400, str(e))
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
 
 
 @router.put("/{schedule_id}", response_model=ScheduleOut)
