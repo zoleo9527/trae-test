@@ -44,8 +44,9 @@ router.get('/low-stock', (req, res) => {
 router.get('/supplies/:id/related', (req, res) => {
   const { id } = req.params;
   db.all(`
-    SELECT r.*, u1.name as requester_name, u2.name as approver_name
+    SELECT r.*, s.unit, u1.name as requester_name, u2.name as approver_name
     FROM supply_requests r
+    LEFT JOIN supplies s ON r.supply_id = s.id
     LEFT JOIN users u1 ON r.requested_by = u1.id
     LEFT JOIN users u2 ON r.approved_by = u2.id
     WHERE r.supply_id = ?

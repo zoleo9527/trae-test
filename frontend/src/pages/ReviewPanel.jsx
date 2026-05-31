@@ -197,6 +197,9 @@ function ReviewPanel() {
         })
         allHistory.push(...supplyHistory.data.map(h => ({ ...h, _source: '耗材本身' })))
         
+        const seenCommentIds = new Set(commentsRes.data.map(c => c.id))
+        const seenNotifIds = new Set(notifRes.data.map(n => n.id))
+        
         for (const req of relatedRes.data) {
           const [reqComments, reqHistory, reqNotif] = await Promise.all([
             suppliesAPI.getComments(req.id, 'supply_request'),
@@ -204,8 +207,14 @@ function ReviewPanel() {
             notificationsAPI.getByRelated('supply_request', req.id)
           ])
           allHistory.push(...reqHistory.data.map(h => ({ ...h, _source: `补货申请#${req.id}` })))
-          setComments(prev => [...prev, ...reqComments.data.map(c => ({ ...c, _source: `补货申请#${req.id}` }))])
-          setNotifications(prev => [...prev, ...reqNotif.data.map(n => ({ ...n, _source: `补货申请#${req.id}` }))])
+          
+          const newComments = reqComments.data.filter(c => !seenCommentIds.has(c.id))
+          newComments.forEach(c => seenCommentIds.add(c.id))
+          setComments(prev => [...prev, ...newComments.map(c => ({ ...c, _source: `补货申请#${req.id}` }))])
+          
+          const newNotifs = reqNotif.data.filter(n => !seenNotifIds.has(n.id))
+          newNotifs.forEach(n => seenNotifIds.add(n.id))
+          setNotifications(prev => [...prev, ...newNotifs.map(n => ({ ...n, _source: `补货申请#${req.id}` }))])
         }
         
         allHistory.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))

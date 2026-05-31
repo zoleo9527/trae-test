@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 
 router.get('/', (req, res) => {
-  const { user_id, is_read, limit = 20 } = req.query;
+  const { user_id, is_read, related_type, related_id, limit = 20 } = req.query;
   let sql = `
     SELECT n.* FROM notifications n
     WHERE 1=1
@@ -16,6 +16,14 @@ router.get('/', (req, res) => {
   if (is_read !== undefined) {
     sql += ' AND n.is_read = ?';
     params.push(is_read === 'true' ? 1 : 0);
+  }
+  if (related_type) {
+    sql += ' AND n.related_type = ?';
+    params.push(related_type);
+  }
+  if (related_id) {
+    sql += ' AND n.related_id = ?';
+    params.push(related_id);
   }
   sql += ' ORDER BY n.created_at DESC LIMIT ?';
   params.push(limit);

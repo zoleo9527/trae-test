@@ -70,13 +70,6 @@ export const renewalsAPI = {
   addComment: (id, data) => api.post(`/renewals/${id}/comments`, data)
 }
 
-export const notificationsAPI = {
-  getNotifications: (params) => api.get('/notifications', { params }),
-  getUnreadCount: (userId) => api.get('/notifications/unread-count', { params: { user_id: userId } }),
-  markAsRead: (id) => api.put(`/notifications/${id}/read`),
-  getOverview: () => api.get('/notifications/overview')
-}
-
 export const statusHistoryAPI = {
   getHistory: (params) => api.get('/status-history', { params })
 }
