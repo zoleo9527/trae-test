@@ -57,11 +57,18 @@ func (r *AuditTrailRepository) FindByEntity(entityType string, entityID uuid.UUI
 func (r *AuditTrailRepository) RecentByProject(projectID uuid.UUID, limit int) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail
 	sql := `
-		SELECT DISTINCT a.* FROM audit_trails a
-		WHERE (a.entity_type IN ('delivery_receipt', 'change_order', 'quality_inspection', 'rework_record', 'settlement_batch')
-		AND EXISTS (
-			SELECT 1 FROM delivery_receipts d WHERE d.id = a.entity_id AND d.project_id = $1
-		)
+		SELECT a.* FROM audit_trails a
+		INNER JOIN (
+			SELECT id, 'settlement_batch' as entity_type FROM settlement_batches WHERE project_id = $1
+			UNION ALL
+			SELECT id, 'change_order' as entity_type FROM change_orders WHERE project_id = $1
+			UNION ALL
+			SELECT id, 'quality_inspection' as entity_type FROM quality_inspections WHERE project_id = $1
+			UNION ALL
+			SELECT id, 'rework_record' as entity_type FROM rework_records WHERE project_id = $1
+			UNION ALL
+			SELECT id, 'delivery_receipt' as entity_type FROM delivery_receipts WHERE project_id = $1
+		) e ON a.entity_id = e.id AND a.entity_type = e.entity_type
 		ORDER BY a.created_at DESC
 		LIMIT $2
 	`
