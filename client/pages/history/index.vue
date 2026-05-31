@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useDataStore } from '~/stores/data'
 import { useFilterStore } from '~/stores/filter'
 import { formatDate, formatDateTime } from '~/utils/date'
@@ -248,7 +248,6 @@ const dataStore = useDataStore()
 const filterStore = useFilterStore()
 
 const isInitialized = ref(false)
-const pageLocalSearchText = ref('')
 
 onMounted(() => {
   filterStore.clearAllFilters()
@@ -257,8 +256,6 @@ onMounted(() => {
   if (projectId) {
     filterStore.global.projectIds = [projectId]
   }
-  
-  pageLocalSearchText.value = filterStore.global.searchText
   
   isInitialized.value = true
 })
@@ -276,10 +273,6 @@ watch(
     router.replace({ query })
   }
 )
-
-onUnmounted(() => {
-  filterStore.clearAllFilters()
-})
 
 const recordTypes = [
   { value: 'schedule', label: '排班记录', icon: '📅', bgClass: 'bg-blue-50', textClass: 'text-blue-700', borderClass: 'border-blue-300' },
@@ -635,9 +628,6 @@ function formatDetailValue(key: string, value: unknown): string {
   return String(value)
 }
 
-onMounted(() => {
-  filterStore.clearAllFilters()
-})
 </script>
 
 <style scoped>
