@@ -96,8 +96,24 @@ class WasteService {
       });
     }
 
-    await auditService.logWasteRecord({
-      recordId: record.id,
+    await auditService.log({
+      action: 'WASTE_RECORD_CREATE',
+      entityType: 'WasteRecord',
+      entityId: record.id,
+      beforeValue: null,
+      afterValue: {
+        materialId: material ? material.id : null,
+        materialName: material ? material.name : null,
+        productionId: production ? production.id : null,
+        productionBatchNo: production ? production.batchNo : null,
+        orderId,
+        quantity,
+        reason,
+        reasonDetail: finalReasonDetail,
+        remark: remark || null,
+        unitPrice,
+        totalAmount,
+      },
       operatorId,
       ipAddress,
       requestId,

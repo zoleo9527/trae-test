@@ -35,9 +35,20 @@ class RefundService {
       },
     });
 
-    await auditService.logRefund({
-      refundId: refund.id,
+    await auditService.log({
       action: 'REFUND_CREATE',
+      entityType: 'Refund',
+      entityId: refund.id,
+      beforeValue: null,
+      afterValue: {
+        refundNo: refund.refundNo,
+        orderId,
+        orderNo: order.orderNo,
+        amount: parseFloat(refund.amount),
+        reason,
+        detail,
+        status: 'PENDING',
+      },
       operatorId,
       ipAddress,
       requestId,
@@ -136,6 +147,8 @@ class RefundService {
     if (!refund) throw new Error('退款记录不存在');
     if (refund.status !== 'PENDING') throw new Error('只有待审核的退款可以审批');
 
+    const beforeStatus = refund.status;
+
     const updated = await prisma.refund.update({
       where: { id },
       data: {
@@ -145,14 +158,40 @@ class RefundService {
       },
     });
 
+    const orderBefore = await prisma.order.findUnique({ where: { id: refund.orderId } });
+
     await prisma.order.update({
       where: { id: refund.orderId },
       data: { status: 'REFUNDED' },
     });
 
-    await auditService.logRefund({
-      refundId: id,
+    await auditService.log({
       action: 'REFUND_APPROVE',
+      entityType: 'Refund',
+      entityId: id,
+      beforeValue: {
+        status: beforeStatus,
+        refundNo: refund.refundNo,
+        amount: parseFloat(refund.amount),
+        reason: refund.reason,
+      },
+      afterValue: {
+        status: 'APPROVED',
+        refundNo: refund.refundNo,
+        approvedById: operatorId,
+        approvedAt: updated.approvedAt,
+      },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
+    await auditService.log({
+      action: 'ORDER_STATUS_CHANGE',
+      entityType: 'Order',
+      entityId: refund.orderId,
+      beforeValue: { status: orderBefore.status },
+      afterValue: { status: 'REFUNDED', reason: `退款审批通过 - ${refund.refundNo}` },
       operatorId,
       ipAddress,
       requestId,
@@ -161,10 +200,12 @@ class RefundService {
     return updated;
   }
 
-  async rejectRefund(id, operatorId, ipAddress, requestId) {
+  async rejectRefund(id, rejectReason, operatorId, ipAddress, requestId) {
     const refund = await prisma.refund.findUnique({ where: { id } });
     if (!refund) throw new Error('退款记录不存在');
     if (refund.status !== 'PENDING') throw new Error('只有待审核的退款可以驳回');
+
+    const beforeStatus = refund.status;
 
     const updated = await prisma.refund.update({
       where: { id },
@@ -172,12 +213,26 @@ class RefundService {
         status: 'REJECTED',
         approvedById: operatorId,
         approvedAt: new Date(),
+        detail: refund.detail ? `${refund.detail} | 驳回原因: ${rejectReason || '未填写'}` : `驳回原因: ${rejectReason || '未填写'}`,
       },
     });
 
-    await auditService.logRefund({
-      refundId: id,
+    await auditService.log({
       action: 'REFUND_REJECT',
+      entityType: 'Refund',
+      entityId: id,
+      beforeValue: {
+        status: beforeStatus,
+        refundNo: refund.refundNo,
+        amount: parseFloat(refund.amount),
+        reason: refund.reason,
+      },
+      afterValue: {
+        status: 'REJECTED',
+        refundNo: refund.refundNo,
+        rejectReason: rejectReason || '未填写',
+        rejectedById: operatorId,
+      },
       operatorId,
       ipAddress,
       requestId,
@@ -191,14 +246,27 @@ class RefundService {
     if (!refund) throw new Error('退款记录不存在');
     if (refund.status !== 'APPROVED') throw new Error('只有已批准的退款可以完成');
 
+    const beforeStatus = refund.status;
+
     const updated = await prisma.refund.update({
       where: { id },
       data: { status: 'COMPLETED' },
     });
 
-    await auditService.logRefund({
-      refundId: id,
+    await auditService.log({
       action: 'REFUND_COMPLETE',
+      entityType: 'Refund',
+      entityId: id,
+      beforeValue: {
+        status: beforeStatus,
+        refundNo: refund.refundNo,
+        amount: parseFloat(refund.amount),
+      },
+      afterValue: {
+        status: 'COMPLETED',
+        refundNo: refund.refundNo,
+        completedAt: new Date(),
+      },
       operatorId,
       ipAddress,
       requestId,

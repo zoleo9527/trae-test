@@ -8,290 +8,130 @@ async function main() {
   const owner = await prisma.user.upsert({
     where: { id: 'user-owner-001' },
     update: {},
-    create: {
-      id: 'user-owner-001',
-      name: '林店长',
-      role: 'OWNER',
-    },
+    create: { id: 'user-owner-001', name: '林店长', role: 'OWNER' },
   });
 
   const kitchen = await prisma.user.upsert({
     where: { id: 'user-kitchen-001' },
     update: {},
-    create: {
-      id: 'user-kitchen-001',
-      name: '陈大厨',
-      role: 'KITCHEN',
-    },
+    create: { id: 'user-kitchen-001', name: '陈大厨', role: 'KITCHEN' },
   });
 
   const cs = await prisma.user.upsert({
     where: { id: 'user-cs-001' },
     update: {},
-    create: {
-      id: 'user-cs-001',
-      name: '王客服',
-      role: 'CUSTOMER_SERVICE',
-    },
+    create: { id: 'user-cs-001', name: '王客服', role: 'CUSTOMER_SERVICE' },
   });
 
   console.log('用户创建完成');
 
-  const materials = await Promise.all([
-    prisma.material.upsert({
-      where: { sku: 'MAT-FLOUR-001' },
-      update: {},
-      create: {
-        name: '高筋面粉',
-        sku: 'MAT-FLOUR-001',
-        category: '面粉',
-        unit: 'kg',
-        currentStock: 25.5,
-        minStock: 10,
-        unitPrice: 8.5,
-        supplier: '优质粮油批发',
-      },
-    }),
-    prisma.material.upsert({
-      where: { sku: 'MAT-BUTTER-001' },
-      update: {},
-      create: {
-        name: '无盐黄油',
-        sku: 'MAT-BUTTER-001',
-        category: '乳制品',
-        unit: 'kg',
-        currentStock: 12.3,
-        minStock: 5,
-        unitPrice: 45.0,
-        supplier: '进口食材商行',
-      },
-    }),
-    prisma.material.upsert({
-      where: { sku: 'MAT-SUGAR-001' },
-      update: {},
-      create: {
-        name: '细砂糖',
-        sku: 'MAT-SUGAR-001',
-        category: '糖类',
-        unit: 'kg',
-        currentStock: 18.0,
-        minStock: 8,
-        unitPrice: 12.0,
-        supplier: '糖业贸易公司',
-      },
-    }),
-    prisma.material.upsert({
-      where: { sku: 'MAT-EGG-001' },
-      update: {},
-      create: {
-        name: '新鲜鸡蛋',
-        sku: 'MAT-EGG-001',
-        category: '蛋类',
-        unit: '个',
-        currentStock: 150,
-        minStock: 60,
-        unitPrice: 1.5,
-        supplier: '本地农场',
-      },
-    }),
-    prisma.material.upsert({
-      where: { sku: 'MAT-YEAST-001' },
-      update: {},
-      create: {
-        name: '干酵母',
-        sku: 'MAT-YEAST-001',
-        category: '添加剂',
-        unit: 'g',
-        currentStock: 500,
-        minStock: 200,
-        unitPrice: 0.15,
-        supplier: '烘焙原料批发',
-      },
-    }),
-    prisma.material.upsert({
-      where: { sku: 'MAT-MILK-001' },
-      update: {},
-      create: {
-        name: '纯牛奶',
-        sku: 'MAT-MILK-001',
-        category: '乳制品',
-        unit: 'L',
-        currentStock: 8.5,
-        minStock: 4,
-        unitPrice: 12.0,
-        supplier: '乳业公司',
-      },
-    }),
-  ]);
+  const matFlour = await prisma.material.upsert({
+    where: { sku: 'MAT-FLOUR-001' },
+    update: {},
+    create: { name: '高筋面粉', sku: 'MAT-FLOUR-001', category: '面粉', unit: 'kg', currentStock: 25.5, minStock: 10, unitPrice: 8.5, supplier: '优质粮油批发' },
+  });
+  const matButter = await prisma.material.upsert({
+    where: { sku: 'MAT-BUTTER-001' },
+    update: {},
+    create: { name: '无盐黄油', sku: 'MAT-BUTTER-001', category: '乳制品', unit: 'kg', currentStock: 12.3, minStock: 5, unitPrice: 45.0, supplier: '进口食材商行' },
+  });
+  const matSugar = await prisma.material.upsert({
+    where: { sku: 'MAT-SUGAR-001' },
+    update: {},
+    create: { name: '细砂糖', sku: 'MAT-SUGAR-001', category: '糖类', unit: 'kg', currentStock: 18.0, minStock: 8, unitPrice: 12.0, supplier: '糖业贸易公司' },
+  });
+  const matEgg = await prisma.material.upsert({
+    where: { sku: 'MAT-EGG-001' },
+    update: {},
+    create: { name: '新鲜鸡蛋', sku: 'MAT-EGG-001', category: '蛋类', unit: '个', currentStock: 150, minStock: 60, unitPrice: 1.5, supplier: '本地农场' },
+  });
+  const matYeast = await prisma.material.upsert({
+    where: { sku: 'MAT-YEAST-001' },
+    update: {},
+    create: { name: '干酵母', sku: 'MAT-YEAST-001', category: '添加剂', unit: 'g', currentStock: 500, minStock: 200, unitPrice: 0.15, supplier: '烘焙原料批发' },
+  });
+  const matMilk = await prisma.material.upsert({
+    where: { sku: 'MAT-MILK-001' },
+    update: {},
+    create: { name: '纯牛奶', sku: 'MAT-MILK-001', category: '乳制品', unit: 'L', currentStock: 8.5, minStock: 4, unitPrice: 12.0, supplier: '乳业公司' },
+  });
 
+  const materials = [matFlour, matButter, matSugar, matEgg, matYeast, matMilk];
   console.log('原料创建完成');
 
-  const products = await Promise.all([
-    prisma.product.upsert({
-      where: { sku: 'PROD-BREAD-001' },
-      update: {},
-      create: {
-        name: '经典吐司',
-        sku: 'PROD-BREAD-001',
-        description: '柔软拉丝的经典白吐司，适合早餐',
-        price: 28.0,
-        isActive: true,
-      },
-    }),
-    prisma.product.upsert({
-      where: { sku: 'PROD-CROISSANT-001' },
-      update: {},
-      create: {
-        name: '黄油可颂',
-        sku: 'PROD-CROISSANT-001',
-        description: '层层酥脆的法式可颂',
-        price: 18.0,
-        isActive: true,
-      },
-    }),
-    prisma.product.upsert({
-      where: { sku: 'PROD-CAKE-001' },
-      update: {},
-      create: {
-        name: '生日蛋糕',
-        sku: 'PROD-CAKE-001',
-        description: '6寸奶油水果蛋糕，需提前2天预定',
-        price: 168.0,
-        isActive: true,
-      },
-    }),
-    prisma.product.upsert({
-      where: { sku: 'PROD-COOKIE-001' },
-      update: {},
-      create: {
-        name: '曲奇礼盒',
-        sku: 'PROD-COOKIE-001',
-        description: '多种口味手工曲奇礼盒',
-        price: 58.0,
-        isActive: true,
-      },
-    }),
-  ]);
+  const prodBread = await prisma.product.upsert({
+    where: { sku: 'PROD-BREAD-001' },
+    update: {},
+    create: { name: '经典吐司', sku: 'PROD-BREAD-001', description: '柔软拉丝的经典白吐司', price: 28.0 },
+  });
+  const prodCroissant = await prisma.product.upsert({
+    where: { sku: 'PROD-CROISSANT-001' },
+    update: {},
+    create: { name: '黄油可颂', sku: 'PROD-CROISSANT-001', description: '层层酥脆的法式可颂', price: 18.0 },
+  });
+  const prodCake = await prisma.product.upsert({
+    where: { sku: 'PROD-CAKE-001' },
+    update: {},
+    create: { name: '生日蛋糕', sku: 'PROD-CAKE-001', description: '6寸奶油水果蛋糕', price: 168.0 },
+  });
+  const prodCookie = await prisma.product.upsert({
+    where: { sku: 'PROD-COOKIE-001' },
+    update: {},
+    create: { name: '曲奇礼盒', sku: 'PROD-COOKIE-001', description: '多种口味手工曲奇礼盒', price: 58.0 },
+  });
 
+  const products = [prodBread, prodCroissant, prodCake, prodCookie];
   console.log('产品创建完成');
 
   await Promise.all([
     prisma.recipeItem.upsert({
-      where: { productId_materialId: { productId: products[0].id, materialId: materials[0].id } },
+      where: { productId_materialId: { productId: prodBread.id, materialId: matFlour.id } },
       update: {},
-      create: {
-        productId: products[0].id,
-        materialId: materials[0].id,
-        quantity: 0.3,
-        unit: 'kg',
-      },
+      create: { productId: prodBread.id, materialId: matFlour.id, quantity: 0.3, unit: 'kg' },
     }),
     prisma.recipeItem.upsert({
-      where: { productId_materialId: { productId: products[0].id, materialId: materials[1].id } },
+      where: { productId_materialId: { productId: prodBread.id, materialId: matButter.id } },
       update: {},
-      create: {
-        productId: products[0].id,
-        materialId: materials[1].id,
-        quantity: 0.05,
-        unit: 'kg',
-      },
+      create: { productId: prodBread.id, materialId: matButter.id, quantity: 0.05, unit: 'kg' },
     }),
     prisma.recipeItem.upsert({
-      where: { productId_materialId: { productId: products[0].id, materialId: materials[4].id } },
+      where: { productId_materialId: { productId: prodBread.id, materialId: matYeast.id } },
       update: {},
-      create: {
-        productId: products[0].id,
-        materialId: materials[4].id,
-        quantity: 5,
-        unit: 'g',
-      },
+      create: { productId: prodBread.id, materialId: matYeast.id, quantity: 5, unit: 'g' },
     }),
   ]);
-
   console.log('配方创建完成');
 
   const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  const twoDaysAgo = new Date(today); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
   const order1 = await prisma.order.create({
     data: {
-      orderNo: 'ORD202605300001',
-      customerName: '张女士',
-      customerPhone: '13800138001',
-      customerRemark: '吐司要切厚片，谢谢',
-      totalAmount: 84.0,
-      status: 'COMPLETED',
-      pickupDate: yesterday,
-      pickupTime: '09:00',
-      deliveryType: 'SELF_PICKUP',
-      createdById: cs.id,
+      orderNo: 'ORD202605300001', customerName: '张女士', customerPhone: '13800138001',
+      customerRemark: '吐司要切厚片，谢谢', totalAmount: 84.0, status: 'COMPLETED',
+      pickupDate: yesterday, pickupTime: '09:00', deliveryType: 'SELF_PICKUP', createdById: cs.id,
       items: {
         create: [
-          {
-            productId: products[0].id,
-            quantity: 2,
-            unitPrice: 28.0,
-            subtotal: 56.0,
-            remark: '切厚片',
-          },
-          {
-            productId: products[1].id,
-            quantity: 2,
-            unitPrice: 14.0,
-            subtotal: 28.0,
-          },
+          { productId: prodBread.id, quantity: 2, unitPrice: 28.0, subtotal: 56.0, remark: '切厚片' },
+          { productId: prodCroissant.id, quantity: 2, unitPrice: 14.0, subtotal: 28.0 },
         ],
       },
-      notes: {
-        create: [
-          {
-            content: '客户来电确认取货时间',
-            type: 'CUSTOMER',
-            createdById: cs.id,
-          },
-        ],
-      },
+      notes: { create: [{ content: '客户来电确认取货时间', type: 'CUSTOMER', createdById: cs.id }] },
     },
   });
 
   const order2 = await prisma.order.create({
     data: {
-      orderNo: 'ORD202605310002',
-      customerName: '李先生',
-      customerPhone: '13900139002',
-      customerRemark: '奶油少一点，小孩怕甜',
-      totalAmount: 168.0,
-      status: 'IN_PRODUCTION',
-      pickupDate: tomorrow,
-      pickupTime: '14:00',
-      deliveryType: 'DELIVERY',
-      createdById: cs.id,
-      items: {
-        create: [
-          {
-            productId: products[2].id,
-            quantity: 1,
-            unitPrice: 168.0,
-            subtotal: 168.0,
-            remark: '少奶油',
-          },
-        ],
-      },
+      orderNo: 'ORD202605310002', customerName: '李先生', customerPhone: '13900139002',
+      customerRemark: '奶油少一点，小孩怕甜', totalAmount: 168.0, status: 'IN_PRODUCTION',
+      pickupDate: tomorrow, pickupTime: '14:00', deliveryType: 'DELIVERY', createdById: cs.id,
+      items: { create: [{ productId: prodCake.id, quantity: 1, unitPrice: 168.0, subtotal: 168.0, remark: '少奶油' }] },
       notes: {
         create: [
-          {
-            content: '客户特别要求少奶油，请后厨注意',
-            type: 'IMPORTANT',
-            createdById: owner.id,
-          },
-          {
-            content: '已收到，会注意的',
-            type: 'REPLY',
-            createdById: kitchen.id,
-          },
+          { content: '客户特别要求少奶油，请后厨注意', type: 'IMPORTANT', createdById: owner.id },
+          { content: '已收到，会注意的', type: 'REPLY', createdById: kitchen.id },
         ],
       },
     },
@@ -299,99 +139,36 @@ async function main() {
 
   const order3 = await prisma.order.create({
     data: {
-      orderNo: 'ORD202605310003',
-      customerName: '王小姐',
-      customerPhone: '13700137003',
-      totalAmount: 58.0,
-      status: 'PENDING',
-      pickupDate: tomorrow,
-      pickupTime: '10:00',
-      deliveryType: 'SELF_PICKUP',
-      createdById: cs.id,
-      items: {
-        create: [
-          {
-            productId: products[3].id,
-            quantity: 1,
-            unitPrice: 58.0,
-            subtotal: 58.0,
-          },
-        ],
-      },
+      orderNo: 'ORD202605310003', customerName: '王小姐', customerPhone: '13700137003',
+      totalAmount: 58.0, status: 'PENDING',
+      pickupDate: tomorrow, pickupTime: '10:00', deliveryType: 'SELF_PICKUP', createdById: cs.id,
+      items: { create: [{ productId: prodCookie.id, quantity: 1, unitPrice: 58.0, subtotal: 58.0 }] },
     },
   });
 
   const order4 = await prisma.order.create({
     data: {
-      orderNo: 'ORD202605310004',
-      customerName: '赵先生',
-      customerPhone: '13600136004',
-      customerRemark: '公司下午茶订单',
-      totalAmount: 520.0,
-      status: 'CONFIRMED',
-      pickupDate: tomorrow,
-      pickupTime: '15:00',
-      deliveryType: 'DELIVERY',
-      createdById: cs.id,
+      orderNo: 'ORD202605310004', customerName: '赵先生', customerPhone: '13600136004',
+      customerRemark: '公司下午茶订单', totalAmount: 520.0, status: 'CONFIRMED',
+      pickupDate: tomorrow, pickupTime: '15:00', deliveryType: 'DELIVERY', createdById: cs.id,
       items: {
         create: [
-          {
-            productId: products[0].id,
-            quantity: 10,
-            unitPrice: 28.0,
-            subtotal: 280.0,
-          },
-          {
-            productId: products[1].id,
-            quantity: 15,
-            unitPrice: 16.0,
-            subtotal: 240.0,
-          },
+          { productId: prodBread.id, quantity: 10, unitPrice: 28.0, subtotal: 280.0 },
+          { productId: prodCroissant.id, quantity: 15, unitPrice: 16.0, subtotal: 240.0 },
         ],
       },
-      notes: {
-        create: [
-          {
-            content: '大客户订单，请注意质量',
-            type: 'IMPORTANT',
-            createdById: owner.id,
-          },
-        ],
-      },
+      notes: { create: [{ content: '大客户订单，请注意质量', type: 'IMPORTANT', createdById: owner.id }] },
     },
   });
 
   const order5 = await prisma.order.create({
     data: {
-      orderNo: 'ORD202605300005',
-      customerName: '孙女士',
-      customerPhone: '13500135005',
-      totalAmount: 56.0,
-      status: 'REJECTED',
-      pickupDate: yesterday,
-      pickupTime: '11:00',
-      deliveryType: 'SELF_PICKUP',
-      rejectReason: '当天订单已满，无法安排',
-      createdById: cs.id,
-      items: {
-        create: [
-          {
-            productId: products[2].id,
-            quantity: 1,
-            unitPrice: 56.0,
-            subtotal: 56.0,
-          },
-        ],
-      },
-      notes: {
-        create: [
-          {
-            content: '客户当天早上才订蛋糕，确实来不及，已电话致歉并建议下次提前预约',
-            type: 'INTERNAL',
-            createdById: cs.id,
-          },
-        ],
-      },
+      orderNo: 'ORD202605300005', customerName: '孙女士', customerPhone: '13500135005',
+      totalAmount: 56.0, status: 'REJECTED',
+      pickupDate: yesterday, pickupTime: '11:00', deliveryType: 'SELF_PICKUP',
+      rejectReason: '当天订单已满，无法安排', createdById: cs.id,
+      items: { create: [{ productId: prodCake.id, quantity: 1, unitPrice: 56.0, subtotal: 56.0 }] },
+      notes: { create: [{ content: '客户当天早上才订蛋糕，确实来不及，已电话致歉并建议下次提前预约', type: 'INTERNAL', createdById: cs.id }] },
     },
   });
 
@@ -399,150 +176,219 @@ async function main() {
 
   const production1 = await prisma.production.create({
     data: {
-      orderId: order1.id,
-      scheduledDate: yesterday,
-      batchNo: 'BAT202605300001',
-      status: 'COMPLETED',
-      startTime: new Date(yesterday.setHours(6, 0, 0)),
-      endTime: new Date(yesterday.setHours(8, 30, 0)),
-      yieldQuantity: 4,
-      defectiveQuantity: 0,
-      operatorId: kitchen.id,
-      notes: {
-        create: [
-          {
-            content: '面团发酵效果很好',
-            type: 'PRODUCTION',
-            createdById: kitchen.id,
-          },
-        ],
-      },
+      orderId: order1.id, scheduledDate: yesterday, batchNo: 'BAT202605300001',
+      status: 'COMPLETED', startTime: new Date(yesterday.getTime() + 6 * 3600000),
+      endTime: new Date(yesterday.getTime() + 8.5 * 3600000),
+      yieldQuantity: 4, defectiveQuantity: 0, operatorId: kitchen.id,
+      notes: { create: [{ content: '面团发酵效果很好', type: 'PRODUCTION', createdById: kitchen.id }] },
     },
   });
 
   const production2 = await prisma.production.create({
     data: {
-      orderId: order2.id,
-      scheduledDate: today,
-      batchNo: 'BAT202605310001',
-      status: 'IN_PROGRESS',
-      startTime: new Date(today.setHours(8, 0, 0)),
-      operatorId: kitchen.id,
+      orderId: order2.id, scheduledDate: today, batchNo: 'BAT202605310001',
+      status: 'IN_PROGRESS', startTime: new Date(today.getTime() + 8 * 3600000), operatorId: kitchen.id,
     },
   });
 
   console.log('生产记录创建完成');
 
-  await prisma.wasteRecord.create({
+  const waste1 = await prisma.wasteRecord.create({
     data: {
-      productionId: production1.id,
-      materialId: materials[0].id,
-      quantity: 0.5,
-      reason: 'OVERBAKE',
-      reasonDetail: '烤箱温度偏高，边缘烤焦了一点',
-      unitPrice: 8.5,
-      totalAmount: 4.25,
-      recordedById: kitchen.id,
+      productionId: production1.id, materialId: matFlour.id,
+      quantity: 0.5, reason: 'OVERBAKE', reasonDetail: '烤箱温度偏高，边缘烤焦了一点',
+      remark: '已调整烤箱温度，下次注意', unitPrice: 8.5, totalAmount: 4.25, recordedById: kitchen.id,
     },
   });
 
-  await prisma.wasteRecord.create({
+  const waste2 = await prisma.wasteRecord.create({
     data: {
-      productionId: production1.id,
-      materialId: materials[3].id,
-      quantity: 5,
-      reason: 'DAMAGE',
-      reasonDetail: '拿取时不小心打碎',
-      unitPrice: 1.5,
-      totalAmount: 7.5,
-      recordedById: kitchen.id,
+      productionId: production1.id, materialId: matEgg.id,
+      quantity: 5, reason: 'DAMAGE', reasonDetail: '拿取时不小心打碎',
+      remark: '换新人操作不熟练，已加强培训', unitPrice: 1.5, totalAmount: 7.5, recordedById: kitchen.id,
     },
   });
 
   console.log('损耗记录创建完成');
 
-  await prisma.refund.create({
+  const refund1 = await prisma.refund.create({
     data: {
-      orderId: order5.id,
-      refundNo: 'REF202605300001',
-      amount: 56.0,
+      orderId: order5.id, refundNo: 'REF202605300001', amount: 56.0,
       reason: '订单被拒，全额退款',
       detail: '客户当天早上预订蛋糕，因当天产能已满无法接单，已全额退款',
-      status: 'COMPLETED',
-      approvedById: owner.id,
-      approvedAt: new Date(),
-      createdById: cs.id,
+      status: 'COMPLETED', approvedById: owner.id, approvedAt: twoDaysAgo, createdById: cs.id,
     },
   });
 
   console.log('退款记录创建完成');
 
-  await prisma.stockLog.createMany({
-    data: [
-      {
-        materialId: materials[0].id,
-        quantity: 50,
-        type: 'PURCHASE',
-        reason: '进货',
-        operatorId: owner.id,
+  const inventory1 = await prisma.inventory.create({
+    data: {
+      inventoryNo: 'INV202605290001', title: '5月下旬原料盘点', type: 'FULL',
+      status: 'COMPLETED', startedAt: twoDaysAgo, completedAt: yesterday, createdById: owner.id,
+      items: {
+        create: [
+          { materialId: matFlour.id, systemStock: 26.0, actualStock: 25.5, difference: -0.5, unitPrice: 8.5, differenceAmount: -4.25, remark: '实测比系统少0.5kg，可能有微量损耗' },
+          { materialId: matButter.id, systemStock: 12.3, actualStock: 12.3, difference: 0, unitPrice: 45.0, differenceAmount: 0 },
+          { materialId: matSugar.id, systemStock: 18.0, actualStock: 18.0, difference: 0, unitPrice: 12.0, differenceAmount: 0 },
+          { materialId: matEgg.id, systemStock: 155, actualStock: 150, difference: -5, unitPrice: 1.5, differenceAmount: -7.5, remark: '5个破损鸡蛋已剔除' },
+          { materialId: matMilk.id, systemStock: 9.0, actualStock: 8.5, difference: -0.5, unitPrice: 12.0, differenceAmount: -6.0, remark: '一瓶开封后用量估算有偏差' },
+        ],
       },
-      {
-        materialId: materials[1].id,
-        quantity: 20,
-        type: 'PURCHASE',
-        reason: '进货',
-        operatorId: owner.id,
-      },
-      {
-        materialId: materials[0].id,
-        quantity: -24.5,
-        type: 'USE',
-        reason: '生产消耗',
-        operatorId: kitchen.id,
-      },
-    ],
+    },
   });
 
+  console.log('盘点记录创建完成');
+
+  await prisma.stockLog.createMany({
+    data: [
+      { materialId: matFlour.id, quantity: 50, type: 'PURCHASE', reason: '进货', operatorId: owner.id },
+      { materialId: matButter.id, quantity: 20, type: 'PURCHASE', reason: '进货', operatorId: owner.id },
+      { materialId: matFlour.id, quantity: -24.5, type: 'USE', reason: '生产消耗', operatorId: kitchen.id },
+      { materialId: matFlour.id, quantity: -0.5, type: 'INVENTORY_ADJUST', reason: '盘点调整 - INV202605290001', operatorId: owner.id },
+      { materialId: matEgg.id, quantity: -5, type: 'INVENTORY_ADJUST', reason: '盘点调整 - INV202605290001', operatorId: owner.id },
+      { materialId: matMilk.id, quantity: -0.5, type: 'INVENTORY_ADJUST', reason: '盘点调整 - INV202605290001', operatorId: owner.id },
+    ],
+  });
   console.log('库存日志创建完成');
 
   await prisma.auditLog.createMany({
     data: [
       {
-        action: 'ORDER_CREATE',
-        entityType: 'Order',
-        entityId: order1.id,
-        afterValue: JSON.stringify({ orderNo: order1.orderNo }),
-        operatorId: cs.id,
+        action: 'ORDER_CREATE', entityType: 'Order', entityId: order1.id,
+        afterValue: JSON.stringify({ orderNo: order1.orderNo, customerName: '张女士', totalAmount: 84.0 }),
+        operatorId: cs.id, requestId: 'seed-001',
       },
       {
-        action: 'ORDER_STATUS_CHANGE',
-        entityType: 'Order',
-        entityId: order1.id,
+        action: 'ORDER_STATUS_CHANGE', entityType: 'Order', entityId: order1.id,
         beforeValue: JSON.stringify({ status: 'PENDING' }),
         afterValue: JSON.stringify({ status: 'CONFIRMED' }),
-        operatorId: owner.id,
+        operatorId: owner.id, requestId: 'seed-002',
       },
       {
-        action: 'ORDER_STATUS_CHANGE',
-        entityType: 'Order',
-        entityId: order1.id,
+        action: 'ORDER_STATUS_CHANGE', entityType: 'Order', entityId: order1.id,
         beforeValue: JSON.stringify({ status: 'CONFIRMED' }),
         afterValue: JSON.stringify({ status: 'IN_PRODUCTION' }),
-        operatorId: kitchen.id,
+        operatorId: kitchen.id, requestId: 'seed-003',
       },
       {
-        action: 'ORDER_STATUS_CHANGE',
-        entityType: 'Order',
-        entityId: order1.id,
+        action: 'ORDER_STATUS_CHANGE', entityType: 'Order', entityId: order1.id,
         beforeValue: JSON.stringify({ status: 'IN_PRODUCTION' }),
         afterValue: JSON.stringify({ status: 'COMPLETED' }),
-        operatorId: kitchen.id,
+        operatorId: kitchen.id, requestId: 'seed-004',
+      },
+      {
+        action: 'ORDER_CREATE', entityType: 'Order', entityId: order5.id,
+        afterValue: JSON.stringify({ orderNo: order5.orderNo, customerName: '孙女士', totalAmount: 56.0 }),
+        operatorId: cs.id, requestId: 'seed-005',
+      },
+      {
+        action: 'ORDER_STATUS_CHANGE', entityType: 'Order', entityId: order5.id,
+        beforeValue: JSON.stringify({ status: 'PENDING' }),
+        afterValue: JSON.stringify({ status: 'REJECTED', reason: '当天订单已满，无法安排' }),
+        operatorId: owner.id, requestId: 'seed-006',
+      },
+
+      {
+        action: 'INVENTORY_CREATE', entityType: 'Inventory', entityId: inventory1.id,
+        afterValue: JSON.stringify({
+          inventoryNo: 'INV202605290001', title: '5月下旬原料盘点', type: 'FULL', status: 'DRAFT',
+          itemCount: 5, materialNames: ['高筋面粉', '无盐黄油', '细砂糖', '新鲜鸡蛋', '纯牛奶'],
+        }),
+        operatorId: owner.id, requestId: 'seed-inv-001',
+      },
+      {
+        action: 'INVENTORY_START', entityType: 'Inventory', entityId: inventory1.id,
+        beforeValue: JSON.stringify({ status: 'DRAFT', inventoryNo: 'INV202605290001' }),
+        afterValue: JSON.stringify({ status: 'IN_PROGRESS', inventoryNo: 'INV202605290001' }),
+        operatorId: owner.id, requestId: 'seed-inv-002',
+      },
+      {
+        action: 'INVENTORY_ITEM_UPDATE', entityType: 'Inventory', entityId: inventory1.id,
+        beforeValue: JSON.stringify({ materialName: '高筋面粉', systemStock: 26.0, actualStock: 26.0, difference: 0, remark: null }),
+        afterValue: JSON.stringify({ materialName: '高筋面粉', systemStock: 26.0, actualStock: 25.5, difference: -0.5, differenceAmount: -4.25, remark: '实测比系统少0.5kg，可能有微量损耗' }),
+        operatorId: kitchen.id, requestId: 'seed-inv-003',
+      },
+      {
+        action: 'INVENTORY_ITEM_UPDATE', entityType: 'Inventory', entityId: inventory1.id,
+        beforeValue: JSON.stringify({ materialName: '新鲜鸡蛋', systemStock: 155, actualStock: 155, difference: 0, remark: null }),
+        afterValue: JSON.stringify({ materialName: '新鲜鸡蛋', systemStock: 155, actualStock: 150, difference: -5, differenceAmount: -7.5, remark: '5个破损鸡蛋已剔除' }),
+        operatorId: kitchen.id, requestId: 'seed-inv-004',
+      },
+      {
+        action: 'INVENTORY_ITEM_UPDATE', entityType: 'Inventory', entityId: inventory1.id,
+        beforeValue: JSON.stringify({ materialName: '纯牛奶', systemStock: 9.0, actualStock: 9.0, difference: 0, remark: null }),
+        afterValue: JSON.stringify({ materialName: '纯牛奶', systemStock: 9.0, actualStock: 8.5, difference: -0.5, differenceAmount: -6.0, remark: '一瓶开封后用量估算有偏差' }),
+        operatorId: kitchen.id, requestId: 'seed-inv-005',
+      },
+      {
+        action: 'INVENTORY_COMPLETE', entityType: 'Inventory', entityId: inventory1.id,
+        beforeValue: JSON.stringify({ status: 'IN_PROGRESS', inventoryNo: 'INV202605290001' }),
+        afterValue: JSON.stringify({
+          status: 'COMPLETED', inventoryNo: 'INV202605290001',
+          adjustments: [
+            { materialName: '高筋面粉', beforeStock: 26.0, afterStock: 25.5, difference: -0.5, remark: '实测比系统少0.5kg，可能有微量损耗' },
+            { materialName: '新鲜鸡蛋', beforeStock: 155, afterStock: 150, difference: -5, remark: '5个破损鸡蛋已剔除' },
+            { materialName: '纯牛奶', beforeStock: 9.0, afterStock: 8.5, difference: -0.5, remark: '一瓶开封后用量估算有偏差' },
+          ],
+          adjustmentCount: 3,
+        }),
+        operatorId: owner.id, requestId: 'seed-inv-006',
+      },
+
+      {
+        action: 'WASTE_RECORD_CREATE', entityType: 'WasteRecord', entityId: waste1.id,
+        afterValue: JSON.stringify({
+          materialId: matFlour.id, materialName: '高筋面粉',
+          productionId: production1.id, productionBatchNo: 'BAT202605300001',
+          quantity: 0.5, reason: 'OVERBAKE', reasonDetail: '烤箱温度偏高，边缘烤焦了一点',
+          remark: '已调整烤箱温度，下次注意', unitPrice: 8.5, totalAmount: 4.25,
+        }),
+        operatorId: kitchen.id, requestId: 'seed-waste-001',
+      },
+      {
+        action: 'WASTE_RECORD_CREATE', entityType: 'WasteRecord', entityId: waste2.id,
+        afterValue: JSON.stringify({
+          materialId: matEgg.id, materialName: '新鲜鸡蛋',
+          productionId: production1.id, productionBatchNo: 'BAT202605300001',
+          quantity: 5, reason: 'DAMAGE', reasonDetail: '拿取时不小心打碎',
+          remark: '换新人操作不熟练，已加强培训', unitPrice: 1.5, totalAmount: 7.5,
+        }),
+        operatorId: kitchen.id, requestId: 'seed-waste-002',
+      },
+
+      {
+        action: 'REFUND_CREATE', entityType: 'Refund', entityId: refund1.id,
+        afterValue: JSON.stringify({
+          refundNo: 'REF202605300001', orderId: order5.id, orderNo: 'ORD202605300005',
+          amount: 56.0, reason: '订单被拒，全额退款',
+          detail: '客户当天早上预订蛋糕，因当天产能已满无法接单，已全额退款',
+          status: 'PENDING',
+        }),
+        operatorId: cs.id, requestId: 'seed-refund-001',
+      },
+      {
+        action: 'REFUND_APPROVE', entityType: 'Refund', entityId: refund1.id,
+        beforeValue: JSON.stringify({ status: 'PENDING', refundNo: 'REF202605300001', amount: 56.0, reason: '订单被拒，全额退款' }),
+        afterValue: JSON.stringify({ status: 'APPROVED', refundNo: 'REF202605300001', approvedById: owner.id }),
+        operatorId: owner.id, requestId: 'seed-refund-002',
+      },
+      {
+        action: 'ORDER_STATUS_CHANGE', entityType: 'Order', entityId: order5.id,
+        beforeValue: JSON.stringify({ status: 'REJECTED' }),
+        afterValue: JSON.stringify({ status: 'REFUNDED', reason: '退款审批通过 - REF202605300001' }),
+        operatorId: owner.id, requestId: 'seed-refund-003',
+      },
+      {
+        action: 'REFUND_COMPLETE', entityType: 'Refund', entityId: refund1.id,
+        beforeValue: JSON.stringify({ status: 'APPROVED', refundNo: 'REF202605300001', amount: 56.0 }),
+        afterValue: JSON.stringify({ status: 'COMPLETED', refundNo: 'REF202605300001' }),
+        operatorId: cs.id, requestId: 'seed-refund-004',
       },
     ],
   });
 
   console.log('审计日志创建完成');
-
   console.log('种子数据完成!');
 }
 

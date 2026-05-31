@@ -124,6 +124,7 @@ CREATE TABLE "WasteRecord" (
     "quantity" DECIMAL NOT NULL,
     "reason" TEXT NOT NULL,
     "reasonDetail" TEXT,
+    "remark" TEXT,
     "unitPrice" DECIMAL NOT NULL,
     "totalAmount" DECIMAL NOT NULL,
     "recordedById" TEXT NOT NULL,
@@ -208,8 +209,7 @@ CREATE TABLE "AuditLog" (
     "userAgent" TEXT,
     "requestId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "AuditLog_operatorId_fkey" FOREIGN KEY ("operatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "AuditLog_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Order" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "AuditLog_operatorId_fkey" FOREIGN KEY ("operatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex

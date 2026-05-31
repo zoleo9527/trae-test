@@ -68,6 +68,7 @@ router.post('/:id/reject', requireRoles('OWNER'), async (req, res) => {
     const requestId = req.headers['x-request-id'] || uuidv4();
     const refund = await refundService.rejectRefund(
       req.params.id,
+      req.body.rejectReason,
       req.user.id,
       req.ip,
       requestId

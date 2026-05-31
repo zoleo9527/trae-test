@@ -61,8 +61,8 @@ class MaterialService {
       action: 'STOCK_UPDATE',
       entityType: 'Material',
       entityId: materialId,
-      beforeValue: { currentStock: beforeStock },
-      afterValue: { currentStock: updated.currentStock.toNumber() },
+      beforeValue: { currentStock: beforeStock, materialName: material.name },
+      afterValue: { currentStock: updated.currentStock.toNumber(), materialName: material.name, quantity, type, reason },
       operatorId,
       ipAddress,
       requestId,
@@ -71,7 +71,7 @@ class MaterialService {
     return updated;
   }
 
-  async createInventory(title, type, materialIds, operatorId) {
+  async createInventory(title, type, materialIds, operatorId, ipAddress, requestId) {
     const inventoryNo = `INV${Date.now()}`;
     
     const materials = await prisma.material.findMany({
@@ -104,15 +104,33 @@ class MaterialService {
       },
     });
 
+    await auditService.log({
+      action: 'INVENTORY_CREATE',
+      entityType: 'Inventory',
+      entityId: inventory.id,
+      beforeValue: null,
+      afterValue: {
+        inventoryNo,
+        title,
+        type,
+        status: 'DRAFT',
+        itemCount: inventoryItems.length,
+        materialNames: materials.map(m => m.name),
+      },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
     return inventory;
   }
 
-  async startInventory(inventoryId, operatorId) {
+  async startInventory(inventoryId, operatorId, ipAddress, requestId) {
     const inventory = await prisma.inventory.findUnique({ where: { id: inventoryId } });
     if (!inventory) throw new Error('盘点单不存在');
     if (inventory.status !== 'DRAFT') throw new Error('只有草稿状态的盘点单可以开始');
 
-    return prisma.inventory.update({
+    const updated = await prisma.inventory.update({
       where: { id: inventoryId },
       data: {
         status: 'IN_PROGRESS',
@@ -123,21 +141,35 @@ class MaterialService {
         createdBy: { select: { id: true, name: true } },
       },
     });
+
+    await auditService.log({
+      action: 'INVENTORY_START',
+      entityType: 'Inventory',
+      entityId: inventoryId,
+      beforeValue: { status: 'DRAFT', inventoryNo: inventory.inventoryNo },
+      afterValue: { status: 'IN_PROGRESS', inventoryNo: inventory.inventoryNo, startedAt: updated.startedAt },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
+    return updated;
   }
 
-  async updateInventoryItem(inventoryItemId, actualStock, remark, operatorId) {
+  async updateInventoryItem(inventoryItemId, actualStock, remark, operatorId, ipAddress, requestId) {
     const item = await prisma.inventoryItem.findUnique({
       where: { id: inventoryItemId },
-      include: { material: true },
+      include: { material: true, inventory: true },
     });
 
     if (!item) throw new Error('盘点项不存在');
 
     const systemStock = item.systemStock.toNumber();
+    const beforeActualStock = item.actualStock.toNumber();
     const difference = actualStock - systemStock;
     const differenceAmount = difference * item.unitPrice.toNumber();
 
-    return prisma.inventoryItem.update({
+    const updated = await prisma.inventoryItem.update({
       where: { id: inventoryItemId },
       data: {
         actualStock,
@@ -147,20 +179,50 @@ class MaterialService {
       },
       include: { material: true },
     });
+
+    await auditService.log({
+      action: 'INVENTORY_ITEM_UPDATE',
+      entityType: 'Inventory',
+      entityId: item.inventoryId,
+      beforeValue: {
+        materialName: item.material.name,
+        systemStock,
+        actualStock: beforeActualStock,
+        difference: item.difference.toNumber(),
+        remark: item.remark,
+      },
+      afterValue: {
+        materialName: item.material.name,
+        systemStock,
+        actualStock,
+        difference,
+        differenceAmount,
+        remark,
+      },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
+    return updated;
   }
 
-  async completeInventory(inventoryId, operatorId) {
+  async completeInventory(inventoryId, operatorId, ipAddress, requestId) {
     const inventory = await prisma.inventory.findUnique({
       where: { id: inventoryId },
-      include: { items: true },
+      include: { items: { include: { material: true } } },
     });
 
     if (!inventory) throw new Error('盘点单不存在');
     if (inventory.status !== 'IN_PROGRESS') throw new Error('只有进行中的盘点单可以完成');
 
+    const adjustments = [];
+
     for (const item of inventory.items) {
       const difference = item.actualStock.toNumber() - item.systemStock.toNumber();
       if (difference !== 0) {
+        const beforeStock = item.material.currentStock.toNumber();
+
         await prisma.material.update({
           where: { id: item.materialId },
           data: { currentStock: item.actualStock },
@@ -175,10 +237,18 @@ class MaterialService {
             operatorId,
           },
         });
+
+        adjustments.push({
+          materialName: item.material.name,
+          beforeStock,
+          afterStock: item.actualStock.toNumber(),
+          difference,
+          remark: item.remark,
+        });
       }
     }
 
-    return prisma.inventory.update({
+    const updated = await prisma.inventory.update({
       where: { id: inventoryId },
       data: {
         status: 'COMPLETED',
@@ -189,6 +259,28 @@ class MaterialService {
         createdBy: { select: { id: true, name: true } },
       },
     });
+
+    await auditService.log({
+      action: 'INVENTORY_COMPLETE',
+      entityType: 'Inventory',
+      entityId: inventoryId,
+      beforeValue: {
+        status: 'IN_PROGRESS',
+        inventoryNo: inventory.inventoryNo,
+      },
+      afterValue: {
+        status: 'COMPLETED',
+        inventoryNo: inventory.inventoryNo,
+        completedAt: updated.completedAt,
+        adjustments,
+        adjustmentCount: adjustments.length,
+      },
+      operatorId,
+      ipAddress,
+      requestId,
+    });
+
+    return updated;
   }
 
   async getInventories({ status, page = 1, pageSize = 20 }) {
