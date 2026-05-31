@@ -6,7 +6,7 @@ from app.schemas.rectification import RectificationCreate, RectificationAssign, 
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import ConcurrentTransitionError, StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError, MissingExpectedVersionError
 from app.services import rectification as svc
 
 router = APIRouter(prefix="/rectifications", tags=["整改闭环"])
@@ -39,7 +39,7 @@ def create_rectification(
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     if not x_idempotency_key:
-        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 rectification 操作的重复提交保护")
+        raise MissingIdempotencyKeyError("rectification")
     try:
         check_idempotency(db, x_idempotency_key, "rectification", operator.operator_id)
         r = svc.create_rectification(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
@@ -67,7 +67,7 @@ def assign_rectification(
     x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
     if x_expected_version is None:
-        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 rectification 的 assign 操作的并发控制")
+        raise MissingExpectedVersionError("rectification", "assign")
     try:
         r = svc.assign_rectification(
             db, rectification_id, data,
@@ -96,7 +96,7 @@ def start_rectification(
     x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
     if x_expected_version is None:
-        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 rectification 的 start 操作的并发控制")
+        raise MissingExpectedVersionError("rectification", "start")
     try:
         r = svc.start_rectification(
             db, rectification_id,
@@ -126,7 +126,7 @@ def submit_rectification(
     x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
     if x_expected_version is None:
-        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 rectification 的 submit 操作的并发控制")
+        raise MissingExpectedVersionError("rectification", "submit")
     try:
         r = svc.submit_rectification(
             db, rectification_id, data,
@@ -156,7 +156,7 @@ def review_rectification(
     x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
     if x_expected_version is None:
-        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 rectification 的 review 操作的并发控制")
+        raise MissingExpectedVersionError("rectification", "review")
     try:
         r = svc.review_rectification(
             db, rectification_id, data,

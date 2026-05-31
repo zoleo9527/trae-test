@@ -6,7 +6,7 @@ from app.schemas.inspection import InspectionCreate, InspectionUpdate, Inspectio
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import ConcurrentTransitionError, StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError, MissingExpectedVersionError
 from app.services import inspection as svc
 
 router = APIRouter(prefix="/inspections", tags=["质检抽查"])
@@ -38,7 +38,7 @@ def create_inspection(
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     if not x_idempotency_key:
-        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 inspection 操作的重复提交保护")
+        raise MissingIdempotencyKeyError("inspection")
     try:
         check_idempotency(db, x_idempotency_key, "inspection", operator.operator_id)
         i = svc.create_inspection(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
@@ -66,7 +66,7 @@ def update_inspection_status(
     x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
 ):
     if x_expected_version is None:
-        raise HTTPException(400, f"缺少预期版本号: 请在请求头中提供 X-Expected-Version 用于 inspection 的 status update 操作的并发控制")
+        raise MissingExpectedVersionError("inspection", "status_change")
     try:
         i = svc.update_inspection_status(
             db, inspection_id, data,

@@ -39,7 +39,7 @@ def create_schedule(
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     if not x_idempotency_key:
-        raise HTTPException(400, f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 schedule 操作的重复提交保护")
+        raise MissingIdempotencyKeyError("schedule")
     try:
         check_idempotency(db, x_idempotency_key, "schedule", operator.operator_id)
         s = svc.create_schedule(db, data, operator.operator_id, operator.operator_name, operator.operator_role)
