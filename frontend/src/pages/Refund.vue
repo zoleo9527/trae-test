@@ -36,7 +36,6 @@ const statusOptions = [
   { value: 'all', label: '全部' },
   { value: 'requested', label: '待审核' },
   { value: 'tracing', label: '追溯中' },
-  { value: 'approved', label: '已批准' },
   { value: 'completed', label: '已完成' },
   { value: 'rejected', label: '已拒绝' },
 ]
@@ -52,8 +51,8 @@ const filteredRefunds = computed(() => {
 const stats = computed(() => ({
   total: refundStore.refunds.length,
   pending: refundStore.pendingRefunds.length,
-  completed: refundStore.refunds.filter(r => r.status === 'completed').length,
-  totalAmount: refundStore.refunds.filter(r => r.status === 'completed').reduce((sum, r) => sum + r.amount, 0),
+  completed: refundStore.refunds.filter(r => r.status === 'completed' || r.status === 'approved').length,
+  totalAmount: refundStore.refunds.filter(r => r.status === 'completed' || r.status === 'approved').reduce((sum, r) => sum + r.amount, 0),
 }))
 
 const lossAnalysis = computed(() => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { FileText, Edit, RotateCcw, PackageX, ChevronDown, ChevronRight } from 'lucide-vue-next'
+import { FileText, Edit, RotateCcw, PackageX, Undo2, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import { ref } from 'vue'
 import type { RefundTrace } from '@/types'
 import { traceTypeLabels, formatDateTime, formatPrice } from '@/lib/utils'
@@ -23,6 +23,7 @@ const traceIcon = computed(() => {
     change: Edit,
     remake: RotateCcw,
     loss: PackageX,
+    refund: Undo2,
   }
   return map[props.trace.traceType] || FileText
 })
@@ -33,6 +34,7 @@ const traceColor = computed(() => {
     change: 'text-purple-600 bg-purple-50',
     remake: 'text-orange-600 bg-orange-50',
     loss: 'text-red-600 bg-red-50',
+    refund: 'text-red-700 bg-red-100',
   }
   return map[props.trace.traceType] || 'text-bakery-600 bg-bakery-50'
 })

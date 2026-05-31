@@ -24,7 +24,7 @@ export const useRefundStore = defineStore('refund', () => {
   function approveRefund(id: string, approvedBy: string) {
     const refund = refunds.value.find(r => r.id === id)
     if (refund) {
-      refund.status = 'approved' as RefundStatus
+      refund.status = 'completed' as RefundStatus
       refund.approvedBy = approvedBy
       refund.completedAt = new Date().toISOString()
     }
@@ -115,12 +115,16 @@ export const useRefundStore = defineStore('refund', () => {
     for (const refund of relatedRefunds) {
       const refundKey = `refund-${refund.id}`
       if (!seenTraceTargets.has(refundKey)) {
+        const statusText = refund.status === 'completed' ? '退款已完成' : refund.status === 'approved' ? '已批准' : refund.status === 'rejected' ? '已拒绝' : '处理中'
+        const conclusion = refund.status === 'completed' || refund.status === 'approved'
+          ? `退款结论：${refund.reason}，退款金额 ¥${refund.amount}，${statusText}${refund.approvedBy ? '，审核人：' + refund.approvedBy : ''}`
+          : `退款单：${refund.reason}，退款金额 ¥${refund.amount}，${statusText}`
         chain.push({
           id: `trc-auto-${orderId}-ref-${refund.id}`,
           refundId: refund.id,
-          traceType: 'order',
+          traceType: 'refund',
           traceTargetId: refund.id,
-          summary: `退款单：${refund.reason}，¥${refund.amount}，状态：${refund.status === 'approved' || refund.status === 'completed' ? '已批准' : refund.status === 'rejected' ? '已拒绝' : '处理中'}`,
+          summary: conclusion,
         })
         seenTraceTargets.add(refundKey)
       }

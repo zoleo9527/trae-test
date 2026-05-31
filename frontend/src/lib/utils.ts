@@ -59,7 +59,7 @@ export const remakeStatusLabels: Record<string, string> = {
 export const refundStatusLabels: Record<string, string> = {
   requested: '待审核',
   tracing: '追溯中',
-  approved: '已批准',
+  approved: '已完成',
   completed: '已完成',
   rejected: '已拒绝',
 }
@@ -95,5 +95,6 @@ export const traceTypeLabels: Record<string, string> = {
   change: '订单变更',
   remake: '重做工单',
   loss: '材料损耗',
+  refund: '退款结论',
 }
 

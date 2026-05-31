@@ -75,7 +75,7 @@ export const refundTraces: RefundTrace[] = [
     id: 'TRC-008',
     refundId: 'REF-002',
     traceType: 'loss',
-    traceTargetId: 'ORD-012',
+    traceTargetId: 'LOSS-012-DAMAGED',
     summary: '损坏项：招牌生吐司 x2 ¥76，占总订单42%',
   },
 ]

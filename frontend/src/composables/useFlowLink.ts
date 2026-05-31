@@ -119,7 +119,7 @@ export function useFlowLink(orderId: string) {
         role: 'manager' as RoleType,
         status: order.status === 'refunded' || refunds.some(r => r.status === 'approved' || r.status === 'completed') ? 'done' as NodeStatus : 'current' as NodeStatus,
         timestamp: refunds[0]?.createdAt,
-        detail: refunds.length > 0 ? refunds.map(r => `¥${r.amount}（${r.reason}）`).join('；') : '订单已退款',
+        detail: refunds.length > 0 ? refunds.map(r => `¥${r.amount}（${r.reason}）${r.status === 'completed' ? '，已完成' : r.status === 'approved' ? '，已批准' : ''}`).join('；') : '订单已退款',
       })
     }
 

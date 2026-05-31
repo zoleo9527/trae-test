@@ -34,7 +34,7 @@ const statusConfig = computed(() => {
     refund: {
       requested: { label: '待审核', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
       tracing: { label: '追溯中', class: 'bg-blue-100 text-blue-800 border-blue-200' },
-      approved: { label: '已批准', class: 'bg-green-100 text-green-800 border-green-200' },
+      approved: { label: '已完成', class: 'bg-green-100 text-green-800 border-green-200' },
       completed: { label: '已完成', class: 'bg-green-100 text-green-800 border-green-200' },
       rejected: { label: '已拒绝', class: 'bg-gray-100 text-gray-600 border-gray-200' },
     },

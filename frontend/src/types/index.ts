@@ -93,7 +93,7 @@ export interface Refund {
 export interface RefundTrace {
   id: string
   refundId: string
-  traceType: 'order' | 'change' | 'remake' | 'loss'
+  traceType: 'order' | 'change' | 'remake' | 'loss' | 'refund'
   traceTargetId: string
   summary: string
 }
