@@ -2,13 +2,15 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Booking, RecordStatus, FilterOptions, BookingType } from '~/types'
 import { mockBookings } from '~/data/bookings'
+import { demoCustomerBookings } from '~/data/demo-bookings'
 import { useCommonStore } from './common'
 import { useUserStore } from './user'
 import { useNotificationStore } from './notification'
 import { usePrepaidStore } from './prepaid'
+import { useEquipmentStore } from './equipment'
 
 export const useBookingStore = defineStore('booking', () => {
-  const bookings = ref<Booking[]>([...mockBookings])
+  const bookings = ref<Booking[]>([...demoCustomerBookings, ...mockBookings])
   const currentBooking = ref<Booking | null>(null)
   const filter = ref<FilterOptions>({})
   const pagination = ref({ page: 1, pageSize: 10, total: 0 })
@@ -17,6 +19,7 @@ export const useBookingStore = defineStore('booking', () => {
   const userStore = useUserStore()
   const notificationStore = useNotificationStore()
   const prepaidStore = usePrepaidStore()
+  const equipmentStore = useEquipmentStore()
 
   const typeLabelMap: Record<BookingType, string> = {
     driving_range: '练习场',
@@ -146,10 +149,23 @@ export const useBookingStore = defineStore('booking', () => {
 
   function createBooking(booking: Partial<Booking>): Booking {
     const now = new Date()
+    let customerId = booking.customerId
+    if (!customerId && booking.customerPhone) {
+      const existingAccount = prepaidStore.getByCustomerPhone(booking.customerPhone)
+      if (existingAccount) {
+        customerId = existingAccount.customerId
+      } else {
+        customerId = `cust-${Date.now()}`
+      }
+    }
+    if (!customerId) {
+      customerId = `cust-${Date.now()}`
+    }
+
     const newBooking: Booking = {
       id: `booking-${Date.now()}`,
       bookingNo: commonStore.generateNo('BK'),
-      customerId: booking.customerId || '',
+      customerId,
       customerName: booking.customerName || '',
       customerPhone: booking.customerPhone || '',
       type: booking.type || 'driving_range',
@@ -271,6 +287,17 @@ export const useBookingStore = defineStore('booking', () => {
       rental.pickedUpAt = new Date().toISOString()
       booking.updatedAt = new Date().toISOString()
 
+      equipmentStore.lendEquipment(
+        rental.equipmentId,
+        {
+          id: booking.customerId,
+          name: booking.customerName,
+          phone: booking.customerPhone
+        },
+        booking.id,
+        booking.bookingNo
+      )
+
       addTimeline(bookingId, `已领取器材：${rental.equipmentName}`)
     }
   }
@@ -286,6 +313,13 @@ export const useBookingStore = defineStore('booking', () => {
       rental.returnedCondition = condition
       rental.returnCheckBy = userStore.currentUser!.name
       booking.updatedAt = new Date().toISOString()
+
+      const equipCondition: 'good' | 'damaged' | 'poor' = condition === 'missing' ? 'poor' : condition
+      equipmentStore.returnEquipment(
+        rental.equipmentId,
+        equipCondition,
+        `归还自预约 ${booking.bookingNo}`
+      )
 
       addTimeline(bookingId, `归还器材：${rental.equipmentName}，状态：${condition === 'good' ? '完好' : condition === 'damaged' ? '损坏' : '遗失'}`)
 

@@ -2,12 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { PrepaidAccount, FilterOptions } from '~/types'
 import { mockPrepaidAccounts } from '~/data/prepaid'
+import { demoCustomerPrepaid } from '~/data/demo-prepaid'
 import { useCommonStore } from './common'
 import { useUserStore } from './user'
 import { useNotificationStore } from './notification'
 
 export const usePrepaidStore = defineStore('prepaid', () => {
-  const accounts = ref<PrepaidAccount[]>([...mockPrepaidAccounts])
+  const accounts = ref<PrepaidAccount[]>([...demoCustomerPrepaid, ...mockPrepaidAccounts])
   const currentAccount = ref<PrepaidAccount | null>(null)
   const filter = ref<FilterOptions>({})
   const pagination = ref({ page: 1, pageSize: 10, total: 0 })
@@ -80,6 +81,10 @@ export const usePrepaidStore = defineStore('prepaid', () => {
 
   function getByCustomerId(customerId: string): PrepaidAccount | undefined {
     return accounts.value.find(a => a.customerId === customerId)
+  }
+
+  function getByCustomerPhone(phone: string): PrepaidAccount | undefined {
+    return accounts.value.find(a => a.customerPhone === phone)
   }
 
   function setCurrentAccount(id: string) {
@@ -376,6 +381,7 @@ export const usePrepaidStore = defineStore('prepaid', () => {
     getTransactionTypeLabel,
     getById,
     getByCustomerId,
+    getByCustomerPhone,
     setCurrentAccount,
     clearCurrentAccount,
     consume,

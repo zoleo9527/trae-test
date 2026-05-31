@@ -8,9 +8,9 @@ export const mockUsers: User[] = [
     phone: '13800138001',
     email: 'zhang.my@golfclub.com',
     permissions: [
-      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit', 'patrol:approve', 'patrol:reject',
-      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:assign', 'complaint:resolve', 'complaint:close',
-      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:cancel', 'booking:checkin', 'booking:checkout',
+      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit', 'patrol:approve', 'patrol:reject', 'patrol:remark',
+      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:assign', 'complaint:resolve', 'complaint:close', 'complaint:reject', 'complaint:remark',
+      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:cancel', 'booking:checkin', 'booking:checkout', 'booking:remark',
       'prepaid:view', 'prepaid:create', 'prepaid:recharge', 'prepaid:deduct', 'prepaid:adjust', 'prepaid:freeze',
       'equipment:view', 'equipment:create', 'equipment:manage', 'equipment:lend', 'equipment:return', 'equipment:check_return',
       'report:view', 'user:manage'
@@ -23,9 +23,9 @@ export const mockUsers: User[] = [
     phone: '13800138002',
     email: 'li.coach@golfclub.com',
     permissions: [
-      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit',
-      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:resolve',
-      'booking:view', 'booking:create', 'booking:edit',
+      'patrol:view', 'patrol:create', 'patrol:edit', 'patrol:submit', 'patrol:remark',
+      'complaint:view', 'complaint:create', 'complaint:edit', 'complaint:resolve', 'complaint:remark',
+      'booking:view', 'booking:create', 'booking:edit', 'booking:remark',
       'equipment:view', 'equipment:check_return'
     ]
   },
@@ -36,9 +36,9 @@ export const mockUsers: User[] = [
     phone: '13800138003',
     email: 'wang.reception@golfclub.com',
     permissions: [
-      'patrol:view',
-      'complaint:view', 'complaint:create',
-      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:checkin', 'booking:checkout',
+      'patrol:view', 'patrol:remark',
+      'complaint:view', 'complaint:create', 'complaint:remark',
+      'booking:view', 'booking:create', 'booking:edit', 'booking:confirm', 'booking:checkin', 'booking:checkout', 'booking:remark',
       'prepaid:view', 'prepaid:create', 'prepaid:recharge',
       'equipment:view', 'equipment:lend', 'equipment:return', 'equipment:check_return'
     ]

@@ -207,7 +207,7 @@
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm text-gray-600">本月消费</span>
-              <span class="text-sm font-medium text-amber-600">¥{{ commonStore.formatMoney(monthlyConsumption) }}</span>
+              <span class="text-sm font-medium text-amber-600">{{ commonStore.formatMoney(monthlyConsumption) }}</span>
             </div>
           </div>
         </div>
@@ -220,7 +220,7 @@
         <div class="space-y-4">
           <div>
             <p class="text-sm text-gray-500">当前余额</p>
-            <p class="text-xl font-bold text-primary-600 mt-1">¥{{ commonStore.formatMoney(account.balance) }}</p>
+            <p class="text-xl font-bold text-primary-600 mt-1">{{ commonStore.formatMoney(account.balance) }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">充值金额</label>
@@ -259,7 +259,7 @@
         <div class="space-y-4">
           <div>
             <p class="text-sm text-gray-500">当前余额</p>
-            <p class="text-xl font-bold text-primary-600 mt-1">¥{{ commonStore.formatMoney(account.balance) }}</p>
+            <p class="text-xl font-bold text-primary-600 mt-1">{{ commonStore.formatMoney(account.balance) }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">调整金额</label>
@@ -271,7 +271,7 @@
               placeholder="正数增加，负数减少"
             />
             <p v-if="adjustAmount !== 0" class="text-xs text-gray-500 mt-1">
-              调整后余额：¥{{ commonStore.formatMoney(account.balance + adjustAmount) }}
+              调整后余额：{{ commonStore.formatMoney(account.balance + adjustAmount) }}
             </p>
           </div>
           <div>

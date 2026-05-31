@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Complaint, RecordStatus, FilterOptions, ComplaintPriority, ComplaintCategory } from '~/types'
+import type { Complaint, RecordStatus, FilterOptions, ComplaintCategory, ComplaintPriority } from '~/types'
 import { mockComplaints } from '~/data/complaints'
+import { demoCustomerComplaints } from '~/data/demo-complaints'
 import { useCommonStore } from './common'
 import { useUserStore } from './user'
 import { useNotificationStore } from './notification'
 
 export const useComplaintStore = defineStore('complaint', () => {
-  const complaints = ref<Complaint[]>([...mockComplaints])
+  const complaints = ref<Complaint[]>([...demoCustomerComplaints, ...mockComplaints])
   const currentComplaint = ref<Complaint | null>(null)
   const filter = ref<FilterOptions>({})
   const pagination = ref({ page: 1, pageSize: 10, total: 0 })
