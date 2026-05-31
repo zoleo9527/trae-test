@@ -194,7 +194,7 @@ func GetTraceChain(c *fiber.Ctx) error {
 	var shifts []models.Shift
 
 	query := config.DB.Preload("Worker").Preload("Schedule.Project").
-		Preload("CheckIns").Preload("Inspections.Rectification.FollowUps").
+		Preload("CheckIns").Preload("Inspections.Rectification").
 		Preload("MaterialReqs")
 
 	projectID := c.Query("projectId")
@@ -222,6 +222,50 @@ func GetTraceChain(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch trace chain"})
 	}
 
+	var projectIDs []uint
+	projectSet := make(map[uint]bool)
+	for _, shift := range shifts {
+		if !projectSet[shift.Schedule.ProjectID] {
+			projectSet[shift.Schedule.ProjectID] = true
+			projectIDs = append(projectIDs, shift.Schedule.ProjectID)
+		}
+	}
+
+	var rectIDs []uint
+	rectSet := make(map[uint]bool)
+	for _, shift := range shifts {
+		for _, insp := range shift.Inspections {
+			if insp.Rectification != nil && !rectSet[insp.RectificationID] {
+				rectSet[insp.RectificationID] = true
+				rectIDs = append(rectIDs, insp.RectificationID)
+			}
+		}
+	}
+
+	var projectFollowUps []models.FollowUp
+	if len(projectIDs) > 0 {
+		config.DB.Where("project_id IN ?", projectIDs).Find(&projectFollowUps)
+	}
+
+	var rectFollowUps []models.FollowUp
+	if len(rectIDs) > 0 {
+		config.DB.Where("rectification_id IN ?", rectIDs).Find(&rectFollowUps)
+	}
+
+	projectFollowUpMap := make(map[uint][]models.FollowUp)
+	for _, fu := range projectFollowUps {
+		if fu.ProjectID != nil {
+			projectFollowUpMap[*fu.ProjectID] = append(projectFollowUpMap[*fu.ProjectID], fu)
+		}
+	}
+
+	rectFollowUpMap := make(map[uint][]models.FollowUp)
+	for _, fu := range rectFollowUps {
+		if fu.RectificationID != nil {
+			rectFollowUpMap[*fu.RectificationID] = append(rectFollowUpMap[*fu.RectificationID], fu)
+		}
+	}
+
 	result := make([]models.TraceChain, 0, len(shifts))
 	for _, shift := range shifts {
 		tc := models.TraceChain{
@@ -230,6 +274,7 @@ func GetTraceChain(c *fiber.Ctx) error {
 			ShiftDate:   shift.Date,
 			WorkerName:  shift.Worker.Name,
 			ProjectName: shift.Schedule.Project.Name,
+			ProjectID:   shift.Schedule.ProjectID,
 		}
 
 		if len(shift.CheckIns) > 0 {
@@ -243,11 +288,41 @@ func GetTraceChain(c *fiber.Ctx) error {
 			if shift.Inspections[0].Rectification != nil {
 				tc.HasRect = true
 				tc.RectStatus = string(shift.Inspections[0].Rectification.Status)
+				tc.RectID = &shift.Inspections[0].RectificationID
 			}
 		}
 
 		if len(shift.MaterialReqs) > 0 {
 			tc.MaterialStatus = string(shift.MaterialReqs[0].Status)
+		}
+
+		followUpTypes := make(map[string]bool)
+		followUpCount := 0
+
+		if fus, ok := projectFollowUpMap[shift.Schedule.ProjectID]; ok {
+			for _, fu := range fus {
+				followUpTypes[string(fu.Type)] = true
+				followUpCount++
+			}
+		}
+
+		for _, insp := range shift.Inspections {
+			if insp.Rectification != nil {
+				if fus, ok := rectFollowUpMap[insp.RectificationID]; ok {
+					for _, fu := range fus {
+						followUpTypes[string(fu.Type)] = true
+						followUpCount++
+					}
+				}
+			}
+		}
+
+		if followUpCount > 0 {
+			tc.HasFollowUp = true
+			tc.FollowUpCount = followUpCount
+			for t := range followUpTypes {
+				tc.FollowUpTypes = append(tc.FollowUpTypes, t)
+			}
 		}
 
 		result = append(result, tc)

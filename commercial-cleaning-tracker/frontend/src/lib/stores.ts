@@ -1,18 +1,45 @@
-import { writable, type Writable } from 'svelte/store';
+import { writable, type Writable, get } from 'svelte/store';
+import { browser } from '$app/environment';
 import type { User, Project, Schedule, Shift, CheckIn, Inspection, Rectification, MaterialRequisition, FollowUp, TraceChain, DashboardStats } from './types';
 
 const API_BASE = 'http://localhost:3000/api';
 
-export const token: Writable<string | null> = writable(localStorage.getItem('token'));
-export const currentUser: Writable<User | null> = writable(null);
+function createTokenStore(): Writable<string | null> {
+	const initialValue = browser ? localStorage.getItem('token') : null;
+	const store = writable<string | null>(initialValue);
 
-token.subscribe((value) => {
-	if (value) {
-		localStorage.setItem('token', value);
-	} else {
-		localStorage.removeItem('token');
-	}
-});
+	store.subscribe((value) => {
+		if (browser) {
+			if (value) {
+				localStorage.setItem('token', value);
+			} else {
+				localStorage.removeItem('token');
+			}
+		}
+	});
+
+	return store;
+}
+
+function createUserStore(): Writable<User | null> {
+	const initialValue = browser ? localStorage.getItem('currentUser') : null;
+	const store = writable<User | null>(initialValue ? JSON.parse(initialValue) : null);
+
+	store.subscribe((value) => {
+		if (browser) {
+			if (value) {
+				localStorage.setItem('currentUser', JSON.stringify(value));
+			} else {
+				localStorage.removeItem('currentUser');
+			}
+		}
+	});
+
+	return store;
+}
+
+export const token = createTokenStore();
+export const currentUser = createUserStore();
 
 async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	const headers: Record<string, string> = {
@@ -20,7 +47,7 @@ async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 		...(options.headers as Record<string, string> || {})
 	};
 
-	const t = localStorage.getItem('token');
+	const t = browser ? get(token) : null;
 	if (t) {
 		headers['Authorization'] = `Bearer ${t}`;
 	}
@@ -38,10 +65,13 @@ async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 }
 
 export async function login(username: string, password: string): Promise<{ token: string; user: User }> {
-	return api<{ token: string; user: User }>('/login', {
+	const result = await api<{ token: string; user: User }>('/login', {
 		method: 'POST',
 		body: JSON.stringify({ username, password })
 	});
+	token.set(result.token);
+	currentUser.set(result.user);
+	return result;
 }
 
 export function logout() {

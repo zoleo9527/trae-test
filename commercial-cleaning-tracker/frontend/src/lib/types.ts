@@ -143,12 +143,16 @@ export interface TraceChain {
 	shiftDate: string;
 	workerName: string;
 	projectName: string;
+	projectId: number;
 	checkInStatus: string;
 	inspectionResult: string;
 	hasRectification: boolean;
 	rectificationStatus: string;
+	rectificationId: number | null;
 	materialStatus: string;
 	hasFollowUp: boolean;
+	followUpCount: number;
+	followUpTypes: string[];
 }
 
 export interface DashboardStats {

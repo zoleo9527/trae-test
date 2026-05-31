@@ -228,10 +228,14 @@ type TraceChain struct {
 	ShiftDate      time.Time `json:"shiftDate"`
 	WorkerName     string    `json:"workerName"`
 	ProjectName    string    `json:"projectName"`
+	ProjectID      uint      `json:"projectId"`
 	CheckInStatus  string    `json:"checkInStatus"`
 	InspectionResult string   `json:"inspectionResult"`
 	HasRect        bool      `json:"hasRectification"`
 	RectStatus     string    `json:"rectificationStatus"`
+	RectID         *uint     `json:"rectificationId"`
 	MaterialStatus string    `json:"materialStatus"`
 	HasFollowUp    bool      `json:"hasFollowUp"`
+	FollowUpCount  int       `json:"followUpCount"`
+	FollowUpTypes  []string  `json:"followUpTypes"`
 }
