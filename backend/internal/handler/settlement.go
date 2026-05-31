@@ -9,14 +9,38 @@ import (
 )
 
 type SettlementHandler struct {
-	service *service.SettlementService
+	service         *service.SettlementService
+	asyncTaskService *service.AsyncTaskService
 }
 
-func NewSettlementHandler(s *service.SettlementService) *SettlementHandler {
-	return &SettlementHandler{service: s}
+func NewSettlementHandler(s *service.SettlementService, asyncSvc *service.AsyncTaskService) *SettlementHandler {
+	return &SettlementHandler{
+		service:         s,
+		asyncTaskService: asyncSvc,
+	}
 }
 
 func (h *SettlementHandler) Generate(c *fiber.Ctx) error {
+	var req dto.GenerateSettlementRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	task, err := h.asyncTaskService.CreateSettlementTask(c, &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": fiber.Map{
+			"task_id": task.ID,
+			"status":  task.Status,
+			"message": "settlement generation started",
+		},
+	})
+}
+
+func (h *SettlementHandler) GenerateSync(c *fiber.Ctx) error {
 	var req dto.GenerateSettlementRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

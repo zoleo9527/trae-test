@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"floor-settlement/internal/model"
 
 	"github.com/google/uuid"
@@ -65,4 +67,17 @@ func (r *DeliveryRepository) CountByStatus(projectID uuid.UUID, status string) (
 	var count int64
 	err := db.Model(&model.DeliveryReceipt{}).Where("project_id = ? AND receipt_status = ?", projectID, status).Count(&count).Error
 	return count, err
+}
+
+func (r *DeliveryRepository) FindUnconfirmedByTeamAndDateRange(teamID uuid.UUID, startDate, endDate time.Time) ([]model.DeliveryReceipt, error) {
+	var records []model.DeliveryReceipt
+	query := db.Where("team_id = ? AND (receipt_status = ? OR receipt_status = ?)", teamID, "pending", "partial")
+	if !startDate.IsZero() {
+		query = query.Where("delivery_date >= ?", startDate)
+	}
+	if !endDate.IsZero() {
+		query = query.Where("delivery_date <= ?", endDate)
+	}
+	err := query.Find(&records).Error
+	return records, err
 }

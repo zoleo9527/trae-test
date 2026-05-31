@@ -170,6 +170,20 @@ CREATE TABLE audit_trails (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE async_tasks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    task_type VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    payload JSONB,
+    result JSONB,
+    error TEXT,
+    created_by UUID NOT NULL REFERENCES users(id),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX idx_attendance_team_date ON attendance_records(team_id, record_date);
 CREATE INDEX idx_attendance_project_date ON attendance_records(project_id, record_date);
 CREATE INDEX idx_settlement_batch_team ON settlement_batches(team_id);
@@ -187,3 +201,5 @@ CREATE INDEX idx_rework_inspection ON rework_records(quality_inspection_id);
 CREATE INDEX idx_audit_entity ON audit_trails(entity_type, entity_id);
 CREATE INDEX idx_audit_operator ON audit_trails(operator_id);
 CREATE INDEX idx_audit_created ON audit_trails(created_at);
+CREATE INDEX idx_async_task_status ON async_tasks(status);
+CREATE INDEX idx_async_task_type ON async_tasks(task_type);

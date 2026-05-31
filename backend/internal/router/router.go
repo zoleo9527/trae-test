@@ -20,6 +20,7 @@ func SetupRoutes(
 	qualityHandler *handler.QualityHandler,
 	reworkHandler *handler.ReworkHandler,
 	auditHandler *handler.AuditHandler,
+	asyncTaskHandler *handler.AsyncTaskHandler,
 	authService *service.AuthService,
 ) {
 	api := app.Group("/api")
@@ -46,10 +47,13 @@ func SetupRoutes(
 	auth.Delete("/attendance/:id", middleware.RoleRequired("admin"), attendanceHandler.Delete)
 
 	auth.Post("/settlements/generate", middleware.RoleRequired("project_manager", "admin"), settlementHandler.Generate)
+	auth.Post("/settlements/generate-sync", middleware.RoleRequired("project_manager", "admin"), settlementHandler.GenerateSync)
 	auth.Get("/settlements/dashboard", settlementHandler.Dashboard)
 	auth.Get("/settlements", settlementHandler.Filter)
 	auth.Get("/settlements/:id", settlementHandler.GetByID)
 	auth.Post("/settlements/:id/status", settlementHandler.TransitionStatus)
+
+	auth.Get("/tasks/:id", asyncTaskHandler.GetByID)
 
 	auth.Post("/deliveries", middleware.RoleRequired("project_manager", "admin"), deliveryHandler.Create)
 	auth.Get("/deliveries", deliveryHandler.Filter)

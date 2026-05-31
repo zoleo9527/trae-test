@@ -42,6 +42,7 @@ func main() {
 	reworkService := service.NewReworkService()
 	deliveryService := service.NewDeliveryService()
 	changeOrderService := service.NewChangeOrderService()
+	asyncTaskService := service.NewAsyncTaskService(settlementService, 2)
 
 	if len(os.Args) > 1 && os.Args[1] == "seed" {
 		log.Println("running seed data...")
@@ -59,12 +60,13 @@ func main() {
 	projectHandler := handler.NewProjectHandler(projectRepo)
 	teamHandler := handler.NewTeamHandler(teamRepo)
 	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
-	settlementHandler := handler.NewSettlementHandler(settlementService)
+	settlementHandler := handler.NewSettlementHandler(settlementService, asyncTaskService)
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 	changeOrderHandler := handler.NewChangeOrderHandler(changeOrderService)
 	qualityHandler := handler.NewQualityHandler(qualityService)
 	reworkHandler := handler.NewReworkHandler(reworkService)
 	auditHandler := handler.NewAuditHandler(auditService)
+	asyncTaskHandler := handler.NewAsyncTaskHandler(asyncTaskService)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "Floor Settlement API",
@@ -90,14 +92,18 @@ func main() {
 		qualityHandler,
 		reworkHandler,
 		auditHandler,
+		asyncTaskHandler,
 		authService,
 	)
+
+	asyncTaskService.Start()
 
 	go func() {
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, os.Interrupt)
 		<-quit
 		fmt.Println("\nshutting down...")
+		asyncTaskService.Stop()
 		_ = app.Shutdown()
 	}()
 

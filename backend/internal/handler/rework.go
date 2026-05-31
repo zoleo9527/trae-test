@@ -83,7 +83,7 @@ func (h *ReworkHandler) Filter(c *fiber.Ctx) error {
 }
 
 func (h *ReworkHandler) ByInspection(c *fiber.Ctx) error {
-	inspectionIDStr := c.Query("inspection_id")
+	inspectionIDStr := c.Params("inspection_id")
 	if inspectionIDStr == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "inspection_id is required"})
 	}

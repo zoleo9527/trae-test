@@ -110,6 +110,9 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 		return nil, err
 	}
 
+	var reworkDeductions []map[string]interface{}
+	var totalReworkDeduction float64
+
 	for _, rework := range reworkRecords {
 		recordDate := rework.CreatedAt
 		if rework.CompletedAt != nil {
@@ -119,7 +122,7 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 		item := model.SettlementItem{
 			WorkerName:  rework.ResponsiblePerson,
 			RecordDate:  recordDate,
-			WorkContent: fmt.Sprintf("%s: %s", rework.Reason, rework.Description),
+			WorkContent: fmt.Sprintf("返工扣款: %s - %s", rework.Reason, rework.Description),
 			Quantity:    1,
 			Unit:        "项",
 			UnitPrice:   -rework.Cost,
@@ -127,6 +130,59 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 		}
 		items = append(items, item)
 		totalAmount -= rework.Cost
+		totalReworkDeduction += rework.Cost
+
+		reworkDeductions = append(reworkDeductions, map[string]interface{}{
+			"rework_id":  rework.ID,
+			"reason":     rework.Reason,
+			"cost":       rework.Cost,
+			"responsible": rework.ResponsiblePerson,
+		})
+	}
+
+	deliveryIssues, err := s.deliveryRepo.FindUnconfirmedByTeamAndDateRange(teamID, periodStart, periodEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	remarkParts := []string{}
+	if req.Remark != "" {
+		remarkParts = append(remarkParts, req.Remark)
+	}
+
+	if len(reworkDeductions) > 0 {
+		remarkParts = append(remarkParts, fmt.Sprintf("返工扣款%d笔，共扣¥%.2f", len(reworkDeductions), totalReworkDeduction))
+		for _, d := range reworkDeductions {
+			remarkParts = append(remarkParts, fmt.Sprintf("- %s: ¥%.2f (%s)", d["reason"], d["cost"], d["responsible"]))
+		}
+	}
+
+	if len(deliveryIssues) > 0 {
+		pendingCount := 0
+		partialCount := 0
+		for _, d := range deliveryIssues {
+			if d.ReceiptStatus == "pending" {
+				pendingCount++
+			} else if d.ReceiptStatus == "partial" {
+				partialCount++
+			}
+		}
+		remarkParts = append(remarkParts, fmt.Sprintf("发货异常%d单：待确认%d单，短缺%d单", len(deliveryIssues), pendingCount, partialCount))
+		for _, d := range deliveryIssues {
+			statusLabel := "待确认"
+			if d.ReceiptStatus == "partial" {
+				statusLabel = "短缺"
+			}
+			remarkParts = append(remarkParts, fmt.Sprintf("- %s: %s (数量%.2f%s)", statusLabel, d.MaterialName, d.Quantity, d.Unit))
+		}
+	}
+
+	finalRemark := ""
+	for i, p := range remarkParts {
+		if i > 0 {
+			finalRemark += "; "
+		}
+		finalRemark += p
 	}
 
 	batch := &model.SettlementBatch{
@@ -136,7 +192,11 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 		PeriodEnd:   periodEnd,
 		TotalAmount: totalAmount,
 		Status:      "draft",
-		Remark:      req.Remark,
+		Remark:      finalRemark,
+	}
+
+	if len(deliveryIssues) > 0 || len(reworkDeductions) > 0 {
+		batch.Status = "disputed"
 	}
 
 	if err := s.settlementRepo.Create(batch); err != nil {
@@ -159,7 +219,41 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 	}
 
 	batch.Items = items
-	RecordAudit(ctx, "settlement_batch", batch.ID, "create", nil, toMap(batch), "")
+
+	auditRemark := ""
+	if len(reworkDeductions) > 0 {
+		auditRemark += fmt.Sprintf("返工扣款%d笔(¥%.2f); ", len(reworkDeductions), totalReworkDeduction)
+	}
+	if len(deliveryIssues) > 0 {
+		auditRemark += fmt.Sprintf("发货异常%d单待处理", len(deliveryIssues))
+	}
+
+	RecordAudit(ctx, "settlement_batch", batch.ID, "create", nil, toMap(batch), auditRemark)
+
+	if len(reworkDeductions) > 0 {
+		for _, d := range reworkDeductions {
+			RecordAudit(ctx, "settlement_batch", batch.ID, "rework_deduction", nil,
+				map[string]interface{}{
+					"rework_id":   d["rework_id"],
+					"reason":      d["reason"],
+					"cost":        d["cost"],
+					"responsible": d["responsible"],
+				}, "")
+		}
+	}
+
+	if len(deliveryIssues) > 0 {
+		for _, d := range deliveryIssues {
+			RecordAudit(ctx, "settlement_batch", batch.ID, "delivery_issue", nil,
+				map[string]interface{}{
+					"delivery_id":     d.ID,
+					"material_name":   d.MaterialName,
+					"quantity":        d.Quantity,
+					"unit":            d.Unit,
+					"receipt_status":  d.ReceiptStatus,
+				}, "")
+		}
+	}
 
 	return s.settlementRepo.FindByID(batch.ID)
 }
