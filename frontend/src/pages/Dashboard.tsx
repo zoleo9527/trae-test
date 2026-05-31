@@ -1,5 +1,6 @@
 import { StatCard } from '@/components/shared/StatCard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import { useApp } from '@/store/AppContext';
 import { getDetailRoute, type TargetType } from '@/utils/routeMapping';
 import { formatDistanceToNow } from 'date-fns';
@@ -33,16 +34,17 @@ import {
 
 export function Dashboard() {
   const { state } = useApp();
+  const { shippingOrders, receipts, reworkOrders, alerts, dashboardStats, actionLogs } = useFilteredData();
   const navigate = useNavigate();
-  const stats = state.dashboardStats;
+  const stats = dashboardStats;
   const [activeTab, setActiveTab] = useState<'alerts' | 'pending' | 'activity'>('alerts');
 
   if (!stats) return <div className="p-8">加载中...</div>;
 
-  const pendingApprovals = state.shippingOrders.filter(o => o.status === 'pending_approval');
-  const pendingReceipts = state.receipts.filter(r => r.status === 'pending');
-  const pendingReworks = state.reworkOrders.filter(r => ['in_progress', 'submitted'].includes(r.status));
-  const openAlerts = state.alerts.filter(a => !a.handled);
+  const pendingApprovals = shippingOrders.filter(o => o.status === 'pending_approval');
+  const pendingReceipts = receipts.filter(r => r.status === 'pending');
+  const pendingReworks = reworkOrders.filter(r => ['in_progress', 'submitted'].includes(r.status));
+  const openAlerts = alerts.filter(a => !a.handled);
 
   const COLORS = ['#1E40AF', '#10B981', '#F97316', '#EF4444'];
 
@@ -287,7 +289,7 @@ export function Dashboard() {
 
             {activeTab === 'activity' && (
               <div className="space-y-3">
-                {state.actionLogs.map((log) => (
+                {actionLogs.map((log) => (
                   <div key={log.id} className="flex items-start gap-3 p-3">
                     <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                       <span className="text-xs font-medium text-gray-600">

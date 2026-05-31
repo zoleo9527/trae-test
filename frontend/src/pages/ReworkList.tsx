@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, RefreshCw, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
-import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useRole } from '@/hooks/useRole';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import type { ReworkStatus, ResponsibilityLabels } from '@/types';
 
 export function ReworkList() {
-  const { state } = useApp();
+  const { reworkOrders } = useFilteredData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { canCreateRework, canExecuteRework, canReviewRework } = useRole();
@@ -23,7 +23,7 @@ export function ReworkList() {
     }
   }, [searchParams]);
 
-  const filteredReworks = state.reworkOrders.filter(order => {
+  const filteredReworks = reworkOrders.filter(order => {
     const matchesSearch = order.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
@@ -31,13 +31,13 @@ export function ReworkList() {
   });
 
   const statusCounts = {
-    all: state.reworkOrders.length,
-    created: state.reworkOrders.filter(r => r.status === 'created').length,
-    in_progress: state.reworkOrders.filter(r => r.status === 'in_progress').length,
-    submitted: state.reworkOrders.filter(r => r.status === 'submitted').length,
-    passed: state.reworkOrders.filter(r => r.status === 'passed').length,
-    failed: state.reworkOrders.filter(r => r.status === 'failed').length,
-    closed: state.reworkOrders.filter(r => r.status === 'closed').length,
+    all: reworkOrders.length,
+    created: reworkOrders.filter(r => r.status === 'created').length,
+    in_progress: reworkOrders.filter(r => r.status === 'in_progress').length,
+    submitted: reworkOrders.filter(r => r.status === 'submitted').length,
+    passed: reworkOrders.filter(r => r.status === 'passed').length,
+    failed: reworkOrders.filter(r => r.status === 'failed').length,
+    closed: reworkOrders.filter(r => r.status === 'closed').length,
   };
 
   return (

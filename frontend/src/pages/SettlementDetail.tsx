@@ -9,10 +9,12 @@ import {
   MessageSquare,
   FileText,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useRole } from '@/hooks/useRole';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { mockUsers } from '@/data/mock';
 import { Modal, ModalFooter } from '@/components/shared/Modal';
@@ -23,15 +25,41 @@ export function SettlementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { state } = useApp();
-  const { canRuleDispute } = useRole();
+  const { currentRole, canRuleDispute } = useRole();
+  const { disputes, canViewDisputes } = useFilteredData();
   const { ruleDispute } = useWorkflow();
 
   const [showRulingModal, setShowRulingModal] = useState(false);
   const [ruling, setRuling] = useState('');
   const [resolution, setResolution] = useState('');
 
-  const dispute = state.disputes.find((d) => d.id === id);
+  const dispute = disputes.find((d) => d.id === id);
   const project = state.projects.find((p) => p.id === dispute?.projectId);
+
+  if (!canViewDisputes) {
+    return (
+      <div className="p-6">
+        <div className="card p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-800 mb-2">权限不足</h3>
+          <p className="text-sm text-gray-500">
+            您当前角色为 {currentRole === 'team_leader' ? '班组长' : currentRole}，暂无权限查看结算争议详情
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            请联系项目负责人获取相关权限
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="mt-6 px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!dispute) {
     return (

@@ -4,10 +4,12 @@ import { Search, FileCheck, AlertTriangle, CheckCircle, Clock } from 'lucide-rea
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useRole } from '@/hooks/useRole';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import type { ReceiptStatus } from '@/types';
 
 export function ReceiptList() {
   const { state } = useApp();
+  const { receipts } = useFilteredData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { canSignReceipt, canVerifyReceipt } = useRole();
@@ -25,7 +27,7 @@ export function ReceiptList() {
     return state.shippingOrders.find(s => s.id === shippingId);
   };
 
-  const filteredReceipts = state.receipts.filter(receipt => {
+  const filteredReceipts = receipts.filter(receipt => {
     const shipping = getShippingInfo(receipt.shippingId);
     const matchesSearch = shipping?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       shipping?.title.toLowerCase().includes(searchTerm.toLowerCase());
@@ -34,12 +36,12 @@ export function ReceiptList() {
   });
 
   const statusCounts = {
-    all: state.receipts.length,
-    pending: state.receipts.filter(r => r.status === 'pending').length,
-    signed: state.receipts.filter(r => r.status === 'signed').length,
-    has_difference: state.receipts.filter(r => r.status === 'has_difference').length,
-    verified: state.receipts.filter(r => r.status === 'verified').length,
-    disputed: state.receipts.filter(r => r.status === 'disputed').length,
+    all: receipts.length,
+    pending: receipts.filter(r => r.status === 'pending').length,
+    signed: receipts.filter(r => r.status === 'signed').length,
+    has_difference: receipts.filter(r => r.status === 'has_difference').length,
+    verified: receipts.filter(r => r.status === 'verified').length,
+    disputed: receipts.filter(r => r.status === 'disputed').length,
   };
 
   return (

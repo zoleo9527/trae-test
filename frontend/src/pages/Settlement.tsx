@@ -1,19 +1,38 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Scale, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
-import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import { useRole } from '@/hooks/useRole';
 import type { DisputeStatus } from '@/types';
+import { AlertTriangle, CheckCircle, Lock, Scale, Search } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export function Settlement() {
-  const { state } = useApp();
+  const { disputes, canViewDisputes } = useFilteredData();
   const navigate = useNavigate();
-  const { canRuleDispute } = useRole();
+  const { canRuleDispute, currentRole } = useRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<DisputeStatus | 'all'>('all');
 
-  const filteredDisputes = state.disputes.filter(dispute => {
+  if (!canViewDisputes) {
+    return (
+      <div className="p-6">
+        <div className="card p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-800 mb-2">权限不足</h3>
+          <p className="text-sm text-gray-500">
+            您当前角色为 {currentRole === 'team_leader' ? '班组长' : currentRole}，暂无权限访问结算中心
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            请联系项目负责人获取相关权限
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const filteredDisputes = disputes.filter(dispute => {
     const matchesSearch = dispute.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dispute.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || dispute.status === statusFilter;
@@ -21,15 +40,15 @@ export function Settlement() {
   });
 
   const statusCounts = {
-    all: state.disputes.length,
-    pending: state.disputes.filter(d => d.status === 'pending').length,
-    negotiating: state.disputes.filter(d => d.status === 'negotiating').length,
-    ruled: state.disputes.filter(d => d.status === 'ruled').length,
-    resolved: state.disputes.filter(d => d.status === 'resolved').length,
-    appealed: state.disputes.filter(d => d.status === 'appealed').length,
+    all: disputes.length,
+    pending: disputes.filter(d => d.status === 'pending').length,
+    negotiating: disputes.filter(d => d.status === 'negotiating').length,
+    ruled: disputes.filter(d => d.status === 'ruled').length,
+    resolved: disputes.filter(d => d.status === 'resolved').length,
+    appealed: disputes.filter(d => d.status === 'appealed').length,
   };
 
-  const totalDisputedAmount = state.disputes
+  const totalDisputedAmount = disputes
     .filter(d => d.status !== 'resolved')
     .reduce((sum, d) => sum + d.amount, 0);
 

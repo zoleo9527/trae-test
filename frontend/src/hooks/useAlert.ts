@@ -1,9 +1,21 @@
+import { useMemo } from 'react';
 import { useApp } from '@/store/AppContext';
 import { markAlertRead, markAlertHandled } from '@/store/actions';
+import { useRole } from './useRole';
 
 export function useAlert() {
   const { state, dispatch } = useApp();
-  const alerts = state.alerts;
+  const { canViewAllData, currentRole } = useRole();
+
+  const alerts = useMemo(() => {
+    if (canViewAllData) {
+      return state.alerts;
+    }
+    if (currentRole === 'team_leader') {
+      return state.alerts.filter((a) => a.targetType !== 'dispute' && a.targetType !== 'settlement');
+    }
+    return state.alerts;
+  }, [state.alerts, canViewAllData, currentRole]);
 
   const unreadCount = alerts.filter(a => !a.read).length;
   const unhandledCount = alerts.filter(a => !a.handled).length;

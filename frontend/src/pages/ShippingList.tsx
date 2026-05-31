@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, ChevronDown, Package, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useRole } from '@/hooks/useRole';
+import { useFilteredData } from '@/hooks/useFilteredData';
 import type { ShippingStatus } from '@/types';
 
 export function ShippingList() {
-  const { state } = useApp();
+  const { shippingOrders } = useFilteredData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { canCreateShipping, canApproveShipping } = useRole();
@@ -24,7 +24,7 @@ export function ShippingList() {
     }
   }, [searchParams]);
 
-  const filteredOrders = state.shippingOrders.filter(order => {
+  const filteredOrders = shippingOrders.filter(order => {
     const matchesSearch = order.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
@@ -32,14 +32,14 @@ export function ShippingList() {
   });
 
   const statusCounts = {
-    all: state.shippingOrders.length,
-    draft: state.shippingOrders.filter(o => o.status === 'draft').length,
-    pending_approval: state.shippingOrders.filter(o => o.status === 'pending_approval').length,
-    approved: state.shippingOrders.filter(o => o.status === 'approved').length,
-    shipped: state.shippingOrders.filter(o => o.status === 'shipped').length,
-    received: state.shippingOrders.filter(o => o.status === 'received').length,
-    completed: state.shippingOrders.filter(o => o.status === 'completed').length,
-    rejected: state.shippingOrders.filter(o => o.status === 'rejected').length,
+    all: shippingOrders.length,
+    draft: shippingOrders.filter(o => o.status === 'draft').length,
+    pending_approval: shippingOrders.filter(o => o.status === 'pending_approval').length,
+    approved: shippingOrders.filter(o => o.status === 'approved').length,
+    shipped: shippingOrders.filter(o => o.status === 'shipped').length,
+    received: shippingOrders.filter(o => o.status === 'received').length,
+    completed: shippingOrders.filter(o => o.status === 'completed').length,
+    rejected: shippingOrders.filter(o => o.status === 'rejected').length,
   };
 
   return (
