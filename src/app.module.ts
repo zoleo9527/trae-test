@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { ChangeOrderModule } from './change-order/change-order.module';
@@ -9,6 +10,8 @@ import { DeliveryModule } from './delivery/delivery.module';
 import { SignOffModule } from './sign-off/sign-off.module';
 import { AuditModule } from './audit/audit.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ChangeOrder } from './change-order/entities/change-order.entity';
+import { SignOff } from './sign-off/entities/sign-off.entity';
 
 @Module({
   imports: [
@@ -26,6 +29,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV === 'development',
     }),
+    TypeOrmModule.forFeature([ChangeOrder, SignOff]),
     AuthModule,
     UserModule,
     ChangeOrderModule,
@@ -35,5 +39,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AuditModule,
     DashboardModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

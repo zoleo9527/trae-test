@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SignOff } from './entities/sign-off.entity';
 import { CreateSignOffDto } from './dto/create-sign-off.dto';
 import { ActionSignOffDto } from './dto/action-sign-off.dto';
 import { User } from '../user/entities/user.entity';
-import { SignOffStatus, SignOffAction } from '../common/enums/sign-off.enum';
-import { AuditService, AuditAction, AuditEntityType } from '../audit/audit.service';
+import { SignOffStatus } from '../common/enums/sign-off.enum';
+import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
+import { Role } from '../common/enums/role.enum';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class SignOffService {
@@ -81,11 +83,33 @@ export class SignOffService {
     return signOff;
   }
 
+  private canUserSign(signOff: SignOff, user: User): boolean {
+    if (user.role === Role.ADMIN) {
+      return true;
+    }
+
+    if (signOff.signerRole && signOff.signerRole !== user.role) {
+      return false;
+    }
+
+    if (signOff.signerDepartment && signOff.signerDepartment !== user.department) {
+      return false;
+    }
+
+    return true;
+  }
+
   async sign(id: string, actionDto: ActionSignOffDto, user: User): Promise<SignOff> {
     const signOff = await this.findOne(id);
 
     if (signOff.status !== SignOffStatus.PENDING) {
       throw new BadRequestException('只能签认待处理的记录');
+    }
+
+    if (!this.canUserSign(signOff, user)) {
+      throw new ForbiddenException(
+        `您没有权限签认此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
+      );
     }
 
     signOff.status = SignOffStatus.SIGNED;
@@ -116,6 +140,12 @@ export class SignOffService {
 
     if (signOff.status !== SignOffStatus.PENDING) {
       throw new BadRequestException('只能驳回待处理的记录');
+    }
+
+    if (!this.canUserSign(signOff, user)) {
+      throw new ForbiddenException(
+        `您没有权限驳回此记录。需要角色: ${signOff.signerRole || '不限'}, 需要部门: ${signOff.signerDepartment || '不限'}`,
+      );
     }
 
     signOff.status = SignOffStatus.REJECTED;
@@ -150,11 +180,27 @@ export class SignOffService {
   }
 
   async getPendingForUser(user: User): Promise<SignOff[]> {
-    return this.signOffRepository.find({
-      where: { status: SignOffStatus.PENDING },
-      relations: ['requestedBy', 'changeOrder', 'dailyReport', 'delivery'],
-      order: { createdAt: 'DESC' },
-    });
+    const queryBuilder = this.signOffRepository.createQueryBuilder('so')
+      .leftJoinAndSelect('so.requestedBy', 'requestedBy')
+      .leftJoinAndSelect('so.changeOrder', 'changeOrder')
+      .leftJoinAndSelect('so.dailyReport', 'dailyReport')
+      .leftJoinAndSelect('so.delivery', 'delivery')
+      .where('so.status = :status', { status: SignOffStatus.PENDING });
+
+    if (user.role !== Role.ADMIN) {
+      queryBuilder.andWhere(
+        '(so.signerRole IS NULL OR so.signerRole = :userRole)',
+        { userRole: user.role },
+      );
+      queryBuilder.andWhere(
+        '(so.signerDepartment IS NULL OR so.signerDepartment = :userDepartment)',
+        { userDepartment: user.department },
+      );
+    }
+
+    return queryBuilder
+      .orderBy('so.createdAt', 'DESC')
+      .getMany();
   }
 
   async getMySigned(user: User): Promise<SignOff[]> {

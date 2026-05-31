@@ -5,7 +5,8 @@ import { DailyReport } from './entities/daily-report.entity';
 import { CreateDailyReportDto } from './dto/create-daily-report.dto';
 import { UpdateDailyReportDto } from './dto/update-daily-report.dto';
 import { User } from '../user/entities/user.entity';
-import { AuditService, AuditAction, AuditEntityType } from '../audit/audit.service';
+import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DailyReportService {

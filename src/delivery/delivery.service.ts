@@ -5,7 +5,8 @@ import { Delivery, DeliveryStatus } from './entities/delivery.entity';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { UpdateDeliveryDto } from './dto/update-delivery.dto';
 import { User } from '../user/entities/user.entity';
-import { AuditService, AuditAction, AuditEntityType } from '../audit/audit.service';
+import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DeliveryService {

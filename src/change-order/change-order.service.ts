@@ -8,7 +8,11 @@ import { UpdateChangeOrderDto } from './dto/update-change-order.dto';
 import { StatusTransitionDto } from './dto/status-transition.dto';
 import { User } from '../user/entities/user.entity';
 import { ChangeOrderStatus, ChangeOrderStatusFlow } from '../common/enums/change-order-status.enum';
-import { AuditService, AuditAction, AuditEntityType } from '../audit/audit.service';
+import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
+import { SignOffType, SignOffStatus } from '../common/enums/sign-off.enum';
+import { Role } from '../common/enums/role.enum';
+import { AuditService } from '../audit/audit.service';
+import { SignOff } from '../sign-off/entities/sign-off.entity';
 
 @Injectable()
 export class ChangeOrderService {
@@ -17,6 +21,8 @@ export class ChangeOrderService {
     private changeOrderRepository: Repository<ChangeOrder>,
     @InjectRepository(ChangeOrderVersion)
     private versionRepository: Repository<ChangeOrderVersion>,
+    @InjectRepository(SignOff)
+    private signOffRepository: Repository<SignOff>,
     private dataSource: DataSource,
     private auditService: AuditService,
   ) {}
@@ -219,6 +225,14 @@ export class ChangeOrderService {
         `状态变更: ${oldStatus} → ${targetStatus}`,
       );
 
+      await this.autoGenerateSignOffs(
+        queryRunner,
+        updatedOrder,
+        oldStatus,
+        targetStatus,
+        user,
+      );
+
       await queryRunner.commitTransaction();
 
       await this.auditService.createLog({
@@ -238,6 +252,90 @@ export class ChangeOrderService {
       throw error;
     } finally {
       await queryRunner.release();
+    }
+  }
+
+  private async autoGenerateSignOffs(
+    queryRunner: QueryRunner,
+    changeOrder: ChangeOrder,
+    oldStatus: ChangeOrderStatus,
+    targetStatus: ChangeOrderStatus,
+    user: User,
+  ): Promise<void> {
+    const signOffConfigs: Array<{
+      triggerStatus: ChangeOrderStatus;
+      signerRole: Role;
+      signerDepartment: string;
+      sequence: number;
+      comments: string;
+    }> = [
+      {
+        triggerStatus: ChangeOrderStatus.SUBMITTED,
+        signerRole: Role.SUPERVISOR,
+        signerDepartment: '监理部',
+        sequence: 1,
+        comments: '变更单提交后，需监理初审',
+      },
+      {
+        triggerStatus: ChangeOrderStatus.UNDER_REVIEW,
+        signerRole: Role.PROJECT_MANAGER,
+        signerDepartment: '工程部',
+        sequence: 2,
+        comments: '监理初审通过后，需项目经理审核',
+      },
+      {
+        triggerStatus: ChangeOrderStatus.APPROVED,
+        signerRole: Role.CLIENT,
+        signerDepartment: '甲方项目部',
+        sequence: 3,
+        comments: '项目内部审核通过后，需甲方确认',
+      },
+    ];
+
+    for (const config of signOffConfigs) {
+      if (targetStatus === config.triggerStatus) {
+        const existingSignOff = await queryRunner.manager.findOne(SignOff, {
+          where: {
+            changeOrderId: changeOrder.id,
+            signerRole: config.signerRole,
+            sequenceOrder: config.sequence,
+          },
+        });
+
+        if (!existingSignOff) {
+          const signOff = queryRunner.manager.create(SignOff, {
+            signOffType: SignOffType.CHANGE_ORDER,
+            changeOrderId: changeOrder.id,
+            changeOrder,
+            requestedById: user.id,
+            requestedBy: user,
+            status: SignOffStatus.PENDING,
+            sequenceOrder: config.sequence,
+            comments: config.comments,
+            signerRole: config.signerRole,
+            signerDepartment: config.signerDepartment,
+          });
+
+          await queryRunner.manager.save(signOff);
+        }
+      }
+    }
+
+    if (targetStatus === ChangeOrderStatus.REJECTED) {
+      await queryRunner.manager.update(
+        SignOff,
+        {
+          changeOrderId: changeOrder.id,
+          status: SignOffStatus.PENDING,
+        },
+        {
+          status: SignOffStatus.REJECTED,
+          signedById: user.id,
+          signedBy: user,
+          signedAt: new Date(),
+          rejectReason: '变更单被驳回',
+        },
+      );
     }
   }
 

@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AuditService } from './audit.service';
-import { AuditAction, AuditEntityType } from './entities/audit-log.entity';
+import { AuditAction, AuditEntityType } from '../common/enums/audit.enum';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
