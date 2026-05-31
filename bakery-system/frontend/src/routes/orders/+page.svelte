@@ -29,6 +29,10 @@
 		useBalance: false
 	};
 
+	let createWarning = '';
+	let correctedOrder = null;
+	let createSuccess = false;
+
 	$: hasSelection = selectedIds.length > 0;
 
 	$: newOrderTotal = newOrder.items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
@@ -136,6 +140,9 @@
 			remark: '',
 			useBalance: false
 		};
+		createWarning = '';
+		correctedOrder = null;
+		createSuccess = false;
 		showCreateModal = true;
 	}
 
@@ -180,7 +187,7 @@
 		}
 		const payAmount = totalAmount - useBalance;
 
-		await api.createOrder({
+		const result = await api.createOrder({
 			memberId: newOrder.memberId,
 			memberName: member?.name || '',
 			memberPhone: member?.phone || '',
@@ -192,6 +199,24 @@
 			remark: newOrder.remark,
 			items: newOrder.items
 		});
+
+		if (result.warning) {
+			createWarning = result.warning;
+			correctedOrder = result.data;
+			createSuccess = true;
+			if (member && correctedOrder) {
+				member.balance = member.balance - correctedOrder.useBalance;
+			}
+		} else {
+			if (member && result.data) {
+				member.balance = member.balance - (result.data.useBalance || 0);
+			}
+			showCreateModal = false;
+			loadOrders();
+		}
+	}
+
+	function confirmCreateResult() {
 		showCreateModal = false;
 		loadOrders();
 	}
@@ -305,17 +330,48 @@
 	</div>
 
 	{#if showCreateModal}
-		<div class="modal-overlay" on:click={() => showCreateModal = false}>
+		<div class="modal-overlay" on:click={(e) => { if (!createSuccess) showCreateModal = false; }}>
 			<div class="modal" style="max-width: 700px;" on:click|stopPropagation>
 				<div class="modal-header">
 					<h3>新建订单</h3>
-					<button class="btn btn-sm btn-outline" on:click={() => showCreateModal = false}>×</button>
+					<button class="btn btn-sm btn-outline" on:click={() => { if (!createSuccess) showCreateModal = false; }} disabled={createSuccess}>×</button>
 				</div>
 				<div class="modal-body">
+					{#if createSuccess && createWarning}
+						<div class="card" style="padding: 1rem; margin-bottom: 1rem; background: #FFFBEB; border: 1px solid #FCD34D; border-left: 4px solid #F59E0B;">
+							<div style="font-weight: 600; color: #92400E; margin-bottom: 0.5rem;">⚠️ 订单已创建，余额抵扣有调整</div>
+							<div style="color: #92400E; font-size: 0.875rem;">{createWarning}</div>
+						</div>
+					{/if}
+
+					{#if correctedOrder}
+						<div class="card" style="padding: 1rem; margin-bottom: 1rem; background: #F0FDF4; border: 1px solid #BBF7D0;">
+							<div class="text-sm text-gray-500 mb-2">真实扣款结果</div>
+							<div class="grid-2">
+								<div>
+									<div class="text-sm text-gray-500">订单金额</div>
+									<div style="font-weight: 600;">¥{correctedOrder.totalAmount.toFixed(2)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-gray-500">余额抵扣</div>
+									<div style="font-weight: 600; color: var(--success);">¥{correctedOrder.useBalance.toFixed(2)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-gray-500">实付金额</div>
+									<div style="font-weight: 600; color: var(--primary);">¥{correctedOrder.payAmount.toFixed(2)}</div>
+								</div>
+								<div>
+									<div class="text-sm text-gray-500">订单号</div>
+									<div style="font-weight: 600;">{correctedOrder.orderNo}</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+
 					<div class="form-row">
 						<div class="form-group">
 							<label>选择会员</label>
-							<select class="input" bind:value={newOrder.memberId} style="width: 100%;">
+							<select class="input" bind:value={newOrder.memberId} style="width: 100%;" disabled={createSuccess}>
 								<option value="">请选择会员</option>
 								{#each members as member}
 									<option value={member.id}>{member.name} ({member.phone}) 余额: ¥{member.balance.toFixed(2)}</option>
@@ -324,13 +380,13 @@
 						</div>
 						<div class="form-group">
 							<label>取货时间</label>
-							<input type="datetime-local" class="input" bind:value={newOrder.pickupTime} style="width: 100%;" />
+							<input type="datetime-local" class="input" bind:value={newOrder.pickupTime} style="width: 100%;" disabled={createSuccess} />
 						</div>
 					</div>
 
 					<div class="form-group">
 						<label>添加产品</label>
-						<select class="input" style="width: 100%;" on:change={(e) => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }}>
+						<select class="input" style="width: 100%;" on:change={(e) => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }} disabled={createSuccess}>
 							<option value="">点击选择产品添加到订单</option>
 							{#each products as product}
 								<option value={product.id}>{product.name} - ¥{product.price.toFixed(2)}</option>
@@ -356,11 +412,11 @@
 										<td>¥{item.unitPrice.toFixed(2)}</td>
 										<td>
 											<input type="number" class="input" style="width: 60px;" min="1"
-												value={item.quantity}
+												value={item.quantity} disabled={createSuccess}
 												on:change={(e) => updateItemQty(i, parseInt(e.target.value) || 1)} />
 										</td>
 										<td>¥{item.subtotal.toFixed(2)}</td>
-										<td><button class="btn btn-sm btn-danger" on:click={() => removeOrderItem(i)}>×</button></td>
+										<td><button class="btn btn-sm btn-danger" on:click={() => removeOrderItem(i)} disabled={createSuccess}>×</button></td>
 									</tr>
 								{/each}
 							</tbody>
@@ -372,12 +428,12 @@
 
 					{#if selectedMember && selectedMember.balance > 0 && newOrderTotal > 0}
 						<div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
-							<input type="checkbox" id="useBalance" bind:checked={newOrder.useBalance} />
+							<input type="checkbox" id="useBalance" bind:checked={newOrder.useBalance} disabled={createSuccess} />
 							<label for="useBalance" style="margin-bottom: 0;">
 								使用余额抵扣 (可用: ¥{selectedMember.balance.toFixed(2)})
 							</label>
 						</div>
-						{#if newOrder.useBalance}
+						{#if newOrder.useBalance && !correctedOrder}
 							<div style="color: var(--success); font-size: 0.875rem; margin-bottom: 0.5rem;">
 								抵扣 ¥{Math.min(selectedMember.balance, newOrderTotal).toFixed(2)}，实付 ¥{(newOrderTotal - Math.min(selectedMember.balance, newOrderTotal)).toFixed(2)}
 							</div>
@@ -387,19 +443,25 @@
 					<div class="form-row">
 						<div class="form-group">
 							<label>操作人</label>
-							<input type="text" class="input" bind:value={newOrder.operator} style="width: 100%;" />
+							<input type="text" class="input" bind:value={newOrder.operator} style="width: 100%;" disabled={createSuccess} />
 						</div>
 						<div class="form-group">
 							<label>备注</label>
-							<input type="text" class="input" bind:value={newOrder.remark} style="width: 100%;" placeholder="订单备注..." />
+							<input type="text" class="input" bind:value={newOrder.remark} style="width: 100%;" placeholder="订单备注..." disabled={createSuccess} />
 						</div>
 					</div>
 				</div>
 				<div class="modal-footer">
-					<button class="btn btn-outline" on:click={() => showCreateModal = false}>取消</button>
-					<button class="btn btn-primary" on:click={handleCreateOrder} disabled={!newOrder.memberId || newOrder.items.length === 0}>
-						创建订单
-					</button>
+					{#if createSuccess}
+						<button class="btn btn-primary" on:click={confirmCreateResult}>
+							确认
+						</button>
+					{:else}
+						<button class="btn btn-outline" on:click={() => showCreateModal = false}>取消</button>
+						<button class="btn btn-primary" on:click={handleCreateOrder} disabled={!newOrder.memberId || newOrder.items.length === 0}>
+							创建订单
+						</button>
+					{/if}
 				</div>
 			</div>
 		</div>
