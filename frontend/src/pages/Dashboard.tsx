@@ -1,36 +1,34 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Package,
-  FileCheck,
-  RefreshCw,
-  Scale,
-  AlertTriangle,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  BarChart3,
-  PieChart,
-} from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-} from 'recharts';
-import { useApp } from '@/store/AppContext';
 import { StatCard } from '@/components/shared/StatCard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useApp } from '@/store/AppContext';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import {
+    AlertCircle,
+    AlertTriangle,
+    BarChart3,
+    CheckCircle,
+    Clock,
+    FileCheck,
+    PieChart,
+    RefreshCw
+} from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Line,
+    LineChart,
+    Pie,
+    PieChart as RechartsPieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 export function Dashboard() {
   const { state } = useApp();
@@ -204,7 +202,7 @@ export function Dashboard() {
                     <div
                       key={alert.id}
                       className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/${alert.targetType}/${alert.targetId}`)}
+                      onClick={() => navigate(getDetailRoute(alert.targetType as TargetType, alert.targetId))}
                     >
                       <div className={`p-2 rounded-lg ${
                         alert.priority === 'high' ? 'bg-danger-100' :

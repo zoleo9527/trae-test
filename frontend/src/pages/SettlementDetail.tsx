@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Scale,
@@ -7,6 +7,8 @@ import {
   Clock,
   Gavel,
   MessageSquare,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { useApp } from '@/store/AppContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -14,6 +16,8 @@ import { useRole } from '@/hooks/useRole';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { mockUsers } from '@/data/mock';
 import { Modal, ModalFooter } from '@/components/shared/Modal';
+import { ResponsibilityLabels, type Responsibility } from '@/types';
+import { targetTypeLabels } from '@/utils/routeMapping';
 
 export function SettlementDetail() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +54,48 @@ export function SettlementDetail() {
   const getUserName = (userId: string) => {
     const user = mockUsers.find((u) => u.id === userId);
     return user?.name || userId;
+  };
+
+  const getRespondentDisplay = (respondent: string) => {
+    if (Object.keys(ResponsibilityLabels).includes(respondent as Responsibility)) {
+      return ResponsibilityLabels[respondent as Responsibility];
+    }
+    return getUserName(respondent);
+  };
+
+  const getSourceDocumentInfo = () => {
+    const sources: Array<{ type: string; id: string; label: string; route: string }> = [];
+    
+    if (dispute.sourceShippingId) {
+      const shipping = state.shippingOrders.find(s => s.id === dispute.sourceShippingId);
+      sources.push({
+        type: 'shipping',
+        id: dispute.sourceShippingId,
+        label: shipping?.code || '发货单',
+        route: `/shipping/${dispute.sourceShippingId}`,
+      });
+    }
+    if (dispute.sourceReceiptId) {
+      const receipt = state.receipts.find(r => r.id === dispute.sourceReceiptId);
+      const shipping = receipt ? state.shippingOrders.find(s => s.id === receipt.shippingId) : null;
+      sources.push({
+        type: 'receipt',
+        id: dispute.sourceReceiptId,
+        label: shipping?.code || '回单',
+        route: `/receipt/${dispute.sourceReceiptId}`,
+      });
+    }
+    if (dispute.sourceReworkId) {
+      const rework = state.reworkOrders.find(r => r.id === dispute.sourceReworkId);
+      sources.push({
+        type: 'rework',
+        id: dispute.sourceReworkId,
+        label: rework?.code || '返工单',
+        route: `/rework/${dispute.sourceReworkId}`,
+      });
+    }
+    
+    return sources;
   };
 
   const handleRuling = () => {
@@ -239,13 +285,46 @@ export function SettlementDetail() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-800">
-                    {getUserName(dispute.respondent)}
+                    {getRespondentDisplay(dispute.respondent)}
                   </p>
                   <p className="text-xs text-gray-500">被申请人</p>
                 </div>
               </div>
             </div>
           </div>
+
+          {getSourceDocumentInfo().length > 0 && (
+            <div className="card">
+              <div className="card-header flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary-500" />
+                <span className="font-medium text-gray-800">来源单据</span>
+              </div>
+              <div className="card-body space-y-3">
+                {getSourceDocumentInfo().map((source) => (
+                  <Link
+                    key={source.id}
+                    to={source.route}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-primary-100 flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {source.label}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {targetTypeLabels[source.type as keyof typeof targetTypeLabels] || source.type}
+                        </p>
+                      </div>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-gray-400" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
