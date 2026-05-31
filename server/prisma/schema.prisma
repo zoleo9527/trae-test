@@ -157,6 +157,7 @@ model WasteRecord {
   quantity     Decimal
   reason       String
   reasonDetail String?
+  remark       String?
   unitPrice    Decimal
   totalAmount  Decimal
   recordedById String

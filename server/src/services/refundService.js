@@ -82,7 +82,6 @@ class RefundService {
           include: {
             items: { include: { product: true } },
             notes: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
-            auditLogs: { include: { operator: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
           },
         },
         createdBy: { select: { id: true, name: true } },
@@ -92,7 +91,44 @@ class RefundService {
 
     if (!refund) throw new Error('退款记录不存在');
 
-    return refund;
+    const orderAuditLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'Order',
+        entityId: refund.orderId,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        operator: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    const refundAuditLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'Refund',
+        entityId: id,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        operator: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    return {
+      ...refund,
+      order: {
+        ...refund.order,
+        auditLogs: orderAuditLogs.map(log => ({
+          ...log,
+          beforeValue: log.beforeValue ? JSON.parse(log.beforeValue) : null,
+          afterValue: log.afterValue ? JSON.parse(log.afterValue) : null,
+        })),
+      },
+      auditLogs: refundAuditLogs.map(log => ({
+        ...log,
+        beforeValue: log.beforeValue ? JSON.parse(log.beforeValue) : null,
+        afterValue: log.afterValue ? JSON.parse(log.afterValue) : null,
+      })),
+    };
   }
 
   async approveRefund(id, operatorId, ipAddress, requestId) {

@@ -23,33 +23,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const material = await materialService.getMaterialDetail(req.params.id);
-    success(res, material);
-  } catch (err) {
-    error(res, err.message, 404);
-  }
-});
-
-router.post('/:id/stock', requireRoles('OWNER', 'KITCHEN'), async (req, res) => {
-  try {
-    const requestId = req.headers['x-request-id'] || uuidv4();
-    const material = await materialService.updateStock(
-      req.params.id,
-      req.body.quantity,
-      req.body.type,
-      req.body.reason,
-      req.user.id,
-      req.ip,
-      requestId
-    );
-    success(res, material, '库存更新成功');
-  } catch (err) {
-    error(res, err.message);
-  }
-});
-
 router.get('/inventories', async (req, res) => {
   try {
     const { status, page, pageSize } = req.query;
@@ -111,6 +84,33 @@ router.post('/inventories/:id/complete', requireRoles('OWNER'), async (req, res)
       req.user.id
     );
     success(res, inventory, '盘点完成');
+  } catch (err) {
+    error(res, err.message);
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const material = await materialService.getMaterialDetail(req.params.id);
+    success(res, material);
+  } catch (err) {
+    error(res, err.message, 404);
+  }
+});
+
+router.post('/:id/stock', requireRoles('OWNER', 'KITCHEN'), async (req, res) => {
+  try {
+    const requestId = req.headers['x-request-id'] || uuidv4();
+    const material = await materialService.updateStock(
+      req.params.id,
+      req.body.quantity,
+      req.body.type,
+      req.body.reason,
+      req.user.id,
+      req.ip,
+      requestId
+    );
+    success(res, material, '库存更新成功');
   } catch (err) {
     error(res, err.message);
   }

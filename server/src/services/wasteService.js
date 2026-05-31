@@ -66,6 +66,7 @@ class WasteService {
         quantity,
         reason,
         reasonDetail: finalReasonDetail,
+        remark,
         unitPrice,
         totalAmount,
         recordedById: operatorId,
