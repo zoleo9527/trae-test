@@ -409,7 +409,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useDataStore } from '~/stores/data'
 import { useAuthStore } from '~/stores/auth'
 import { formatDateTime } from '~/utils/date'
@@ -420,8 +420,21 @@ import {
 import type { Alert, AlertType, AlertSeverity, AlertStatus } from '~/types'
 import AlertDetailModal from '~/components/AlertDetailModal.vue'
 
+const route = useRoute()
 const dataStore = useDataStore()
 const authStore = useAuthStore()
+
+onMounted(() => {
+  const alertId = route.query.alertId as string
+  if (alertId) {
+    nextTick(() => {
+      const alert = dataStore.alerts.find(a => a.id === alertId)
+      if (alert) {
+        openDetail(alert)
+      }
+    })
+  }
+})
 
 const viewMode = ref<'grouped' | 'list'>('grouped')
 const selectedIds = ref<string[]>([])

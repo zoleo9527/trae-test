@@ -229,7 +229,7 @@ export const useDataStore = defineStore('data', {
         }
         
         const pendingAlert = this.alerts.find(a => a.relatedId === requisitionId && a.type === 'overdue_task')
-        if (pendingAlert) {
+        if (pendingAlert && pendingAlert.status !== 'resolved') {
           if (status === 'approved' || status === 'rejected') {
             pendingAlert.status = 'resolved'
             pendingAlert.updatedAt = new Date().toISOString()
@@ -238,15 +238,6 @@ export const useDataStore = defineStore('data', {
             pendingAlert.history.push({
               status: 'resolved',
               note: pendingAlert.resolutionNote,
-              operatorId: approverId || 'system',
-              timestamp: new Date().toISOString()
-            })
-          } else if (status === 'delivered') {
-            pendingAlert.status = 'in_progress'
-            pendingAlert.updatedAt = new Date().toISOString()
-            pendingAlert.history.push({
-              status: 'in_progress',
-              note: '申领单已发货，等待确认收货',
               operatorId: approverId || 'system',
               timestamp: new Date().toISOString()
             })
@@ -280,6 +271,22 @@ export const useDataStore = defineStore('data', {
               }
             }
           })
+        }
+        
+        if (status === 'completed') {
+          const pendingAlert = this.alerts.find(a => a.relatedId === requisitionId && a.type === 'overdue_task')
+          if (pendingAlert && pendingAlert.status !== 'resolved') {
+            pendingAlert.status = 'resolved'
+            pendingAlert.updatedAt = new Date().toISOString()
+            pendingAlert.resolvedAt = new Date().toISOString()
+            pendingAlert.resolutionNote = '申领单已完成'
+            pendingAlert.history.push({
+              status: 'resolved',
+              note: pendingAlert.resolutionNote,
+              operatorId: approverId || 'system',
+              timestamp: new Date().toISOString()
+            })
+          }
         }
       }
     },

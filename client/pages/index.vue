@@ -433,7 +433,10 @@ function formatTime(isoString: string): string {
 const router = useRouter()
 
 function handleAlertClick(alert: Alert) {
-  router.push('/alerts')
+  router.push({
+    path: '/alerts',
+    query: { alertId: alert.id }
+  })
 }
 
 function handleQuickAction(key: string) {

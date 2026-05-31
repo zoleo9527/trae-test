@@ -240,8 +240,18 @@ interface HistoryRecord {
   extra: Record<string, unknown>
 }
 
+const route = useRoute()
+const router = useRouter()
+
 const dataStore = useDataStore()
 const filterStore = useFilterStore()
+
+onMounted(() => {
+  const projectId = route.query.projectId as string
+  if (projectId) {
+    filterStore.global.projectIds = [projectId]
+  }
+})
 
 const recordTypes = [
   { value: 'schedule', label: '排班记录', icon: '📅', bgClass: 'bg-blue-50', textClass: 'text-blue-700', borderClass: 'border-blue-300' },
@@ -285,16 +295,16 @@ const allRecords = computed<HistoryRecord[]>(() => {
   if (types.length === 0 || types.includes('schedule')) {
     dataStore.schedules.forEach(schedule => {
       const project = dataStore.getProjectById(schedule.projectId)
-      const staff = dataStore.getStaffById(schedule.staffId)
+      const staffName = dataStore.getUserNameById(schedule.staffId)
       records.push({
         id: `schedule-${schedule.id}`,
         type: 'schedule',
-        title: `${staff?.name || '未知'} - ${project?.name || '未知项目'}`,
+        title: `${staffName} - ${project?.name || '未知项目'}`,
         description: `${getTaskTypeText(schedule.taskType)} ${schedule.startTime}-${schedule.endTime}`,
         status: schedule.status,
         date: schedule.date,
         projectName: project?.name || '未知项目',
-        staffName: staff?.name,
+        staffName,
         detail: {
           taskType: schedule.taskType,
           startTime: schedule.startTime,
@@ -310,18 +320,18 @@ const allRecords = computed<HistoryRecord[]>(() => {
   if (types.length === 0 || types.includes('punch')) {
     dataStore.punchRecords.forEach(punch => {
       const project = dataStore.getProjectById(punch.projectId)
-      const staff = dataStore.getStaffById(punch.staffId)
+      const staffName = dataStore.getUserNameById(punch.staffId)
       records.push({
         id: `punch-${punch.id}`,
         type: 'punch',
-        title: `${staff?.name || '未知'} - 打卡记录`,
+        title: `${staffName} - 打卡记录`,
         description: punch.status === 'normal' ? '正常打卡' :
                      punch.status === 'late' ? '迟到' :
                      punch.status === 'early_leave' ? '早退' : '缺勤',
         status: punch.status,
         date: punch.date,
         projectName: project?.name || '未知项目',
-        staffName: staff?.name,
+        staffName,
         detail: {
           checkInTime: punch.checkInTime || '-',
           checkOutTime: punch.checkOutTime || '-',
@@ -337,7 +347,7 @@ const allRecords = computed<HistoryRecord[]>(() => {
   if (types.length === 0 || types.includes('inspection')) {
     dataStore.inspections.forEach(inspection => {
       const project = dataStore.getProjectById(inspection.projectId)
-      const inspector = dataStore.staff.find(s => s.id === inspection.inspectorId)
+      const inspectorName = dataStore.getUserNameById(inspection.inspectorId)
       records.push({
         id: `inspection-${inspection.id}`,
         type: 'inspection',
@@ -348,13 +358,14 @@ const allRecords = computed<HistoryRecord[]>(() => {
         status: inspection.overallStatus,
         date: inspection.date,
         projectName: project?.name || '未知项目',
-        staffName: inspector?.name,
+        staffName: inspectorName,
         detail: {
           score: `${inspection.score}分`,
           overallStatus: inspection.overallStatus,
           rectificationRequired: inspection.rectificationRequired ? '需要' : '不需要',
           rectificationDeadline: inspection.rectificationDeadline || '-',
-          note: inspection.note || '-'
+          note: inspection.note || '-',
+          inspector: inspectorName
         },
         extra: {
           itemCount: `${inspection.items.length}项检查项`
@@ -366,7 +377,8 @@ const allRecords = computed<HistoryRecord[]>(() => {
   if (types.length === 0 || types.includes('requisition')) {
     dataStore.requisitions.forEach(requisition => {
       const project = dataStore.getProjectById(requisition.projectId)
-      const applicant = dataStore.getStaffById(requisition.applicantId)
+      const applicantName = dataStore.getUserNameById(requisition.applicantId)
+      const approverName = requisition.approverId ? dataStore.getUserNameById(requisition.approverId) : '未审批'
       records.push({
         id: `requisition-${requisition.id}`,
         type: 'requisition',
@@ -375,12 +387,13 @@ const allRecords = computed<HistoryRecord[]>(() => {
         status: requisition.status,
         date: requisition.applicationDate,
         projectName: project?.name || '未知项目',
-        staffName: applicant?.name,
+        staffName: applicantName,
         detail: {
           applicationDate: requisition.applicationDate,
           status: requisition.status,
           itemsCount: `${requisition.items.length}项`,
-          approver: requisition.approverId ? dataStore.getStaffById(requisition.approverId)?.name || '未知' : '未审批',
+          applicant: applicantName,
+          approver: approverName,
           approvalDate: requisition.approvalDate || '-',
           deliveryDate: requisition.deliveryDate || '-',
           rejectReason: requisition.rejectReason || '-'

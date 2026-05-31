@@ -255,9 +255,8 @@ const relatedData = computed(() => {
   if (relatedType === 'punch') {
     const punch = dataStore.punchRecords.find(p => p.id === relatedId)
     if (punch) {
-      const staff = dataStore.getStaffById(punch.staffId)
       return {
-        staffName: staff?.name || '未知',
+        staffName: dataStore.getUserNameById(punch.staffId),
         date: punch.date,
         status: getStatusText(punch.status),
         checkInTime: punch.checkInTime || '-',
@@ -287,7 +286,7 @@ const relatedData = computed(() => {
         deadline: rect.deadline,
         status: getStatusText(rect.status),
         progress: `${completedItems}/${rect.items.length} 项`,
-        assignee: rect.assigneeId ? dataStore.getStaffById(rect.assigneeId)?.name : '未指定'
+        assignee: rect.assigneeId ? dataStore.getUserNameById(rect.assigneeId) : '未指定'
       }
     }
   } else if (relatedType === 'project') {
@@ -305,10 +304,9 @@ const relatedData = computed(() => {
     const req = dataStore.requisitions.find(r => r.id === relatedId)
     if (req) {
       const project = dataStore.getProjectById(req.projectId)
-      const applicant = dataStore.getStaffById(req.applicantId)
       return {
         projectName: project?.name || '未知',
-        applicant: applicant?.name || '未知',
+        applicant: dataStore.getUserNameById(req.applicantId),
         applicationDate: req.applicationDate,
         status: getStatusText(req.status),
         itemsCount: `${req.items.length} 项`
@@ -450,7 +448,11 @@ function handleRenewalFollowUp() {
     message: '是否跳转到历史记录页面查看项目详情并进行续约跟进？',
     onConfirm: () => {
       confirmDialog.value.visible = false
-      router.push('/history')
+      const projectId = props.alert.projectId
+      router.push({
+        path: '/history',
+        query: projectId ? { projectId } : undefined
+      })
       emit('close')
     }
   }
