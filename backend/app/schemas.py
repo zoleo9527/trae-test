@@ -245,6 +245,28 @@ class ChangeOrder(ChangeOrderBase):
         from_attributes = True
 
 
+class SettlementDeductionDetailBase(BaseModel):
+    settlement_id: int
+    deduction_type: str
+    source_type: str
+    source_id: int
+    description: str
+    amount: float = 0
+    area: float = 0
+
+
+class SettlementDeductionDetailCreate(SettlementDeductionDetailBase):
+    pass
+
+
+class SettlementDeductionDetail(SettlementDeductionDetailBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class TeamSettlementBase(BaseModel):
     project_id: int
     team_id: int
@@ -286,6 +308,7 @@ class TeamSettlement(TeamSettlementBase):
     status: str
     created_at: datetime
     team: Optional[Team] = None
+    deduction_details: Optional[List[SettlementDeductionDetail]] = None
 
     class Config:
         from_attributes = True

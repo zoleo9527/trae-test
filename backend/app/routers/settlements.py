@@ -40,6 +40,32 @@ def get_settlement(
     return settlement
 
 
+@router.get("/{settlement_id}/deduction-details", response_model=List[schemas.SettlementDeductionDetail])
+def get_settlement_deduction_details(
+    settlement_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user)
+):
+    details = db.query(models.SettlementDeductionDetail).filter(
+        models.SettlementDeductionDetail.settlement_id == settlement_id
+    ).all()
+    return details
+
+
+@router.post("/{settlement_id}/deduction-details", response_model=schemas.SettlementDeductionDetail)
+def add_deduction_detail(
+    settlement_id: int,
+    detail: schemas.SettlementDeductionDetailCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user)
+):
+    db_detail = models.SettlementDeductionDetail(**detail.model_dump())
+    db.add(db_detail)
+    db.commit()
+    db.refresh(db_detail)
+    return db_detail
+
+
 @router.post("", response_model=schemas.TeamSettlement)
 def create_settlement(
     settlement: schemas.TeamSettlementCreate,

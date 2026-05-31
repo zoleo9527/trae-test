@@ -140,14 +140,30 @@
 
         <div class="grid grid-cols-2 gap-6">
           <div class="card p-4">
-            <h3 class="detail-section-title">关联返工记录</h3>
-            <div v-if="selectedSettlement.rework_deduction > 0" class="space-y-2">
-              <div class="p-3 bg-red-50 rounded-lg text-sm">
-                <div class="flex justify-between">
-                  <span class="text-red-700">返工扣款</span>
-                  <span class="text-red-600 font-medium">{{ formatCurrency(selectedSettlement.rework_deduction) }}</span>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="detail-section-title mb-0">返工扣款明细</h3>
+              <span class="text-red-600 font-medium">- {{ formatCurrency(selectedSettlement.rework_deduction) }}</span>
+            </div>
+            <div v-if="deductionDetails.filter(d => d.deduction_type === '返工扣款').length > 0" class="space-y-3">
+              <div v-for="detail in deductionDetails.filter(d => d.deduction_type === '返工扣款')" :key="detail.id"
+                class="p-3 bg-red-50 rounded-lg">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-red-900">{{ detail.description }}</div>
+                    <div class="text-xs text-red-600 mt-1">
+                      来源：{{ detail.source_type === 'inspection' ? '质检记录' : detail.source_type }}
+                      <span v-if="detail.area > 0"> · 面积：{{ formatArea(detail.area) }}</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-sm font-medium text-red-700">{{ formatCurrency(detail.amount) }}</div>
+                    <button v-if="detail.source_type === 'inspection'" 
+                      @click="goToSource(detail)" 
+                      class="text-xs text-blue-600 hover:underline mt-1">
+                      查看来源 →
+                    </button>
+                  </div>
                 </div>
-                <p class="text-red-600 text-xs mt-1">质量问题返工人工成本扣除</p>
               </div>
             </div>
             <div v-else class="text-center py-6 text-gray-500 text-sm">
@@ -156,14 +172,29 @@
           </div>
 
           <div class="card p-4">
-            <h3 class="detail-section-title">关联材料损耗</h3>
-            <div v-if="selectedSettlement.material_loss_deduction > 0" class="space-y-2">
-              <div class="p-3 bg-orange-50 rounded-lg text-sm">
-                <div class="flex justify-between">
-                  <span class="text-orange-700">材料损耗扣款</span>
-                  <span class="text-orange-600 font-medium">{{ formatCurrency(selectedSettlement.material_loss_deduction) }}</span>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="detail-section-title mb-0">材料损耗明细</h3>
+              <span class="text-red-600 font-medium">- {{ formatCurrency(selectedSettlement.material_loss_deduction) }}</span>
+            </div>
+            <div v-if="deductionDetails.filter(d => d.deduction_type === '材料损耗').length > 0" class="space-y-3">
+              <div v-for="detail in deductionDetails.filter(d => d.deduction_type === '材料损耗')" :key="detail.id"
+                class="p-3 bg-orange-50 rounded-lg">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-orange-900">{{ detail.description }}</div>
+                    <div class="text-xs text-orange-600 mt-1">
+                      来源：{{ detail.source_type === 'inspection' ? '质检记录' : detail.source_type === 'delivery' ? '材料配送' : detail.source_type }}
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-sm font-medium text-orange-700">{{ formatCurrency(detail.amount) }}</div>
+                    <button v-if="detail.source_type === 'inspection' || detail.source_type === 'delivery'"
+                      @click="goToSource(detail)" 
+                      class="text-xs text-blue-600 hover:underline mt-1">
+                      查看来源 →
+                    </button>
+                  </div>
                 </div>
-                <p class="text-orange-600 text-xs mt-1">施工不当造成材料浪费扣款</p>
               </div>
             </div>
             <div v-else class="text-center py-6 text-gray-500 text-sm">
@@ -219,9 +250,11 @@
 const api = useAPI()
 const appStore = useAppStore()
 const route = useRoute()
+const router = useRouter()
 
 const settlements = ref<any[]>([])
 const selectedSettlement = ref<any>(null)
+const deductionDetails = ref<any[]>([])
 const filterProject = ref<number | null>(null)
 const filterTeam = ref<number | null>(null)
 const activeTab = ref('all')
@@ -268,9 +301,22 @@ const loadSettlements = async () => {
   }
 }
 
-const selectSettlement = (s: any) => {
+const selectSettlement = async (s: any) => {
   selectedSettlement.value = s
   finalAmount.value = s.final_amount
+  try {
+    deductionDetails.value = await api.get(`/settlements/${s.id}/deduction-details`) as any[]
+  } catch (e) {
+    deductionDetails.value = []
+  }
+}
+
+const goToSource = (detail: any) => {
+  if (detail.source_type === 'inspection') {
+    router.push(`/quality?inspectionId=${detail.source_id}`)
+  } else if (detail.source_type === 'delivery') {
+    router.push(`/deliveries?deliveryId=${detail.source_id}`)
+  }
 }
 
 const submitResolution = async () => {
@@ -290,6 +336,7 @@ onMounted(async () => {
   await appStore.loadProjects()
   await appStore.loadTeams()
   await appStore.loadUsers()
+  appStore.initFromAuth()
   await loadSettlements()
 })
 </script>

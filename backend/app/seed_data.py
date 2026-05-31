@@ -315,9 +315,47 @@ def init_db():
         },
     ]
 
+    settlement_objs = []
     for data in settlements_data:
         settlement = TeamSettlement(**data)
         db.add(settlement)
+        settlement_objs.append(settlement)
+    db.flush()
+
+    deduction_details_data = [
+        {
+            "settlement_id": settlement_objs[1].id,
+            "deduction_type": "返工扣款",
+            "source_type": "inspection",
+            "source_id": 2,
+            "description": "5月21日雨淋区域返工，面积200㎡，扣除人工费",
+            "amount": 17000.0,
+            "area": 200.0
+        },
+        {
+            "settlement_id": settlement_objs[1].id,
+            "deduction_type": "材料损耗",
+            "source_type": "inspection",
+            "source_id": 2,
+            "description": "雨淋导致金刚砂材料1.2吨浪费，混凝土10m³报废",
+            "amount": 8500.0,
+            "area": 0.0
+        },
+        {
+            "settlement_id": settlement_objs[2].id,
+            "deduction_type": "材料损耗",
+            "source_type": "delivery",
+            "source_id": 2,
+            "description": "环氧材料批次色差，协商扣款5000元",
+            "amount": 5000.0,
+            "area": 0.0
+        },
+    ]
+
+    for data in deduction_details_data:
+        from .models import SettlementDeductionDetail
+        detail = SettlementDeductionDetail(**data)
+        db.add(detail)
 
     db.commit()
     db.close()

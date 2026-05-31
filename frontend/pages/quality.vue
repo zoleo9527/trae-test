@@ -61,7 +61,77 @@
     </div>
 
     <div class="flex-1 bg-gray-50 overflow-auto">
-      <div v-if="selectedInspection" class="p-6">
+      <div v-if="showCreateModal" class="p-6">
+        <div class="card p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-6">创建质量检查记录</h2>
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">关联项目</label>
+              <div class="input-field bg-gray-50">{{ getProjectName(createForm.project_id) }}</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">关联施工日志</label>
+              <div class="input-field bg-gray-50">{{ sourceDiary?.construction_content }}</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">检查员</label>
+              <select v-model="createForm.inspector_id" class="select-field">
+                <option v-for="u in inspectors" :key="u.id" :value="u.id">{{ u.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">检查日期</label>
+              <input v-model="createForm.inspection_date" type="date" class="input-field" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">检查项目</label>
+              <input v-model="createForm.inspection_items" type="text" class="input-field" placeholder="如：基层处理、表面平整度、颜色均匀度等" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">检查结果</label>
+              <select v-model="createForm.inspection_result" class="select-field" @change="onResultChange">
+                <option value="passed">合格</option>
+                <option value="failed">不合格</option>
+              </select>
+            </div>
+            <div v-if="createForm.inspection_result === 'failed'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">是否返工</label>
+              <select v-model="createForm.rework_required" class="select-field">
+                <option :value="false">否</option>
+                <option :value="true">是</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">发现问题</label>
+              <textarea v-model="createForm.issues_found" class="input-field h-20" placeholder="详细描述发现的问题..."></textarea>
+            </div>
+            <div v-if="createForm.rework_required">
+              <label class="block text-sm font-medium text-gray-700 mb-1">返工面积 (㎡)</label>
+              <input v-model.number="createForm.rework_area" type="number" step="0.1" class="input-field" />
+            </div>
+            <div v-if="createForm.rework_required">
+              <label class="block text-sm font-medium text-gray-700 mb-1">返工原因</label>
+              <input v-model="createForm.rework_reason" type="text" class="input-field" />
+            </div>
+            <div v-if="createForm.rework_required" class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">浪费材料</label>
+              <input v-model="createForm.material_wasted" type="text" class="input-field" placeholder="如：金刚砂材料约1.2吨，混凝土约10m³" />
+            </div>
+            <div v-if="createForm.rework_required">
+              <label class="block text-sm font-medium text-gray-700 mb-1">整改期限</label>
+              <input v-model="createForm.rectification_deadline" type="date" class="input-field" />
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 mt-6">
+            <button @click="cancelCreate" class="btn-secondary">取消</button>
+            <button @click="submitCreate" class="btn-primary" :disabled="creating">
+              {{ creating ? '创建中...' : '创建检查记录' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="selectedInspection" class="p-6">
         <div class="flex justify-between items-start mb-6">
           <div>
             <h2 class="text-xl font-bold text-gray-900">{{ getProjectName(selectedInspection.project_id) }}</h2>
@@ -236,13 +306,33 @@ const router = useRouter()
 const inspections = ref<any[]>([])
 const selectedInspection = ref<any>(null)
 const relatedDiary = ref<any>(null)
+const sourceDiary = ref<any>(null)
 const filterProject = ref<number | null>(null)
 const filterStatus = ref('all')
 const activeTab = ref('all')
 const showRectificationModal = ref(false)
 const showReinspectModal = ref(false)
+const showCreateModal = ref(false)
+const creating = ref(false)
 const rectificationNote = ref('')
 const reinspectionResult = ref('passed')
+
+const createForm = ref({
+  project_id: 0,
+  diary_id: 0,
+  inspector_id: 0,
+  inspection_date: '',
+  inspection_items: '',
+  inspection_result: 'passed',
+  issues_found: '',
+  rework_required: false,
+  rework_reason: '',
+  rework_area: 0,
+  material_wasted: '',
+  rectification_deadline: ''
+})
+
+const inspectors = computed(() => appStore.users.filter((u: any) => u.role === 'inspector' || u.role === 'manager'))
 
 const tabs = computed(() => [
   { value: 'all', label: '全部', count: inspections.value.length },
@@ -285,6 +375,7 @@ const loadInspections = async () => {
 
 const selectInspection = async (ins: any) => {
   selectedInspection.value = ins
+  showCreateModal.value = false
   if (ins.diary_id) {
     try {
       relatedDiary.value = await api.get(`/diaries/${ins.diary_id}`)
@@ -297,6 +388,47 @@ const selectInspection = async (ins: any) => {
 const goToDiary = () => {
   if (relatedDiary.value) {
     router.push(`/progress?diaryId=${relatedDiary.value.id}`)
+  }
+}
+
+const onResultChange = () => {
+  if (createForm.value.inspection_result === 'passed') {
+    createForm.value.rework_required = false
+  }
+}
+
+const cancelCreate = () => {
+  showCreateModal.value = false
+  selectedInspection.value = null
+  router.replace('/quality')
+}
+
+const submitCreate = async () => {
+  if (!createForm.value.inspection_items) {
+    alert('请填写检查项目')
+    return
+  }
+  creating.value = true
+  try {
+    const data: any = {
+      ...createForm.value,
+      status: createForm.value.rework_required ? 'rework_required' : (createForm.value.inspection_result === 'passed' ? 'completed' : 'pending')
+    }
+    if (!data.rework_required) {
+      delete data.rework_area
+      delete data.rework_reason
+      delete data.material_wasted
+      delete data.rectification_deadline
+    }
+    const newInspection = await api.post('/inspections', data)
+    await loadInspections()
+    showCreateModal.value = false
+    selectInspection(newInspection)
+    router.replace('/quality')
+  } catch (e: any) {
+    alert('创建失败: ' + (e.data?.detail || e.message))
+  } finally {
+    creating.value = false
   }
 }
 
@@ -319,6 +451,29 @@ const submitReinspection = async () => {
   selectedInspection.value = updated
 }
 
+const initCreateFromDiary = async (diaryId: number, projectId: number) => {
+  try {
+    sourceDiary.value = await api.get(`/diaries/${diaryId}`)
+    createForm.value = {
+      project_id: projectId,
+      diary_id: diaryId,
+      inspector_id: appStore.user?.id || inspectors.value[0]?.id || 0,
+      inspection_date: new Date().toISOString().split('T')[0],
+      inspection_items: sourceDiary.value.is_exception ? '异常区域专项检查' : '日常质量检查',
+      inspection_result: sourceDiary.value.is_exception ? 'failed' : 'passed',
+      issues_found: sourceDiary.value.exception_reason || '',
+      rework_required: sourceDiary.value.is_exception,
+      rework_reason: sourceDiary.value.exception_reason || '',
+      rework_area: 0,
+      material_wasted: '',
+      rectification_deadline: ''
+    }
+    showCreateModal.value = true
+  } catch (e) {
+    console.error('加载日志失败', e)
+  }
+}
+
 onMounted(async () => {
   await appStore.loadProjects()
   await appStore.loadTeams()
@@ -326,7 +481,7 @@ onMounted(async () => {
   await loadInspections()
 
   if (route.query.diaryId && route.query.projectId) {
-    showReinspectModal.value = false
+    await initCreateFromDiary(Number(route.query.diaryId), Number(route.query.projectId))
   }
 })
 </script>

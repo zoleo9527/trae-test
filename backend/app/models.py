@@ -151,6 +151,20 @@ class ChangeOrder(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class SettlementDeductionDetail(Base):
+    __tablename__ = "settlement_deduction_details"
+
+    id = Column(Integer, primary_key=True, index=True)
+    settlement_id = Column(Integer, ForeignKey("team_settlements.id"))
+    deduction_type = Column(String(30))
+    source_type = Column(String(30))
+    source_id = Column(Integer)
+    description = Column(Text)
+    amount = Column(Float, default=0)
+    area = Column(Float, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class TeamSettlement(Base):
     __tablename__ = "team_settlements"
 
@@ -176,3 +190,4 @@ class TeamSettlement(Base):
 
     project = relationship("Project", back_populates="team_settlements")
     team = relationship("Team", back_populates="settlements")
+    deduction_details = relationship("SettlementDeductionDetail", backref="settlement")

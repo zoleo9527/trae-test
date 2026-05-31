@@ -5,6 +5,7 @@ export const useAppStore = defineStore('app', {
     projects: [],
     teams: [],
     users: [],
+    user: null as any,
     selectedProjectId: null as number | null,
     selectedDiaryId: null as number | null,
     selectedInspectionId: null as number | null,
@@ -18,6 +19,11 @@ export const useAppStore = defineStore('app', {
   },
 
   actions: {
+    initFromAuth() {
+      const authStore = useAuthStore()
+      this.user = authStore.user
+    },
+
     async loadProjects() {
       const api = useAPI()
       this.projects = await api.get('/projects') as any

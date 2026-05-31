@@ -5,9 +5,5 @@
 </template>
 
 <script setup lang="ts">
-const authStore = useAuthStore()
-
-onMounted(() => {
-  authStore.checkAuth()
-})
+// 鉴权由middleware处理
 </script>
