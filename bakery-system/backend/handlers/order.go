@@ -56,6 +56,23 @@ func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 	order.OrderNo = fmt.Sprintf("ORD%s%06d", time.Now().Format("20060102"), time.Now().Unix()%1000000)
 	order.Status = "pending"
 
+	requestedUseBalance := order.UseBalance
+	balanceWarning := ""
+
+	if order.UseBalance > 0 && order.MemberID != "" {
+		var member models.Member
+		if err := database.DB.First(&member, "id = ?", order.MemberID).Error; err != nil {
+			order.UseBalance = 0
+			balanceWarning = "会员信息读取失败，余额抵扣已取消"
+		} else if member.Balance < order.UseBalance {
+			order.UseBalance = member.Balance
+			balanceWarning = fmt.Sprintf("余额不足，实际抵扣 %.2f", order.UseBalance)
+		}
+		if order.UseBalance != requestedUseBalance {
+			order.PayAmount = order.TotalAmount - order.UseBalance
+		}
+	}
+
 	tx := database.DB.Begin()
 	tx.Create(&order)
 
@@ -78,7 +95,11 @@ func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 	database.AddStatusLog(order.ID, "order", "", "pending", order.Operator, "订单创建")
 	tx.Commit()
 
-	return c.Status(201).JSON(order)
+	response := fiber.Map{"data": order}
+	if balanceWarning != "" {
+		response["warning"] = balanceWarning
+	}
+	return c.Status(201).JSON(response)
 }
 
 func (h *OrderHandler) UpdateOrder(c *fiber.Ctx) error {

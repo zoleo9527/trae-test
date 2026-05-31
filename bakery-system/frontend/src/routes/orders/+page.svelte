@@ -87,10 +87,10 @@
 	}
 
 	function toggleSelectAll() {
-		if (selectedIds.length === filteredOrders.length) {
+		if (selectedIds.length === orders.length) {
 			selectedIds = [];
 		} else {
-			selectedIds = filteredOrders.map(o => o.id);
+			selectedIds = orders.map(o => o.id);
 		}
 	}
 

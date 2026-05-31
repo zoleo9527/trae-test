@@ -190,7 +190,7 @@
 								<td class="text-sm">{refund.memberName}</td>
 								<td>¥{refund.refundAmount.toFixed(2)}</td>
 								<td class="text-sm">{refund.rejectReason || '-'}</td>
-								<td><a href="/refunds" class="btn btn-sm btn-outline">去处理</a></td>
+								<td><a href="/refunds?tab=rejected" class="btn btn-sm btn-outline">去处理</a></td>
 							</tr>
 						{/each}
 					</tbody>
