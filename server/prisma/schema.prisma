@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  role      String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs               AuditLog[]
+  notes                   Note[]
+  stockLogs               StockLog[]
+  ordersCreated           Order[]    @relation("OrderCreated")
+  ordersUpdated           Order[]    @relation("OrderUpdated")
+  productions             Production[]
+  wasteRecordsRecorded    WasteRecord[]
+  inventoriesCreated      Inventory[]
+  refundsApproved         Refund[]   @relation("RefundApproved")
+  refundsCreated          Refund[]   @relation("RefundCreated")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  sku         String   @unique
+  description String?
+  price       Decimal
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  recipeItems RecipeItem[]
+  orderItems  OrderItem[]
+}
+
+model RecipeItem {
+  id         String  @id @default(uuid())
+  productId  String
+  materialId String
+  quantity   Decimal
+  unit       String
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, materialId])
+}
+
+model Material {
+  id           String   @id @default(uuid())
+  name         String
+  sku          String   @unique
+  category     String
+  unit         String
+  currentStock Decimal  @default(0)
+  minStock     Decimal  @default(0)
+  unitPrice    Decimal
+  supplier     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recipeItems    RecipeItem[]
+  stockLogs      StockLog[]
+  wasteRecords   WasteRecord[]
+  inventoryItems InventoryItem[]
+}
+
+model StockLog {
+  id         String   @id @default(uuid())
+  materialId String
+  quantity   Decimal
+  type       String
+  reason     String?
+  operatorId String
+  createdAt  DateTime @default(now())
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  operator User     @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id             String   @id @default(uuid())
+  orderNo        String   @unique
+  customerName   String
+  customerPhone  String?
+  customerRemark String?
+  totalAmount    Decimal
+  status         String
+  pickupDate     DateTime
+  pickupTime     String
+  deliveryType   String
+  rejectReason   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String
+  updatedById    String?
+
+  createdBy  User         @relation("OrderCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  updatedBy  User?        @relation("OrderUpdated", fields: [updatedById], references: [id], onDelete: Cascade)
+  items      OrderItem[]
+  production Production[]
+  refund     Refund?
+  notes      Note[]
+  auditLogs  AuditLog[]
+  wasteRecords WasteRecord[]
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Decimal
+  subtotal   Decimal
+  remark     String?
+  createdAt  DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Production {
+  id                String   @id @default(uuid())
+  orderId           String
+  scheduledDate     DateTime
+  startTime         DateTime?
+  endTime           DateTime?
+  status            String
+  batchNo           String
+  yieldQuantity     Int      @default(0)
+  defectiveQuantity Int      @default(0)
+  operatorId        String?
+  remark            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order        Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator     User?         @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  wasteRecords WasteRecord[]
+  notes        Note[]
+}
+
+model WasteRecord {
+  id           String   @id @default(uuid())
+  productionId String?
+  materialId   String?
+  orderId      String?
+  quantity     Decimal
+  reason       String
+  reasonDetail String?
+  unitPrice    Decimal
+  totalAmount  Decimal
+  recordedById String
+  createdAt    DateTime @default(now())
+
+  production Production? @relation(fields: [productionId], references: [id], onDelete: SetNull)
+  material   Material?   @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  order      Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  recordedBy User        @relation(fields: [recordedById], references: [id], onDelete: Cascade)
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  inventoryNo String   @unique
+  title       String
+  type        String
+  status      String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy User            @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  items     InventoryItem[]
+}
+
+model InventoryItem {
+  id               String  @id @default(uuid())
+  inventoryId      String
+  materialId       String
+  systemStock      Decimal
+  actualStock      Decimal
+  difference       Decimal
+  unitPrice        Decimal
+  differenceAmount Decimal
+  remark           String?
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  material  Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model Refund {
+  id           String   @id @default(uuid())
+  orderId      String   @unique
+  refundNo     String   @unique
+  amount       Decimal
+  reason       String
+  detail       String?
+  status       String
+  approvedById String?
+  approvedAt   DateTime?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  approvedBy User?  @relation("RefundApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy  User   @relation("RefundCreated", fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id           String   @id @default(uuid())
+  orderId      String?
+  productionId String?
+  content      String
+  type         String
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  order      Order?      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  production Production? @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  createdBy  User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  entityType String
+  entityId   String
+  beforeValue String?
+  afterValue  String?
+  operatorId String
+  ipAddress  String?
+  userAgent  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  operator User   @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  order    Order? @relation(fields: [entityId], references: [id])
+}

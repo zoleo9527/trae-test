@@ -1,0 +1,24 @@
+{
+    "name": "bakery-system-server",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "node --watch src/index.js",
+        "start": "node src/index.js",
+        "prisma:generate": "prisma generate",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:seed": "node prisma/seed.js"
+    },
+    "dependencies": {
+        "@prisma/client": "^5.10.0",
+        "cors": "^2.8.5",
+        "express": "^4.18.2",
+        "helmet": "^7.1.0",
+        "morgan": "^1.10.0",
+        "uuid": "^9.0.1",
+        "zod": "^3.22.4"
+    },
+    "devDependencies": {
+        "prisma": "^5.10.0"
+    }
+}
