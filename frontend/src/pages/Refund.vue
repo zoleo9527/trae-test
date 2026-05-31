@@ -106,7 +106,10 @@ function selectRefund(refundId: string) {
 }
 
 function approveRefund(refundId: string) {
+  const refund = refundStore.refunds.find(r => r.id === refundId)
+  if (!refund) return
   refundStore.approveRefund(refundId, '当前操作人')
+  orderStore.updateOrderStatus(refund.orderId, 'refunded')
 }
 
 function rejectRefund(refundId: string) {

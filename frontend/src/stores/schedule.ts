@@ -34,6 +34,13 @@ export const useScheduleStore = defineStore('schedule', () => {
     }
   }
 
+  function updateScheduleItem(id: string, patch: Partial<ScheduleItem>) {
+    const item = scheduleItems.value.find(s => s.id === id)
+    if (item) {
+      Object.assign(item, patch)
+    }
+  }
+
   function getScheduleByOrderId(orderId: string) {
     return scheduleItems.value.filter(s => s.orderId === orderId)
   }
@@ -46,6 +53,7 @@ export const useScheduleStore = defineStore('schedule', () => {
     remakeSchedule,
     addScheduleItem,
     updateScheduleStatus,
+    updateScheduleItem,
     getScheduleByOrderId,
   }
 })

@@ -1,8 +1,10 @@
 import { ref, computed } from 'vue'
 import type { RoleType } from '@/types'
 
+const sharedRole = ref<RoleType>('manager')
+
 export function useRole() {
-  const currentRole = ref<RoleType>('manager')
+  const currentRole = sharedRole
 
   const roleName = computed(() => {
     const map: Record<RoleType, string> = {

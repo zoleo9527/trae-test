@@ -19,6 +19,7 @@ import {
 import { useReviewStore } from '@/stores/review'
 import { useOrderStore } from '@/stores/order'
 import { useRefundStore } from '@/stores/refund'
+import { useRemakeStore } from '@/stores/remake'
 import { useRole } from '@/composables/useRole'
 import StatusBadge from '@/components/StatusBadge.vue'
 import FlowTimeline from '@/components/FlowTimeline.vue'
@@ -148,12 +149,15 @@ async function batchApprove() {
 
     if (item.type === 'change') {
       orderStore.pushChangeToSchedule(item.targetId)
+    } else if (item.type === 'remake') {
+      const remakeStore = useRemakeStore()
+      const ticket = remakeStore.tickets.find(t => t.id === item.targetId)
+      if (ticket && ticket.status === 'open') {
+        remakeStore.updateTicketStatus(item.targetId, 'scheduled')
+      }
     } else if (item.type === 'refund') {
       refundStore.approveRefund(item.targetId, roleName.value)
-      const order = orderStore.getOrderById(item.orderId)
-      if (order) {
-        orderStore.updateOrderStatus(item.orderId, 'completed')
-      }
+      orderStore.updateOrderStatus(item.orderId, 'refunded')
     }
   }
 

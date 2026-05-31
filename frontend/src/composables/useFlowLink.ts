@@ -31,6 +31,7 @@ export function useFlowLink(orderId: string) {
       producing: 3,
       completed: 4,
       exception: 5,
+      refunded: 5,
     }
     const orderStep = statusOrder[order.status] ?? 0
 
@@ -96,7 +97,6 @@ export function useFlowLink(orderId: string) {
         label: '异常',
         role: 'manager' as RoleType,
         status: 'current' as NodeStatus,
-        timestamp: order.remark ? undefined : undefined,
         detail: order.remark || '订单异常',
       })
     }
@@ -112,25 +112,25 @@ export function useFlowLink(orderId: string) {
       })
     }
 
-    if (refunds.length > 0) {
+    if (refunds.length > 0 || order.status === 'refunded') {
       nodes.push({
         step: '5.2',
         label: '退款',
         role: 'manager' as RoleType,
-        status: refunds.some(r => r.status === 'completed') ? 'done' as NodeStatus : refunds.some(r => r.status === 'approved') ? 'current' as NodeStatus : 'current' as NodeStatus,
-        timestamp: refunds[0].createdAt,
-        detail: refunds.map(r => `¥${r.amount}（${r.reason}）`).join('；'),
+        status: order.status === 'refunded' || refunds.some(r => r.status === 'approved' || r.status === 'completed') ? 'done' as NodeStatus : 'current' as NodeStatus,
+        timestamp: refunds[0]?.createdAt,
+        detail: refunds.length > 0 ? refunds.map(r => `¥${r.amount}（${r.reason}）`).join('；') : '订单已退款',
       })
     }
 
     nodes.push({
       step: '6',
-      label: '完成',
+      label: order.status === 'refunded' ? '已退款' : '完成',
       role: 'service' as RoleType,
-      status: orderStep >= 4 ? 'done' as NodeStatus : 'pending' as NodeStatus,
-      timestamp: order.status === 'completed' ? order.pickupDate : undefined,
-      actor: '客服',
-      detail: '订单已完成',
+      status: order.status === 'completed' || order.status === 'refunded' ? 'done' as NodeStatus : 'pending' as NodeStatus,
+      timestamp: order.status === 'completed' ? order.pickupDate : order.status === 'refunded' ? refunds[0]?.completedAt : undefined,
+      actor: order.status === 'refunded' ? '门店主理人' : '客服',
+      detail: order.status === 'refunded' ? '订单已退款关闭' : '订单已完成',
     })
 
     return nodes

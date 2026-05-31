@@ -61,7 +61,7 @@ const filteredOrders = computed(() => {
   }
 
   return orders.sort((a, b) => {
-    const statusOrder = { exception: 0, pending: 1, confirmed: 2, scheduled: 3, producing: 4, completed: 5 }
+    const statusOrder = { exception: 0, refunded: 1, pending: 2, confirmed: 3, scheduled: 4, producing: 5, completed: 6 }
     const diff = (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0)
     if (diff !== 0) return diff
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -104,6 +104,9 @@ function getOrderTags(order: Order) {
   }
   if (order.status === 'exception') {
     tags.push({ label: '异常', type: 'exception' })
+  }
+  if (order.status === 'refunded') {
+    tags.push({ label: '已退款', type: 'refund' })
   }
   return tags
 }
@@ -218,7 +221,7 @@ function getOrderTags(order: Order) {
                         v-for="tag in getOrderTags(order)"
                         :key="tag.type"
                         class="text-xs px-2 py-0.5 rounded-full"
-                        :class="tag.type === 'change' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'"
+                        :class="tag.type === 'change' ? 'bg-purple-100 text-purple-700' : tag.type === 'refund' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'"
                       >
                         {{ tag.label }}
                       </span>

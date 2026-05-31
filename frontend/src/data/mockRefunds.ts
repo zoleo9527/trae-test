@@ -135,4 +135,22 @@ export const reviewItems: ReviewItem[] = [
     status: 'pending',
     createdAt: '2026-05-31T11:00:00',
   },
+  {
+    id: 'REV-007',
+    type: 'change',
+    targetId: 'CHG-004',
+    orderId: 'ORD-005',
+    summary: '巧克力熔岩蛋糕加购2个，柠檬塔减少1个',
+    status: 'pending',
+    createdAt: '2026-05-31T09:15:00',
+  },
+  {
+    id: 'REV-008',
+    type: 'remake',
+    targetId: 'RMK-004',
+    orderId: 'ORD-010',
+    summary: '柠檬塔做错口味，客户要求紧急补做',
+    status: 'pending',
+    createdAt: '2026-05-31T08:30:00',
+  },
 ]

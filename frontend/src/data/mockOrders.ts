@@ -233,6 +233,16 @@ export const orderChanges: OrderChange[] = [
     pushedToSchedule: true,
     createdAt: '2026-05-30T14:00:00',
   },
+  {
+    id: 'CHG-004',
+    orderId: 'ORD-005',
+    changeType: 'quantity_change',
+    oldValue: '巧克力熔岩蛋糕 x3, 柠檬塔 x2',
+    newValue: '巧克力熔岩蛋糕 x5, 柠檬塔 x1',
+    reason: '客户朋友临时加单，柠檬塔少要1个，熔岩蛋糕多要2个',
+    pushedToSchedule: false,
+    createdAt: '2026-05-31T09:15:00',
+  },
 ]
 
 export const pickups: Pickup[] = [

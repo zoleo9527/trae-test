@@ -26,6 +26,7 @@ export const useRefundStore = defineStore('refund', () => {
     if (refund) {
       refund.status = 'approved' as RefundStatus
       refund.approvedBy = approvedBy
+      refund.completedAt = new Date().toISOString()
     }
   }
 
@@ -50,7 +51,7 @@ export const useRefundStore = defineStore('refund', () => {
       refundId: '',
       traceType: 'order',
       traceTargetId: orderId,
-      summary: `订单创建：${order.items.map(i => `${i.name}×${i.quantity}`).join('、')}，¥${order.totalPrice}`,
+      summary: `订单创建：${order.items.map(i => `${i.name}×${i.quantity}`).join('、')}，¥${order.totalPrice}，当前状态：${order.status === 'refunded' ? '已退款' : order.status}`,
     })
 
     const changes = orderStore.getChangesByOrderId(orderId)
@@ -60,7 +61,7 @@ export const useRefundStore = defineStore('refund', () => {
         refundId: '',
         traceType: 'change',
         traceTargetId: change.id,
-        summary: `订单变更：${change.oldValue} → ${change.newValue}（${change.reason}）`,
+        summary: `订单变更：${change.oldValue} → ${change.newValue}（${change.reason}）${change.pushedToSchedule ? '，已推送排产' : '，未推送排产'}`,
       })
     }
 
@@ -71,7 +72,7 @@ export const useRefundStore = defineStore('refund', () => {
         refundId: '',
         traceType: 'remake',
         traceTargetId: ticket.id,
-        summary: `补做工单：${ticket.reason}（${ticket.category}）`,
+        summary: `补做工单：${ticket.reason}（${ticket.category}）${ticket.status === 'completed' ? '，已完成' : ticket.status === 'producing' ? '，重做中' : '，待处理'}`,
       })
 
       const losses = remakeStore.getLossesByTicketId(ticket.id)
@@ -84,6 +85,17 @@ export const useRefundStore = defineStore('refund', () => {
           summary: `材料损耗：${loss.materialName} ${loss.quantity}${loss.unit}，¥${loss.cost}`,
         })
       }
+    }
+
+    const relatedRefunds = refunds.value.filter(r => r.orderId === orderId)
+    for (const refund of relatedRefunds) {
+      chain.push({
+        id: `trc-auto-${orderId}-ref-${refund.id}`,
+        refundId: refund.id,
+        traceType: 'order',
+        traceTargetId: refund.id,
+        summary: `退款单：${refund.reason}，¥${refund.amount}，状态：${refund.status === 'approved' ? '已批准' : refund.status === 'completed' ? '已完成' : refund.status === 'rejected' ? '已拒绝' : '处理中'}`,
+      })
     }
 
     return chain

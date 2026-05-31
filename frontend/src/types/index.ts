@@ -1,4 +1,4 @@
-export type OrderStatus = 'pending' | 'confirmed' | 'scheduled' | 'producing' | 'completed' | 'exception'
+export type OrderStatus = 'pending' | 'confirmed' | 'scheduled' | 'producing' | 'completed' | 'exception' | 'refunded'
 export type PickupStatus = 'waiting' | 'notified' | 'verified' | 'completed'
 export type RemakeStatus = 'open' | 'scheduled' | 'producing' | 'completed' | 'closed'
 export type RefundStatus = 'requested' | 'tracing' | 'approved' | 'completed' | 'rejected'

@@ -16,6 +16,7 @@ const statusConfig = computed(() => {
       producing: { label: '制作中', class: 'bg-bakery-100 text-bakery-700 border-bakery-300' },
       completed: { label: '已完成', class: 'bg-green-100 text-green-800 border-green-200' },
       exception: { label: '异常', class: 'bg-accent-light text-accent border-accent' },
+      refunded: { label: '已退款', class: 'bg-red-100 text-red-700 border-red-200' },
     },
     pickup: {
       waiting: { label: '待取货', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },

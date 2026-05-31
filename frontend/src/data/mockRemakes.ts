@@ -27,6 +27,14 @@ export const remakeTickets: RemakeTicket[] = [
     createdAt: '2026-05-29T08:00:00',
     completedAt: '2026-05-29T10:30:00',
   },
+  {
+    id: 'RMK-004',
+    orderId: 'ORD-010',
+    reason: '柠檬塔做错口味（做成柠檬慕斯杯），客户要求紧急补做',
+    category: 'wrong_item',
+    status: 'open',
+    createdAt: '2026-05-31T08:30:00',
+  },
 ]
 
 export const materialLosses: MaterialLoss[] = [

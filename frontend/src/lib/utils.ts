@@ -38,6 +38,7 @@ export const orderStatusLabels: Record<string, string> = {
   producing: '制作中',
   completed: '已完成',
   exception: '异常',
+  refunded: '已退款',
 }
 
 export const pickupStatusLabels: Record<string, string> = {
