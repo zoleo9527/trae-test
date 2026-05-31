@@ -17,6 +17,7 @@
 
     <HistoryFilterBar
       :types="recordTypes"
+      :auto-sync="isInitialized"
       @filter-change="handleFilterChange"
     />
 
@@ -208,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDataStore } from '~/stores/data'
 import { useFilterStore } from '~/stores/filter'
 import { formatDate, formatDateTime } from '~/utils/date'
@@ -246,11 +247,38 @@ const router = useRouter()
 const dataStore = useDataStore()
 const filterStore = useFilterStore()
 
+const isInitialized = ref(false)
+const pageLocalSearchText = ref('')
+
 onMounted(() => {
+  filterStore.clearAllFilters()
+  
   const projectId = route.query.projectId as string
   if (projectId) {
     filterStore.global.projectIds = [projectId]
   }
+  
+  pageLocalSearchText.value = filterStore.global.searchText
+  
+  isInitialized.value = true
+})
+
+watch(
+  () => filterStore.global.projectIds,
+  (projectIds) => {
+    if (!isInitialized.value) return
+    const query = { ...route.query }
+    if (projectIds.length > 0) {
+      query.projectId = projectIds[0]
+    } else {
+      delete query.projectId
+    }
+    router.replace({ query })
+  }
+)
+
+onUnmounted(() => {
+  filterStore.clearAllFilters()
 })
 
 const recordTypes = [

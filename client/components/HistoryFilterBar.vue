@@ -203,6 +203,7 @@ interface FilterTag {
 
 const props = defineProps<{
   types: RecordType[]
+  autoSync?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -217,6 +218,13 @@ const showStatusDropdown = ref(false)
 const localSearchText = ref(filterStore.global.searchText)
 const projectDropdownRef = ref<HTMLElement | null>(null)
 const statusDropdownRef = ref<HTMLElement | null>(null)
+
+watch(
+  () => filterStore.global.searchText,
+  (newVal) => {
+    localSearchText.value = newVal
+  }
+)
 
 const projects = computed<Project[]>(() => dataStore.projects)
 
@@ -411,6 +419,10 @@ function handleClickOutside(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  
+  if (props.autoSync) {
+    localSearchText.value = filterStore.global.searchText
+  }
 })
 
 onUnmounted(() => {
