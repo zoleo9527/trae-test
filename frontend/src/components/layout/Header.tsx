@@ -5,6 +5,7 @@ import { useRole } from '@/hooks/useRole';
 import { useAlert } from '@/hooks/useAlert';
 import { AlertTypeLabels } from '@/types';
 import { useNavigate } from 'react-router-dom';
+import { getDetailRoute, type TargetType } from '@/utils/routeMapping';
 
 export function Header() {
   const { currentUser } = useRole();
@@ -17,7 +18,7 @@ export function Header() {
   const handleAlertClick = (alert: any) => {
     markAsRead(alert.id);
     setShowNotifications(false);
-    navigate(`/${alert.targetType}`);
+    navigate(getDetailRoute(alert.targetType as TargetType, alert.targetId));
   };
 
   return (

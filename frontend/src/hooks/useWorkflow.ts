@@ -329,9 +329,10 @@ export function useWorkflow() {
           respondent: responsibility,
           description: `材料差异责任判定：${difference.description}`,
           createdAt: new Date().toISOString(),
-          ruling: resolution,
+          ruling: `材料差异责任归属：${responsibility}`,
           ruledBy: currentUser.id,
           ruledAt: new Date().toISOString(),
+          resolution: resolution,
           negotiationRecords: [
             {
               id: `neg-${Date.now()}`,
@@ -355,21 +356,24 @@ export function useWorkflow() {
         );
       } else {
         const existingRecords = existingDispute.negotiationRecords || [];
+        const newRecord = {
+          id: 'neg-' + Date.now(),
+          content: '责任判定更新：' + responsibility + '，处理方案：' + resolution,
+          author: currentUser.name,
+          timestamp: new Date().toISOString(),
+        };
         const updatedDispute = {
           ...existingDispute,
-          ruling: resolution,
+          ruling: '材料差异责任归属：' + responsibility,
           ruledBy: currentUser.id,
           ruledAt: new Date().toISOString(),
-          status: 'ruled',
-          negotiationRecords: [
-            ...existingRecords,
-            {
-              id: `neg-${Date.now()}`,
-              content: `责任判定更新：${responsibility}，处理方案：${resolution}`,
-              author: currentUser.name,
-              timestamp: new Date().toISOString(),
-            }
-          ],
+          status: 'ruled' as const,
+          resolution: resolution,
+          respondent: responsibility,
+          negotiationRecords: [...existingRecords, newRecord],
+          sourceReceiptId: existingDispute.sourceReceiptId || receipt.id,
+          sourceDifferenceId: existingDispute.sourceDifferenceId || differenceId,
+          sourceShippingId: existingDispute.sourceShippingId || receipt.shippingId,
         };
         dispatch(updateDispute(updatedDispute));
       }

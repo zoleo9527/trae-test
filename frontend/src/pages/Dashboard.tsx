@@ -1,6 +1,7 @@
 import { StatCard } from '@/components/shared/StatCard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { useApp } from '@/store/AppContext';
+import { getDetailRoute, type TargetType } from '@/utils/routeMapping';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import {
