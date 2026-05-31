@@ -65,6 +65,16 @@
 		}
 	}
 
+	let errorMsg = '';
+
+	function getValidItems(items: MaterialItem[]): MaterialItem[] {
+		return items.filter(i => i.name && i.name.trim() && i.qty > 0);
+	}
+
+	function updateTotalQty() {
+		newReq.totalQty = getValidItems(newReq.items).reduce((sum, item) => sum + item.qty, 0);
+	}
+
 	function addItem() {
 		newReq.items.push({ name: '', qty: 1, unit: '个' });
 		updateTotalQty();
@@ -75,31 +85,69 @@
 		updateTotalQty();
 	}
 
-	function updateTotalQty() {
-		newReq.totalQty = newReq.items.reduce((sum, item) => sum + (item.qty || 0), 0);
-	}
-
 	async function handleCreate() {
-		if (!newReq.shiftId || newReq.items.length === 0) return;
-		const validItems = newReq.items.filter(i => i.name && i.qty > 0);
-		if (validItems.length === 0) return;
+		errorMsg = '';
 
-		await createMaterial({
-			shiftId: newReq.shiftId,
-			items: JSON.stringify(validItems),
-			totalQty: newReq.totalQty,
-			remark: newReq.remark
-		});
+		if (!newReq.shiftId || newReq.shiftId === 0) {
+			errorMsg = '请选择班次';
+			return;
+		}
 
-		const userId = $currentUser?.ID;
-		if (userId) materials = await getMaterials({ requesterId: userId });
-		showModal = false;
-		newReq = { shiftId: 0, items: [], totalQty: 0, remark: '' };
+		const validItems = getValidItems(newReq.items);
+		if (validItems.length === 0) {
+			errorMsg = '请至少填写一项有效的耗材（名称和数量不能为空）';
+			return;
+		}
+
+		const calculatedTotal = validItems.reduce((sum, item) => sum + item.qty, 0);
+
+		try {
+			await createMaterial({
+				shiftId: newReq.shiftId,
+				items: JSON.stringify(validItems),
+				totalQty: calculatedTotal,
+				remark: newReq.remark
+			});
+
+			const userId = $currentUser?.ID;
+			if (userId) materials = await getMaterials({ requesterId: userId });
+			showModal = false;
+			newReq = { shiftId: 0, items: [], totalQty: 0, remark: '' };
+			errorMsg = '';
+		} catch (e) {
+			errorMsg = '提交失败，请重试';
+		}
 	}
 
 	function openModal() {
-		newReq = { shiftId: 0, items: [{ name: '', qty: 1, unit: '个' }], totalQty: 0, remark: '' };
+		const defaultItems = [{ name: '', qty: 1, unit: '个' }];
+		newReq = {
+			shiftId: 0,
+			items: defaultItems,
+			totalQty: getValidItems(defaultItems).reduce((sum, item) => sum + item.qty, 0),
+			remark: ''
+		};
+		errorMsg = '';
 		showModal = true;
+	}
+
+	function formatItemsDisplay(itemsStr: string): { text: string; isRaw: boolean } {
+		if (!itemsStr) return { text: '无明细', isRaw: false };
+		try {
+			const parsed = JSON.parse(itemsStr);
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				const valid = parsed.filter((i: any) => i.name && i.qty);
+				if (valid.length > 0) {
+					return {
+						text: valid.map((i: any) => `${i.name} x${i.qty}${i.unit || ''}`).join(', '),
+						isRaw: false
+					};
+				}
+			}
+			return { text: itemsStr, isRaw: true };
+		} catch {
+			return { text: itemsStr, isRaw: true };
+		}
 	}
 </script>
 
@@ -116,6 +164,7 @@
 		<div class="material-list">
 			{#each materials as req}
 				{@const items = parseItems(req.Items)}
+				{@const display = formatItemsDisplay(req.Items)}
 				<div class="material-card">
 					<div class="material-header">
 						<div class="material-items">
@@ -123,8 +172,10 @@
 								{#each items as item}
 									<span class="item-tag">{item.name} x{item.qty}{item.unit}</span>
 								{/each}
+							{:else if req.Items}
+								<span class="item-tag item-tag-raw">{display.text}</span>
 							{:else}
-								<span class="item-tag">{req.Items}</span>
+								<span class="item-tag item-tag-empty">无明细</span>
 							{/if}
 						</div>
 						<span class={`status-tag ${getStatusClass(req.Status)}`}>{getStatusLabel(req.Status)}</span>
@@ -134,6 +185,12 @@
 							<span class="label">数量：</span>
 							<span class="value">{req.TotalQty}</span>
 						</div>
+						{#if display.isRaw}
+							<div class="info-row warning-row">
+								<span class="label">⚠️ 提示：</span>
+								<span class="value">此条数据为旧格式，建议重新提交</span>
+							</div>
+						{/if}
 						<div class="info-row">
 							<span class="label">申请时间：</span>
 							<span class="value">{formatDate(req.RequestTime)}</span>
@@ -177,7 +234,7 @@
 					</div>
 					{#each newReq.items as item, i}
 						<div class="item-row">
-							<input type="text" bind:value={item.name} placeholder="耗材名称" />
+							<input type="text" bind:value={item.name} placeholder="耗材名称" on:input={updateTotalQty} />
 							<input type="number" bind:value={item.qty} min="1" placeholder="数量" on:input={updateTotalQty} />
 							<select bind:value={item.unit}>
 								<option value="个">个</option>
@@ -194,12 +251,17 @@
 
 				<div class="form-group">
 					<label>总数量</label>
-					<input type="number" bind:value={newReq.totalQty} min="1" readonly />
+					<input type="number" bind:value={newReq.totalQty} min="0" readonly />
 				</div>
 				<div class="form-group">
 					<label>备注</label>
 					<input type="text" bind:value={newReq.remark} placeholder="申请原因等" />
 				</div>
+
+				{#if errorMsg}
+					<div class="error-msg">{errorMsg}</div>
+				{/if}
+
 				<div class="modal-footer">
 					<button class="btn-cancel" on:click={() => showModal = false}>取消</button>
 					<button class="btn-primary" on:click={handleCreate}>提交申请</button>
@@ -251,6 +313,15 @@
 		border-radius: 4px;
 		font-size: 13px;
 	}
+	.item-tag-raw {
+		background: #fefcbf;
+		color: #975a16;
+		font-style: italic;
+	}
+	.item-tag-empty {
+		background: #fed7d7;
+		color: #c53030;
+	}
 	.status-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; flex-shrink: 0; }
 	.status-pending { background: #fefcbf; color: #975a16; }
 	.status-approved { background: #bee3f8; color: #2b6cb0; }
@@ -259,9 +330,18 @@
 	.material-body { padding: 16px; }
 	.info-row { display: flex; margin-bottom: 8px; font-size: 14px; }
 	.info-row:last-child { margin-bottom: 0; }
+	.warning-row { background: #fffbea; padding: 8px 12px; border-radius: 4px; margin-top: 8px; }
 	.label { color: #a0aec0; width: 80px; flex-shrink: 0; }
 	.value { color: #4a5568; flex: 1; }
 	.loading { text-align: center; padding: 40px; color: #718096; }
+	.error-msg {
+		background: #fed7d7;
+		color: #c53030;
+		padding: 10px 14px;
+		border-radius: 6px;
+		margin-bottom: 16px;
+		font-size: 14px;
+	}
 	.modal-overlay {
 		position: fixed;
 		inset: 0;

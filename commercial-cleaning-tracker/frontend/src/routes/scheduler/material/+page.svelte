@@ -22,6 +22,16 @@
 		}
 	}
 
+	let errorMsg = '';
+
+	interface ItemDisplay {
+		labels: string[];
+		isRaw: boolean;
+		isEmpty: boolean;
+		totalFromItems: number;
+		mismatch: boolean;
+	}
+
 	function parseItems(itemsStr: string): MaterialItem[] {
 		try {
 			const parsed = JSON.parse(itemsStr);
@@ -31,23 +41,50 @@
 		}
 	}
 
-	function formatItems(itemsStr: string): string[] {
-		const items = parseItems(itemsStr);
-		if (items.length > 0) {
-			return items.map(i => `${i.name} x${i.qty}${i.unit}`);
+	function getValidItems(items: MaterialItem[]): MaterialItem[] {
+		return items.filter(i => i.name && i.name.trim() && i.qty > 0);
+	}
+
+	function formatItemsDisplay(m: MaterialRequisition): ItemDisplay {
+		const itemsStr = m.Items;
+		if (!itemsStr || itemsStr.trim() === '') {
+			return { labels: ['⚠️ 无明细数据'], isRaw: false, isEmpty: true, totalFromItems: 0, mismatch: m.TotalQty > 0 };
 		}
-		return itemsStr ? [itemsStr] : [];
+
+		const items = parseItems(itemsStr);
+		const validItems = getValidItems(items);
+
+		if (items.length > 0 && validItems.length > 0) {
+			const totalFromItems = validItems.reduce((sum, i) => sum + i.qty, 0);
+			return {
+				labels: validItems.map(i => `${i.name} x${i.qty}${i.unit || ''}`),
+				isRaw: false,
+				isEmpty: false,
+				totalFromItems,
+				mismatch: Math.abs(totalFromItems - (m.TotalQty || 0)) > 0.01
+			};
+		}
+
+		return {
+			labels: [itemsStr],
+			isRaw: true,
+			isEmpty: false,
+			totalFromItems: m.TotalQty || 0,
+			mismatch: false
+		};
 	}
 
 	$: filteredMaterials = materials.filter(m => !filterStatus || m.Status === filterStatus);
 
 	async function handleApprove(id: number, status: string) {
+		errorMsg = '';
 		const remark = status === 'rejected' ? prompt('请输入拒绝原因：') : '';
+		if (status === 'rejected' && remark === null) return;
 		try {
-			await approveMaterial(id, status, remark);
+			await approveMaterial(id, status, remark || '');
 			loadData();
 		} catch (e) {
-			alert('操作失败');
+			errorMsg = '操作失败，请重试';
 		}
 	}
 
@@ -69,28 +106,45 @@
 		</select>
 	</div>
 
+	{#if errorMsg}
+		<div class="error-msg">{errorMsg}</div>
+	{/if}
+
 	{#if loading}
 		<p>加载中...</p>
 	{:else}
 		<div class="material-list">
 			{#each filteredMaterials as m}
-				{@const items = parseItems(m.Items)}
-				{@const itemLabels = items.length > 0 
-					? items.map(i => `${i.name} x${i.qty}${i.unit}`) 
-					: (m.Items ? [m.Items] : [])}
+				{@const display = formatItemsDisplay(m)}
 				<div class="material-card">
 					<div class="material-header">
 						<div>
-							<span class="requester">{m.Requester?.Name}</span>
+							<span class="requester">{m.Requester?.Name || '未知'}</span>
 							<span class="time">{new Date(m.CreatedAt).toLocaleString()}</span>
 						</div>
 						<span style={getStatusColor(m.Status)} class="status">{getStatusText(m.Status)}</span>
 					</div>
 					<div class="material-items">
-						{#each itemLabels as label}
-							<span class="item-tag">{label}</span>
+						{#each display.labels as label}
+							<span class={`item-tag ${display.isRaw ? 'item-tag-raw' : ''} ${display.isEmpty ? 'item-tag-empty' : ''}`}>
+								{label}
+							</span>
 						{/each}
 					</div>
+					<div class="qty-info">
+						<span class="label">申报总数：</span>
+						<span class="value">{m.TotalQty}</span>
+						{#if display.mismatch}
+							<span class="mismatch-warning">
+								⚠️ 与明细合计 ({display.totalFromItems}) 不一致
+							</span>
+						{/if}
+					</div>
+					{#if display.isRaw}
+						<div class="warning-msg">
+							⚠️ 此申请为旧格式数据，明细结构不完整，建议退回让申请人重新提交
+						</div>
+					{/if}
 					{#if m.Status === 'pending'}
 						<div class="actions">
 							<button class="approve-btn" on:click={() => handleApprove(m.ID, 'approved')}>批准</button>
@@ -141,6 +195,53 @@
 		background: #edf2f7;
 		border-radius: 4px;
 		font-size: 13px;
+	}
+	.item-tag-raw {
+		background: #fefcbf;
+		color: #975a16;
+		font-style: italic;
+	}
+	.item-tag-empty {
+		background: #fed7d7;
+		color: #c53030;
+	}
+	.qty-info {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 12px;
+		font-size: 14px;
+	}
+	.qty-info .label {
+		color: #a0aec0;
+	}
+	.qty-info .value {
+		color: #4a5568;
+		font-weight: 600;
+	}
+	.mismatch-warning {
+		color: #e53e3e;
+		font-size: 13px;
+		background: #fff5f5;
+		padding: 2px 8px;
+		border-radius: 4px;
+	}
+	.warning-msg {
+		background: #fffbea;
+		color: #975a16;
+		padding: 10px 14px;
+		border-radius: 6px;
+		margin-bottom: 12px;
+		font-size: 14px;
+		border-left: 3px solid #ed8936;
+	}
+	.error-msg {
+		background: #fed7d7;
+		color: #c53030;
+		padding: 10px 14px;
+		border-radius: 6px;
+		margin-bottom: 16px;
+		font-size: 14px;
 	}
 	.actions { display: flex; gap: 10px; }
 	.approve-btn {
