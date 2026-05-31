@@ -91,6 +91,11 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
       newErrors.chef = '该主厨当日产能已满';
     }
 
+    const isConfirmingAbnormal = existingScheduleId && ['pending_review', 'reviewed'].includes(order.status);
+    if (isConfirmingAbnormal && user?.role !== 'manager') {
+      newErrors.permission = '只有店长才能确认异常排期，请联系店长处理';
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -104,11 +109,11 @@ export const ScheduleForm: React.FC<ScheduleFormProps> = ({
         chefId,
       });
       
-      if (['pending_review', 'reviewed'].includes(order.status)) {
+      if (isConfirmingAbnormal) {
         updateOrderStatus(
           order.id, 
           'scheduled', 
-          `排期已确认：${scheduleDate} ${startTime}-${endTime}，负责人：${chefs.find(c => c.id === chefId)?.name}`,
+          `异常排期已确认：${scheduleDate} ${startTime}-${endTime}，负责人：${chefs.find(c => c.id === chefId)?.name}`,
           user?.name || '',
           user?.role || 'manager'
         );

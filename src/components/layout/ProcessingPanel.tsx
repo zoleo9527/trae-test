@@ -244,20 +244,33 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
                      existingSchedule.status === 'in_progress' ? '生产中' : '已完成'}
                   </p>
                 </div>
+                
                 {['pending_review', 'reviewed'].includes(selectedOrder.status) && existingSchedule && (
                   <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg">
-                    <p className="text-xs text-orange-700">
-                      ⚠️ 订单状态与排期不一致，请确认排期以同步状态
+                    <p className="text-xs text-orange-700 font-medium">
+                      ⚠️ 状态异常：订单状态与排期不一致
+                    </p>
+                    <p className="text-xs text-orange-600 mt-1">
+                      {canApprove 
+                        ? '请点击「确认排期」完成审核并同步状态'
+                        : '此排期未经过正式审核流程，请联系店长确认'}
                     </p>
                   </div>
                 )}
-                {canEdit && !['refunded', 'completed', 'cancelled'].includes(selectedOrder.status) && (
+                
+                {canApprove && !['refunded', 'completed', 'cancelled'].includes(selectedOrder.status) && (
                   <button
                     onClick={() => setShowScheduleForm(true)}
-                    className="w-full mt-3 py-2 bg-bakery-brown-100 text-bakery-brown-700 text-sm rounded-lg hover:bg-bakery-brown-200 transition-colors"
+                    className="w-full mt-3 py-2 bg-bakery-brown-100 text-bakery-brown-700 text-sm rounded-lg hover:bg-bakery-brown-200 transition-colors font-medium"
                   >
-                    {['pending_review', 'reviewed'].includes(selectedOrder.status) ? '确认排期' : '调整排期'}
+                    {['pending_review', 'reviewed'].includes(selectedOrder.status) ? '确认排期并审核' : '调整排期'}
                   </button>
+                )}
+                
+                {!canApprove && canEdit && selectedOrder.status === 'scheduled' && existingSchedule?.status === 'scheduled' && (
+                  <p className="mt-3 text-xs text-gray-500 text-center">
+                    排期已确认，如需调整请联系店长
+                  </p>
                 )}
               </div>
             )}
@@ -273,28 +286,12 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
                     审核通过
                   </button>
                 )}
-                {selectedOrder.status === 'pending_review' && canApprove && existingSchedule && (
-                  <button
-                    onClick={() => setShowScheduleForm(true)}
-                    className="py-2 bg-bakery-brown-500 text-white text-sm rounded-lg hover:bg-bakery-brown-600 transition-colors"
-                  >
-                    确认排期
-                  </button>
-                )}
                 {selectedOrder.status === 'reviewed' && canEdit && !existingSchedule && (
                   <button
                     onClick={() => setShowScheduleForm(true)}
                     className="py-2 bg-bakery-brown-500 text-white text-sm rounded-lg hover:bg-bakery-brown-600 transition-colors"
                   >
                     安排排期
-                  </button>
-                )}
-                {selectedOrder.status === 'reviewed' && canEdit && existingSchedule && (
-                  <button
-                    onClick={() => setShowScheduleForm(true)}
-                    className="py-2 bg-bakery-brown-500 text-white text-sm rounded-lg hover:bg-bakery-brown-600 transition-colors"
-                  >
-                    确认排期
                   </button>
                 )}
                 {selectedOrder.status === 'scheduled' && canEdit && existingSchedule?.status === 'scheduled' && (
