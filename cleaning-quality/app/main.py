@@ -8,7 +8,7 @@ from app.database import engine, Base
 from app.middleware.audit import AuditMiddleware
 from app.routers import dashboard, project, schedule, inspection, rectification, consumable, contract
 from app.services.state_machine import StateTransitionError, ConcurrentTransitionError
-from app.services.idempotency import DuplicateSubmissionError
+from app.services.idempotency import DuplicateSubmissionError, MissingIdempotencyKeyError
 
 
 @asynccontextmanager
@@ -58,6 +58,14 @@ async def duplicate_submission_handler(request: Request, exc: DuplicateSubmissio
     )
 
 
+@app.exception_handler(MissingIdempotencyKeyError)
+async def missing_idempotency_key_handler(request: Request, exc: MissingIdempotencyKeyError):
+    return JSONResponse(
+        status_code=400,
+        content={"error": "MISSING_IDEMPOTENCY_KEY", "detail": str(exc)},
+    )
+
+
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(project.router, prefix=API_PREFIX)
 app.include_router(schedule.router, prefix=API_PREFIX)
@@ -73,13 +81,17 @@ def root():
         "service": "商用清洁-质检抽查与整改闭环",
         "docs": "/docs",
         "api_prefix": API_PREFIX,
-        "required_headers": [
-            "X-Operator-Id: 操作人ID",
-            "X-Operator-Name: 操作人姓名",
-            "X-Operator-Role: 操作人角色 (admin/project_manager/schedule_staff/inspector)",
-        ],
-        "optional_headers": [
-            "X-Idempotency-Key: 幂等键，防止重复提交（创建类操作）",
-            "X-Expected-Version: 预期版本号，乐观锁（状态流转类操作）",
-        ],
+        "required_headers": {
+            "all_write_endpoints": [
+                "X-Operator-Id: 操作人ID",
+                "X-Operator-Name: 操作人姓名",
+                "X-Operator-Role: 操作人角色 (admin/project_manager/schedule_staff/inspector)",
+            ],
+            "create_endpoints": [
+                "X-Idempotency-Key: 幂等键（必填，防止重复提交）",
+            ],
+            "status_transition_endpoints": [
+                "X-Expected-Version: 预期版本号（必填，乐观锁并发控制）",
+            ],
+        },
     }

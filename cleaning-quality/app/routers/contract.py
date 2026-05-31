@@ -6,7 +6,7 @@ from app.schemas.contract import ContractCreate, ContractUpdate, ContractFollowU
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
 from app.services import contract as svc
 
 router = APIRouter(prefix="/contracts", tags=["合同续约"])
@@ -30,7 +30,7 @@ def create_contract(
     data: ContractCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "contract", operator.operator_id)
@@ -41,6 +41,8 @@ def create_contract(
         return c
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(400, str(e))
 

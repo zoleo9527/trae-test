@@ -6,7 +6,7 @@ from app.schemas.inspection import InspectionCreate, InspectionUpdate, Inspectio
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import ConcurrentTransitionError, StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
 from app.services import inspection as svc
 
 router = APIRouter(prefix="/inspections", tags=["质检抽查"])
@@ -35,7 +35,7 @@ def create_inspection(
     data: InspectionCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "inspection", operator.operator_id)
@@ -45,6 +45,8 @@ def create_inspection(
         return i
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.put("/{inspection_id}/status", response_model=InspectionOut)
@@ -53,7 +55,7 @@ def update_inspection_status(
     data: InspectionUpdate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         i = svc.update_inspection_status(

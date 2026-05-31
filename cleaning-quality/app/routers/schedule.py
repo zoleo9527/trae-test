@@ -6,7 +6,7 @@ from app.database import get_db
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleCheckIn, ScheduleCheckOut, ScheduleOut
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
 from app.services import schedule as svc
 
 router = APIRouter(prefix="/schedules", tags=["排班打卡"])
@@ -36,7 +36,7 @@ def create_schedule(
     data: ScheduleCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "schedule", operator.operator_id)
@@ -47,6 +47,8 @@ def create_schedule(
         return s
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
     except ValueError as e:
         raise HTTPException(409, str(e))
 

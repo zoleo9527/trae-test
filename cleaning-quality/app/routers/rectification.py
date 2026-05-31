@@ -6,7 +6,7 @@ from app.schemas.rectification import RectificationCreate, RectificationAssign, 
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import ConcurrentTransitionError, StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
 from app.services import rectification as svc
 
 router = APIRouter(prefix="/rectifications", tags=["整改闭环"])
@@ -36,7 +36,7 @@ def create_rectification(
     data: RectificationCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "rectification", operator.operator_id)
@@ -46,6 +46,8 @@ def create_rectification(
         return r
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/{rectification_id}/assign", response_model=RectificationOut)
@@ -54,7 +56,7 @@ def assign_rectification(
     data: RectificationAssign,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         r = svc.assign_rectification(
@@ -76,7 +78,7 @@ def start_rectification(
     rectification_id: int,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         r = svc.start_rectification(
@@ -99,7 +101,7 @@ def submit_rectification(
     data: RectificationSubmit,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         r = svc.submit_rectification(
@@ -122,7 +124,7 @@ def review_rectification(
     data: RectificationReview,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         r = svc.review_rectification(

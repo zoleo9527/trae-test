@@ -5,12 +5,21 @@ from app.models.idempotency import IdempotencyKey
 
 
 class DuplicateSubmissionError(Exception):
-    def __init__(self, key: str, entity_type: str, entity_id: Optional[int] = None):
+    def __init__(self, key: str, entity_type: str, operator_id: str, entity_id: Optional[int] = None):
         self.key = key
         self.entity_type = entity_type
+        self.operator_id = operator_id
         self.entity_id = entity_id
         super().__init__(
-            f"检测到重复提交: 幂等键 {key} 已存在，请使用新的幂等键重试"
+            f"检测到重复提交: 操作人 {operator_id} 在 {entity_type} 下的幂等键 {key} 已存在，请使用新的幂等键重试"
+        )
+
+
+class MissingIdempotencyKeyError(Exception):
+    def __init__(self, entity_type: str):
+        self.entity_type = entity_type
+        super().__init__(
+            f"缺少幂等键: 请在请求头中提供 X-Idempotency-Key 用于 {entity_type} 操作的重复提交保护"
         )
 
 
@@ -22,13 +31,15 @@ def check_idempotency(
     ttl_hours: int = 24,
 ) -> Optional[IdempotencyKey]:
     if not key:
-        return None
+        raise MissingIdempotencyKeyError(entity_type)
     existing = db.query(IdempotencyKey).filter(
-        IdempotencyKey.idempotency_key == key
+        IdempotencyKey.idempotency_key == key,
+        IdempotencyKey.entity_type == entity_type,
+        IdempotencyKey.operator_id == operator_id,
     ).first()
     if existing:
         if existing.expires_at > datetime.utcnow():
-            raise DuplicateSubmissionError(key, entity_type, existing.entity_id)
+            raise DuplicateSubmissionError(key, entity_type, operator_id, existing.entity_id)
         else:
             db.delete(existing)
             db.flush()
@@ -45,7 +56,7 @@ def create_idempotency_record(
     ttl_hours: int = 24,
 ) -> IdempotencyKey:
     if not key:
-        return None
+        raise MissingIdempotencyKeyError(entity_type)
     record = IdempotencyKey(
         idempotency_key=key,
         entity_type=entity_type,

@@ -13,7 +13,7 @@ from app.schemas.consumable import (
 from app.schemas.operator import OperatorContext
 from app.dependencies import get_operator_context
 from app.services.state_machine import ConcurrentTransitionError, StateTransitionError
-from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError
+from app.services.idempotency import check_idempotency, create_idempotency_record, DuplicateSubmissionError, MissingIdempotencyKeyError
 from app.services import consumable as svc
 
 router = APIRouter(prefix="/consumables", tags=["耗材管理"])
@@ -29,7 +29,7 @@ def create_consumable(
     data: ConsumableCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "consumable", operator.operator_id)
@@ -39,6 +39,8 @@ def create_consumable(
         return c
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/orders", response_model=list[ConsumableOrderOut])
@@ -51,7 +53,7 @@ def create_order(
     data: ConsumableOrderCreate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
 ):
     try:
         check_idempotency(db, x_idempotency_key, "consumable_order", operator.operator_id)
@@ -61,6 +63,8 @@ def create_order(
         return o
     except DuplicateSubmissionError as e:
         raise HTTPException(409, str(e))
+    except MissingIdempotencyKeyError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/orders/{order_id}/approve", response_model=ConsumableOrderOut)
@@ -69,7 +73,7 @@ def approve_order(
     data: ConsumableOrderApprove,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         o = svc.approve_consumable_order(
@@ -91,7 +95,7 @@ def fulfill_order(
     order_id: int,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         o = svc.fulfill_consumable_order(
@@ -122,7 +126,7 @@ def update_consumable(
     data: ConsumableUpdate,
     db: Session = Depends(get_db),
     operator: OperatorContext = Depends(get_operator_context),
-    x_expected_version: Optional[int] = Header(None, alias="X-Expected-Version"),
+    x_expected_version: int = Header(..., alias="X-Expected-Version"),
 ):
     try:
         c = svc.update_consumable(
