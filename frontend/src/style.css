@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #FAF6F1;
+  color: #3E2723;
+}
+
+body {
+  margin: 0;
+  min-width: 1280px;
+  min-height: 100vh;
+}
+
+.font-mono {
+  font-family: 'DM Mono', Menlo, monospace;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-bakery-500 hover:bg-bakery-600 text-white px-4 py-2 rounded-lg transition-colors font-medium;
+  }
+  .btn-secondary {
+    @apply border border-bakery-400 text-bakery-700 hover:bg-bakery-100 px-4 py-2 rounded-lg transition-colors font-medium;
+  }
+  .btn-danger {
+    @apply bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg transition-colors font-medium;
+  }
+  .btn-ghost {
+    @apply text-bakery-600 hover:bg-bakery-100 px-3 py-1.5 rounded-lg transition-colors;
+  }
+  .card {
+    @apply bg-white rounded-lg border border-bakery-200 shadow-sm;
+  }
+  .input-field {
+    @apply border border-bakery-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-bakery-400 focus:border-transparent;
+  }
+  .nav-item {
+    @apply flex items-center gap-2 px-3 py-2.5 rounded-lg text-bakery-700 hover:bg-bakery-100 transition-colors cursor-pointer;
+  }
+  .nav-item-active {
+    @apply bg-bakery-500 text-white hover:bg-bakery-600;
+  }
+}
+

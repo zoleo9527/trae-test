@@ -1,0 +1,138 @@
+import type { Refund, RefundTrace, ReviewItem } from '@/types'
+
+export const refunds: Refund[] = [
+  {
+    id: 'REF-001',
+    orderId: 'ORD-011',
+    amount: 256,
+    reason: '草莓蛋糕重做后品质仍不达标，客户拒绝再次重做，要求全额退款',
+    status: 'completed',
+    approvedBy: '王店长',
+    createdAt: '2026-05-29T11:00:00',
+    completedAt: '2026-05-29T15:30:00',
+  },
+  {
+    id: 'REF-002',
+    orderId: 'ORD-012',
+    amount: 114,
+    reason: '配送过程中招牌生吐司被压变形，3个中有2个无法食用，客户申请部分退款',
+    status: 'tracing',
+    createdAt: '2026-05-31T11:00:00',
+  },
+]
+
+export const refundTraces: RefundTrace[] = [
+  {
+    id: 'TRC-001',
+    refundId: 'REF-001',
+    traceType: 'order',
+    traceTargetId: 'ORD-011',
+    summary: '原始订单：草莓蛋糕6寸 ¥198 + 伯爵红茶卷 ¥58 = ¥256',
+  },
+  {
+    id: 'TRC-002',
+    refundId: 'REF-001',
+    traceType: 'remake',
+    traceTargetId: 'RMK-003',
+    summary: '重做工单：客户投诉草莓不新鲜、奶油发酸，首次重做仍不达标',
+  },
+  {
+    id: 'TRC-003',
+    refundId: 'REF-001',
+    traceType: 'loss',
+    traceTargetId: 'ML-007',
+    summary: '材料损耗：草莓 1.5kg ¥52（首次重做报废）',
+  },
+  {
+    id: 'TRC-004',
+    refundId: 'REF-001',
+    traceType: 'loss',
+    traceTargetId: 'ML-008',
+    summary: '材料损耗：淡奶油 0.5kg ¥30（首次重做报废）',
+  },
+  {
+    id: 'TRC-005',
+    refundId: 'REF-001',
+    traceType: 'loss',
+    traceTargetId: 'ML-009',
+    summary: '材料损耗：蛋糕胚 1个 ¥25（首次重做报废）',
+  },
+  {
+    id: 'TRC-006',
+    refundId: 'REF-001',
+    traceType: 'loss',
+    traceTargetId: 'ML-010',
+    summary: '材料损耗：细砂糖 0.2kg ¥4（首次重做报废）',
+  },
+  {
+    id: 'TRC-007',
+    refundId: 'REF-002',
+    traceType: 'order',
+    traceTargetId: 'ORD-012',
+    summary: '原始订单：招牌生吐司 x3 ¥114 + 法式可颂(6个) x1 ¥68 = ¥182',
+  },
+  {
+    id: 'TRC-008',
+    refundId: 'REF-002',
+    traceType: 'loss',
+    traceTargetId: 'ORD-012',
+    summary: '损坏项：招牌生吐司 x2 ¥76，占总订单42%',
+  },
+]
+
+export const reviewItems: ReviewItem[] = [
+  {
+    id: 'REV-001',
+    type: 'change',
+    targetId: 'CHG-001',
+    orderId: 'ORD-007',
+    summary: '草莓蛋糕尺寸从8寸改为6寸，需调整排程',
+    status: 'approved',
+    createdAt: '2026-05-29T08:30:00',
+  },
+  {
+    id: 'REV-002',
+    type: 'change',
+    targetId: 'CHG-002',
+    orderId: 'ORD-008',
+    summary: '取货时间从10:00改为13:00',
+    status: 'approved',
+    createdAt: '2026-05-30T09:00:00',
+  },
+  {
+    id: 'REV-003',
+    type: 'change',
+    targetId: 'CHG-003',
+    orderId: 'ORD-014',
+    summary: '巧克力熔岩蛋糕和伯爵红茶卷数量翻倍',
+    status: 'approved',
+    createdAt: '2026-05-30T14:00:00',
+  },
+  {
+    id: 'REV-004',
+    type: 'remake',
+    targetId: 'RMK-003',
+    orderId: 'ORD-011',
+    summary: '草莓蛋糕重做后仍不达标，需审批重做工单',
+    status: 'approved',
+    createdAt: '2026-05-29T09:00:00',
+  },
+  {
+    id: 'REV-005',
+    type: 'refund',
+    targetId: 'REF-001',
+    orderId: 'ORD-011',
+    summary: '草莓蛋糕重做失败，客户要求全额退款¥256',
+    status: 'approved',
+    createdAt: '2026-05-29T12:00:00',
+  },
+  {
+    id: 'REV-006',
+    type: 'refund',
+    targetId: 'REF-002',
+    orderId: 'ORD-012',
+    summary: '配送损坏导致招牌生吐司无法食用，部分退款¥114',
+    status: 'pending',
+    createdAt: '2026-05-31T11:00:00',
+  },
+]
