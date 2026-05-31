@@ -1,0 +1,1 @@
+import{x as a,v as o,k as u,m as c,l as x}from"./C8rCKTSy.js";function i(e){const t=e||o();return t?.ssrContext?.head||t?.runWithContext(()=>{if(u())return c(x)})}function d(e,t={}){const n=i(t.nuxt);if(n)return a(e,{head:n,...t})}const h=(e,t)=>{const n=e.__vccOpts||e;for(const[s,r]of t)n[s]=r;return n};export{h as _,d as u};
