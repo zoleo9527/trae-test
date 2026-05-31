@@ -150,7 +150,7 @@ export const orders: Order[] = [
       { name: '伯爵红茶卷', quantity: 1, unitPrice: 58 },
     ],
     totalPrice: 256,
-    status: 'exception',
+    status: 'refunded',
     pickupDate: '2026-05-29',
     pickupTime: '15:00',
     createdAt: '2026-05-27T20:10:00',

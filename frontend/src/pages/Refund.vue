@@ -98,7 +98,7 @@ function getOrder(refundId: string) {
 function getTraceChain(refundId: string) {
   const refund = refundStore.refunds.find(r => r.id === refundId)
   if (!refund) return []
-  return refundStore.buildTraceChain(refund.orderId)
+  return refundStore.buildTraceChain(refund.orderId, refundId)
 }
 
 function selectRefund(refundId: string) {

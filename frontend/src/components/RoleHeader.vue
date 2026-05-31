@@ -31,7 +31,7 @@ const roleStats = computed(() => {
       { label: '待复核', count: reviewStore.pendingReviews.length, type: 'review' as const },
       { label: '待确认订单', count: orderStore.pendingOrders.length, type: 'order' as const },
       { label: '异常订单', count: orderStore.exceptionOrders.length, type: 'exception' as const },
-      { label: '待处理退款', count: refundStore.pendingRefunds.length, type: 'refund' as const },
+      { label: '已退款订单', count: orderStore.refundedOrders.length, type: 'refund' as const },
     ]
   } else if (role === 'kitchen') {
     return [
@@ -50,7 +50,10 @@ const roleStats = computed(() => {
   }
 })
 
-const totalPending = computed(() => roleStats.value.reduce((sum, s) => sum + s.count, 0))
+const totalPending = computed(() => {
+  const pendingTypes = new Set(['review', 'order', 'exception', 'remake', 'change', 'pickup', 'complaint'])
+  return roleStats.value.filter(s => pendingTypes.has(s.type)).reduce((sum, s) => sum + s.count, 0)
+})
 </script>
 
 <template>
@@ -80,12 +83,37 @@ const totalPending = computed(() => roleStats.value.reduce((sum, s) => sum + s.c
       <div
         v-for="stat in roleStats"
         :key="stat.label"
-        class="bg-bakery-50 rounded-lg p-3 border border-bakery-100"
+        class="rounded-lg p-3 border"
+        :class="{
+          'bg-bakery-50 border-bakery-100': stat.type === 'order' || stat.type === 'schedule' || stat.type === 'remake',
+          'bg-purple-50 border-purple-100': stat.type === 'review' || stat.type === 'change',
+          'bg-orange-50 border-orange-100': stat.type === 'exception' || stat.type === 'complaint',
+          'bg-red-50 border-red-100': stat.type === 'refund',
+          'bg-blue-50 border-blue-100': stat.type === 'pickup',
+        }"
       >
-        <div class="text-2xl font-bold text-bakery-800 font-mono">
+        <div
+          class="text-2xl font-bold font-mono"
+          :class="{
+            'text-bakery-800': stat.type === 'order' || stat.type === 'schedule' || stat.type === 'remake',
+            'text-purple-700': stat.type === 'review' || stat.type === 'change',
+            'text-orange-700': stat.type === 'exception' || stat.type === 'complaint',
+            'text-red-700': stat.type === 'refund',
+            'text-blue-700': stat.type === 'pickup',
+          }"
+        >
           {{ stat.count }}
         </div>
-        <div class="text-xs text-bakery-500 mt-1">{{ stat.label }}</div>
+        <div
+          class="text-xs mt-1"
+          :class="{
+            'text-bakery-500': stat.type === 'order' || stat.type === 'schedule' || stat.type === 'remake',
+            'text-purple-500': stat.type === 'review' || stat.type === 'change',
+            'text-orange-500': stat.type === 'exception' || stat.type === 'complaint',
+            'text-red-500': stat.type === 'refund',
+            'text-blue-500': stat.type === 'pickup',
+          }"
+        >{{ stat.label }}</div>
       </div>
     </div>
   </div>
