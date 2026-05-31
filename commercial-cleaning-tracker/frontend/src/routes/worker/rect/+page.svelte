@@ -1,15 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Layout from '$lib/components/Layout.svelte';
-	import { getMyShifts } from '$lib/stores';
-	import type { Shift, Rectification } from '$lib/types';
+	import { getRectifications, completeRectification, currentUser } from '$lib/stores';
+	import type { Rectification } from '$lib/types';
 
-	let shifts: Shift[] = [];
+	let rectifications: Rectification[] = [];
 	let loading = true;
 
 	onMount(async () => {
 		try {
-			shifts = await getMyShifts();
+			const userId = $currentUser?.ID;
+			if (userId) {
+				rectifications = await getRectifications({ assigneeId: userId });
+			}
 		} finally {
 			loading = false;
 		}
@@ -17,9 +20,10 @@
 
 	function getStatusLabel(status: string) {
 		const labels: Record<string, string> = {
-			pending: '待整改',
+			open: '待分配',
+			assigned: '待整改',
 			in_progress: '整改中',
-			completed: '待验证',
+			done: '待验证',
 			verified: '已通过'
 		};
 		return labels[status] || status;
@@ -27,9 +31,10 @@
 
 	function getStatusClass(status: string) {
 		const classes: Record<string, string> = {
-			pending: 'status-pending',
+			open: 'status-open',
+			assigned: 'status-assigned',
 			in_progress: 'status-progress',
-			completed: 'status-completed',
+			done: 'status-done',
 			verified: 'status-verified'
 		};
 		return classes[status] || '';
@@ -39,47 +44,13 @@
 		return new Date(dateStr).toLocaleDateString('zh-CN');
 	}
 
-	async function handleStart(rectId: number) {
-		await fetch(`http://localhost:3000/api/rectifications/${rectId}/start`, {
-			method: 'PUT',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${localStorage.getItem('token')}`
-			}
-		});
-		shifts = await getMyShifts();
+	async function handleComplete(rect: Rectification) {
+		await completeRectification(rect.ID, '已按要求完成整改');
+		const userId = $currentUser?.ID;
+		if (userId) rectifications = await getRectifications({ assigneeId: userId });
 	}
 
-	async function handleComplete(rectId: number) {
-		await fetch(`http://localhost:3000/api/rectifications/${rectId}/complete`, {
-			method: 'PUT',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${localStorage.getItem('token')}`
-			},
-			body: JSON.stringify({ result: '已按要求完成整改' })
-		});
-		shifts = await getMyShifts();
-	}
-
-	$: rectifications = [] as (Rectification & { shiftDate: string; area: string })[];
-	$: {
-		const result: (Rectification & { shiftDate: string; area: string })[] = [];
-		shifts.forEach((s) => {
-			s.inspections?.forEach((i: any) => {
-				if (i.rectification) {
-					result.push({
-						...i.rectification,
-						shiftDate: s.date,
-						area: s.area
-					});
-				}
-			});
-		});
-		rectifications = result;
-	}
-
-	$: pendingCount = rectifications.filter((r) => r.status === 'pending' || r.status === 'in_progress').length;
+	$: pendingCount = rectifications.filter((r) => r.Status === 'assigned' || r.Status === 'in_progress').length;
 </script>
 
 <Layout title="整改任务" activeMenu="rect">
@@ -102,38 +73,37 @@
 				<div class="rect-card">
 					<div class="rect-header">
 						<div>
-							<span class={`status-tag ${getStatusClass(rect.status)}`}>{getStatusLabel(rect.status)}</span>
-							<span class="shift-info">{formatDate(rect.shiftDate)} {rect.area}</span>
+							<span class={`status-tag ${getStatusClass(rect.Status)}`}>{getStatusLabel(rect.Status)}</span>
+							<span class="deadline">截止：{formatDate(rect.Deadline)}</span>
 						</div>
-						{#if rect.deadline}
-							<span class="deadline">截止：{formatDate(rect.deadline)}</span>
-						{/if}
 					</div>
 					<div class="rect-body">
 						<div class="section">
 							<span class="section-title">整改要求</span>
-							<p class="section-content">{rect.requirements}</p>
+							<p class="section-content">{rect.Description}</p>
 						</div>
-						{#if rect.result}
+						{#if rect.Actions}
 							<div class="section">
-								<span class="section-title">整改结果</span>
-								<p class="section-content">{rect.result}</p>
+								<span class="section-title">整改指引</span>
+								<p class="section-content">{rect.Actions}</p>
 							</div>
 						{/if}
-						{#if rect.verifiedBy}
+						{#if rect.CompletedNote}
+							<div class="section">
+								<span class="section-title">整改结果</span>
+								<p class="section-content">{rect.CompletedNote}</p>
+							</div>
+						{/if}
+						{#if rect.VerifiedBy}
 							<div class="section">
 								<span class="section-title">验证意见</span>
-								<p class="section-content">{rect.verificationNotes || '验证通过'}</p>
+								<p class="section-content">{rect.VerifyNote || '验证通过'}</p>
 							</div>
 						{/if}
 					</div>
-					{#if rect.status === 'pending' || rect.status === 'in_progress'}
+					{#if rect.Status === 'assigned' || rect.Status === 'in_progress'}
 						<div class="rect-footer">
-							{#if rect.status === 'pending'}
-								<button class="btn-start" on:click={() => handleStart(rect.id)}>开始整改</button>
-							{:else if rect.status === 'in_progress'}
-								<button class="btn-complete" on:click={() => handleComplete(rect.id)}>提交整改</button>
-							{/if}
+							<button class="btn-complete" on:click={() => handleComplete(rect)}>提交整改</button>
 						</div>
 					{/if}
 				</div>
@@ -157,13 +127,8 @@
 		min-width: 120px;
 	}
 
-	.stat-card.warning {
-		border-left: 4px solid #ed8936;
-	}
-
-	.stat-card.total {
-		border-left: 4px solid #667eea;
-	}
+	.stat-card.warning { border-left: 4px solid #ed8936; }
+	.stat-card.total { border-left: 4px solid #667eea; }
 
 	.stat-number {
 		display: block;
@@ -172,16 +137,9 @@
 		color: #2d3748;
 	}
 
-	.stat-label {
-		font-size: 13px;
-		color: #718096;
-	}
+	.stat-label { font-size: 13px; color: #718096; }
 
-	.rect-list {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
+	.rect-list { display: flex; flex-direction: column; gap: 16px; }
 
 	.rect-card {
 		background: white;
@@ -199,86 +157,25 @@
 		align-items: center;
 	}
 
-	.status-tag {
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 12px;
-		margin-right: 12px;
-	}
+	.status-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; margin-right: 12px; }
+	.status-open { background: #e2e8f0; color: #718096; }
+	.status-assigned { background: #fed7d7; color: #c53030; }
+	.status-progress { background: #fefcbf; color: #975a16; }
+	.status-done { background: #bee3f8; color: #2b6cb0; }
+	.status-verified { background: #c6f6d5; color: #276749; }
 
-	.status-pending {
-		background: #fed7d7;
-		color: #c53030;
-	}
+	.deadline { font-size: 12px; color: #c53030; }
 
-	.status-progress {
-		background: #fefcbf;
-		color: #975a16;
-	}
-
-	.status-completed {
-		background: #bee3f8;
-		color: #2b6cb0;
-	}
-
-	.status-verified {
-		background: #c6f6d5;
-		color: #276749;
-	}
-
-	.shift-info {
-		font-size: 14px;
-		color: #4a5568;
-	}
-
-	.deadline {
-		font-size: 12px;
-		color: #c53030;
-	}
-
-	.rect-body {
-		padding: 16px;
-	}
-
-	.section {
-		margin-bottom: 12px;
-	}
-
-	.section:last-child {
-		margin-bottom: 0;
-	}
-
-	.section-title {
-		display: block;
-		font-size: 12px;
-		color: #a0aec0;
-		margin-bottom: 4px;
-	}
-
-	.section-content {
-		margin: 0;
-		color: #2d3748;
-		line-height: 1.6;
-	}
+	.rect-body { padding: 16px; }
+	.section { margin-bottom: 12px; }
+	.section:last-child { margin-bottom: 0; }
+	.section-title { display: block; font-size: 12px; color: #a0aec0; margin-bottom: 4px; }
+	.section-content { margin: 0; color: #2d3748; line-height: 1.6; }
 
 	.rect-footer {
 		padding: 12px 16px;
 		border-top: 1px solid #e2e8f0;
 		text-align: right;
-	}
-
-	.btn-start {
-		padding: 8px 20px;
-		background: #ed8936;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 13px;
-	}
-
-	.btn-start:hover {
-		background: #dd6b20;
 	}
 
 	.btn-complete {
@@ -291,13 +188,6 @@
 		font-size: 13px;
 	}
 
-	.btn-complete:hover {
-		background: #38a169;
-	}
-
-	.loading {
-		text-align: center;
-		padding: 40px;
-		color: #718096;
-	}
+	.btn-complete:hover { background: #38a169; }
+	.loading { text-align: center; padding: 40px; color: #718096; }
 </style>

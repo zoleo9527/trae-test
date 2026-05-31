@@ -16,7 +16,7 @@
 		}
 	}
 
-	$: filteredRects = filterStatus ? rects.filter(r => r.status === filterStatus) : rects;
+	$: filteredRects = filterStatus ? rects.filter(r => r.Status === filterStatus) : rects;
 
 	async function handleVerify(id: number) {
 		const note = prompt('验证意见：');
@@ -57,24 +57,24 @@
 			{#each filteredRects as r}
 				<div class="rect-card">
 					<div class="rect-header">
-						<span class="status" style={getStatusColor(r.status)}>{getStatusText(r.status)}</span>
-						<span class="deadline">截止: {new Date(r.deadline).toLocaleDateString()}</span>
+						<span class="status" style={getStatusColor(r.Status)}>{getStatusText(r.Status)}</span>
+						<span class="deadline">截止: {new Date(r.Deadline).toLocaleDateString()}</span>
 					</div>
 					<div class="rect-info">
-						<span class="assignee">负责人: {r.assignee.name}</span>
+						<span class="assignee">负责人: {r.Assignee?.Name}</span>
 					</div>
-					<p class="desc">{r.description}</p>
-					{#if r.completedNote}
+					<p class="desc">{r.Description}</p>
+					{#if r.CompletedNote}
 						<div class="completed">
-							<strong>完成说明：</strong>{r.completedNote}
+							<strong>完成说明：</strong>{r.CompletedNote}
 						</div>
 					{/if}
-					{#if r.status === 'done'}
-						<button class="verify-btn" on:click={() => handleVerify(r.id)}>验证通过</button>
+					{#if r.Status === 'done'}
+						<button class="verify-btn" on:click={() => handleVerify(r.ID)}>验证通过</button>
 					{/if}
-					{#if r.verifyNote}
+					{#if r.VerifyNote}
 						<div class="verify-note">
-							<strong>验证意见：</strong>{r.verifyNote}
+							<strong>验证意见：</strong>{r.VerifyNote}
 						</div>
 					{/if}
 				</div>

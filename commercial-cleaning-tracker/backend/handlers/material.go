@@ -235,9 +235,9 @@ func GetTraceChain(c *fiber.Ctx) error {
 	rectSet := make(map[uint]bool)
 	for _, shift := range shifts {
 		for _, insp := range shift.Inspections {
-			if insp.Rectification != nil && !rectSet[insp.RectificationID] {
-				rectSet[insp.RectificationID] = true
-				rectIDs = append(rectIDs, insp.RectificationID)
+			if insp.Rectification != nil && !rectSet[insp.Rectification.ID] {
+				rectSet[insp.Rectification.ID] = true
+				rectIDs = append(rectIDs, insp.Rectification.ID)
 			}
 		}
 	}
@@ -288,7 +288,7 @@ func GetTraceChain(c *fiber.Ctx) error {
 			if shift.Inspections[0].Rectification != nil {
 				tc.HasRect = true
 				tc.RectStatus = string(shift.Inspections[0].Rectification.Status)
-				tc.RectID = &shift.Inspections[0].RectificationID
+				tc.RectID = &shift.Inspections[0].Rectification.ID
 			}
 		}
 
@@ -308,7 +308,7 @@ func GetTraceChain(c *fiber.Ctx) error {
 
 		for _, insp := range shift.Inspections {
 			if insp.Rectification != nil {
-				if fus, ok := rectFollowUpMap[insp.RectificationID]; ok {
+				if fus, ok := rectFollowUpMap[insp.Rectification.ID]; ok {
 					for _, fu := range fus {
 						followUpTypes[string(fu.Type)] = true
 						followUpCount++

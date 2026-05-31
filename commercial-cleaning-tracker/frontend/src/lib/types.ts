@@ -1,140 +1,155 @@
 export type UserRole = 'scheduler' | 'worker' | 'inspector' | 'manager';
 
 export interface User {
-	id: number;
-	username: string;
-	name: string;
-	role: UserRole;
-	phone: string;
+	ID: number;
+	Username: string;
+	Name: string;
+	Role: UserRole;
+	Phone: string;
+	Avatar: string;
 }
 
 export interface Project {
-	id: number;
-	name: string;
-	address: string;
-	customerName: string;
-	customerPhone: string;
-	contractStart: string;
-	contractEnd: string;
-	status: string;
+	ID: number;
+	Name: string;
+	Address: string;
+	CustomerName: string;
+	CustomerPhone: string;
+	ContractStart: string;
+	ContractEnd: string;
+	Status: string;
+	ManagerID: number;
+	Manager: User;
 }
 
 export type ScheduleStatus = 'draft' | 'published' | 'completed';
+
+export interface Schedule {
+	ID: number;
+	ProjectID: number;
+	Project: Project;
+	WeekStart: string;
+	WeekEnd: string;
+	Status: ScheduleStatus;
+	CreatedBy: number;
+	Creator: User;
+	Shifts: Shift[];
+}
+
 export type ShiftType = 'morning' | 'afternoon' | 'night' | 'full';
 
 export interface Shift {
-	id: number;
-	scheduleId: number;
-	workerId: number;
-	worker: User;
-	date: string;
-	shiftType: ShiftType;
-	startTime: string;
-	endTime: string;
-	area: string;
-	tasks: string;
-	checkIns: CheckIn[];
-	inspections: Inspection[];
-	materialReqs: MaterialRequisition[];
-}
-
-export interface Schedule {
-	id: number;
-	projectId: number;
-	project: Project;
-	weekStart: string;
-	weekEnd: string;
-	status: ScheduleStatus;
-	createdBy: number;
-	shifts: Shift[];
+	ID: number;
+	ScheduleID: number;
+	Schedule: Schedule;
+	WorkerID: number;
+	Worker: User;
+	Date: string;
+	ShiftType: ShiftType;
+	StartTime: string;
+	EndTime: string;
+	Area: string;
+	Tasks: string;
+	CheckIns: CheckIn[];
+	Inspections: Inspection[];
+	MaterialReqs: MaterialRequisition[];
 }
 
 export type CheckInStatus = 'normal' | 'late' | 'early' | 'missing' | 'exception';
 
 export interface CheckIn {
-	id: number;
-	shiftId: number;
-	workerId: number;
-	worker: User;
-	checkInTime: string | null;
-	checkOutTime: string | null;
-	status: CheckInStatus;
-	photoURL: string;
-	location: string;
-	remark: string;
-	isCorrected: boolean;
-	correctNote: string;
+	ID: number;
+	ShiftID: number;
+	WorkerID: number;
+	Worker: User;
+	CheckInTime: string | null;
+	CheckOutTime: string | null;
+	Status: CheckInStatus;
+	PhotoURL: string;
+	Location: string;
+	Remark: string;
+	IsCorrected: boolean;
+	CorrectedBy: number | null;
+	Corrector: User | null;
+	CorrectTime: string | null;
+	CorrectNote: string;
 }
 
 export type InspectionResult = 'pass' | 'fail' | 'pending';
 
 export interface Inspection {
-	id: number;
-	shiftId: number;
-	inspectorId: number;
-	inspector: User;
-	inspectTime: string;
-	result: InspectionResult;
-	score: number;
-	items: string;
-	problems: string;
-	photoURLs: string;
-	remark: string;
-	rectification: Rectification | null;
+	ID: number;
+	ShiftID: number;
+	InspectorID: number;
+	Inspector: User;
+	InspectTime: string;
+	Result: InspectionResult;
+	Score: number;
+	Items: string;
+	Problems: string;
+	PhotoURLs: string;
+	Remark: string;
+	Rectification: Rectification | null;
 }
 
 export type RectificationStatus = 'open' | 'assigned' | 'in_progress' | 'done' | 'verified';
 
 export interface Rectification {
-	id: number;
-	inspectionId: number;
-	assigneeId: number;
-	assignee: User;
-	deadline: string;
-	status: RectificationStatus;
-	description: string;
-	actions: string;
-	completedTime: string | null;
-	completedNote: string;
-	verifiedBy: number | null;
-	verifiedTime: string | null;
-	verifyNote: string;
+	ID: number;
+	InspectionID: number;
+	AssigneeID: number;
+	Assignee: User;
+	Deadline: string;
+	Status: RectificationStatus;
+	Description: string;
+	Actions: string;
+	CompletedTime: string | null;
+	CompletedNote: string;
+	VerifiedBy: number | null;
+	Verifier: User | null;
+	VerifiedTime: string | null;
+	VerifyNote: string;
+	FollowUps: FollowUp[];
 }
 
 export type MaterialStatus = 'pending' | 'approved' | 'rejected' | 'issued';
 
 export interface MaterialRequisition {
-	id: number;
-	shiftId: number;
-	requesterId: number;
-	requester: User;
-	items: string;
-	totalQty: number;
-	status: MaterialStatus;
-	requestTime: string;
-	approvedBy: number | null;
-	approveTime: string | null;
-	issueTime: string | null;
-	remark: string;
+	ID: number;
+	ShiftID: number;
+	RequesterID: number;
+	Requester: User;
+	Items: string;
+	TotalQty: number;
+	Status: MaterialStatus;
+	RequestTime: string;
+	ApprovedBy: number | null;
+	Approver: User | null;
+	ApproveTime: string | null;
+	IssueTime: string | null;
+	Remark: string;
 }
 
 export type FollowUpType = 'rectification' | 'renewal' | 'complaint';
 export type FollowUpStatus = 'pending' | 'done';
 
 export interface FollowUp {
-	id: number;
-	projectId: number | null;
-	rectificationId: number | null;
-	type: FollowUpType;
-	title: string;
-	content: string;
-	assigneeId: number;
-	assignee: User;
-	dueDate: string;
-	status: FollowUpStatus;
-	result: string;
-	completedTime: string | null;
-	createdBy: number;
+	ID: number;
+	ProjectID: number | null;
+	Project: Project | null;
+	RectificationID: number | null;
+	Rectification: Rectification | null;
+	Type: FollowUpType;
+	Title: string;
+	Content: string;
+	AssigneeID: number;
+	Assignee: User;
+	DueDate: string;
+	Status: FollowUpStatus;
+	Result: string;
+	CompletedTime: string | null;
+	CreatedBy: number;
+	Creator: User;
 }
 
 export interface TraceChain {

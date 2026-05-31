@@ -7,7 +7,7 @@
 	let schedules: Schedule[] = [];
 	let shifts: Shift[] = [];
 	let loading = true;
-	let selectedSchedule: number | null = null;
+	let selectedSchedule = 0;
 
 	onMount(async () => {
 		try {
@@ -32,8 +32,8 @@
 		return new Date(dateStr).toLocaleDateString('zh-CN');
 	}
 
-	$: filteredShifts = selectedSchedule
-		? shifts.filter((s) => s.scheduleId === selectedSchedule)
+	$: filteredShifts = selectedSchedule > 0
+		? shifts.filter((s) => s.ScheduleID === selectedSchedule)
 		: shifts;
 </script>
 
@@ -42,10 +42,10 @@
 		<div class="loading">加载中...</div>
 	{:else}
 		<div class="toolbar">
-			<select bind:value={selectedSchedule} on:change={() => selectedSchedule = selectedSchedule || null}>
+			<select bind:value={selectedSchedule}>
 				<option value={0}>全部排班</option>
 				{#each schedules as sch}
-					<option value={sch.id}>{sch.weekStart} - {sch.projectName}</option>
+					<option value={sch.ID}>{sch.WeekStart} - {sch.Project?.Name}</option>
 				{/each}
 			</select>
 			<span class="total">共 {filteredShifts.length} 个班次</span>
@@ -55,21 +55,21 @@
 			{#each filteredShifts as shift}
 				<div class="shift-card">
 					<div class="shift-header">
-						<span class="shift-date">{formatDate(shift.date)}</span>
-						<span class="shift-type">{getShiftTypeLabel(shift.shiftType)}</span>
+						<span class="shift-date">{formatDate(shift.Date)}</span>
+						<span class="shift-type">{getShiftTypeLabel(shift.ShiftType)}</span>
 					</div>
 					<div class="shift-body">
 						<div class="shift-info">
 							<span class="label">项目：</span>
-							<span class="value">{shift.area}</span>
+							<span class="value">{shift.Area}</span>
 						</div>
 						<div class="shift-info">
 							<span class="label">时间：</span>
-							<span class="value">{shift.startTime} - {shift.endTime}</span>
+							<span class="value">{shift.StartTime} - {shift.EndTime}</span>
 						</div>
 						<div class="shift-info">
 							<span class="label">任务：</span>
-							<span class="value">{shift.tasks}</span>
+							<span class="value">{shift.Tasks}</span>
 						</div>
 					</div>
 				</div>

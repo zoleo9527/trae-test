@@ -14,7 +14,7 @@
 	async function loadData() {
 		try {
 			if ($currentUser) {
-				shifts = await getShifts({ workerId: $currentUser.id });
+				shifts = await getShifts({ workerId: $currentUser.ID });
 			}
 		} finally {
 			loading = false;
@@ -23,7 +23,7 @@
 
 	function openCheckInModal(shift: Shift) {
 		selectedShift = shift;
-		checkInLocation = shift.schedule?.project?.address || '';
+		checkInLocation = shift.Schedule?.Project?.Address || '';
 		checkInRemark = '';
 		showCheckInModal = true;
 	}
@@ -32,7 +32,7 @@
 		if (!selectedShift) return;
 		try {
 			await createCheckIn({
-				shiftId: selectedShift.id,
+				shiftId: selectedShift.ID,
 				location: checkInLocation,
 				remark: checkInRemark
 			});
@@ -45,10 +45,9 @@
 	}
 
 	async function handleCheckOut(shift: Shift) {
-		const ci = shift.checkIns?.[0];
-		if (!ci) return;
+		const ci = shift.CheckIns?.[0];
 		try {
-			await checkOut(ci.id);
+			await checkOut(ci.ID);
 			loadData();
 			alert('签退成功！');
 		} catch (e) {
@@ -65,35 +64,35 @@
 	{:else}
 		<div class="checkin-list">
 			{#each shifts as shift}
-				{@const ci = shift.checkIns?.[0]}
+				{@const ci = shift.CheckIns?.[0]}
 				<div class="checkin-card">
 					<div class="card-header">
-						<h3>{shift.schedule?.project?.name || '项目'}</h3>
-						<span class="date">{new Date(shift.date).toLocaleDateString()}</span>
+						<h3>{shift.Schedule?.Project?.Name || '项目'}</h3>
+						<span class="date">{new Date(shift.Date).toLocaleDateString()}</span>
 					</div>
 					<div class="card-body">
 						<div class="time-info">
-							<span class="time">{shift.startTime} - {shift.endTime}</span>
-							<span class="area">{shift.area}</span>
+							<span class="time">{shift.StartTime} - {shift.EndTime}</span>
+							<span class="area">{shift.Area}</span>
 						</div>
 						{#if ci}
 							<div class="checkin-status">
 								<div class="status-item">
 									<span class="label">上班打卡</span>
-									<span class="value">{ci.checkInTime ? new Date(ci.checkInTime).toLocaleTimeString() : '-'}</span>
+									<span class="value">{ci.CheckInTime ? new Date(ci.CheckInTime).toLocaleTimeString() : '-'}</span>
 								</div>
 								<div class="status-item">
 									<span class="label">下班签退</span>
-									<span class="value">{ci.checkOutTime ? new Date(ci.checkOutTime).toLocaleTimeString() : '-'}</span>
+									<span class="value">{ci.CheckOutTime ? new Date(ci.CheckOutTime).toLocaleTimeString() : '-'}</span>
 								</div>
-								<div class="status-item {ci.status}">
+								<div class="status-item {ci.Status}">
 									<span class="label">状态</span>
 									<span class="value">
-										{{ normal: '正常', late: '迟到', early: '早退', missing: '未打卡', exception: '异常' }[ci.status]}
+										{{ normal: '正常', late: '迟到', early: '早退', missing: '未打卡', exception: '异常' }[ci.Status]}
 									</span>
 								</div>
 							</div>
-							{#if ci.checkInTime && !ci.checkOutTime}
+							{#if ci.CheckInTime && !ci.CheckOutTime}
 								<button class="checkout-btn" on:click={() => handleCheckOut(shift)}>
 									签退
 								</button>
@@ -113,7 +112,7 @@
 		<div class="modal-overlay" on:click={() => (showCheckInModal = false)}>
 			<div class="modal" on:click|stopPropagation>
 				<h3>上班打卡</h3>
-				<p class="sub">{selectedShift.schedule?.project?.name} - {new Date(selectedShift.date).toLocaleDateString()}</p>
+				<p class="sub">{selectedShift.Schedule?.Project?.Name} - {new Date(selectedShift.Date).toLocaleDateString()}</p>
 				
 				<div class="form-group">
 					<label>打卡位置</label>

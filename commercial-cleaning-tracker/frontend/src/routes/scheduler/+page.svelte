@@ -39,7 +39,7 @@
 
 	function openCreateModal() {
 		newSchedule = {
-			projectId: projects[0]?.id || 0,
+			projectId: projects[0]?.ID || 0,
 			weekStart: new Date().toISOString().split('T')[0],
 			shifts: []
 		};
@@ -48,7 +48,7 @@
 
 	function addShift() {
 		newSchedule.shifts.push({
-			workerId: workers[0]?.id || 0,
+			workerId: workers[0]?.ID || 0,
 			date: newSchedule.weekStart,
 			shiftType: 'morning',
 			startTime: '08:00',
@@ -91,7 +91,7 @@
 		<select bind:value={selectedProject}>
 			<option value="">全部项目</option>
 			{#each projects as p}
-				<option value={p.id}>{p.name}</option>
+				<option value={p.ID}>{p.Name}</option>
 			{/each}
 		</select>
 		<button class="primary-btn" on:click={openCreateModal}>+ 新建排班</button>
@@ -105,27 +105,27 @@
 				<div class="schedule-card">
 					<div class="schedule-header">
 						<div>
-							<h3>{s.project.name}</h3>
-							<p class="date-range">{new Date(s.weekStart).toLocaleDateString()} - {new Date(s.weekEnd).toLocaleDateString()}</p>
+							<h3>{s.Project?.Name}</h3>
+							<p class="date-range">{new Date(s.WeekStart).toLocaleDateString()} - {new Date(s.WeekEnd).toLocaleDateString()}</p>
 						</div>
 						<div class="status-actions">
-							<span style={getStatusColor(s.status)}>{getStatusText(s.status)}</span>
-							{#if s.status === 'draft'}
-								<button class="small-btn" on:click={() => handlePublish(s.id)}>发布</button>
+							<span style={getStatusColor(s.Status)}>{getStatusText(s.Status)}</span>
+							{#if s.Status === 'draft'}
+								<button class="small-btn" on:click={() => handlePublish(s.ID)}>发布</button>
 							{/if}
 						</div>
 					</div>
 					<div class="shifts-preview">
-						{#each s.shifts.slice(0, 3) as shift}
+						{#each s.Shifts?.slice(0, 3) || [] as shift}
 							<div class="shift-item">
-								<span>{new Date(shift.date).toLocaleDateString()}</span>
-								<span>{shift.worker.name}</span>
-								<span class="shift-type">{shift.shiftType === 'morning' ? '早班' : shift.shiftType === 'afternoon' ? '中班' : shift.shiftType === 'night' ? '夜班' : '全天'}</span>
-								<span>{shift.startTime} - {shift.endTime}</span>
+								<span>{new Date(shift.Date).toLocaleDateString()}</span>
+								<span>{shift.Worker?.Name}</span>
+								<span class="shift-type">{shift.ShiftType === 'morning' ? '早班' : shift.ShiftType === 'afternoon' ? '中班' : shift.ShiftType === 'night' ? '夜班' : '全天'}</span>
+								<span>{shift.StartTime} - {shift.EndTime}</span>
 							</div>
 						{/each}
-						{#if s.shifts.length > 3}
-							<span class="more">还有 {s.shifts.length - 3} 个班次...</span>
+						{#if (s.Shifts?.length || 0) > 3}
+							<span class="more">还有 {(s.Shifts?.length || 0) - 3} 个班次...</span>
 						{/if}
 					</div>
 				</div>
@@ -141,7 +141,7 @@
 					<label>项目</label>
 					<select bind:value={newSchedule.projectId}>
 						{#each projects as p}
-							<option value={p.id}>{p.name}</option>
+							<option value={p.ID}>{p.Name}</option>
 						{/each}
 					</select>
 				</div>
@@ -159,7 +159,7 @@
 						<div class="shift-form">
 							<select bind:value={shift.workerId}>
 								{#each workers as w}
-									<option value={w.id}>{w.name}</option>
+									<option value={w.ID}>{w.Name}</option>
 								{/each}
 							</select>
 							<input type="date" bind:value={shift.date} />

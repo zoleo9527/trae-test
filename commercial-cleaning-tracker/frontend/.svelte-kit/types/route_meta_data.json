@@ -1,0 +1,18 @@
+{
+	"/": [],
+	"/inspector": [],
+	"/inspector/rect": [],
+	"/inspector/trace": [],
+	"/manager": [],
+	"/manager/followup": [],
+	"/manager/projects": [],
+	"/manager/schedule": [],
+	"/manager/trace": [],
+	"/scheduler": [],
+	"/scheduler/material": [],
+	"/scheduler/projects": [],
+	"/worker": [],
+	"/worker/checkin": [],
+	"/worker/material": [],
+	"/worker/rect": []
+}

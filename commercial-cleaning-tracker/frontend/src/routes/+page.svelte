@@ -18,14 +18,12 @@
 
 		try {
 			const result = await login(username, password);
-			token.set(result.token);
-			currentUser.set(result.user);
 
-			if (result.user.role === 'worker') {
+			if (result.user.Role === 'worker') {
 				goto('/worker');
-			} else if (result.user.role === 'scheduler') {
+			} else if (result.user.Role === 'scheduler') {
 				goto('/scheduler');
-			} else if (result.user.role === 'inspector') {
+			} else if (result.user.Role === 'inspector') {
 				goto('/inspector');
 			} else {
 				goto('/manager');

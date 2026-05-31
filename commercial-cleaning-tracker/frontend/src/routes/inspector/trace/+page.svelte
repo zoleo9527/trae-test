@@ -43,27 +43,26 @@
 
 	function getInspectionResultLabel(result: string) {
 		const labels: Record<string, string> = {
-			excellent: '优秀',
-			passed: '合格',
-			failed: '不合格'
+			pass: '合格',
+			fail: '不合格'
 		};
 		return labels[result] || '待质检';
 	}
 
 	function getInspectionResultClass(result: string) {
 		const classes: Record<string, string> = {
-			excellent: 'status-success',
-			passed: 'status-success',
-			failed: 'status-danger'
+			pass: 'status-success',
+			fail: 'status-danger'
 		};
 		return classes[result] || 'status-pending';
 	}
 
 	function getRectStatusLabel(status: string) {
 		const labels: Record<string, string> = {
-			pending: '待整改',
+			open: '待分配',
+			assigned: '待处理',
 			in_progress: '整改中',
-			completed: '已完成',
+			done: '待验证',
 			verified: '已验证'
 		};
 		return labels[status] || status;
@@ -71,9 +70,10 @@
 
 	function getRectStatusClass(status: string) {
 		const classes: Record<string, string> = {
-			pending: 'status-danger',
+			open: 'status-danger',
+			assigned: 'status-danger',
 			in_progress: 'status-warning',
-			completed: 'status-info',
+			done: 'status-info',
 			verified: 'status-success'
 		};
 		return classes[status] || '';
@@ -87,7 +87,7 @@
 		if (selectedProject && t.projectId !== selectedProject) return false;
 		if (filterStatus === 'all') return true;
 		if (filterStatus === 'issues') {
-			return t.checkInStatus === 'missing' || t.checkInStatus === 'late' || t.inspectionResult === 'failed' || t.hasRectification;
+			return t.checkInStatus === 'missing' || t.checkInStatus === 'late' || t.inspectionResult === 'fail' || t.hasRectification;
 		}
 		if (filterStatus === 'missing') return t.checkInStatus === 'missing';
 		if (filterStatus === 'rect') return t.hasRectification;
@@ -105,7 +105,7 @@
 				<select bind:value={selectedProject} on:change={() => selectedProject = selectedProject || null}>
 					<option value={0}>全部项目</option>
 					{#each projects as p}
-						<option value={p.id}>{p.name}</option>
+						<option value={p.ID}>{p.Name}</option>
 					{/each}
 				</select>
 				<select bind:value={filterStatus}>

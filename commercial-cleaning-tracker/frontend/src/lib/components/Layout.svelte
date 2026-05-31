@@ -17,7 +17,7 @@
 		goto('/');
 	}
 
-	$: menuItems = getMenuItems($currentUser?.role || '');
+	$: menuItems = getMenuItems($currentUser?.Role || '');
 
 	function getMenuItems(role: string) {
 		switch (role) {
@@ -75,8 +75,8 @@
 		<header class="header">
 			<h1>{title}</h1>
 			<div class="user-info">
-				<span class="user-name">{$currentUser?.name}</span>
-				<span class="user-role">{roleLabels[$currentUser?.role || '']}</span>
+				<span class="user-name">{$currentUser?.Name}</span>
+				<span class="user-role">{roleLabels[$currentUser?.Role || '']}</span>
 				<button class="logout-btn" on:click={handleLogout}>退出</button>
 			</div>
 		</header>

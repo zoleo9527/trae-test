@@ -16,7 +16,7 @@
 		}
 	}
 
-	$: filteredMaterials = materials.filter(m => !filterStatus || m.status === filterStatus);
+	$: filteredMaterials = materials.filter(m => !filterStatus || m.Status === filterStatus);
 
 	async function handleApprove(id: number, status: string) {
 		const remark = status === 'rejected' ? prompt('请输入拒绝原因：') : '';
@@ -51,29 +51,29 @@
 	{:else}
 		<div class="material-list">
 			{#each filteredMaterials as m}
+				{@const items = JSON.parse(m.Items || '[]')}
 				<div class="material-card">
 					<div class="material-header">
 						<div>
-							<span class="requester">{m.requester.name}</span>
-							<span class="time">{new Date(m.requestTime).toLocaleString()}</span>
+							<span class="requester">{m.Requester?.Name}</span>
+							<span class="time">{new Date(m.CreatedAt).toLocaleString()}</span>
 						</div>
-						<span style={getStatusColor(m.status)} class="status">{getStatusText(m.status)}</span>
+						<span style={getStatusColor(m.Status)} class="status">{getStatusText(m.Status)}</span>
 					</div>
 					<div class="material-items">
-						{@const items = JSON.parse(m.items || '[]')}
 						{#each items as item}
 							<span class="item-tag">{item.name} x{item.qty}{item.unit}</span>
 						{/each}
 					</div>
-					{#if m.status === 'pending'}
+					{#if m.Status === 'pending'}
 						<div class="actions">
-							<button class="approve-btn" on:click={() => handleApprove(m.id, 'approved')}>批准</button>
-							<button class="reject-btn" on:click={() => handleApprove(m.id, 'rejected')}>拒绝</button>
-							<button class="issue-btn" on:click={() => handleApprove(m.id, 'issued')}>已发放</button>
+							<button class="approve-btn" on:click={() => handleApprove(m.ID, 'approved')}>批准</button>
+							<button class="reject-btn" on:click={() => handleApprove(m.ID, 'rejected')}>拒绝</button>
+							<button class="issue-btn" on:click={() => handleApprove(m.ID, 'issued')}>已发放</button>
 						</div>
 					{/if}
-					{#if m.remark}
-						<p class="remark">备注：{m.remark}</p>
+					{#if m.Remark}
+						<p class="remark">备注：{m.Remark}</p>
 					{/if}
 				</div>
 			{/each}
@@ -82,19 +82,13 @@
 </Layout>
 
 <style>
-	.filter-bar {
-		margin-bottom: 20px;
-	}
+	.filter-bar { margin-bottom: 20px; }
 	.filter-bar select {
 		padding: 8px 12px;
 		border: 1px solid #e2e8f0;
 		border-radius: 6px;
 	}
-	.material-list {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
+	.material-list { display: flex; flex-direction: column; gap: 16px; }
 	.material-card {
 		background: white;
 		padding: 20px;
@@ -122,10 +116,7 @@
 		border-radius: 4px;
 		font-size: 13px;
 	}
-	.actions {
-		display: flex;
-		gap: 10px;
-	}
+	.actions { display: flex; gap: 10px; }
 	.approve-btn {
 		padding: 8px 16px;
 		background: #48bb78;

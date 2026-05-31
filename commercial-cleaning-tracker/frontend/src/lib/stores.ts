@@ -7,34 +7,24 @@ const API_BASE = 'http://localhost:3000/api';
 function createTokenStore(): Writable<string | null> {
 	const initialValue = browser ? localStorage.getItem('token') : null;
 	const store = writable<string | null>(initialValue);
-
 	store.subscribe((value) => {
 		if (browser) {
-			if (value) {
-				localStorage.setItem('token', value);
-			} else {
-				localStorage.removeItem('token');
-			}
+			if (value) localStorage.setItem('token', value);
+			else localStorage.removeItem('token');
 		}
 	});
-
 	return store;
 }
 
 function createUserStore(): Writable<User | null> {
 	const initialValue = browser ? localStorage.getItem('currentUser') : null;
 	const store = writable<User | null>(initialValue ? JSON.parse(initialValue) : null);
-
 	store.subscribe((value) => {
 		if (browser) {
-			if (value) {
-				localStorage.setItem('currentUser', JSON.stringify(value));
-			} else {
-				localStorage.removeItem('currentUser');
-			}
+			if (value) localStorage.setItem('currentUser', JSON.stringify(value));
+			else localStorage.removeItem('currentUser');
 		}
 	});
-
 	return store;
 }
 
@@ -46,21 +36,10 @@ async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 		'Content-Type': 'application/json',
 		...(options.headers as Record<string, string> || {})
 	};
-
 	const t = browser ? get(token) : null;
-	if (t) {
-		headers['Authorization'] = `Bearer ${t}`;
-	}
-
-	const res = await fetch(`${API_BASE}${endpoint}`, {
-		...options,
-		headers
-	});
-
-	if (!res.ok) {
-		throw new Error(`API Error: ${res.status}`);
-	}
-
+	if (t) headers['Authorization'] = `Bearer ${t}`;
+	const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+	if (!res.ok) throw new Error(`API Error: ${res.status}`);
 	return res.json();
 }
 
@@ -100,17 +79,12 @@ export async function getSchedule(id: number): Promise<Schedule> {
 	return api<Schedule>(`/schedules/${id}`);
 }
 
-export async function createSchedule(data: unknown): Promise<Schedule> {
-	return api<Schedule>('/schedules', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+export async function createSchedule(data: Record<string, unknown>): Promise<Schedule> {
+	return api<Schedule>('/schedules', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function publishSchedule(id: number): Promise<Schedule> {
-	return api<Schedule>(`/schedules/${id}/publish`, {
-		method: 'POST'
-	});
+	return api<Schedule>(`/schedules/${id}/publish`, { method: 'POST' });
 }
 
 export async function getShifts(params?: { workerId?: number; date?: string; projectId?: number }): Promise<Shift[]> {
@@ -134,23 +108,15 @@ export async function getCheckIns(params?: { shiftId?: number; workerId?: number
 }
 
 export async function createCheckIn(data: { shiftId: number; photoUrl?: string; location?: string; remark?: string }): Promise<CheckIn> {
-	return api<CheckIn>('/checkins', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+	return api<CheckIn>('/checkins', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function checkOut(id: number): Promise<CheckIn> {
-	return api<CheckIn>(`/checkins/${id}/checkout`, {
-		method: 'POST'
-	});
+	return api<CheckIn>(`/checkins/${id}/checkout`, { method: 'POST' });
 }
 
-export async function correctCheckIn(id: number, data: unknown): Promise<CheckIn> {
-	return api<CheckIn>(`/checkins/${id}/correct`, {
-		method: 'PATCH',
-		body: JSON.stringify(data)
-	});
+export async function correctCheckIn(id: number, data: Record<string, unknown>): Promise<CheckIn> {
+	return api<CheckIn>(`/checkins/${id}/correct`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 
 export async function getInspections(params?: { shiftId?: number; result?: string }): Promise<Inspection[]> {
@@ -161,11 +127,8 @@ export async function getInspections(params?: { shiftId?: number; result?: strin
 	return api<Inspection[]>(`/inspections${query ? '?' + query : ''}`);
 }
 
-export async function createInspection(data: unknown): Promise<Inspection> {
-	return api<Inspection>('/inspections', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+export async function createInspection(data: Record<string, unknown>): Promise<Inspection> {
+	return api<Inspection>('/inspections', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function getRectifications(params?: { status?: string; assigneeId?: number }): Promise<Rectification[]> {
@@ -176,24 +139,21 @@ export async function getRectifications(params?: { status?: string; assigneeId?:
 	return api<Rectification[]>(`/rectifications${query ? '?' + query : ''}`);
 }
 
-export async function createRectification(data: unknown): Promise<Rectification> {
-	return api<Rectification>('/rectifications', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+export async function createRectification(data: Record<string, unknown>): Promise<Rectification> {
+	return api<Rectification>('/rectifications', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function completeRectification(id: number, note: string): Promise<Rectification> {
+export async function completeRectification(id: number, completedNote: string): Promise<Rectification> {
 	return api<Rectification>(`/rectifications/${id}/complete`, {
 		method: 'POST',
-		body: JSON.stringify({ completedNote: note })
+		body: JSON.stringify({ completedNote })
 	});
 }
 
-export async function verifyRectification(id: number, note: string): Promise<Rectification> {
+export async function verifyRectification(id: number, verifyNote: string): Promise<Rectification> {
 	return api<Rectification>(`/rectifications/${id}/verify`, {
 		method: 'POST',
-		body: JSON.stringify({ verifyNote: note })
+		body: JSON.stringify({ verifyNote })
 	});
 }
 
@@ -205,11 +165,8 @@ export async function getMaterials(params?: { status?: string; requesterId?: num
 	return api<MaterialRequisition[]>(`/materials${query ? '?' + query : ''}`);
 }
 
-export async function createMaterial(data: unknown): Promise<MaterialRequisition> {
-	return api<MaterialRequisition>('/materials', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+export async function createMaterial(data: { shiftId: number; items: string; totalQty: number; remark?: string }): Promise<MaterialRequisition> {
+	return api<MaterialRequisition>('/materials', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function approveMaterial(id: number, status: string, remark?: string): Promise<MaterialRequisition> {
@@ -227,11 +184,8 @@ export async function getFollowUps(params?: { status?: string; assigneeId?: numb
 	return api<FollowUp[]>(`/followups${query ? '?' + query : ''}`);
 }
 
-export async function createFollowUp(data: unknown): Promise<FollowUp> {
-	return api<FollowUp>('/followups', {
-		method: 'POST',
-		body: JSON.stringify(data)
-	});
+export async function createFollowUp(data: Record<string, unknown>): Promise<FollowUp> {
+	return api<FollowUp>('/followups', { method: 'POST', body: JSON.stringify(data) });
 }
 
 export async function completeFollowUp(id: number, result: string): Promise<FollowUp> {

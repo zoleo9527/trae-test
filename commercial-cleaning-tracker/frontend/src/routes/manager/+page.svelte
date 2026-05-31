@@ -115,6 +115,7 @@
 							<th>质检结果</th>
 							<th>整改状态</th>
 							<th>耗材状态</th>
+							<th>回访</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -134,6 +135,13 @@
 								</td>
 								<td style={getStatusColor(trace.materialStatus)}>
 									{trace.materialStatus ? getStatusText(trace.materialStatus) : '-'}
+								</td>
+								<td>
+									{#if trace.hasFollowUp}
+										<span style="color: #4299e1">{trace.followUpCount} 条 ({trace.followUpTypes?.join('/') || '-'})</span>
+									{:else}
+										-
+									{/if}
 								</td>
 							</tr>
 						{/each}

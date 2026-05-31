@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Layout from '$lib/components/Layout.svelte';
-	import { getFollowUps, createFollowUp, getProjects } from '$lib/stores';
+	import { getFollowUps, createFollowUp, completeFollowUp, getProjects } from '$lib/stores';
+	import { currentUser } from '$lib/stores';
 	import type { FollowUp, Project } from '$lib/types';
 
 	let followUps: FollowUp[] = [];
@@ -10,9 +11,10 @@
 	let showModal = false;
 	let newFollowUp = {
 		projectId: 0,
-		type: 'renewal' as 'complaint' | 'quality' | 'renewal',
-		notes: '',
-		nextFollowDate: ''
+		type: 'renewal' as 'complaint' | 'rectification' | 'renewal',
+		title: '',
+		content: '',
+		dueDate: ''
 	};
 
 	onMount(async () => {
@@ -26,8 +28,8 @@
 
 	function getTypeLabel(type: string) {
 		const labels: Record<string, string> = {
+			rectification: '整改回访',
 			complaint: '客户投诉',
-			quality: '质量回访',
 			renewal: '续约提醒'
 		};
 		return labels[type] || type;
@@ -36,15 +38,15 @@
 	function getStatusLabel(status: string) {
 		const labels: Record<string, string> = {
 			pending: '待处理',
-			completed: '已完成'
+			done: '已完成'
 		};
 		return labels[status] || status;
 	}
 
 	function getTypeClass(type: string) {
 		const classes: Record<string, string> = {
+			rectification: 'type-rect',
 			complaint: 'type-complaint',
-			quality: 'type-quality',
 			renewal: 'type-renewal'
 		};
 		return classes[type] || '';
@@ -53,31 +55,36 @@
 	function getStatusClass(status: string) {
 		const classes: Record<string, string> = {
 			pending: 'status-pending',
-			completed: 'status-completed'
+			done: 'status-done'
 		};
 		return classes[status] || '';
 	}
 
 	async function handleCreate() {
-		if (!newFollowUp.projectId || !newFollowUp.notes) return;
-		await createFollowUp(newFollowUp);
+		if (!newFollowUp.projectId || !newFollowUp.title || !newFollowUp.dueDate) return;
+		await createFollowUp({
+			projectId: newFollowUp.projectId,
+			type: newFollowUp.type,
+			title: newFollowUp.title,
+			content: newFollowUp.content,
+			assigneeId: $currentUser?.ID || 0,
+			dueDate: newFollowUp.dueDate
+		});
 		followUps = await getFollowUps();
 		showModal = false;
-		newFollowUp = { projectId: 0, type: 'renewal', notes: '', nextFollowDate: '' };
+		newFollowUp = { projectId: 0, type: 'renewal', title: '', content: '', dueDate: '' };
 	}
 
 	async function handleComplete(id: number) {
-		await fetch(`http://localhost:3000/api/follow-ups/${id}/complete`, {
-			method: 'PUT',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${localStorage.getItem('token')}`
-			}
-		});
+		await completeFollowUp(id, '已完成回访');
 		followUps = await getFollowUps();
 	}
 
-	$: pendingCount = followUps.filter((f) => f.status === 'pending').length;
+	function formatDate(dateStr: string) {
+		return new Date(dateStr).toLocaleDateString('zh-CN');
+	}
+
+	$: pendingCount = followUps.filter((f) => f.Status === 'pending').length;
 </script>
 
 <Layout title="回访跟踪" activeMenu="followup">
@@ -97,23 +104,27 @@
 				<div class="followup-card">
 					<div class="followup-header">
 						<div>
-							<span class={`type-tag ${getTypeClass(fu.type)}`}>{getTypeLabel(fu.type)}</span>
-							<span class="project-name">{fu.projectName}</span>
+							<span class={`type-tag ${getTypeClass(fu.Type)}`}>{getTypeLabel(fu.Type)}</span>
+							<span class="project-name">{fu.Project?.Name || '-'}</span>
 						</div>
-						<span class={`status-tag ${getStatusClass(fu.status)}`}>{getStatusLabel(fu.status)}</span>
+						<span class={`status-tag ${getStatusClass(fu.Status)}`}>{getStatusLabel(fu.Status)}</span>
 					</div>
 					<div class="followup-body">
-						<p class="notes">{fu.notes}</p>
+						<p class="title-text">{fu.Title}</p>
+						{#if fu.Content}
+							<p class="notes">{fu.Content}</p>
+						{/if}
 						<div class="meta">
-							{#if fu.nextFollowDate}
-								<span>下次回访：{fu.nextFollowDate}</span>
+							<span>截止日期：{formatDate(fu.DueDate)}</span>
+							<span>负责人：{fu.Assignee?.Name || '-'}</span>
+							{#if fu.CompletedTime}
+								<span>完成时间：{formatDate(fu.CompletedTime)}</span>
 							{/if}
-							<span>创建时间：{new Date(fu.createdAt).toLocaleDateString('zh-CN')}</span>
 						</div>
 					</div>
-					{#if fu.status === 'pending'}
+					{#if fu.Status === 'pending'}
 						<div class="followup-footer">
-							<button class="btn-complete" on:click={() => handleComplete(fu.id)}>标记完成</button>
+							<button class="btn-complete" on:click={() => handleComplete(fu.ID)}>标记完成</button>
 						</div>
 					{/if}
 				</div>
@@ -130,7 +141,7 @@
 					<select bind:value={newFollowUp.projectId}>
 						<option value={0}>请选择</option>
 						{#each projects as p}
-							<option value={p.id}>{p.name}</option>
+							<option value={p.ID}>{p.Name}</option>
 						{/each}
 					</select>
 				</div>
@@ -138,17 +149,21 @@
 					<label>回访类型</label>
 					<select bind:value={newFollowUp.type}>
 						<option value="complaint">客户投诉</option>
-						<option value="quality">质量回访</option>
+						<option value="rectification">整改回访</option>
 						<option value="renewal">续约提醒</option>
 					</select>
 				</div>
 				<div class="form-group">
-					<label>记录内容</label>
-					<textarea bind:value={newFollowUp.notes} rows="4" placeholder="请输入回访内容..." />
+					<label>标题</label>
+					<input type="text" bind:value={newFollowUp.title} placeholder="请输入回访标题" />
 				</div>
 				<div class="form-group">
-					<label>下次回访日期</label>
-					<input type="date" bind:value={newFollowUp.nextFollowDate} />
+					<label>记录内容</label>
+					<textarea bind:value={newFollowUp.content} rows="4" placeholder="请输入回访内容..." />
+				</div>
+				<div class="form-group">
+					<label>截止日期</label>
+					<input type="date" bind:value={newFollowUp.dueDate} />
 				</div>
 				<div class="modal-footer">
 					<button class="btn-cancel" on:click={() => showModal = false}>取消</button>
@@ -227,14 +242,14 @@
 		margin-right: 12px;
 	}
 
+	.type-rect {
+		background: #bee3f8;
+		color: #2b6cb0;
+	}
+
 	.type-complaint {
 		background: #fed7d7;
 		color: #c53030;
-	}
-
-	.type-quality {
-		background: #fefcbf;
-		color: #975a16;
 	}
 
 	.type-renewal {
@@ -258,13 +273,19 @@
 		color: #975a16;
 	}
 
-	.status-completed {
+	.status-done {
 		background: #c6f6d5;
 		color: #276749;
 	}
 
 	.followup-body {
 		padding: 16px;
+	}
+
+	.title-text {
+		font-weight: 600;
+		color: #2d3748;
+		margin: 0 0 8px 0;
 	}
 
 	.notes {

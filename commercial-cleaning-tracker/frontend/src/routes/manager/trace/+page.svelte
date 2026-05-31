@@ -9,8 +9,8 @@
 	let workers: User[] = [];
 	let loading = true;
 
-	let filterProject = '';
-	let filterWorker = '';
+	let filterProject = 0;
+	let filterWorker = 0;
 	let filterStatus = '';
 
 	async function loadData() {
@@ -26,13 +26,15 @@
 	}
 
 	$: filteredTraces = traces.filter((t) => {
-		if (filterProject && t.projectName !== projects.find(p => p.id == Number(filterProject))?.name) return false;
-		if (filterWorker && t.workerName !== workers.find(w => w.id == Number(filterWorker))?.name) return false;
+		if (filterProject > 0 && t.projectId !== filterProject) return false;
+		if (filterWorker > 0 && t.workerName !== workers.find(w => w.ID === filterWorker)?.Name) return false;
 		if (filterStatus) {
-			if (filterStatus === 'issue' && 
+			if (filterStatus === 'issue' &&
 				(t.checkInStatus === 'normal' && t.inspectionResult !== 'fail' && !t.hasRectification)) {
 				return false;
 			}
+			if (filterStatus === 'followup' && !t.hasFollowUp) return false;
+			if (filterStatus === 'missing' && t.checkInStatus !== 'missing') return false;
 		}
 		return true;
 	});
@@ -63,25 +65,36 @@
 		};
 		return map[status] || status;
 	};
+
+	function getFollowUpTypeLabel(type: string) {
+		const labels: Record<string, string> = {
+			rectification: '整改回访',
+			complaint: '客户投诉',
+			renewal: '续约提醒'
+		};
+		return labels[type] || type;
+	}
 </script>
 
 <Layout title="连续回查面板" activeMenu="trace">
 	<div class="filters">
 		<select bind:value={filterProject}>
-			<option value="">全部项目</option>
+			<option value={0}>全部项目</option>
 			{#each projects as p}
-				<option value={p.id}>{p.name}</option>
+				<option value={p.ID}>{p.Name}</option>
 			{/each}
 		</select>
 		<select bind:value={filterWorker}>
-			<option value="">全部员工</option>
+			<option value={0}>全部员工</option>
 			{#each workers as w}
-				<option value={w.id}>{w.name}</option>
+				<option value={w.ID}>{w.Name}</option>
 			{/each}
 		</select>
 		<select bind:value={filterStatus}>
 			<option value="">全部状态</option>
 			<option value="issue">仅异常</option>
+			<option value="missing">漏打卡</option>
+			<option value="followup">有回访</option>
 		</select>
 		<button class="refresh-btn" on:click={loadData}>刷新</button>
 	</div>
@@ -116,6 +129,24 @@
 						<div class="chain-node" style={getStatusColor(trace.materialStatus || 'pending')}>
 							<div class="node-label">耗材</div>
 							<div class="node-value">{trace.materialStatus ? getStatusText(trace.materialStatus) : '无'}</div>
+						</div>
+						<div class="chain-arrow">→</div>
+						<div class="chain-node" style={trace.hasFollowUp ? 'background: #ebf8ff; color: #2b6cb0' : 'background: #f7fafc; color: #2d3748'}>
+							<div class="node-label">回访</div>
+							<div class="node-value">
+								{#if trace.hasFollowUp}
+									{trace.followUpCount}条
+								{:else}
+									无
+								{/if}
+							</div>
+							{#if trace.hasFollowUp && trace.followUpTypes.length > 0}
+								<div class="followup-types">
+									{#each trace.followUpTypes as ft}
+										<span class="fu-type-tag">{getFollowUpTypeLabel(ft)}</span>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					</div>
 					{#if trace.checkInStatus === 'missing' || trace.checkInStatus === 'late' || trace.checkInStatus === 'exception' || trace.inspectionResult === 'fail'}
@@ -175,23 +206,13 @@
 		border-bottom: 1px solid #e2e8f0;
 	}
 
-	.date {
-		font-weight: 600;
-		color: #2d3748;
-	}
-
-	.project {
-		color: #4a5568;
-	}
-
-	.worker {
-		color: #667eea;
-		font-weight: 500;
-	}
+	.date { font-weight: 600; color: #2d3748; }
+	.project { color: #4a5568; }
+	.worker { color: #667eea; font-weight: 500; }
 
 	.trace-chain {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 12px;
 		flex-wrap: wrap;
 	}
@@ -217,6 +238,23 @@
 	.chain-arrow {
 		color: #a0aec0;
 		font-size: 20px;
+		padding-top: 12px;
+	}
+
+	.followup-types {
+		margin-top: 6px;
+		display: flex;
+		gap: 4px;
+		justify-content: center;
+		flex-wrap: wrap;
+	}
+
+	.fu-type-tag {
+		font-size: 10px;
+		padding: 2px 6px;
+		border-radius: 3px;
+		background: rgba(43, 108, 176, 0.15);
+		color: #2b6cb0;
 	}
 
 	.alert-badge {

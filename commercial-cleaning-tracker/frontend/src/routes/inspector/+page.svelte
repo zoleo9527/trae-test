@@ -35,7 +35,7 @@
 	function openInspectModal(shift: Shift) {
 		selectedShift = shift;
 		inspectionForm = { result: 'pass', score: 100, items: '', problems: '', remark: '' };
-		rectForm = { assigneeId: shift.workerId, deadline: '', description: '', actions: '' };
+		rectForm = { assigneeId: shift.WorkerID, deadline: '', description: '', actions: '' };
 		showInspectModal = true;
 	}
 
@@ -43,13 +43,13 @@
 		if (!selectedShift) return;
 		try {
 			const inspection = await createInspection({
-				shiftId: selectedShift.id,
+				shiftId: selectedShift.ID,
 				...inspectionForm
 			});
 
 			if (inspectionForm.result === 'fail' && rectForm.description) {
 				await createRectification({
-					inspectionId: inspection.id,
+					inspectionId: inspection.ID,
 					...rectForm
 				});
 			}
@@ -74,25 +74,25 @@
 				<div class="shift-card">
 					<div class="shift-header">
 						<div>
-							<h3>{shift.schedule?.project?.name || '项目'}</h3>
-							<p>{new Date(shift.date).toLocaleDateString()} | {shift.worker.name}</p>
+							<h3>{shift.Schedule?.Project?.Name || '项目'}</h3>
+							<p>{new Date(shift.Date).toLocaleDateString()} | {shift.Worker?.Name}</p>
 						</div>
 						<div class="badges">
-							{#if shift.checkIns?.length}
+							{#if shift.CheckIns?.length}
 								<span class="badge checkin">已打卡</span>
 							{/if}
-							{#if shift.inspections?.length}
+							{#if shift.Inspections?.length}
 								<span class="badge inspected">已质检</span>
 							{/if}
 						</div>
 					</div>
 					<div class="shift-info">
-						<span class="time">{shift.startTime} - {shift.endTime}</span>
-						<span class="area">{shift.area}</span>
+						<span class="time">{shift.StartTime} - {shift.EndTime}</span>
+						<span class="area">{shift.Area}</span>
 					</div>
-					<p class="tasks">{shift.tasks}</p>
+					<p class="tasks">{shift.Tasks}</p>
 					<button class="primary-btn" on:click={() => openInspectModal(shift)}>
-						{shift.inspections?.length ? '重新质检' : '开始质检'}
+						{shift.Inspections?.length ? '重新质检' : '开始质检'}
 					</button>
 				</div>
 			{/each}
@@ -102,8 +102,8 @@
 	{#if showInspectModal && selectedShift}
 		<div class="modal-overlay" on:click={() => (showInspectModal = false)}>
 			<div class="modal" on:click|stopPropagation>
-				<h3>质检 - {selectedShift.worker.name}</h3>
-				<p class="sub">{selectedShift.schedule?.project?.name} - {new Date(selectedShift.date).toLocaleDateString()}</p>
+				<h3>质检 - {selectedShift.Worker?.Name}</h3>
+				<p class="sub">{selectedShift.Schedule?.Project?.Name} - {new Date(selectedShift.Date).toLocaleDateString()}</p>
 
 				<div class="form-group">
 					<label>质检结果</label>
