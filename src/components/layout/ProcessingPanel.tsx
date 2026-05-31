@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
 import {
-  X, MessageSquare, Send, Edit3, DollarSign, Clock, User, Calendar,
-  History, ChevronRight,
+  Calendar,
+  ChefHat,
+  ChevronRight,
+  DollarSign,
+  Edit3,
+  MessageSquare, Send,
+  User,
+  X
 } from 'lucide-react';
-import { useOrderStore } from '../../store/useOrderStore';
+import React, { useMemo, useState } from 'react';
+import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCommunicationStore } from '../../store/useCommunicationStore';
-import { StatusBadge } from '../common/StatusBadge';
-import { Avatar } from '../common/Avatar';
-import { formatDateTime } from '../../utils/dateUtils';
-import { cn } from '../../lib/utils';
+import { useOrderStore } from '../../store/useOrderStore';
+import { useScheduleStore } from '../../store/useScheduleStore';
 import type { OrderStatus } from '../../types';
+import { formatDateTime } from '../../utils/dateUtils';
+import { Avatar } from '../common/Avatar';
+import { StatusBadge } from '../common/StatusBadge';
 import { ChangeOrderForm } from '../order/ChangeOrderForm';
-import { RefundForm } from '../order/RefundForm';
 import { OrderTimeline } from '../order/OrderTimeline';
+import { RefundForm } from '../order/RefundForm';
+import { ScheduleForm } from '../schedule/ScheduleForm';
 
 interface ProcessingPanelProps {
   onClose: () => void;
@@ -23,10 +31,17 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
   const { selectedOrder, updateOrderStatus, approveChange, rejectChange, approveRefund, rejectRefund } = useOrderStore();
   const { user } = useAuthStore();
   const { getCommunicationsByOrder, addCommunication } = useCommunicationStore();
+  const { schedules } = useScheduleStore();
   const [newMessage, setNewMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'actions' | 'communication' | 'history'>('actions');
   const [showChangeForm, setShowChangeForm] = useState(false);
   const [showRefundForm, setShowRefundForm] = useState(false);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+
+  const existingSchedule = useMemo(() => {
+    if (!selectedOrder) return null;
+    return schedules.find((s) => s.orderId === selectedOrder.id) || null;
+  }, [selectedOrder, schedules]);
 
   if (!selectedOrder) return null;
 
@@ -210,6 +225,36 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
               </div>
             )}
 
+            {existingSchedule && (
+              <div className="bg-bakery-brown-50 border border-bakery-brown-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <ChefHat className="w-4 h-4 text-bakery-brown-600" />
+                  <span className="text-sm font-medium text-bakery-brown-800">当前排期</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <p className="text-bakery-brown-700">
+                    <span className="text-bakery-brown-500">日期：</span>{existingSchedule.date}
+                  </p>
+                  <p className="text-bakery-brown-700">
+                    <span className="text-bakery-brown-500">时间：</span>{existingSchedule.startTime} - {existingSchedule.endTime}
+                  </p>
+                  <p className="text-bakery-brown-700">
+                    <span className="text-bakery-brown-500">状态：</span>
+                    {existingSchedule.status === 'scheduled' ? '已排期' : 
+                     existingSchedule.status === 'in_progress' ? '生产中' : '已完成'}
+                  </p>
+                </div>
+                {canEdit && selectedOrder.status === 'scheduled' && (
+                  <button
+                    onClick={() => setShowScheduleForm(true)}
+                    className="w-full mt-3 py-2 bg-bakery-brown-100 text-bakery-brown-700 text-sm rounded-lg hover:bg-bakery-brown-200 transition-colors"
+                  >
+                    调整排期
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">状态操作</p>
               <div className="grid grid-cols-2 gap-2">
@@ -223,13 +268,13 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
                 )}
                 {selectedOrder.status === 'reviewed' && canEdit && (
                   <button
-                    onClick={() => handleStatusUpdate('scheduled', '已安排生产排期')}
+                    onClick={() => setShowScheduleForm(true)}
                     className="py-2 bg-bakery-brown-500 text-white text-sm rounded-lg hover:bg-bakery-brown-600 transition-colors"
                   >
                     安排排期
                   </button>
                 )}
-                {selectedOrder.status === 'scheduled' && canEdit && (
+                {selectedOrder.status === 'scheduled' && canEdit && existingSchedule?.status === 'scheduled' && (
                   <button
                     onClick={() => handleStatusUpdate('in_production', '开始生产')}
                     className="py-2 bg-bakery-matcha text-white text-sm rounded-lg hover:opacity-90 transition-opacity"
@@ -380,6 +425,14 @@ export const ProcessingPanel: React.FC<ProcessingPanelProps> = ({ onClose }) => 
           isOpen={showRefundForm}
           onClose={() => setShowRefundForm(false)}
           order={selectedOrder}
+        />
+      )}
+      {showScheduleForm && (
+        <ScheduleForm
+          isOpen={showScheduleForm}
+          onClose={() => setShowScheduleForm(false)}
+          order={selectedOrder}
+          existingScheduleId={existingSchedule?.id}
         />
       )}
     </div>

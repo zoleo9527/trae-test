@@ -8,6 +8,7 @@ import type {
   RefundRequest,
 } from '../types';
 import { mockOrders } from '../utils/mockData';
+import { useScheduleStore } from './useScheduleStore';
 
 interface OrderState {
   orders: Order[];
@@ -80,6 +81,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     set((state) => {
       const orders = state.orders.map((order) => {
         if (order.id === id) {
+          const scheduleStore = useScheduleStore.getState();
+          const existingSchedule = scheduleStore.schedules.find((s) => s.orderId === id);
+          
+          if (existingSchedule) {
+            if (status === 'in_production') {
+              scheduleStore.updateSchedule(existingSchedule.id, { status: 'in_progress' });
+            } else if (status === 'completed') {
+              scheduleStore.updateSchedule(existingSchedule.id, { status: 'completed' });
+            }
+          }
+
           const newHistory: OrderHistory = {
             id: `h-${Date.now()}`,
             orderId: id,
@@ -177,104 +189,187 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   approveChange: (orderId: string, reviewNotes: string, operator: string) => {
     set((state) => {
-      const orders = state.orders.map((order) => {
-        if (order.id === orderId && order.changeRequest) {
-          const changes = order.changeRequest.changes;
-          let updatedOrder = { ...order };
-          changes.forEach((change) => {
-            if (change.field === 'pickupTime') {
-              updatedOrder.pickupTime = change.newValue;
-            }
+      const order = state.orders.find((o) => o.id === orderId);
+      if (order && order.changeRequest) {
+        const changes = order.changeRequest.changes;
+        let updatedOrder = { ...order };
+        let scheduleDate = '';
+        changes.forEach((change) => {
+          if (change.field === 'pickupTime') {
+            updatedOrder.pickupTime = change.newValue;
+            scheduleDate = change.newValue.split(' ')[0];
+          }
+        });
+
+        const scheduleStore = useScheduleStore.getState();
+        const existingSchedule = scheduleStore.schedules.find((s) => s.orderId === orderId);
+        
+        if (existingSchedule && scheduleDate) {
+          scheduleStore.updateSchedule(existingSchedule.id, {
+            date: scheduleDate,
           });
-          return {
-            ...updatedOrder,
-            status: 'scheduled' as OrderStatus,
-            changeRequest: {
-              ...order.changeRequest,
-              status: 'approved' as const,
-              reviewedBy: operator,
-              reviewedAt: new Date().toISOString(),
-              reviewNotes,
-            },
-            updatedAt: new Date().toISOString(),
-          };
         }
-        return order;
-      });
-      saveOrders(orders);
-      return { orders };
+
+        const newHistory: OrderHistory = {
+          id: `h-${Date.now()}`,
+          orderId,
+          action: '改单申请已批准',
+          operator,
+          operatorRole: 'manager',
+          timestamp: new Date().toISOString(),
+          remarks: reviewNotes + ' | ' + changes.map(c => `${c.oldValue} → ${c.newValue}`).join('; '),
+        };
+
+        const orders = state.orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...updatedOrder,
+              status: 'scheduled' as OrderStatus,
+              changeRequest: {
+                ...order.changeRequest!,
+                status: 'approved' as const,
+                reviewedBy: operator,
+                reviewedAt: new Date().toISOString(),
+                reviewNotes,
+              },
+              updatedAt: new Date().toISOString(),
+              history: [...o.history, newHistory],
+            };
+          }
+          return o;
+        });
+        saveOrders(orders);
+        const selectedOrder = orders.find((o) => o.id === state.selectedOrder?.id);
+        return { orders, selectedOrder: selectedOrder || state.selectedOrder };
+      }
+      return state;
     });
   },
 
   rejectChange: (orderId: string, reviewNotes: string, operator: string) => {
     set((state) => {
-      const orders = state.orders.map((order) => {
-        if (order.id === orderId && order.changeRequest) {
-          return {
-            ...order,
-            status: 'scheduled' as OrderStatus,
-            changeRequest: {
-              ...order.changeRequest,
-              status: 'rejected' as const,
-              reviewedBy: operator,
-              reviewedAt: new Date().toISOString(),
-              reviewNotes,
-            },
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return order;
-      });
-      saveOrders(orders);
-      return { orders };
+      const order = state.orders.find((o) => o.id === orderId);
+      if (order && order.changeRequest) {
+        const newHistory: OrderHistory = {
+          id: `h-${Date.now()}`,
+          orderId,
+          action: '改单申请被拒绝',
+          operator,
+          operatorRole: 'manager',
+          timestamp: new Date().toISOString(),
+          remarks: reviewNotes,
+        };
+
+        const orders = state.orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              status: 'scheduled' as OrderStatus,
+              changeRequest: {
+                ...order.changeRequest!,
+                status: 'rejected' as const,
+                reviewedBy: operator,
+                reviewedAt: new Date().toISOString(),
+                reviewNotes,
+              },
+              updatedAt: new Date().toISOString(),
+              history: [...o.history, newHistory],
+            };
+          }
+          return o;
+        });
+        saveOrders(orders);
+        const selectedOrder = orders.find((o) => o.id === state.selectedOrder?.id);
+        return { orders, selectedOrder: selectedOrder || state.selectedOrder };
+      }
+      return state;
     });
   },
 
   approveRefund: (orderId: string, reviewNotes: string, operator: string) => {
     set((state) => {
-      const orders = state.orders.map((order) => {
-        if (order.id === orderId && order.refundRequest) {
-          return {
-            ...order,
-            status: 'refunded' as OrderStatus,
-            refundRequest: {
-              ...order.refundRequest,
-              status: 'approved' as const,
-              reviewedBy: operator,
-              reviewedAt: new Date().toISOString(),
-              reviewNotes,
-            },
-            updatedAt: new Date().toISOString(),
-          };
+      const order = state.orders.find((o) => o.id === orderId);
+      if (order && order.refundRequest) {
+        const scheduleStore = useScheduleStore.getState();
+        const existingSchedule = scheduleStore.schedules.find((s) => s.orderId === orderId);
+        
+        if (existingSchedule) {
+          scheduleStore.deleteSchedule(existingSchedule.id);
         }
-        return order;
-      });
-      saveOrders(orders);
-      return { orders };
+
+        const newHistory: OrderHistory = {
+          id: `h-${Date.now()}`,
+          orderId,
+          action: '退款申请已批准',
+          operator,
+          operatorRole: 'manager',
+          timestamp: new Date().toISOString(),
+          remarks: `${reviewNotes} | 退款金额：¥${order.refundRequest.refundAmount}`,
+        };
+
+        const orders = state.orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              status: 'refunded' as OrderStatus,
+              refundRequest: {
+                ...order.refundRequest!,
+                status: 'approved' as const,
+                reviewedBy: operator,
+                reviewedAt: new Date().toISOString(),
+                reviewNotes,
+              },
+              updatedAt: new Date().toISOString(),
+              history: [...o.history, newHistory],
+            };
+          }
+          return o;
+        });
+        saveOrders(orders);
+        const selectedOrder = orders.find((o) => o.id === state.selectedOrder?.id);
+        return { orders, selectedOrder: selectedOrder || state.selectedOrder };
+      }
+      return state;
     });
   },
 
   rejectRefund: (orderId: string, reviewNotes: string, operator: string) => {
     set((state) => {
-      const orders = state.orders.map((order) => {
-        if (order.id === orderId && order.refundRequest) {
-          return {
-            ...order,
-            status: 'scheduled' as OrderStatus,
-            refundRequest: {
-              ...order.refundRequest,
-              status: 'rejected' as const,
-              reviewedBy: operator,
-              reviewedAt: new Date().toISOString(),
-              reviewNotes,
-            },
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return order;
-      });
-      saveOrders(orders);
-      return { orders };
+      const order = state.orders.find((o) => o.id === orderId);
+      if (order && order.refundRequest) {
+        const newHistory: OrderHistory = {
+          id: `h-${Date.now()}`,
+          orderId,
+          action: '退款申请被拒绝',
+          operator,
+          operatorRole: 'manager',
+          timestamp: new Date().toISOString(),
+          remarks: reviewNotes,
+        };
+
+        const orders = state.orders.map((o) => {
+          if (o.id === orderId) {
+            return {
+              ...o,
+              status: 'scheduled' as OrderStatus,
+              refundRequest: {
+                ...order.refundRequest!,
+                status: 'rejected' as const,
+                reviewedBy: operator,
+                reviewedAt: new Date().toISOString(),
+                reviewNotes,
+              },
+              updatedAt: new Date().toISOString(),
+              history: [...o.history, newHistory],
+            };
+          }
+          return o;
+        });
+        saveOrders(orders);
+        const selectedOrder = orders.find((o) => o.id === state.selectedOrder?.id);
+        return { orders, selectedOrder: selectedOrder || state.selectedOrder };
+      }
+      return state;
     });
   },
 
