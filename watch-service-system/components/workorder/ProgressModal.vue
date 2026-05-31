@@ -90,7 +90,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { WorkOrder } from '~/types/workorder';
-import StatusBadge from './StatusBadge.vue';
 
 interface Props {
   modelValue: boolean;

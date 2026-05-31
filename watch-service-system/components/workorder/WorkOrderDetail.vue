@@ -461,6 +461,13 @@
       :loading="actionLoading"
       @submit="handleUpdateProgress"
     />
+
+    <InspectModal
+      v-model="showInspectModal"
+      :order="order"
+      :loading="actionLoading"
+      @submit="handleStartInspectSubmit"
+    />
   </div>
 </template>
 
@@ -469,13 +476,12 @@ import { ref, computed } from 'vue';
 import type { WorkOrder } from '~/types/workorder';
 import { formatDate, formatPhone, formatCurrency, formatDateTime } from '~/utils/format';
 import Timeline from './Timeline.vue';
-import StatusBadge from '../common/StatusBadge.vue';
-import PriorityBadge from '../common/PriorityBadge.vue';
 import ConfirmModal from '../common/ConfirmModal.vue';
 import QuoteModal from './QuoteModal.vue';
 import SatisfactionModal from './SatisfactionModal.vue';
 import PartLockModal from './PartLockModal.vue';
 import ProgressModal from './ProgressModal.vue';
+import InspectModal from './InspectModal.vue';
 
 interface Props {
   order: WorkOrder | null;
@@ -498,6 +504,7 @@ const showQuoteModal = ref(false);
 const showSatisfactionModal = ref(false);
 const showPartLockModal = ref(false);
 const showProgressModal = ref(false);
+const showInspectModal = ref(false);
 
 const quoteStatusLabel = computed(() => {
   const labels: Record<string, string> = {
@@ -542,13 +549,19 @@ function getProgressIcon(status: string): string {
   return icons[status] || 'mdi:circle';
 }
 
-async function handleStartInspect() {
+function handleStartInspect() {
+  showInspectModal.value = true;
+}
+
+async function handleStartInspectSubmit(data: { inspectionResult: string; remark: string }) {
   if (!props.order) return;
   try {
     await performAction(props.order.id, {
       actionType: 'start_inspect',
-      remark: '开始检测手表故障',
+      inspectionResult: data.inspectionResult,
+      remark: data.remark || '开始检测手表故障',
     });
+    showInspectModal.value = false;
   } catch (err) {
     console.error('操作失败:', err);
   }
@@ -657,7 +670,8 @@ async function handleUpdateProgress(data: { status: string; remark: string }) {
   try {
     await performAction(props.order.id, {
       actionType: 'update_progress',
-      remark: `[${getProgressLabel(data.status)}] ${data.remark}`,
+      progressStatus: data.status,
+      remark: data.remark,
     });
     showProgressModal.value = false;
   } catch (err) {

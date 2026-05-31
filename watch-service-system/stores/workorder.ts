@@ -199,5 +199,42 @@ export const useWorkOrderStore = defineStore('workorder', {
     clearActionError() {
       this.actionError = null;
     },
+
+    async createWorkOrder(data: {
+      customerName: string;
+      customerPhone: string;
+      customerEmail: string;
+      watchBrand: string;
+      watchModel: string;
+      watchSerial: string;
+      problemDesc: string;
+      priority: string;
+      expectedDate: string;
+    }) {
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const userStore = useUserStore();
+        const newOrder = await $fetch<WorkOrder>('/api/workorders', {
+          method: 'POST',
+          body: {
+            ...data,
+            role: userStore.currentRole,
+          },
+        });
+
+        this.workOrders.unshift(newOrder);
+        this.pagination.total += 1;
+        await this.fetchStats();
+
+        return newOrder;
+      } catch (err) {
+        this.error = err instanceof Error ? err.message : '创建失败';
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
   },
 });

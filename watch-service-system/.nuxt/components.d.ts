@@ -25,6 +25,8 @@ export const StatusBadge: typeof import("../components/common/StatusBadge.vue")[
 export const StatCard: typeof import("../components/dashboard/StatCard.vue")['default']
 export const TaskList: typeof import("../components/dashboard/TaskList.vue")['default']
 export const AppHeader: typeof import("../components/layout/AppHeader.vue")['default']
+export const CreateWorkOrderModal: typeof import("../components/workorder/CreateWorkOrderModal.vue")['default']
+export const InspectModal: typeof import("../components/workorder/InspectModal.vue")['default']
 export const PartLockModal: typeof import("../components/workorder/PartLockModal.vue")['default']
 export const ProgressModal: typeof import("../components/workorder/ProgressModal.vue")['default']
 export const QuoteModal: typeof import("../components/workorder/QuoteModal.vue")['default']
@@ -67,6 +69,8 @@ export const LazyStatusBadge: LazyComponent<typeof import("../components/common/
 export const LazyStatCard: LazyComponent<typeof import("../components/dashboard/StatCard.vue")['default']>
 export const LazyTaskList: LazyComponent<typeof import("../components/dashboard/TaskList.vue")['default']>
 export const LazyAppHeader: LazyComponent<typeof import("../components/layout/AppHeader.vue")['default']>
+export const LazyCreateWorkOrderModal: LazyComponent<typeof import("../components/workorder/CreateWorkOrderModal.vue")['default']>
+export const LazyInspectModal: LazyComponent<typeof import("../components/workorder/InspectModal.vue")['default']>
 export const LazyPartLockModal: LazyComponent<typeof import("../components/workorder/PartLockModal.vue")['default']>
 export const LazyProgressModal: LazyComponent<typeof import("../components/workorder/ProgressModal.vue")['default']>
 export const LazyQuoteModal: LazyComponent<typeof import("../components/workorder/QuoteModal.vue")['default']>

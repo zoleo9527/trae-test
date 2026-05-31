@@ -25,6 +25,8 @@ interface _GlobalComponents {
   StatCard: typeof import("../../components/dashboard/StatCard.vue")['default']
   TaskList: typeof import("../../components/dashboard/TaskList.vue")['default']
   AppHeader: typeof import("../../components/layout/AppHeader.vue")['default']
+  CreateWorkOrderModal: typeof import("../../components/workorder/CreateWorkOrderModal.vue")['default']
+  InspectModal: typeof import("../../components/workorder/InspectModal.vue")['default']
   PartLockModal: typeof import("../../components/workorder/PartLockModal.vue")['default']
   ProgressModal: typeof import("../../components/workorder/ProgressModal.vue")['default']
   QuoteModal: typeof import("../../components/workorder/QuoteModal.vue")['default']
@@ -67,6 +69,8 @@ interface _GlobalComponents {
   LazyStatCard: LazyComponent<typeof import("../../components/dashboard/StatCard.vue")['default']>
   LazyTaskList: LazyComponent<typeof import("../../components/dashboard/TaskList.vue")['default']>
   LazyAppHeader: LazyComponent<typeof import("../../components/layout/AppHeader.vue")['default']>
+  LazyCreateWorkOrderModal: LazyComponent<typeof import("../../components/workorder/CreateWorkOrderModal.vue")['default']>
+  LazyInspectModal: LazyComponent<typeof import("../../components/workorder/InspectModal.vue")['default']>
   LazyPartLockModal: LazyComponent<typeof import("../../components/workorder/PartLockModal.vue")['default']>
   LazyProgressModal: LazyComponent<typeof import("../../components/workorder/ProgressModal.vue")['default']>
   LazyQuoteModal: LazyComponent<typeof import("../../components/workorder/QuoteModal.vue")['default']>

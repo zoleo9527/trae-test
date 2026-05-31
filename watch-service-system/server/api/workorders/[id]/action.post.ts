@@ -226,9 +226,18 @@ export default defineEventHandler(async (event) => {
     }
 
     case 'update_progress': {
+      const status = (data as any).progressStatus || 'repairing';
+      const statusLabels: Record<string, string> = {
+        inspecting: '检测中',
+        parts_preparing: '配件准备',
+        repairing: '维修中',
+        testing: '测试中',
+        completed: '已完成',
+      };
       if (data.remark) {
-        newProgress.push(createProgressEntry(id, 'repairing', data.remark, currentUser.name, currentUser.role));
-        timeline.push(createTimelineEntry('更新进度', currentUser.name, currentUser.role, data.remark));
+        newProgress.push(createProgressEntry(id, status as any, data.remark, currentUser.name, currentUser.role));
+        const statusLabel = statusLabels[status] || status;
+        timeline.push(createTimelineEntry('更新进度', currentUser.name, currentUser.role, `[${statusLabel}] ${data.remark}`));
       }
       break;
     }

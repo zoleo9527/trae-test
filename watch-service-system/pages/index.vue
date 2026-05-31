@@ -91,7 +91,7 @@
             <div class="grid grid-cols-2 gap-3">
               <button
                 v-if="currentRole === 'consultant'"
-                @click="navigateToWorkOrders"
+                @click="showCreateModal = true"
                 class="flex flex-col items-center p-4 rounded-lg bg-primary-50 hover:bg-primary-100 transition-colors"
               >
                 <div class="w-10 h-10 flex items-center justify-center rounded-full bg-primary-500 mb-2">
@@ -217,12 +217,17 @@
           </div>
         </div>
       </div>
+    <CreateWorkOrderModal
+      v-model="showCreateModal"
+      :loading="createLoading"
+      @submit="handleCreateWorkOrder"
+    />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -240,7 +245,11 @@ const {
   fetchPartInventory,
   selectOrder,
   setFilter,
+  createWorkOrder,
 } = useWorkOrder();
+
+const showCreateModal = ref(false);
+const createLoading = ref(false);
 
 const loadingStats = computed(() => loading.value && !stats.value);
 
@@ -305,5 +314,19 @@ function navigateToWorkOrders(tab?: string) {
 function handleSelectOrder(order: any) {
   selectOrder(order);
   router.push('/workorders');
+}
+
+async function handleCreateWorkOrder(data: any) {
+  createLoading.value = true;
+  try {
+    const newOrder = await createWorkOrder(data);
+    showCreateModal.value = false;
+    selectOrder(newOrder);
+    router.push('/workorders');
+  } catch (err) {
+    console.error('创建工单失败:', err);
+  } finally {
+    createLoading.value = false;
+  }
 }
 </script>

@@ -7,10 +7,11 @@
     >
       <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
       <div
-        class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 transform transition-all"
+        class="relative bg-white rounded-xl shadow-2xl w-full mx-4 transform transition-all"
         :class="[
           visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         ]"
+        :style="{ maxWidth: width ? `${width}px` : '32rem' }"
       >
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 class="text-lg font-semibold text-gray-900">{{ title }}</h3>
@@ -40,10 +41,12 @@ interface Props {
   visible: boolean;
   title: string;
   closable?: boolean;
+  width?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   closable: true,
+  width: undefined,
 });
 
 const emit = defineEmits<{

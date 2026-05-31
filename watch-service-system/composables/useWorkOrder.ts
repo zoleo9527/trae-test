@@ -69,6 +69,20 @@ export function useWorkOrder() {
     workOrderStore.clearActionError();
   }
 
+  async function createWorkOrder(data: {
+    customerName: string;
+    customerPhone: string;
+    customerEmail: string;
+    watchBrand: string;
+    watchModel: string;
+    watchSerial: string;
+    problemDesc: string;
+    priority: string;
+    expectedDate: string;
+  }) {
+    return await workOrderStore.createWorkOrder(data);
+  }
+
   return {
     workOrders,
     selectedOrder,
@@ -92,6 +106,7 @@ export function useWorkOrder() {
     fetchPartInventory,
     fetchWorkOrderDetail,
     performAction,
+    createWorkOrder,
     selectOrder,
     setFilter,
     setPage,

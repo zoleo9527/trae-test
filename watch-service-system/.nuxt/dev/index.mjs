@@ -2739,6 +2739,7 @@ async function getIslandContext(event) {
 const _lazy_GpTvZJ = () => Promise.resolve().then(function () { return parts_get$1; });
 const _lazy_kvjk3K = () => Promise.resolve().then(function () { return stats_get$1; });
 const _lazy_LZE3MG = () => Promise.resolve().then(function () { return workorders_get$1; });
+const _lazy_nx548H = () => Promise.resolve().then(function () { return workorders_post$1; });
 const _lazy_AHDuC7 = () => Promise.resolve().then(function () { return _id__get$1; });
 const _lazy_kbR5rP = () => Promise.resolve().then(function () { return _id__patch$1; });
 const _lazy_1EiImz = () => Promise.resolve().then(function () { return action_post$1; });
@@ -2749,6 +2750,7 @@ const handlers = [
   { route: '/api/parts', handler: _lazy_GpTvZJ, lazy: true, middleware: false, method: "get" },
   { route: '/api/stats', handler: _lazy_kvjk3K, lazy: true, middleware: false, method: "get" },
   { route: '/api/workorders', handler: _lazy_LZE3MG, lazy: true, middleware: false, method: "get" },
+  { route: '/api/workorders', handler: _lazy_nx548H, lazy: true, middleware: false, method: "post" },
   { route: '/api/workorders/:id', handler: _lazy_AHDuC7, lazy: true, middleware: false, method: "get" },
   { route: '/api/workorders/:id', handler: _lazy_kbR5rP, lazy: true, middleware: false, method: "patch" },
   { route: '/api/workorders/:id/action', handler: _lazy_1EiImz, lazy: true, middleware: false, method: "post" },
@@ -3438,6 +3440,75 @@ const workorders_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePr
   default: workorders_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
+function generateOrderNo() {
+  const date = /* @__PURE__ */ new Date();
+  const prefix = `WS${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  const count = mockWorkOrders.filter((wo) => wo.orderNo.startsWith(prefix)).length + 1;
+  return `${prefix}${String(count).padStart(4, "0")}`;
+}
+const workorders_post = defineEventHandler(async (event) => {
+  const body = await readBody(event);
+  const {
+    customerName,
+    customerPhone,
+    customerEmail,
+    watchBrand,
+    watchModel,
+    watchSerial,
+    problemDesc,
+    priority = "medium",
+    expectedDate,
+    role = "consultant"
+  } = body;
+  if (!customerName || !customerPhone || !watchBrand || !watchModel || !problemDesc) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "\u7F3A\u5C11\u5FC5\u8981\u5B57\u6BB5"
+    });
+  }
+  const currentUser = mockUsers.find((u) => u.role === role) || mockUsers[1];
+  const newOrder = {
+    id: `wo${Date.now()}`,
+    orderNo: generateOrderNo(),
+    customer: {
+      id: `c${Date.now()}`,
+      name: customerName,
+      phone: customerPhone,
+      email: customerEmail || void 0
+    },
+    watchBrand,
+    watchModel,
+    watchSerial: watchSerial || void 0,
+    problemDesc,
+    status: "pending_review",
+    priority,
+    receivedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    expectedDate: expectedDate || void 0,
+    parts: [],
+    timeline: [
+      {
+        id: `tl-${Date.now()}-1`,
+        action: "\u5BC4\u4FEE\u767B\u8BB0",
+        operator: currentUser.name,
+        operatorRole: currentUser.role,
+        remark: "\u5BA2\u6237\u63D0\u4EA4\u5BC4\u4FEE\u7533\u8BF7",
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    ],
+    progress: [],
+    createdBy: currentUser.id,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  mockWorkOrders.unshift(newOrder);
+  return newOrder;
+});
+
+const workorders_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: workorders_post
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const _id__get = defineEventHandler((event) => {
   const id = getRouterParam(event, "id");
   const order = mockWorkOrders.find((wo) => wo.id === id);
@@ -3673,9 +3744,18 @@ const action_post = defineEventHandler(async (event) => {
       break;
     }
     case "update_progress": {
+      const status = data.progressStatus || "repairing";
+      const statusLabels = {
+        inspecting: "\u68C0\u6D4B\u4E2D",
+        parts_preparing: "\u914D\u4EF6\u51C6\u5907",
+        repairing: "\u7EF4\u4FEE\u4E2D",
+        testing: "\u6D4B\u8BD5\u4E2D",
+        completed: "\u5DF2\u5B8C\u6210"
+      };
       if (data.remark) {
-        newProgress.push(createProgressEntry(id, "repairing", data.remark, currentUser.name, currentUser.role));
-        timeline.push(createTimelineEntry("\u66F4\u65B0\u8FDB\u5EA6", currentUser.name, currentUser.role, data.remark));
+        newProgress.push(createProgressEntry(id, status, data.remark, currentUser.name, currentUser.role));
+        const statusLabel = statusLabels[status] || status;
+        timeline.push(createTimelineEntry("\u66F4\u65B0\u8FDB\u5EA6", currentUser.name, currentUser.role, `[${statusLabel}] ${data.remark}`));
       }
       break;
     }

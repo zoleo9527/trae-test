@@ -8,6 +8,14 @@
         </div>
         <div class="flex items-center space-x-3">
           <button
+            v-if="currentRole === 'consultant'"
+            @click="showCreateModal = true"
+            class="btn-primary btn-sm"
+          >
+            <Icon icon="mdi:plus" class="w-4 h-4 mr-2" />
+            新建工单
+          </button>
+          <button
             @click="handleRefresh"
             class="btn-secondary btn-sm"
             :disabled="loading"
@@ -50,6 +58,12 @@
       </div>
     </div>
 
+    <CreateWorkOrderModal
+      v-model="showCreateModal"
+      :loading="createLoading"
+      @submit="handleCreateWorkOrder"
+    />
+
     <div
       v-if="actionError"
       class="fixed bottom-6 right-6 max-w-sm bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg z-50"
@@ -75,6 +89,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import type { WorkOrderStatus } from '~/types/workorder';
 
+const { currentRole } = useRole();
 const {
   workOrders,
   selectedOrder,
@@ -88,10 +103,13 @@ const {
   setFilter,
   clearFilter,
   clearActionError,
+  createWorkOrder,
 } = useWorkOrder();
 
 const statusFilter = ref<WorkOrderStatus[]>([]);
 const priorityFilter = ref<string[]>([]);
+const showCreateModal = ref(false);
+const createLoading = ref(false);
 
 const totalCount = computed(() => pagination.value.total);
 
@@ -133,4 +151,17 @@ watch([statusFilter, priorityFilter], () => {
     priority: priorityFilter.value.length > 0 ? priorityFilter.value as any : undefined,
   });
 });
+
+async function handleCreateWorkOrder(data: any) {
+  createLoading.value = true;
+  try {
+    const newOrder = await createWorkOrder(data);
+    showCreateModal.value = false;
+    selectOrder(newOrder);
+  } catch (err) {
+    console.error('创建工单失败:', err);
+  } finally {
+    createLoading.value = false;
+  }
+}
 </script>
