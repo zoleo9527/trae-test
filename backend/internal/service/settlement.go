@@ -51,7 +51,7 @@ func getPriceByTradeType(tradeType string) float64 {
 	}
 }
 
-func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.GenerateSettlementRequest) (*model.SettlementBatch, error) {
+func (s *SettlementService) GenerateFromAttendance(operator *OperatorInfo, req *dto.GenerateSettlementRequest) (*model.SettlementBatch, error) {
 	teamID, err := uuid.Parse(req.TeamID)
 	if err != nil {
 		return nil, err
@@ -228,11 +228,11 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 		auditRemark += fmt.Sprintf("发货异常%d单待处理", len(deliveryIssues))
 	}
 
-	RecordAudit(ctx, "settlement_batch", batch.ID, "create", nil, toMap(batch), auditRemark)
+	RecordAuditWithOperator(operator, "settlement_batch", batch.ID, "create", nil, toMap(batch), auditRemark)
 
 	if len(reworkDeductions) > 0 {
 		for _, d := range reworkDeductions {
-			RecordAudit(ctx, "settlement_batch", batch.ID, "rework_deduction", nil,
+			RecordAuditWithOperator(operator, "settlement_batch", batch.ID, "rework_deduction", nil,
 				map[string]interface{}{
 					"rework_id":   d["rework_id"],
 					"reason":      d["reason"],
@@ -244,7 +244,7 @@ func (s *SettlementService) GenerateFromAttendance(ctx *fiber.Ctx, req *dto.Gene
 
 	if len(deliveryIssues) > 0 {
 		for _, d := range deliveryIssues {
-			RecordAudit(ctx, "settlement_batch", batch.ID, "delivery_issue", nil,
+			RecordAuditWithOperator(operator, "settlement_batch", batch.ID, "delivery_issue", nil,
 				map[string]interface{}{
 					"delivery_id":     d.ID,
 					"material_name":   d.MaterialName,

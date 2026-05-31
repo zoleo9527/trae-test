@@ -26,7 +26,10 @@ func (h *SettlementHandler) Generate(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	task, err := h.asyncTaskService.CreateSettlementTask(c, &req)
+	claims, _ := c.Locals("user").(*dto.UserSummary)
+	operator := service.OperatorInfo{ID: claims.ID, Name: claims.RealName, Role: claims.Role, ProjectID: claims.ProjectID, TeamID: claims.TeamID}
+
+	task, err := h.asyncTaskService.CreateSettlementTask(&operator, &req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -46,7 +49,10 @@ func (h *SettlementHandler) GenerateSync(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	result, err := h.service.GenerateFromAttendance(c, &req)
+	claims, _ := c.Locals("user").(*dto.UserSummary)
+	operator := service.OperatorInfo{ID: claims.ID, Name: claims.RealName, Role: claims.Role, ProjectID: claims.ProjectID, TeamID: claims.TeamID}
+
+	result, err := h.service.GenerateFromAttendance(&operator, &req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

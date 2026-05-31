@@ -11,16 +11,15 @@ import (
 	"floor-settlement/internal/model"
 	"floor-settlement/internal/repository"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
 type AsyncTaskService struct {
-	repo            *repository.AsyncTaskRepository
-	settlementSvc   *SettlementService
-	workers         int
-	stopChan        chan struct{}
-	wg              sync.WaitGroup
+	repo          *repository.AsyncTaskRepository
+	settlementSvc *SettlementService
+	workers       int
+	stopChan      chan struct{}
+	wg            sync.WaitGroup
 }
 
 func NewAsyncTaskService(settlementSvc *SettlementService, workers int) *AsyncTaskService {
@@ -67,17 +66,15 @@ func (s *AsyncTaskService) worker(id int) {
 }
 
 func (s *AsyncTaskService) processNextTask() error {
-	tasks, err := s.repo.ListPending(1)
-	if err != nil || len(tasks) == 0 {
+	task, err := s.repo.ClaimPending()
+	if err != nil {
 		return err
 	}
-
-	task := tasks[0]
-	if err := s.repo.MarkStarted(task.ID); err != nil {
-		return err
+	if task == nil {
+		return nil
 	}
 
-	result, err := s.executeTask(&task)
+	result, err := s.executeTask(task)
 	if err != nil {
 		return s.repo.UpdateStatus(task.ID, "failed", nil, err.Error())
 	}
@@ -101,10 +98,27 @@ func (s *AsyncTaskService) executeSettlementGenerate(task *model.AsyncTask) (map
 		return nil, fmt.Errorf("parse payload: %w", err)
 	}
 
-	fakeCtx := &fiber.Ctx{}
-	fakeCtx.Locals("user", &dto.UserSummary{ID: task.CreatedBy})
+	operator := &OperatorInfo{
+		ID: task.CreatedBy,
+	}
+	if name, ok := task.Payload["operator_name"].(string); ok {
+		operator.Name = name
+	}
+	if role, ok := task.Payload["operator_role"].(string); ok {
+		operator.Role = role
+	}
+	if pidStr, ok := task.Payload["operator_project_id"].(string); ok {
+		if pid, err := uuid.Parse(pidStr); err == nil {
+			operator.ProjectID = &pid
+		}
+	}
+	if tidStr, ok := task.Payload["operator_team_id"].(string); ok {
+		if tid, err := uuid.Parse(tidStr); err == nil {
+			operator.TeamID = &tid
+		}
+	}
 
-	batch, err := s.settlementSvc.GenerateFromAttendance(fakeCtx, &req)
+	batch, err := s.settlementSvc.GenerateFromAttendance(operator, &req)
 	if err != nil {
 		return nil, err
 	}
@@ -116,21 +130,30 @@ func (s *AsyncTaskService) executeSettlementGenerate(task *model.AsyncTask) (map
 	}, nil
 }
 
-func (s *AsyncTaskService) CreateSettlementTask(c *fiber.Ctx, req *dto.GenerateSettlementRequest) (*model.AsyncTask, error) {
-	claims := getUserClaims(c)
+func (s *AsyncTaskService) CreateSettlementTask(operator *OperatorInfo, req *dto.GenerateSettlementRequest) (*model.AsyncTask, error) {
 	payload := map[string]interface{}{
-		"team_id":      req.TeamID,
-		"project_id":   req.ProjectID,
-		"period_start": req.PeriodStart,
-		"period_end":   req.PeriodEnd,
-		"remark":       req.Remark,
+		"team_id":             req.TeamID,
+		"project_id":          req.ProjectID,
+		"period_start":        req.PeriodStart,
+		"period_end":          req.PeriodEnd,
+		"remark":              req.Remark,
+		"operator_name":       operator.Name,
+		"operator_role":       operator.Role,
+		"operator_project_id": "",
+		"operator_team_id":    "",
+	}
+	if operator.ProjectID != nil {
+		payload["operator_project_id"] = operator.ProjectID.String()
+	}
+	if operator.TeamID != nil {
+		payload["operator_team_id"] = operator.TeamID.String()
 	}
 
 	task := &model.AsyncTask{
 		TaskType:  "settlement_generate",
 		Status:    "pending",
 		Payload:   model.MapJSON(payload),
-		CreatedBy: claims.ID,
+		CreatedBy: operator.ID,
 	}
 
 	if err := s.repo.Create(task); err != nil {

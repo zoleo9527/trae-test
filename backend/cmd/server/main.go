@@ -34,6 +34,7 @@ func main() {
 
 	auditService := service.NewAuditService()
 	service.RecordAudit = auditService.RecordFromContext
+	service.RecordAuditDirect = auditService.Record
 
 	authService := service.NewAuthService()
 	attendanceService := service.NewAttendanceService()

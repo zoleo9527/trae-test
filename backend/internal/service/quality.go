@@ -14,6 +14,16 @@ import (
 
 var RecordAudit func(c *fiber.Ctx, entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, remark string) error
 
+var RecordAuditDirect func(operatorID uuid.UUID, operatorName, operatorRole string, entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, remark string) error
+
+type OperatorInfo struct {
+	ID         uuid.UUID
+	Name       string
+	Role       string
+	ProjectID  *uuid.UUID
+	TeamID     *uuid.UUID
+}
+
 func toMap(v interface{}) map[string]interface{} {
 	data, _ := json.Marshal(v)
 	var m map[string]interface{}
@@ -27,6 +37,26 @@ func getUserClaims(c *fiber.Ctx) *dto.UserSummary {
 		return nil
 	}
 	return claims
+}
+
+func operatorFromClaims(claims *dto.UserSummary) *OperatorInfo {
+	if claims == nil {
+		return nil
+	}
+	return &OperatorInfo{
+		ID:        claims.ID,
+		Name:      claims.RealName,
+		Role:      claims.Role,
+		ProjectID: claims.ProjectID,
+		TeamID:    claims.TeamID,
+	}
+}
+
+func RecordAuditWithOperator(op *OperatorInfo, entityType string, entityID uuid.UUID, action string, before, after map[string]interface{}, remark string) error {
+	if RecordAuditDirect != nil {
+		return RecordAuditDirect(op.ID, op.Name, op.Role, entityType, entityID, action, before, after, remark)
+	}
+	return nil
 }
 
 type QualityService struct {

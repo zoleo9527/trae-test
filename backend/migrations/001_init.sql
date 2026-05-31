@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username VARCHAR(64) NOT NULL UNIQUE,
     password_hash VARCHAR(256) NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(128) NOT NULL,
     location VARCHAR(256),
@@ -24,7 +24,7 @@ CREATE TABLE projects (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id),
     name VARCHAR(128) NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE teams (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE attendance_records (
+CREATE TABLE IF NOT EXISTS attendance_records (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     team_id UUID NOT NULL REFERENCES teams(id),
     project_id UUID NOT NULL REFERENCES projects(id),
@@ -52,7 +52,7 @@ CREATE TABLE attendance_records (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE settlement_batches (
+CREATE TABLE IF NOT EXISTS settlement_batches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     team_id UUID NOT NULL REFERENCES teams(id),
     project_id UUID NOT NULL REFERENCES projects(id),
@@ -72,7 +72,7 @@ CREATE TABLE settlement_batches (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE settlement_items (
+CREATE TABLE IF NOT EXISTS settlement_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     settlement_batch_id UUID NOT NULL REFERENCES settlement_batches(id) ON DELETE CASCADE,
     attendance_record_id UUID REFERENCES attendance_records(id),
@@ -88,7 +88,7 @@ CREATE TABLE settlement_items (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE delivery_receipts (
+CREATE TABLE IF NOT EXISTS delivery_receipts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id),
     team_id UUID NOT NULL REFERENCES teams(id),
@@ -105,7 +105,7 @@ CREATE TABLE delivery_receipts (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE change_orders (
+CREATE TABLE IF NOT EXISTS change_orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id),
     team_id UUID NOT NULL REFERENCES teams(id),
@@ -123,7 +123,7 @@ CREATE TABLE change_orders (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE quality_inspections (
+CREATE TABLE IF NOT EXISTS quality_inspections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id),
     team_id UUID NOT NULL REFERENCES teams(id),
@@ -138,7 +138,7 @@ CREATE TABLE quality_inspections (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE rework_records (
+CREATE TABLE IF NOT EXISTS rework_records (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id),
     team_id UUID NOT NULL REFERENCES teams(id),
@@ -156,7 +156,7 @@ CREATE TABLE rework_records (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE audit_trails (
+CREATE TABLE IF NOT EXISTS audit_trails (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     entity_type VARCHAR(64) NOT NULL,
     entity_id UUID NOT NULL,
@@ -170,7 +170,7 @@ CREATE TABLE audit_trails (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE async_tasks (
+CREATE TABLE IF NOT EXISTS async_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     task_type VARCHAR(64) NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
@@ -184,22 +184,22 @@ CREATE TABLE async_tasks (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_attendance_team_date ON attendance_records(team_id, record_date);
-CREATE INDEX idx_attendance_project_date ON attendance_records(project_id, record_date);
-CREATE INDEX idx_settlement_batch_team ON settlement_batches(team_id);
-CREATE INDEX idx_settlement_batch_project ON settlement_batches(project_id);
-CREATE INDEX idx_settlement_batch_status ON settlement_batches(status);
-CREATE INDEX idx_settlement_item_batch ON settlement_items(settlement_batch_id);
-CREATE INDEX idx_delivery_project ON delivery_receipts(project_id);
-CREATE INDEX idx_delivery_team ON delivery_receipts(team_id);
-CREATE INDEX idx_change_order_project ON change_orders(project_id);
-CREATE INDEX idx_change_order_status ON change_orders(status);
-CREATE INDEX idx_quality_project ON quality_inspections(project_id);
-CREATE INDEX idx_quality_team ON quality_inspections(team_id);
-CREATE INDEX idx_rework_project ON rework_records(project_id);
-CREATE INDEX idx_rework_inspection ON rework_records(quality_inspection_id);
-CREATE INDEX idx_audit_entity ON audit_trails(entity_type, entity_id);
-CREATE INDEX idx_audit_operator ON audit_trails(operator_id);
-CREATE INDEX idx_audit_created ON audit_trails(created_at);
-CREATE INDEX idx_async_task_status ON async_tasks(status);
-CREATE INDEX idx_async_task_type ON async_tasks(task_type);
+CREATE INDEX IF NOT EXISTS idx_attendance_team_date ON attendance_records(team_id, record_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_project_date ON attendance_records(project_id, record_date);
+CREATE INDEX IF NOT EXISTS idx_settlement_batch_team ON settlement_batches(team_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_batch_project ON settlement_batches(project_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_batch_status ON settlement_batches(status);
+CREATE INDEX IF NOT EXISTS idx_settlement_item_batch ON settlement_items(settlement_batch_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_project ON delivery_receipts(project_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_team ON delivery_receipts(team_id);
+CREATE INDEX IF NOT EXISTS idx_change_order_project ON change_orders(project_id);
+CREATE INDEX IF NOT EXISTS idx_change_order_status ON change_orders(status);
+CREATE INDEX IF NOT EXISTS idx_quality_project ON quality_inspections(project_id);
+CREATE INDEX IF NOT EXISTS idx_quality_team ON quality_inspections(team_id);
+CREATE INDEX IF NOT EXISTS idx_rework_project ON rework_records(project_id);
+CREATE INDEX IF NOT EXISTS idx_rework_inspection ON rework_records(quality_inspection_id);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_trails(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_operator ON audit_trails(operator_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_trails(created_at);
+CREATE INDEX IF NOT EXISTS idx_async_task_status ON async_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_async_task_type ON async_tasks(task_type);
