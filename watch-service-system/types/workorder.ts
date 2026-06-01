@@ -14,6 +14,7 @@ export type WorkOrderStatus =
   | 'rejected'
   | 'pending_confirm'
   | 'customer_rejected'
+  | 'ready_for_repair'
   | 'repairing'
   | 'completed'
   | 'picked_up';

@@ -44,6 +44,15 @@
                 提交报价
               </button>
               <button
+                v-if="order.status === 'ready_for_repair'"
+                @click="handleStartRepair"
+                class="btn-primary"
+                :disabled="actionLoading"
+              >
+                <Icon icon="mdi:play" class="w-4 h-4 mr-2" />
+                开始维修
+              </button>
+              <button
                 v-if="order.status === 'quoting' || order.status === 'repairing'"
                 @click="showProgressModal = true"
                 class="btn-secondary"
@@ -542,6 +551,17 @@ async function handleStartInspectSubmit(data: { inspectionResult: string; remark
       remark: data.remark || '开始检测手表故障',
     });
     showInspectModal.value = false;
+  } catch (err) {
+    console.error('操作失败:', err);
+  }
+}
+
+async function handleStartRepair() {
+  if (!props.order) return;
+  try {
+    await performAction(props.order.id, {
+      actionType: 'start_repair',
+    });
   } catch (err) {
     console.error('操作失败:', err);
   }

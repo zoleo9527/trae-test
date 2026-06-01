@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
     send_confirmation: ['pending_confirm'],
     customer_confirm: ['pending_confirm'],
     customer_reject: ['pending_confirm'],
-    start_repair: ['pending_confirm'],
+    start_repair: ['ready_for_repair'],
     update_progress: ['quoting', 'repairing'],
     complete_repair: ['repairing'],
     notify_pickup: ['completed'],
@@ -222,7 +222,7 @@ export default defineEventHandler(async (event) => {
     }
 
     case 'customer_confirm': {
-      newStatus = 'repairing';
+      newStatus = 'ready_for_repair';
       if (!newReceipt) {
         newReceipt = {
           id: `receipt-${id}`,
@@ -240,8 +240,7 @@ export default defineEventHandler(async (event) => {
           confirmedBy: order.customer.name,
         };
       }
-      timeline.push(createTimelineEntry('客户确认', currentUser.name, currentUser.role, '客户确认同意维修'));
-      newProgress.push(createProgressEntry(id, 'repairing', '客户确认，开始维修', currentUser.name, currentUser.role));
+      timeline.push(createTimelineEntry('客户确认', currentUser.name, currentUser.role, '客户确认同意维修，等待技师开始'));
       break;
     }
 

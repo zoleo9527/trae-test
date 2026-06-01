@@ -111,13 +111,23 @@
               </button>
               <button
                 v-if="currentRole === 'technician'"
-                @click="navigateToWorkOrders('pending')"
+                @click="navigateToWorkOrders('ready_for_repair')"
+                class="flex flex-col items-center p-4 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors"
+              >
+                <div class="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-500 mb-2">
+                  <Icon icon="mdi:play-circle" class="w-5 h-5 text-white" />
+                </div>
+                <span class="text-sm font-medium text-indigo-700">待开始</span>
+              </button>
+              <button
+                v-if="currentRole === 'technician'"
+                @click="navigateToWorkOrders('repairing')"
                 class="flex flex-col items-center p-4 rounded-lg bg-cyan-50 hover:bg-cyan-100 transition-colors"
               >
                 <div class="w-10 h-10 flex items-center justify-center rounded-full bg-cyan-500 mb-2">
                   <Icon icon="mdi:hammer-wrench" class="w-5 h-5 text-white" />
                 </div>
-                <span class="text-sm font-medium text-cyan-700">待维修</span>
+                <span class="text-sm font-medium text-cyan-700">维修中</span>
               </button>
               <button
                 v-if="currentRole === 'consultant'"
@@ -141,7 +151,7 @@
               </button>
               <button
                 v-if="currentRole === 'consultant'"
-                @click="navigateToWorkOrders('completed')"
+                @click="navigateToWorkOrders('ready_for_pickup')"
                 class="flex flex-col items-center p-4 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
               >
                 <div class="w-10 h-10 flex items-center justify-center rounded-full bg-green-500 mb-2">

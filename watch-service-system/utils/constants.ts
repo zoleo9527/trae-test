@@ -7,6 +7,7 @@ export const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   rejected: '已驳回',
   pending_confirm: '待客户确认',
   customer_rejected: '客户驳回',
+  ready_for_repair: '待开始维修',
   repairing: '维修中',
   completed: '已完成',
   picked_up: '已取件',
@@ -19,6 +20,7 @@ export const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   rejected: 'red',
   pending_confirm: 'purple',
   customer_rejected: 'red',
+  ready_for_repair: 'indigo',
   repairing: 'cyan',
   completed: 'green',
   picked_up: 'gray',
@@ -75,10 +77,12 @@ export const REPAIR_PROGRESS_ICONS: Record<string, string> = {
 };
 
 export const STATUS_GROUPS: Record<string, WorkOrderStatus[]> = {
-  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'],
+  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'ready_for_repair', 'repairing'],
   rejected: ['rejected', 'customer_rejected'],
   approval: ['pending_approval'],
   followup: ['picked_up'],
-  completed: ['completed', 'picked_up'],
+  completed: ['completed'],
   pending_confirm: ['pending_confirm'],
+  ready_for_repair: ['ready_for_repair'],
+  ready_for_pickup: ['completed'],
 };

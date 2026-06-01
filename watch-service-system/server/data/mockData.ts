@@ -319,12 +319,14 @@ export function resetMockData() {
 }
 
 const STATUS_GROUPS: Record<string, string[]> = {
-  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'],
+  pending: ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'ready_for_repair', 'repairing'],
   rejected: ['rejected', 'customer_rejected'],
   approval: ['pending_approval'],
   followup: ['picked_up'],
-  completed: ['completed', 'picked_up'],
+  completed: ['completed'],
   pending_confirm: ['pending_confirm'],
+  ready_for_repair: ['ready_for_repair'],
+  ready_for_pickup: ['completed'],
 };
 
 export function getDashboardStats(): DashboardStats {

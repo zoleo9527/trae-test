@@ -25,7 +25,7 @@ export const useWorkOrderStore = defineStore('workorder', {
 
   getters: {
     pendingOrders: (state) => {
-      const pendingStatuses = ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'repairing'];
+      const pendingStatuses = ['pending_review', 'quoting', 'pending_approval', 'pending_confirm', 'ready_for_repair', 'repairing'];
       return state.workOrders.filter(wo => pendingStatuses.includes(wo.status));
     },
 
@@ -63,6 +63,7 @@ export const useWorkOrderStore = defineStore('workorder', {
         case 'technician':
           return state.workOrders.filter(wo =>
             wo.status === 'quoting' ||
+            wo.status === 'ready_for_repair' ||
             wo.status === 'repairing'
           );
         default:
