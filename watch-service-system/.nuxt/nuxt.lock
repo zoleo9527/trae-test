@@ -1,9 +1,0 @@
-{
-  "pid": 27453,
-  "startedAt": 1780244237392,
-  "command": "dev",
-  "cwd": "/Users/zhangliu/Documents/private/model-test/trae-test-4/watch-service-system",
-  "port": 3000,
-  "hostname": "::1",
-  "url": "http://[::1]:3000"
-}

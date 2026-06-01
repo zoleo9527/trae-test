@@ -1,5 +1,5 @@
 import { mockWorkOrders, mockPartInventory, mockUsers } from '../../../data/mockData';
-import type { WorkOrder, WorkOrderAction, TimelineEntry, PartLock, RepairProgress, CustomerReceipt } from '~/types/workorder';
+import type { WorkOrder, WorkOrderAction, TimelineEntry, PartLock, RepairProgress, CustomerReceipt, WorkOrderStatus } from '~/types/workorder';
 
 function getCurrentUser(role: string) {
   return mockUsers.find(u => u.role === role) || mockUsers[0];
@@ -62,6 +62,50 @@ export default defineEventHandler(async (event) => {
   let newProgress = order.progress;
   let newReceipt = order.receipt;
   let updates: Partial<WorkOrder> = {};
+
+  const ALLOWED_STATUS_FOR_ACTION: Record<string, WorkOrderStatus[]> = {
+    start_inspect: ['pending_review'],
+    lock_parts: ['quoting'],
+    release_parts: ['quoting'],
+    submit_quote: ['quoting'],
+    approve_quote: ['pending_approval'],
+    reject_quote: ['pending_approval'],
+    send_confirmation: ['pending_confirm'],
+    customer_confirm: ['pending_confirm'],
+    customer_reject: ['pending_confirm'],
+    start_repair: ['pending_confirm'],
+    update_progress: ['quoting', 'repairing'],
+    complete_repair: ['repairing'],
+    notify_pickup: ['completed'],
+    confirm_pickup: ['completed'],
+    satisfaction_survey: ['picked_up'],
+    reopen: ['rejected', 'customer_rejected', 'completed', 'picked_up'],
+    close: ['picked_up'],
+  };
+
+  const PROGRESS_STATUS_ALLOWED: Record<string, string[]> = {
+    quoting: ['inspecting', 'parts_preparing'],
+    repairing: ['repairing', 'testing'],
+  };
+
+  const allowedStatuses = ALLOWED_STATUS_FOR_ACTION[actionType];
+  if (allowedStatuses && !allowedStatuses.includes(order.status)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `当前状态「${order.status}」不允许此操作`,
+    });
+  }
+
+  if (actionType === 'update_progress') {
+    const progressStatus = (data as any).progressStatus || 'repairing';
+    const allowedProgress = PROGRESS_STATUS_ALLOWED[order.status];
+    if (allowedProgress && !allowedProgress.includes(progressStatus)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `当前阶段不允许设置为「${progressStatus}」状态`,
+      });
+    }
+  }
 
   switch (actionType) {
     case 'start_inspect': {

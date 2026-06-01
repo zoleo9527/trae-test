@@ -323,7 +323,7 @@ const STATUS_GROUPS: Record<string, string[]> = {
   rejected: ['rejected', 'customer_rejected'],
   approval: ['pending_approval'],
   followup: ['picked_up'],
-  completed: ['completed'],
+  completed: ['completed', 'picked_up'],
   pending_confirm: ['pending_confirm'],
 };
 

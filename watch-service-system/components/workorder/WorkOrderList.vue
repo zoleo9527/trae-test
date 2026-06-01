@@ -79,6 +79,7 @@
 import { ref, computed, watch } from 'vue';
 import type { WorkOrder, WorkOrderStatus } from '~/types/workorder';
 import { formatDate, formatPhone, formatCurrency } from '~/utils/format';
+import { STATUS_GROUPS } from '~/utils/constants';
 
 interface Props {
   orders: WorkOrder[];
@@ -120,19 +121,11 @@ function selectTab(tab: string) {
   
   let statusFilter: WorkOrderStatus[] | null = null;
   
-  switch (tab) {
-    case 'pending':
-      statusFilter = ['pending_review', 'quoting', 'pending_confirm', 'repairing'];
-      break;
-    case 'approval':
-      statusFilter = ['pending_approval'];
-      break;
-    case 'rejected':
-      statusFilter = ['rejected', 'customer_rejected'];
-      break;
-    case 'completed':
-      statusFilter = ['completed', 'picked_up'];
-      break;
+  if (tab !== 'all') {
+    const groupStatuses = STATUS_GROUPS[tab];
+    if (groupStatuses) {
+      statusFilter = groupStatuses;
+    }
   }
   
   emit('filter', statusFilter);

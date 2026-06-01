@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import type { WorkOrder } from '~/types/workorder';
 import { REPAIR_PROGRESS_LABELS, REPAIR_PROGRESS_COLORS, REPAIR_PROGRESS_ICONS } from '~/utils/constants';
 
@@ -108,7 +108,7 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-const progressStatuses = [
+const allProgressStatuses = [
   {
     value: 'inspecting',
     label: REPAIR_PROGRESS_LABELS.inspecting,
@@ -135,6 +135,18 @@ const progressStatuses = [
   },
 ];
 
+const STATUS_ALLOWED_BY_PHASE: Record<string, string[]> = {
+  quoting: ['inspecting', 'parts_preparing'],
+  repairing: ['repairing', 'testing'],
+};
+
+const progressStatuses = computed(() => {
+  if (!props.order) return allProgressStatuses;
+  const allowedStatuses = STATUS_ALLOWED_BY_PHASE[props.order.status];
+  if (!allowedStatuses) return allProgressStatuses;
+  return allProgressStatuses.filter(s => allowedStatuses.includes(s.value));
+});
+
 const selectedStatus = ref('repairing');
 const form = ref({
   remark: '',
@@ -147,12 +159,12 @@ function getStatusColor(status: string) {
 function getDefaultStatus(): string {
   if (props.order && props.order.progress.length > 0) {
     const lastProgress = props.order.progress[props.order.progress.length - 1];
-    const availableStatuses = progressStatuses.map(s => s.value);
+    const availableStatuses = progressStatuses.value.map(s => s.value);
     if (availableStatuses.includes(lastProgress.status)) {
       return lastProgress.status;
     }
   }
-  return 'repairing';
+  return progressStatuses.value[0]?.value || 'repairing';
 }
 
 watch(() => props.modelValue, (val) => {
